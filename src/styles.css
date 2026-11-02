@@ -1,0 +1,125 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  color: #1f2a44;
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.p03 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.p03-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ddd8cc;
+  background: #fff;
+}
+.p03-toolbar button {
+  font: inherit;
+  padding: 4px 10px;
+  margin-left: 6px;
+  border: 1px solid #b8b2a4;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.p03-toolbar button.is-active {
+  background: #1f2a44;
+  color: #fff;
+  border-color: #1f2a44;
+}
+.p03-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.p03-note {
+  color: #6b6558;
+  font-size: 12px;
+}
+.p03-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.drawing-canvas {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.p03-side {
+  width: 260px;
+  flex: none;
+  padding: 12px 16px;
+  border-left: 1px solid #ddd8cc;
+  background: #fff;
+  overflow-y: auto;
+}
+.p03-side h2 {
+  font-size: 13px;
+  margin: 12px 0 6px;
+  color: #6b6558;
+}
+.p03-side dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.p03-side dt {
+  color: #6b6558;
+}
+.p03-side dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.p03-side dd.ok {
+  color: #2e7d32;
+}
+.p03-side dd.ng {
+  color: #b23a2b;
+}
+.p03-side label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.p03-side input {
+  width: 110px;
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid #b8b2a4;
+  border-radius: 6px;
+}
+.p03-side section > button {
+  width: 100%;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid #1f2a44;
+  border-radius: 6px;
+  background: #1f2a44;
+  color: #fff;
+}
+.p03-side section > button:disabled {
+  opacity: 0.4;
+}
+.muted {
+  color: #8a8477;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
