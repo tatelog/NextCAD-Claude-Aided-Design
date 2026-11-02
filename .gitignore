@@ -1,0 +1,16 @@
+*.local
+.env
+.env.*
+!.env.example
+.envrc
+secrets/
+*_token.json
+credentials.json
+node_modules/
+dist/
+build/
+.wrangler/
+__pycache__/
+.venv/
+.DS_Store
+*.log
