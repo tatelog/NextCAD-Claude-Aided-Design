@@ -37,7 +37,7 @@ function CameraDirector({ request }: { request: FaceRequest | null }) {
 
 const MM_TO_M = 1 / 1000
 
-function toGeometry(mesh: VolumeMesh): THREE.BufferGeometry {
+function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
   const positions: number[] = []
   for (const tri of mesh.triangles) {
     for (const v of tri) positions.push(v.x * MM_TO_M, v.z * MM_TO_M, v.y * MM_TO_M)
@@ -80,14 +80,22 @@ interface Volume3DProps {
   footprint: Point[]
   /** 地面に落ちる影（任意）。太陽の位置から作る */
   shadow?: Point[] | null
+  /** 周辺建物（任意）。底面と高さ（mm）。敷地の立体とは別の色で置く */
+  neighbors?: { footprint: Point[]; heightMm: number }[]
   storeyCount: number
   storeyHeightMm: number
   /** ホーム（既定の向きに戻す）を押した回数。変わると視点を戻す。 */
   homeToken: number
 }
 
-export function Volume3D({ footprint, shadow, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
+export function Volume3D({ footprint, shadow, neighbors, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length >= 3 ? shadowGeometry(shadow) : null), [shadow])
+  // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
+  const neighborGeo = useMemo(() => {
+    if (!neighbors || neighbors.length === 0) return null
+    const triangles = neighbors.flatMap((n) => buildVolumeMesh({ footprint: n.footprint, storey_count: 1, storey_height: n.heightMm }).triangles)
+    return toGeometry({ triangles })
+  }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const geometry = useMemo(
     () => toGeometry(buildVolumeMesh({ footprint, storey_count: storeyCount, storey_height: storeyHeightMm })),
@@ -114,6 +122,11 @@ export function Volume3D({ footprint, shadow, storeyCount, storeyHeightMm, homeT
       <mesh geometry={geometry}>
         <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} />
       </mesh>
+      {neighborGeo && (
+        <mesh geometry={neighborGeo}>
+          <meshStandardMaterial color="#d8d4c8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ground.cx, 0, ground.cz]}>
         <planeGeometry args={[ground.width, ground.depth]} />
         <meshStandardMaterial color="#e6e3dc" />

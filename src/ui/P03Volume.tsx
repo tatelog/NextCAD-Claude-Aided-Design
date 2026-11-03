@@ -17,6 +17,7 @@ import { judgeFar } from '../volume/farCheck'
 import { useDrawing } from '../store/drawing'
 import { DrawingCanvas } from './DrawingCanvas'
 import { Volume3D } from './Volume3D'
+import { neighborVolumes } from '../volume/neighborLocal'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -28,6 +29,8 @@ const DUMMY_PARCEL = [
   { x: 0, y: 30_000 },
 ]
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
+// 周辺建物は P1 の基準点を、ダミー筆界の中心（20 m × 30 m の中心）に合わせて置く（筆界が入るまでの仮）
+const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
 
 export function P03Volume() {
   const entries = useDrawing((s) => s.entries)
@@ -45,6 +48,12 @@ export function P03Volume() {
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
   const [homeToken, setHomeToken] = useState(0)
+  const siteBuildings = useSite((s) => s.buildings)
+  const sitePoint = useSite((s) => s.sitePoint)
+  const neighbors = useMemo(
+    () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, PARCEL_CENTER_MM) : []),
+    [siteBuildings, sitePoint],
+  )
 
   const [farLimit, setFarLimit] = useState('')
   // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は江東区の点（35.67N, 139.86E）
@@ -171,6 +180,9 @@ export function P03Volume() {
           </button>
         </span>
         <span className="p03-note">議論用・未確定。筆界はダミー（20 m × 30 m）。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。</span>
+        {siteBuildings && (
+          <span className="p03-note">周辺建物の底面 {neighbors.length} 件（P1 の地点を敷地中心に仮配置。高さ不明は表示しない）</span>
+        )}
       </header>
       <div className="p03-body">
         {view === '3d' ? (
@@ -178,6 +190,7 @@ export function P03Volume() {
             <div style={{ flex: 1, minWidth: 0, minHeight: 420 }}>
               <Volume3D
                 footprint={volume.footprint}
+                neighbors={neighbors}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}

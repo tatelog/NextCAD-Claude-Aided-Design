@@ -4,8 +4,13 @@ import { useMemo, useState } from 'react'
 import { ATTRIBUTION, tileFromLonLat, tileUrl } from '../map/tiles'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { useSite } from '../store/site'
+import { loadNeighborBuildings } from '../plateau/neighborBuildings'
+import { worldPixel } from '../map/worldPixel'
 
 const DEFAULT = { lon: 139.7671, lat: 35.6812 }
+// 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
+// PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
+const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
 
 export function P1Site() {
   const [lonText, setLonText] = useState(String(DEFAULT.lon))
@@ -15,6 +20,10 @@ export function P1Site() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<DistrictLoad | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
+  const [neighborLoading, setNeighborLoading] = useState(false)
+  const [neighborError, setNeighborError] = useState<string | null>(null)
+  const siteBuildings = useSite((s) => s.buildings)
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -33,6 +42,43 @@ export function P1Site() {
       setLoading(false)
     }
   }
+
+  const fetchNeighbors = async () => {
+    setNeighborLoading(true)
+    setNeighborError(null)
+    try {
+      const point = { lat: Number(latText), lon: Number(lonText) }
+      const list = await loadNeighborBuildings(point, zipUrl)
+      useSite.getState().setBuildings(list, point)
+    } catch (e) {
+      useSite.getState().setBuildings(null, null)
+      setNeighborError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setNeighborLoading(false)
+    }
+  }
+
+  // 周辺建物の footprint を、3×3 タイルの左上を原点にしたピクセルの多角形にする
+  const buildingPolygons = useMemo(() => {
+    if (!siteBuildings) return []
+    try {
+      const c = tileFromLonLat({ lon: Number(lonText), lat: Number(latText) }, zoom)
+      const ox = (c.x - 1) * 256
+      const oy = (c.y - 1) * 256
+      return siteBuildings.flatMap((b) =>
+        b.footprints.map((ring) =>
+          ring
+            .map((p) => {
+              const w = worldPixel(p, zoom)
+              return `${(w.x - ox).toFixed(1)},${(w.y - oy).toFixed(1)}`
+            })
+            .join(' '),
+        ),
+      )
+    } catch {
+      return []
+    }
+  }, [siteBuildings, lonText, latText, zoom])
 
   const tiles = useMemo(() => {
     const lon = Number(lonText)
@@ -62,6 +108,13 @@ export function P1Site() {
           </div>
         ) : (
           <p style={{ padding: 16 }}>経度・緯度を入れてください</p>
+        )}
+        {tiles && buildingPolygons.length > 0 && (
+          <svg width={768} height={768} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
+            {buildingPolygons.map((pts, i) => (
+              <polygon key={i} points={pts} fill="rgba(70,80,92,0.45)" stroke="#2b3138" strokeWidth={0.8} />
+            ))}
+          </svg>
         )}
         <div style={{ position: 'absolute', right: 6, bottom: 4, background: 'rgba(255,255,255,0.85)', padding: '2px 6px', fontSize: 12 }}>{ATTRIBUTION}</div>
       </div>
@@ -141,6 +194,23 @@ export function P1Site() {
             </p>
           )}
           <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
+        </section>
+        <section>
+          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            区の CityGML の zip（江東区 2025 年版）
+            <input value={zipUrl} onChange={(e) => setZipUrl(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
+            {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
+          </button>
+          {neighborError && <p style={{ color: '#a33' }}>{neighborError}</p>}
+          {siteBuildings && (
+            <p>
+              周辺建物 {siteBuildings.length} 棟（基準点から半径 400 m 以内）。高さ不明 {siteBuildings.filter((b) => b.heightM === null).length} 棟は 3D に出ません。
+            </p>
+          )}
+          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（建物データ。利用条件は未確認）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
       </aside>
     </div>
