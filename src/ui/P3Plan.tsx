@@ -5,6 +5,7 @@ import { checkSpan, gridLines } from '../plan/grid'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
+import { countObjects } from '../plan/objectMenu'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { useSite } from '../store/site'
@@ -102,6 +103,21 @@ export function P3Plan() {
     }
   }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText, core.rect])
 
+  // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
+  const objectRows = useMemo(
+    () =>
+      countObjects({
+        outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
+        gridLines: lines ?? [],
+        cores: auto ? auto.cores : core.rect ? [core.rect] : [],
+        shafts: auto ? auto.shaftRects : [],
+        corridors: units.cells ? units.cells.corridors : [],
+        units: units.cells ? units.cells.cells : [],
+        rooms: auto ? auto.rooms : [],
+      }),
+    [widthText, depthText, lines, auto, core.rect, units.cells],
+  )
+
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   let judge: string = '許容範囲は未決（D-02 C6）'
   if (range && Number.isFinite(range.minMm) && Number.isFinite(range.maxMm)) {
@@ -115,7 +131,22 @@ export function P3Plan() {
   const W = Number(widthText)
   const D = Number(depthText)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 320px', height: '100%' }}>
+      <aside style={{ padding: 12, borderRight: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
+        <h2 style={{ fontSize: 14, margin: '0 0 4px' }}>オブジェクト</h2>
+        <p style={{ fontSize: 11, color: '#666', margin: '0 0 8px' }}>種類ごとの件数（P3 の自動作成の結果）</p>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
+          {objectRows.map((r) => (
+            <li key={r.kind} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '3px 0', borderBottom: '1px dashed #e6e4dc' }}>
+              <span>{r.label}</span>
+              <span>
+                <strong>{r.count}</strong>
+                {r.note ? <span style={{ color: '#a33', fontSize: 11, marginLeft: 4 }}>（{r.note}）</span> : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </aside>
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
           <div style={{ position: 'relative' }}>
