@@ -5,6 +5,7 @@ import { findClosedOutline } from '../canvas/closure'
 import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
 import { NumericLineForm } from './NumericLineForm'
 import { useFeatures } from '../store/features'
+import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type RoadWidthSource } from '../volume/roadWidthSource'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
@@ -86,6 +87,8 @@ export function P03Volume() {
   const [zone, setZone] = useState<Zone>('住居系')
   const [roadEdge, setRoadEdge] = useState(0)
   const [roadWidth, setRoadWidth] = useState('6000')
+  // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
+  const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   const [westText, setWestText] = useState('')
   const [southText, setSouthText] = useState('')
@@ -395,6 +398,17 @@ export function P03Volume() {
               前面道路の幅員 (mm)
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
+            <label>
+              幅員の出どころ（G16。仮置き）
+              <select value={roadSource} onChange={(e) => setRoadSource(e.target.value as RoadWidthSource)}>
+                {ROAD_WIDTH_SOURCES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">採用: {roadWidthNote(roadSource, Number(roadWidth) || 0)}</p>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
             <button type="button" onClick={() => setAligned((v) => !v)} disabled={!closure.closed}>
               {aligned ? '向きを戻す' : '道路に平行に合わせる'}
