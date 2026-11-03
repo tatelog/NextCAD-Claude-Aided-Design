@@ -83,3 +83,30 @@ export function svgArcPath(arc: Arc): string {
   const sweep = arc.ccw ? 1 : 0
   return `M ${round3(arc.a.x)} ${round3(arc.a.y)} A ${round3(r)} ${round3(r)} 0 ${large} ${sweep} ${round3(arc.b.x)} ${round3(arc.b.y)}`
 }
+
+/** 直線の通りの線分（a → b）。範囲（矩形）の内で、円弧の交点まで。交点は範囲の内だけを数える */
+export interface GridSegment {
+  a: Point
+  b: Point
+}
+
+/**
+ * 直線の通り（x または y が一定）を、範囲（矩形）の内で、円弧に止める（ハブ A-03 G5）。
+ * 交点が無ければ範囲の全長。1 つなら、交点から、範囲の中央と同じ側の端まで（建物は中央の側）。2 つなら、その間。
+ */
+export function gridSegmentsToArc(arc: Arc, axis: 'x' | 'y', coord: number, bounds: { x0: number; x1: number; y0: number; y1: number }): GridSegment[] {
+  const along = axis === 'x' ? { lo: bounds.y0, hi: bounds.y1 } : { lo: bounds.x0, hi: bounds.x1 }
+  const at = (t: number): Point => (axis === 'x' ? { x: coord, y: t } : { x: t, y: coord })
+  const coordOf = (p: Point) => (axis === 'x' ? p.y : p.x)
+  const hits = straightGridMeetsArc(arc, axis, coord)
+    .filter((p) => coordOf(p) >= along.lo && coordOf(p) <= along.hi)
+    .map(coordOf)
+    .sort((p, q) => p - q)
+  if (hits.length === 0) return [{ a: at(along.lo), b: at(along.hi) }]
+  if (hits.length === 1) {
+    const mid = (along.lo + along.hi) / 2
+    const p = hits[0]!
+    return p > mid ? [{ a: at(along.lo), b: at(p) }] : [{ a: at(p), b: at(along.hi) }]
+  }
+  return [{ a: at(hits[0]!), b: at(hits[hits.length - 1]!) }]
+}

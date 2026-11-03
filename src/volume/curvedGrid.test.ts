@@ -5,7 +5,7 @@
 // 仕様 4: 入力を書き換えず、同じ入力には同じ出力。
 import { describe, expect, it } from 'vitest'
 import type { CurveEdge } from './curvedFootprint'
-import { arcOfStroke, arcParamsOf, perimeterArc, straightGridMeetsArc, svgArcPath } from './curvedGrid'
+import { arcOfStroke, arcParamsOf, gridSegmentsToArc, perimeterArc, straightGridMeetsArc, svgArcPath } from './curvedGrid'
 
 type Arc = Extract<CurveEdge, { kind: 'arc' }>
 
@@ -70,5 +70,37 @@ describe('描いた円弧の中心と向き（仕様 5・6）', () => {
     const arc = { kind: 'arc' as const, a: { x: 0, y: -1000 }, b: { x: 0, y: 1000 }, center: { x: 0, y: 0 }, ccw: true }
     expect(svgArcPath(arc)).toBe('M 0 -1000 A 1000 1000 0 0 1 0 1000')
     expect(svgArcPath({ ...arc, ccw: false })).toBe('M 0 -1000 A 1000 1000 0 0 0 0 1000')
+  })
+})
+
+// 仕様 7（通りを円弧で止める）: 直線の通りは、自動作成の範囲（矩形）の内で、円弧の交点まで。交点が 1 つなら、交点から範囲の中央の側の端まで。交点が 2 つなら、その間。交点が無ければ範囲の全長。
+// 仕様 8: 入力を書き換えず、同じ入力には同じ出力。
+describe('通りを円弧で止める（仕様 7・8）', () => {
+  const BOUNDS = { x0: 0, x1: 1000, y0: -3000, y1: 3000 }
+
+  it('仕様 7: 交点が無ければ、範囲の全長（x 方向の通りは y が一定、y 方向は x が一定）', () => {
+    // y = 1500 は円（半径 1000）と交わらない
+    expect(gridSegmentsToArc(ARC, 'y', 1500, BOUNDS)).toEqual([{ a: { x: 0, y: 1500 }, b: { x: 1000, y: 1500 } }])
+  })
+
+  it('仕様 7: 交点が 1 つなら、交点から、範囲の中央と同じ側の端まで（建物は中央の側にある）', () => {
+    // 右の円弧（x ≥ 0）の y = 600 の交点は (800, 600) の 1 点（(-800, 600) は円弧の外）。範囲の中央 500 より右なので、左端 0 から交点まで
+    expect(gridSegmentsToArc(ARC, 'y', 600, BOUNDS)).toEqual([{ a: { x: 0, y: 600 }, b: { x: 800, y: 600 } }])
+    // 左の円弧（x ≤ 0）なら、交点 (-800, 600) から右端まで
+    const leftArc: Arc = { kind: 'arc', a: { x: 0, y: 1000 }, b: { x: 0, y: -1000 }, center: { x: 0, y: 0 }, ccw: true }
+    expect(gridSegmentsToArc(leftArc, 'y', 600, { x0: -1000, x1: 1000, y0: -3000, y1: 3000 })).toEqual([{ a: { x: -800, y: 600 }, b: { x: 1000, y: 600 } }])
+  })
+
+  it('仕様 7: 交点が 2 つなら、その間', () => {
+    const fullCircle: Arc = { kind: 'arc', a: { x: 1000, y: 0 }, b: { x: -1000, y: 0 }, center: { x: 0, y: 0 }, ccw: true }
+    // 上の半円（ccw、x=1000 → -1000 を通る）に、y = 600 の 2 点（±800）が両方乗る
+    const segs = gridSegmentsToArc(fullCircle, 'y', 600, { x0: -2000, x1: 2000, y0: 0, y1: 0 })
+    expect(segs).toEqual([{ a: { x: -800, y: 600 }, b: { x: 800, y: 600 } }])
+  })
+
+  it('仕様 8: 同じ入力には同じ出力で、入力を書き換えない', () => {
+    const first = gridSegmentsToArc(ARC, 'y', 600, BOUNDS)
+    expect(gridSegmentsToArc(ARC, 'y', 600, BOUNDS)).toEqual(first)
+    expect(BOUNDS.x1).toBe(1000)
   })
 })
