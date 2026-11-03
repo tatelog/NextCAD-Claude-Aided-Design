@@ -7,6 +7,7 @@ import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { planExteriorQuantities } from '../estimate/planExterior'
+import { structureQuantities } from '../estimate/structureQuantities'
 import { roomFinishTotals } from '../estimate/roomQuantities'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -80,6 +81,8 @@ export function P4Estimate() {
     if (volume) {
       const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(q.exterior_wall, q.roof)
+      // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
+      out.push(structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height }).slab)
     }
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
