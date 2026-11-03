@@ -8,6 +8,9 @@ import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estim
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { planExteriorQuantities } from '../estimate/planExterior'
 import { structureQuantities } from '../estimate/structureQuantities'
+import { sashQuantity } from '../estimate/sashQuantity'
+import { useDrawing } from '../store/drawing'
+import { useSemantic } from '../store/semantic'
 import { roomFinishTotals } from '../estimate/roomQuantities'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -66,6 +69,9 @@ export function P4Estimate() {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
+  // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
+  const drawnEntries = useDrawing((s) => s.entries)
+  const assignments = useSemantic((s) => s.assignments)
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
   const fixtureUnitIds = useFixtures((s) => s.unitIds)
@@ -97,8 +103,9 @@ export function P4Estimate() {
       })
       out.push(ext.balcony, ext.corridor)
     }
+    out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
     return out
-  }, [volume, plan])
+  }, [volume, plan, drawnEntries, assignments])
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
