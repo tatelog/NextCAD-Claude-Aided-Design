@@ -6,6 +6,7 @@
 // 仕様 5: 縦シャフトの数: 住戸ごとの PS は 1 階の住戸数と同じ。コア脇の EPS・DS は各 1（仮置き）。
 // 仕様 6: EV の数は evCount から。停止しない階は unreachable_storeys に返す（buildEvLevels の結果）。
 // 仕様 7: 目標が 0 以下や整数でなければエラー。
+// 仕様 8: 区画ごとに 4 室の部屋割り（仮置き）を返す。
 import { describe, expect, it } from 'vitest'
 import { generateAutoPlan } from './autoPlan'
 

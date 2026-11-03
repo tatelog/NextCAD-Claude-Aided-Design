@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { candidateCells } from './candidateCells'
 import { countUnits } from './units'
 import { buildEvLevels, type EvLevels } from './evLevels'
+import { roomsOfCells, type Room } from './rooms'
+import type { Rect } from './candidateCells'
 
 const TargetSchema = z.number().int().positive()
 
@@ -29,6 +31,11 @@ export interface AutoPlan {
   shortfall: number
   shafts: { ps: number; eps: number; ds: number }
   ev: EvLevels
+  /** 廊下と住戸の区画（1 階） */
+  corridor: Rect
+  cells: Rect[]
+  /** 住戸の部屋割り（仮置き、区画ごと） */
+  rooms: Room[]
 }
 
 export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
@@ -66,6 +73,9 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     unitsPerFloor,
     shortfall: Math.max(0, target - unitsPerFloor),
     shafts: { ps: unitsPerFloor, eps: 1, ds: 1 },
+    corridor: c.corridor,
+    cells: c.cells,
+    rooms: roomsOfCells(c.cells),
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,

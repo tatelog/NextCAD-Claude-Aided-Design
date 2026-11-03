@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import type { UseDistrict } from '../plateau/urf'
 import type { PlateauBuilding } from '../plateau/bldg'
 import type { Point } from '../geom/viewport'
+import type { AutoPlan } from '../plan/autoPlan'
 
 interface SiteState {
   matches: UseDistrict[] | null
@@ -22,6 +23,9 @@ interface SiteState {
   /** 外形と階（P2）。P4 の数量の自動拾いと、2D の図に使う。閉じていなければ null */
   volume: { footprint: Point[]; storey_count: number; storey_height: number } | null
   setVolume: (volume: { footprint: Point[]; storey_count: number; storey_height: number } | null) => void
+  /** P3 の自動作成の結果（柱割り・住戸の区画と部屋）。P4 の数量と 2D に使う */
+  plan: AutoPlan | null
+  setPlan: (plan: AutoPlan | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -36,4 +40,6 @@ export const useSite = create<SiteState>((set) => ({
   setShadow: (shadow) => set({ shadow }),
   volume: null,
   setVolume: (volume) => set({ volume }),
+  plan: null,
+  setPlan: (plan) => set({ plan }),
 }))

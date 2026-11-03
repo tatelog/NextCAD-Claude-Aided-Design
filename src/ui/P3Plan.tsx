@@ -6,6 +6,7 @@ import { candidateCells } from '../plan/candidateCells'
 import { countUnits } from '../plan/units'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { useSite } from '../store/site'
 import { P3Canvas } from './P3Canvas'
 
 export function P3Plan() {
@@ -43,6 +44,7 @@ export function P3Plan() {
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
       setAuto(g)
+      useSite.getState().setPlan(g)
       setAutoError(null)
     } catch (e) {
       setAuto(null)
