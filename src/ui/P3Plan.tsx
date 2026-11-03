@@ -1,6 +1,7 @@
 // P3 平面（D-04 P3、D-02 C6、A-03 G17）。柱割りの通り芯と、廊下の両側の住戸候補から住戸数を出す。
 // 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決（D-02 C6）。画面では利用者が入れた値だけで計算する。
 import { useEffect, useMemo, useState } from 'react'
+import { findClosedOutline } from '../canvas/closure'
 import { checkSpan, gridLines } from '../plan/grid'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import type { RoomPattern } from '../plan/rooms'
@@ -9,6 +10,8 @@ import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { outlineDimensions } from '../plan/outlineDimensions'
+import { DRAW_OPTIONS, useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
 import { useUi } from '../store/ui'
@@ -40,6 +43,10 @@ export function P3Plan() {
   const showGrid = useUi((s) => s.showGrid)
   const showMiniMap = useUi((s) => s.showMiniMap)
   const [autoError, setAutoError] = useState<string | null>(null)
+  // P2 の外形から幅と奥行きを取るボタン（仮置き）。取れなかった理由は短い文字列で持つ。
+  // 外形の左下（原点）は、3D の対応のために記録しておく。今回はどこでも使わない（読む側は次の段）
+  const [outlineMessage, setOutlineMessage] = useState<string | null>(null)
+  const [, setOutlineOrigin] = useState<{ x: number; y: number } | null>(null)
   // 左メニュー（G55）: 選んだ種類（1 つだけ。もう一度押すと外れる）
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   // 什器（G69）: 置いた什器と、パレットで選んでいる品目は店舗が持つ（P4 の数量に結ぶため）
@@ -76,6 +83,26 @@ export function P3Plan() {
       setAuto(null)
       setAutoError(e instanceof Error ? e.message : String(e))
     }
+  }
+
+  // P2 で描いた外形（閉じた輪郭）が矩形のときだけ、幅と奥行きを入力に入れる（仮置き）。ボタンを押したときだけ働き、自動では上書きしない。
+  // 閉じていない・矩形でないときは、幅と奥行きを変えずに理由を出す。外形は、押した時点の P2 の線分から取る。
+  // 軸に平行とみなす傾きは、P2 が線を軸に揃える角度（手で閉じた外形は、最後の辺が端点への吸着で少し斜めに残る）
+  const takeFromOutline = () => {
+    const closure = findClosedOutline(useDrawing.getState().entries.flatMap((e) => e.segments))
+    if (!closure.closed) {
+      setOutlineMessage('P2 で外形を閉じてください')
+      return
+    }
+    const dims = outlineDimensions(closure.footprint, DRAW_OPTIONS.axisSnapDeg)
+    if (!dims) {
+      setOutlineMessage('P2 の外形は矩形ではないので、幅と奥行きは手で入れてください')
+      return
+    }
+    setWidthText(String(dims.widthMm))
+    setDepthText(String(dims.depthMm))
+    setOutlineOrigin({ x: dims.minX, y: dims.minY })
+    setOutlineMessage(null)
   }
 
   const lines = useMemo(() => {
@@ -239,6 +266,10 @@ export function P3Plan() {
           建物の奥行 (mm)
           <input value={depthText} onChange={(e) => setDepthText(e.target.value)} style={{ width: '100%' }} />
         </label>
+        <button type="button" onClick={takeFromOutline} style={{ marginBottom: 4 }}>
+          P2 の外形から幅・奥行きを取る（矩形のみ）
+        </button>
+        {outlineMessage ? <p style={{ color: '#a33', fontSize: 12, margin: '0 0 4px' }}>{outlineMessage}</p> : null}
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下の幅 (mm)
           <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
