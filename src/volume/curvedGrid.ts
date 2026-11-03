@@ -110,3 +110,28 @@ export function gridSegmentsToArc(arc: Arc, axis: 'x' | 'y', coord: number, boun
   }
   return [{ a: at(hits[0]!), b: at(hits[hits.length - 1]!) }]
 }
+
+/** 円弧の列の外接する範囲（mm）。円弧の範囲（角度）を細かく取って数える（端点と、範囲の内の点） */
+export function arcBoundsOf(arcs: readonly Arc[]): { minX: number; maxX: number; minY: number; maxY: number } {
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  const SAMPLES = 256
+  for (const arc of arcs) {
+    const r = Math.hypot(arc.a.x - arc.center.x, arc.a.y - arc.center.y)
+    const start = angleOf(arc.center, arc.a)
+    const end = angleOf(arc.center, arc.b)
+    const span = arc.ccw ? norm(end - start) : -norm(start - end)
+    for (let i = 0; i <= SAMPLES; i++) {
+      const t = start + (span * i) / SAMPLES
+      const x = arc.center.x + r * Math.cos(t)
+      const y = arc.center.y + r * Math.sin(t)
+      minX = Math.min(minX, x)
+      maxX = Math.max(maxX, x)
+      minY = Math.min(minY, y)
+      maxY = Math.max(maxY, y)
+    }
+  }
+  return { minX, maxX, minY, maxY }
+}

@@ -5,7 +5,7 @@
 // 仕様 4: 入力を書き換えず、同じ入力には同じ出力。
 import { describe, expect, it } from 'vitest'
 import type { CurveEdge } from './curvedFootprint'
-import { arcOfStroke, arcParamsOf, gridSegmentsToArc, perimeterArc, straightGridMeetsArc, svgArcPath } from './curvedGrid'
+import { arcBoundsOf, arcOfStroke, arcParamsOf, gridSegmentsToArc, perimeterArc, straightGridMeetsArc, svgArcPath } from './curvedGrid'
 
 type Arc = Extract<CurveEdge, { kind: 'arc' }>
 
@@ -102,5 +102,16 @@ describe('通りを円弧で止める（仕様 7・8）', () => {
     const first = gridSegmentsToArc(ARC, 'y', 600, BOUNDS)
     expect(gridSegmentsToArc(ARC, 'y', 600, BOUNDS)).toEqual(first)
     expect(BOUNDS.x1).toBe(1000)
+  })
+})
+
+// 仕様 9（外接する範囲）: 円弧の列の外接する範囲（最小・最大の x・y）。円弧の範囲（角度）の内だけを数え、円の全体は数えない。
+describe('円弧の外接する範囲（仕様 9）', () => {
+  it('仕様 9: 右半分の円弧（中心 0・半径 1000）の範囲は、x 0〜1000、y −1000〜1000', () => {
+    const b = arcBoundsOf([ARC])
+    expect(b.minX).toBeCloseTo(0, 3)
+    expect(b.maxX).toBeCloseTo(1000, 3)
+    expect(b.minY).toBeCloseTo(-1000, 3)
+    expect(b.maxY).toBeCloseTo(1000, 3)
   })
 })

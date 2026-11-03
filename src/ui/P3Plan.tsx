@@ -34,7 +34,7 @@ import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
 import { firstFloorCountsOf } from '../plan/commonAreas'
 import { outlineArcsOf } from '../volume/outlineArcs'
-import { gridSegmentsToArc, svgArcPath } from '../volume/curvedGrid'
+import { arcBoundsOf, gridSegmentsToArc, svgArcPath } from '../volume/curvedGrid'
 import { cellsInsideArc } from '../plan/arcCells'
 import { wallPolygonsJoined } from '../plan/wallOutline'
 import { useFirstFloor } from '../store/firstFloor'
@@ -119,6 +119,16 @@ export function P3Plan() {
       return
     }
     const dims = outlineDimensions(closure.footprint, DRAW_OPTIONS.axisSnapDeg)
+    // 円弧を含む外形: 円弧の外接する幅・奥行きを取る（ハブ A-03 G5）
+    const arcs = outlineArcsOf(useDrawing.getState().entries)
+    if (!dims && arcs.length > 0) {
+      const b = arcBoundsOf(arcs)
+      setWidthText(String(Math.round(b.maxX - b.minX)))
+      setDepthText(String(Math.round(b.maxY - b.minY)))
+      setOutlineOrigin({ x: b.minX, y: b.minY })
+      setOutlineMessage('円弧を含む外形: 円弧の範囲で外接する幅・奥行きを取った')
+      return
+    }
     if (!dims) {
       setOutlineMessage('P2 の外形は矩形ではないので、幅と奥行きは手で入れてください')
       return
