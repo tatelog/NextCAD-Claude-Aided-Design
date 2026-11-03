@@ -25,3 +25,6 @@ export function fireZoneClass(f: FireZoneFacts): '第一号' | '第二号' | '�
   if ((f.aboveGroundStoreys === 3 && f.floorAreaM2 <= 1500) || (f.aboveGroundStoreys <= 2 && f.floorAreaM2 > 500)) return '第二号'
   return f.wood ? '第三号' : '第四号'
 }
+
+/** 号の区分（対象外を含む）。第五号は門・塀（建物の号ではないが、区分の名前として持つ） */
+export type FireClass = ReturnType<typeof fireZoneClass> | '第五号'

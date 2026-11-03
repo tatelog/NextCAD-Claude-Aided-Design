@@ -7,6 +7,7 @@ import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { SHEETS, legalCheckFor } from '../permit/sheetList'
 import { classLabelsOf } from '../law/buildingClass'
 import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
+import { fireStructureItems } from '../law/fireStructure'
 import { useSite } from '../store/site'
 
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
@@ -106,9 +107,21 @@ export function P5Output() {
         </p>
       ) : null}
       {valid && fireZone !== 'なし' ? (
-        <p style={{ fontSize: 12, color: '#a86b00', margin: '0 0 12px' }}>
-          防火・準防火（{fireZone}地域）: 令 136 条の 2 {fireZoneClass({ zone: fireZone, aboveGroundStoreys: storeys, floorAreaM2: DUMMY_AREA_M2 * storeys, wood: false })}。構造の基準は判定不能（他の条と延焼防止時間で定まる。ハブ G28）
-        </p>
+        <div style={{ fontSize: 12, color: '#a86b00', margin: '0 0 12px' }}>
+          {(() => {
+            const cls = fireZoneClass({ zone: fireZone, aboveGroundStoreys: storeys, floorAreaM2: DUMMY_AREA_M2 * storeys, wood: false })
+            return (
+              <>
+                <p style={{ margin: '0 0 4px' }}>防火・準防火（{fireZone}地域）: 令 136 条の 2 {cls}</p>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {fireStructureItems(cls).map((i) => (
+                    <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い。ハブ G28）</li>
+                  ))}
+                </ul>
+              </>
+            )
+          })()}
+        </div>
       ) : null}
       <section style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>IFC の件数</h3>
