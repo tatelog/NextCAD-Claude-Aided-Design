@@ -8,17 +8,24 @@ export interface PanelTileProps {
   children?: ReactNode
 }
 
+/** 右上の小さな × 。親には position: relative を付けておく */
+export function TileClose({ title, onHide }: { title: string; onHide: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={`${title}を閉じる`}
+      onClick={onHide}
+      style={{ position: 'absolute', top: 0, right: 0, border: 0, background: 'transparent', color: '#888', font: 'inherit', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}
+    >
+      ×
+    </button>
+  )
+}
+
 export function PanelTile({ title, onHide, children }: PanelTileProps) {
   return (
     <div style={{ position: 'relative', marginBottom: 10 }}>
-      <button
-        type="button"
-        aria-label={`${title}を閉じる`}
-        onClick={onHide}
-        style={{ position: 'absolute', top: 0, right: 0, border: 0, background: 'transparent', color: '#888', font: 'inherit', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}
-      >
-        ×
-      </button>
+      <TileClose title={title} onHide={onHide} />
       {children}
     </div>
   )

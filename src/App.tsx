@@ -14,6 +14,7 @@ import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
+import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
@@ -91,6 +92,8 @@ export function App() {
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   const featureOn = useFeatures((s) => s.on)
+  // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
+  const panelHidden = usePanelTiles((s) => s.hidden)
   // 入力スナップは、ツールバーのボタンと同じ状態を読む（二つの欄が食い違わないように）
   const inputSnapGrid = useUi((s) => s.inputSnapGrid)
   // レイヤーの表示とロック（G66）。筆界はロック固定
@@ -463,6 +466,23 @@ export function App() {
                         ロック
                       </label>
                     </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
+                  <strong style={{ fontSize: 13 }}>右パネルの項目（閉じたものを戻す。G73・G74）</strong>
+                  {PANEL_TILES.map((t) => (
+                    <label key={t.id} style={{ display: 'block', marginBottom: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={!panelHidden[t.id]}
+                        onChange={(e) => {
+                          if (e.target.checked) usePanelTiles.getState().showTile(t.id)
+                          else usePanelTiles.getState().hideTile(t.id)
+                          record('右パネル', `${t.title} ${e.target.checked ? '入' : '切'}`)
+                        }}
+                      />{' '}
+                      {t.title}
+                    </label>
                   ))}
                 </div>
                 <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>

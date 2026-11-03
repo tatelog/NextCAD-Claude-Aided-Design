@@ -26,11 +26,8 @@ import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
-import { usePanelTiles } from '../store/panelTiles'
+import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
-
-// 右パネルのタイルの名前（閉じた項目を戻す行で使う。ハブ A-03 G73）
-const TILE_TITLES: Record<string, string> = { fixtures: '什器', milestone: '節目の要約', semantic: '意味づけの確認（G14）' }
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -300,7 +297,7 @@ export function P3Plan() {
             閉じた項目:{' '}
             {Object.keys(hiddenTiles).map((id) => (
               <button key={id} type="button" onClick={() => showTile(id)} style={{ marginRight: 6, fontSize: 12 }}>
-                {TILE_TITLES[id] ?? id} を戻す
+                {PANEL_TILES.find((t) => t.id === id)?.title ?? id} を戻す
               </button>
             ))}
           </p>
@@ -360,6 +357,8 @@ export function P3Plan() {
           ))}
           {core.error ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{core.error}</p> : null}
         </fieldset>
+        {hiddenTiles.auto ? null : (
+        <PanelTile title="自動で作る（柱割り・間取り・縦シャフト）" onHide={() => hideTile('auto')}>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
           <label style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
@@ -415,6 +414,8 @@ export function P3Plan() {
             </dl>
           ) : null}
         </fieldset>
+        </PanelTile>
+        )}
         {hiddenTiles.fixtures ? null : (
           <PanelTile title="什器" onHide={() => hideTile('fixtures')}>
             <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />

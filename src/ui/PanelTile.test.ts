@@ -5,7 +5,7 @@
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { PanelTile } from './PanelTile'
+import { PanelTile, TileClose } from './PanelTile'
 
 type El = ReactElement<Record<string, unknown>>
 
@@ -33,9 +33,10 @@ describe('PanelTile（右パネルのタイル。仕様 1〜3）', () => {
 
   it('仕様 2: × を押すと onHide が一度呼ばれる', () => {
     const onHide = vi.fn()
-    const button = findAll(render(onHide), (el) => el.type === 'button')[0]
-    expect(button).toBeDefined()
-    ;(button!.props.onClick as () => void)()
+    const close = findAll(render(onHide), (el) => el.type === TileClose)[0]
+    expect(close).toBeDefined()
+    const button = TileClose(close!.props as { title: string; onHide: () => void }) as ReactElement<{ onClick: () => void }>
+    button.props.onClick()
     expect(onHide).toHaveBeenCalledTimes(1)
   })
 
