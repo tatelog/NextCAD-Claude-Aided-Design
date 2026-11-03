@@ -15,3 +15,8 @@ export function workerUrlFor(input: WorkerUrlInput): string {
   if (configured !== '') return configured
   return input.prod ? input.origin : ''
 }
+
+/** 画面の Worker の URL（判定と条例の補完で同じ値を使う） */
+export function appWorkerUrl(): string {
+  return workerUrlFor({ configured: import.meta.env.VITE_WORKER_URL, origin: window.location.origin, prod: import.meta.env.PROD })
+}

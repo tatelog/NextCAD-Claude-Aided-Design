@@ -17,7 +17,8 @@ const NUMBER_TEXT = /^\s*(\d+(?:\.\d+)?)\s*(?:時間|h|m)?\s*$/
 
 export type ShadowOrdinance = { ok: true; rule: ShadowRule } | { ok: false; reason: string }
 
-function numberOf(text: string): number | null {
+/** 条例の値の文字を数にする。数でなければ null（W4 の出力の検証でも同じ規則を使う） */
+export function numberOf(text: string): number | null {
   const m = NUMBER_TEXT.exec(text)
   return m ? Number(m[1]) : null
 }

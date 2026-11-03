@@ -2,7 +2,10 @@
 import { useState } from 'react'
 import { ordinanceStatus } from '../law/ordinance'
 import { SHADOW_KEYS } from '../law/shadowOrdinance'
+import { ZONES, type Zone } from '../law/slopeRules'
 import { useOrdinance } from '../store/ordinance'
+import { appWorkerUrl } from '../worker/workerUrl'
+import { suggestOrdinanceViaWorker } from '../worker/ordinanceClient'
 
 /** 条例の値の項目（日影の条件など）。項目の名前は、判定の側と揃える */
 export const ORDINANCE_KEYS = [SHADOW_KEYS.near, SHADOW_KEYS.far, SHADOW_KEYS.height] as const
@@ -16,6 +19,59 @@ export function OrdinanceStatusLine({ itemKey }: { itemKey: string }) {
     <span style={{ color: s.status === '確認済み' ? undefined : '#a86b00' }}>
       条例の{itemKey}: {text}
     </span>
+  )
+}
+
+/** 条例本文から、日影の規制値を Claude（W4）で補う。補った値は未確認のまま入る。人が確認するまで判定には使わない */
+function OrdinanceSuggest() {
+  const setEntry = useOrdinance((s) => s.setEntry)
+  const [city, setCity] = useState('')
+  const [zone, setZone] = useState<Zone>('住居系')
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const workerUrl = appWorkerUrl()
+  const run = async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const r = await suggestOrdinanceViaWorker({ city: city.trim(), zone, text }, workerUrl, (url, init) => fetch(url, init))
+      for (const s of r.accepted) setEntry(s.key, s.value, s.source)
+      setMessage(`補った ${r.accepted.length} 件（未確認）。捨てた ${r.dropped} 件（出典なし・数でない・項目違い）`)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const ready = workerUrl.trim() !== '' && city.trim() !== '' && text.trim() !== '' && !busy
+  return (
+    <div style={{ display: 'grid', gap: 4, margin: '10px 0', fontSize: 12, borderTop: '1px dashed #ddd8cc', paddingTop: 8 }}>
+      <span>Claude で条例本文から補う（W4。補った値は未確認。人が確認する）</span>
+      {workerUrl.trim() === '' && <span style={{ color: '#a33' }}>Worker の URL が未設定のため、送れない（開発は VITE_WORKER_URL が要る）</span>}
+      <input aria-label="自治体名" placeholder="自治体名（例: 東京都江東区）" value={city} onChange={(e) => setCity(e.target.value)} />
+      <select aria-label="用途地域" value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
+        {ZONES.map((z) => (
+          <option key={z} value={z}>
+            {z}
+          </option>
+        ))}
+      </select>
+      <textarea
+        aria-label="条例本文の抜粋"
+        placeholder="条例本文の抜粋を貼る（2000 字まで）"
+        maxLength={2000}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        style={{ minHeight: 80 }}
+      />
+      <div>
+        <button type="button" onClick={run} disabled={!ready}>
+          {busy ? '補っています…' : '条例本文から補う'}
+        </button>
+      </div>
+      {message && <span>{message}</span>}
+    </div>
   )
 }
 
@@ -49,6 +105,7 @@ export function OrdinanceForm() {
           </div>
         )
       })}
+      <OrdinanceSuggest />
     </section>
   )
 }
