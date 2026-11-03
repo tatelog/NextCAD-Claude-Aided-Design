@@ -113,6 +113,21 @@ export function P1Site() {
               <dd>{m.notificationNumber ?? '未取得'}</dd>
             </dl>
           ))}
+          {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
+          {result && result.fireMatches.map((f) => (
+            <p key={f.id}>
+              防火: {f.function === 24 ? '防火地域' : f.function === 25 ? '準防火地域' : `区分 ${f.function ?? '未取得'}`}
+              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}）`}
+              {f.notificationNumber ? `、${f.notificationNumber}` : ''}
+            </p>
+          ))}
+          {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
+          {result && result.heightMatches.map((h) => (
+            <p key={h.id}>
+              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
+              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
+            </p>
+          ))}
           <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
         </section>
       </aside>

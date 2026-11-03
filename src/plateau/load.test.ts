@@ -52,7 +52,32 @@ describe('loadDistrictsAt（地点の用途地域）', () => {
     const requested: string[] = []
     const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13116' }, router(200, '13108', requested))
     expect(requested).toHaveLength(1)
-    expect(r).toEqual({ file: null, districts: [], matches: [] })
+    expect(r).toEqual({ file: null, districts: [], matches: [], fireMatches: [], heightMatches: [] })
+  })
+
+  it('同じファイルから、地点を含む防火地域と高度地区も返す', async () => {
+    const withZones = `${gml}
+<urf:FirePreventionDistrict gml:id="f1">
+  <urf:function codeSpace="x">24</urf:function>
+  <urf:usage codeSpace="x">1</urf:usage>
+  <urf:lod1MultiSurface><gml:MultiSurface srsDimension="3"><gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing><gml:posList>
+    35.60 139.70 10 35.60 139.90 10 35.80 139.90 10 35.80 139.70 10 35.60 139.70 10
+  </gml:posList></gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember></gml:MultiSurface></urf:lod1MultiSurface>
+</urf:FirePreventionDistrict>
+<urf:HeightControlDistrict gml:id="h1">
+  <urf:function codeSpace="x">18</urf:function>
+  <urf:maximumBuildingHeight uom="m">14</urf:maximumBuildingHeight>
+  <urf:lod1MultiSurface><gml:MultiSurface srsDimension="3"><gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing><gml:posList>
+    35.60 139.70 10 35.60 139.90 10 35.80 139.90 10 35.80 139.70 10 35.60 139.70 10
+  </gml:posList></gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember></gml:MultiSurface></urf:lod1MultiSurface>
+</urf:HeightControlDistrict>`
+    const fetchImpl = async (url: string) =>
+      url.startsWith('https://api.plateauview.mlit.go.jp/')
+        ? new Response(JSON.stringify(apiJson('13108')), { status: 200 })
+        : new Response(withZones, { status: 200 })
+    const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13108' }, fetchImpl)
+    expect(r.fireMatches.map((x) => x.id)).toEqual(['f1'])
+    expect(r.heightMatches.map((x) => x.maximumBuildingHeightM)).toEqual([14])
   })
 
   it('API の応答が正常でなければ例外', async () => {
