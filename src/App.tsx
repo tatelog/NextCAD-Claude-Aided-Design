@@ -12,6 +12,7 @@ import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
+import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
 import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
@@ -121,6 +122,37 @@ export function App() {
     }
   }
 
+  // Drive から開く: 一覧を出し（アプリが作ったファイルだけ）、選んだものを読む。トークンは画面の中だけに持つ（保存しない）
+  const [driveToken, setDriveToken] = useState<string | null>(null)
+  const [driveFiles, setDriveFiles] = useState<DriveProjectFile[]>([])
+  const [driveFileId, setDriveFileId] = useState('')
+  const listDrive = async () => {
+    if (!DRIVE_CLIENT_ID) return
+    try {
+      const token = await requestDriveToken(DRIVE_CLIENT_ID)
+      const files = await listProjectFiles({ token })
+      setDriveToken(token)
+      setDriveFiles(files)
+      setDriveFileId(files[0]?.id ?? '')
+      setLoadMessage(files.length === 0 ? 'Drive に案件のファイルがありません' : `Drive に ${files.length} 件あります`)
+    } catch (e) {
+      setLoadMessage(`Drive の一覧を取れませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  const openDrive = async () => {
+    if (!DRIVE_CLIENT_ID || !driveFileId) return
+    try {
+      const token = driveToken ?? (await requestDriveToken(DRIVE_CLIENT_ID))
+      const p = parseSaveData(await downloadJsonFromDrive({ token, id: driveFileId }))
+      applyLoadedProject(p)
+      setProject(p.projectName)
+      setLoadMessage(`Drive から「${p.projectName}」を読み込みました`)
+      record('Drive 読み込み', p.projectName)
+    } catch (e) {
+      setLoadMessage(`Drive から読めませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   // Google Drive への保存（アプリのクライアント ID。drive.file。今回は接続まで。保存先は Drive の直下）
   const [driveMessage, setDriveMessage] = useState<string | null>(null)
   const saveToDrive = async () => {
@@ -167,6 +199,29 @@ export function App() {
             if (file) void load(file)
           }}
         />
+        <button
+          type="button"
+          style={button}
+          onClick={listDrive}
+          disabled={!DRIVE_CLIENT_ID}
+          title={DRIVE_CLIENT_ID ? 'Drive に上げた案件の一覧を出す（アプリが作ったファイルだけ）' : 'VITE_GOOGLE_CLIENT_ID が未設定のため使えない'}
+        >
+          Drive から開く
+        </button>
+        {driveFiles.length > 0 ? (
+          <>
+            <select aria-label="Drive の案件" value={driveFileId} onChange={(e) => setDriveFileId(e.target.value)} style={{ font: 'inherit', maxWidth: 200 }}>
+              {driveFiles.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" style={button} onClick={openDrive}>
+              この案件を開く
+            </button>
+          </>
+        ) : null}
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
         <button type="button" style={button} onClick={save}>
           保存
