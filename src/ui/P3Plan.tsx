@@ -113,6 +113,9 @@ export function P3Plan() {
             {core.rect ? (
               <rect x={core.rect.x0} y={core.rect.y0} width={core.rect.x1 - core.rect.x0} height={core.rect.y1 - core.rect.y0} fill="#e6f2ed" stroke="#1f2a44" strokeWidth={20} />
             ) : null}
+            {auto ? auto.cores.map((c) => (
+              <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill={c.id === 'evHall' ? '#dfe9f5' : '#e6f2ed'} stroke="#1f2a44" strokeWidth={20} />
+            )) : null}
             {units.cells.cells.map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
@@ -212,7 +215,7 @@ export function P3Plan() {
               <dt>EV</dt>
               <dd>
                 {auto.ev.ev_cores.length} 基・全 {auto.ev.storeys.length} 階停止
-                {auto.ev.unreachable_storeys.length > 0 ? `（停止しない階 ${auto.ev.unreachable_storeys.join(', ')}）` : ''}。位置は未配置（コアの矩形は上で入れる）
+                {auto.ev.unreachable_storeys.length > 0 ? `（停止しない階 ${auto.ev.unreachable_storeys.join(', ')}）` : ''}。配置: 階段 A・B は廊下の両端、EV ホールは中央（長さ 3 m の仮置き）
               </dd>
             </dl>
           ) : null}

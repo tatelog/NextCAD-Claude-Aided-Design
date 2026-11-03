@@ -53,4 +53,30 @@ describe('generateAutoPlan（自動作成）', () => {
     expect(() => generateAutoPlan({ ...base, targetPerFloor: 0, layout: '中廊下' })).toThrow()
     expect(() => generateAutoPlan({ ...base, targetPerFloor: 2.5, layout: '中廊下' })).toThrow()
   })
+  it('コアは廊下の中に置く: 階段 A は南の端、階段 B は北の端、EV ホールは中央（モックの配置）', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下' })
+    const a = g.cores.find((c) => c.id === 'stairA')!
+    const b = g.cores.find((c) => c.id === 'stairB')!
+    const ev = g.cores.find((c) => c.id === 'evHall')!
+    expect(a.y0).toBe(0)
+    expect(b.y1).toBe(g.depthMm)
+    expect((ev.y0 + ev.y1) / 2).toBe(g.depthMm / 2)
+    for (const c of g.cores) {
+      expect(c.x0).toBeGreaterThanOrEqual(g.corridor.x0)
+      expect(c.x1).toBeLessThanOrEqual(g.corridor.x1)
+    }
+  })
+
+  it('コアは住戸の区画と重ならない（廊下の中だけ）', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下' })
+    for (const c of g.cores) for (const cell of g.cells) {
+      const overlap = c.x0 < cell.x1 && cell.x0 < c.x1 && c.y0 < cell.y1 && cell.y0 < c.y1
+      expect(overlap).toBe(false)
+    }
+  })
+
+  it('EV ホールは EV の基数を持つ', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下', evCount: 2 })
+    expect(g.cores.find((c) => c.id === 'evHall')!.evCount).toBe(2)
+  })
 })

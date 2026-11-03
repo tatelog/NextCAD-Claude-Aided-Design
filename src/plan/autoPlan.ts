@@ -9,6 +9,9 @@ import { roomsOfCells, type Room } from './rooms'
 import type { Rect } from './candidateCells'
 
 const TargetSchema = z.number().int().positive()
+// コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
+const STAIR_LEN_MM = 3_000
+const EV_HALL_LEN_MM = 3_000
 
 export interface AutoPlanInput {
   /** 目標の戸数（1 階あたり、整数・1 以上） */
@@ -21,6 +24,16 @@ export interface AutoPlanInput {
   layout: '中廊下' | '片廊下'
   evCount: number
   evStops: number[]
+}
+
+export interface AutoCore {
+  id: 'stairA' | 'stairB' | 'evHall'
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+  /** EV ホールだけ: EV の基数 */
+  evCount?: number
 }
 
 export interface AutoPlan {
@@ -36,6 +49,8 @@ export interface AutoPlan {
   cells: Rect[]
   /** 住戸の部屋割り（仮置き、区画ごと） */
   rooms: Room[]
+  /** コア（廊下の中の階段 A・B と EV ホール）。モックの配置: 階段は廊下の両端、EV は中央 */
+  cores: AutoCore[]
 }
 
 export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
@@ -53,6 +68,14 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     span_mm: input.spanMm,
     layout: input.layout,
   })
+  const coresInCorridor: AutoCore[] = [
+    { id: 'stairA', x0: c.corridor.x0, y0: 0, x1: c.corridor.x1, y1: STAIR_LEN_MM },
+    { id: 'stairB', x0: c.corridor.x0, y0: depthMm - STAIR_LEN_MM, x1: c.corridor.x1, y1: depthMm },
+  ]
+  if (depthMm < 2 * STAIR_LEN_MM + EV_HALL_LEN_MM) throw new Error('奥行が短く、階段とEVホールを廊下に置けない')
+  const evY0 = (depthMm - EV_HALL_LEN_MM) / 2
+  if (!Number.isInteger(evY0)) throw new Error('奥行が奇数で、EV ホールを中央に置けない')
+  coresInCorridor.push({ id: 'evHall', x0: c.corridor.x0, y0: evY0, x1: c.corridor.x1, y1: evY0 + EV_HALL_LEN_MM, evCount: input.evCount })
   const counted = countUnits({
     outline: [
       { x: 0, y: 0 },
@@ -61,7 +84,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
       { x: 0, y: depthMm },
     ],
     corridors: [c.corridor],
-    cores: [],
+    cores: coresInCorridor,
     cells: c.cells,
   })
   const unitsPerFloor = counted.usable_count
@@ -76,6 +99,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     corridor: c.corridor,
     cells: c.cells,
     rooms: roomsOfCells(c.cells),
+    cores: coresInCorridor,
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,
