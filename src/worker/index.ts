@@ -2,6 +2,7 @@
 // POST /classify に {segments} を送ると、判定結果を {segments} で返す。キーは Secrets（env.ANTHROPIC_API_KEY）から読む。
 import { z } from 'zod'
 import { classifySegments, PENDING, type Env as ClassifyEnv } from './classify'
+import { proxyPlateau } from './plateauProxy'
 
 export interface Env extends ClassifyEnv {
   /** ブラウザの接続元として許すオリジン（例: 利用者のアプリの URL）。未設定なら CORS のヘッダーは返さない */
@@ -38,6 +39,7 @@ export async function handleRequest(request: Request, env: Env, fetchImpl: Fetch
   const cors = corsHeaders(request, env)
   const url = new URL(request.url)
 
+  if (url.pathname.startsWith('/plateau-assets/')) return proxyPlateau(request, env, fetchImpl)
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
   if (url.pathname !== '/classify') return json(404, { error: 'not found' }, cors)
   if (request.method !== 'POST') return json(405, { error: 'method not allowed' }, cors)
