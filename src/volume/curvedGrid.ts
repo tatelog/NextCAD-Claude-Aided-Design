@@ -50,3 +50,36 @@ export function straightGridMeetsArc(arc: Arc, axis: 'x' | 'y', coord: number): 
   const unique = rest === 0 ? candidates.slice(0, 1) : candidates
   return unique.filter((p) => inSweep(arc, p))
 }
+
+/** 3 点（始点 a・通過点 b・終点 c）の円弧の中心・半径・向き（a → b → c の順に反時計回りなら ccw）。3 点が一直線なら例外 */
+export function arcParamsOf(a: Point, b: Point, c: Point): { center: Point; r: number; ccw: boolean } {
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y))
+  if (Math.abs(d) < 1e-9) throw new RangeError('3 点が一直線、または重なっていて、円弧にならない')
+  const a2 = a.x * a.x + a.y * a.y
+  const b2 = b.x * b.x + b.y * b.y
+  const c2 = c.x * c.x + c.y * c.y
+  const center = { x: (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d, y: (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d }
+  const r = Math.hypot(a.x - center.x, a.y - center.y)
+  const ta = angleOf(center, a)
+  const toB = norm(angleOf(center, b) - ta)
+  const toC = norm(angleOf(center, c) - ta)
+  return { center, r, ccw: toB < toC }
+}
+
+/** 描いた円弧の線（mm の中心・向き・始点・終点）を、円弧の外形に戻す */
+export function arcOfStroke(input: { center: Point; ccw: boolean; start: Point; end: Point }): Arc {
+  return { kind: 'arc', a: { ...input.start }, b: { ...input.end }, center: { ...input.center }, ccw: input.ccw }
+}
+
+const round3 = (n: number) => Number(n.toFixed(3))
+
+/** 円弧の外形を、SVG の path（弧 A）の文字列にする。sweep は反時計回りなら 1、180 度を超えるなら large は 1 */
+export function svgArcPath(arc: Arc): string {
+  const r = Math.hypot(arc.a.x - arc.center.x, arc.a.y - arc.center.y)
+  const start = angleOf(arc.center, arc.a)
+  const end = angleOf(arc.center, arc.b)
+  const span = arc.ccw ? norm(end - start) : norm(start - end)
+  const large = span > Math.PI ? 1 : 0
+  const sweep = arc.ccw ? 1 : 0
+  return `M ${round3(arc.a.x)} ${round3(arc.a.y)} A ${round3(r)} ${round3(r)} 0 ${large} ${sweep} ${round3(arc.b.x)} ${round3(arc.b.y)}`
+}

@@ -33,6 +33,8 @@ import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
 import { firstFloorCountsOf } from '../plan/commonAreas'
+import { outlineArcsOf } from '../volume/outlineArcs'
+import { svgArcPath } from '../volume/curvedGrid'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
@@ -179,6 +181,8 @@ export function P3Plan() {
   const hiddenTiles = usePanelTiles((s) => s.hidden)
   // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
   const firstFloorNames = useFirstFloor((s) => s.names)
+  // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
+  const outlineArcs = outlineArcsOf(useDrawing((s) => s.entries))
   const { hideTile, showTile } = usePanelTiles.getState()
   // ダブルクリックで開く住戸の詳細（ハブ A-03 G76）。閉じると null に戻る
   const [detailUnitId, setDetailUnitId] = useState<string | null>(null)
@@ -281,6 +285,10 @@ export function P3Plan() {
             <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
             {lines.map((y) => (
               <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
+            ))}
+            {/* 描いた円弧の外形（P2 で 3 点・数値で入れた円弧）。外周の通り芯の円弧として重ねる（ハブ A-03 G5） */}
+            {outlineArcs.map((arc, i) => (
+              <path key={`outline-arc-${i}`} d={svgArcPath(arc)} fill="none" stroke="#1f5f8b" strokeWidth={20} />
             ))}
           </svg>
           {showMiniMap && units.cells ? (() => {

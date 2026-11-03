@@ -3,6 +3,7 @@
 import { p3Stroke } from '../plan/p3Stroke'
 import { useDrawing } from '../store/drawing'
 import { arcThroughPoints } from './arc'
+import { arcParamsOf } from '../volume/curvedGrid'
 
 export interface MmPoint {
   x: number
@@ -24,14 +25,15 @@ let seq = 0
 /** 3 点（始点・通過点・終点）で指定した円弧を、描いた線として入れる（仮置き。点列を線分として描く） */
 export function addArcStroke(a: MmPoint, b: MmPoint, c: MmPoint): void {
   const pts = arcThroughPoints(a, b, c)
-  // addNumericLine と同じ向き（y は符号を反転して入れる）
+  const params = arcParamsOf(a, b, c)
+  // addNumericLine と同じ向き（y は符号を反転して入れる）。円弧の中心と向きは線に残す（G5）
   const stroke = p3Stroke({
     points: pts.map((p) => ({ px: p.x, py: -p.y })),
     viewScaleMmPerPx: 1,
     viewOriginPx: { px: 0, py: 0 },
     id: `numeric-arc-${seq++}`,
   })
-  useDrawing.getState().addStroke(stroke, null)
+  useDrawing.getState().addStroke({ ...stroke, arc: { center: { x: params.center.x, y: params.center.y }, ccw: params.ccw } }, null)
 }
 
 /** 数値で指定した線を、描いた線として入れる（一つの線 = 一つの単位の取り消し）。スナップはしない。 */

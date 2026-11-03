@@ -5,7 +5,7 @@
 // 仕様 4: 入力を書き換えず、同じ入力には同じ出力。
 import { describe, expect, it } from 'vitest'
 import type { CurveEdge } from './curvedFootprint'
-import { perimeterArc, straightGridMeetsArc } from './curvedGrid'
+import { arcOfStroke, arcParamsOf, perimeterArc, straightGridMeetsArc, svgArcPath } from './curvedGrid'
 
 type Arc = Extract<CurveEdge, { kind: 'arc' }>
 
@@ -47,5 +47,28 @@ describe('曲線外形に沿う外周の通り芯（仕様 1〜4）', () => {
     const first = straightGridMeetsArc(ARC, 'x', 600)
     expect(straightGridMeetsArc(ARC, 'x', 600)).toEqual(first)
     expect(ARC.a).toEqual({ x: 0, y: -1000 })
+  })
+})
+
+// 仕様 5（描いた円弧の持ち方）: 3 点で描いた円弧は、中心と向きを線に持つ。線の始点・終点（mm）から、円弧の外形（CurveEdge）に戻せる。
+// 仕様 6（画面）: 円弧の外形は、SVG の path（弧）の文字列にできる。向き（反時計回り）は sweep の値に対応する。
+describe('描いた円弧の中心と向き（仕様 5・6）', () => {
+  it('仕様 5: 3 点（a, b, c）の円弧は、中心と向きを持つ。a → b → c の順に反時計回りなら ccw', () => {
+    const p = arcParamsOf({ x: 1000, y: 0 }, { x: 0, y: 1000 }, { x: -1000, y: 0 })
+    expect(p.center.x).toBeCloseTo(0, 6)
+    expect(p.center.y).toBeCloseTo(0, 6)
+    expect(p.ccw).toBe(true)
+    expect(arcParamsOf({ x: 1000, y: 0 }, { x: 0, y: -1000 }, { x: -1000, y: 0 }).ccw).toBe(false)
+  })
+
+  it('仕様 5: 線（mm の始点・終点・中心・向き）から、円弧の外形に戻せる', () => {
+    const arc = arcOfStroke({ center: { x: 0, y: 0 }, ccw: true, start: { x: 0, y: -1000 }, end: { x: 0, y: 1000 } })
+    expect(arc).toEqual({ kind: 'arc', a: { x: 0, y: -1000 }, b: { x: 0, y: 1000 }, center: { x: 0, y: 0 }, ccw: true })
+  })
+
+  it('仕様 6: 円弧の外形は、SVG の弧（A）の path にできる。反時計回りは sweep 1、180 度を超えるものは large 1', () => {
+    const arc = { kind: 'arc' as const, a: { x: 0, y: -1000 }, b: { x: 0, y: 1000 }, center: { x: 0, y: 0 }, ccw: true }
+    expect(svgArcPath(arc)).toBe('M 0 -1000 A 1000 1000 0 0 1 0 1000')
+    expect(svgArcPath({ ...arc, ccw: false })).toBe('M 0 -1000 A 1000 1000 0 0 0 0 1000')
   })
 })
