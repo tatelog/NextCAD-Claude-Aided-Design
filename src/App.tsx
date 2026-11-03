@@ -19,8 +19,20 @@ type ScreenId = (typeof SCREENS)[number]['id']
 
 export function App() {
   const [screen, setScreen] = useState<ScreenId>('P2')
+  // 案件名（敷地名）。画面の中だけで持つ（保存はしない）
+  const [project, setProject] = useState('')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#fff' }}>
+        <input
+          aria-label="案件名（敷地名）"
+          placeholder="敷地名（案件）"
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+          style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', minWidth: 200 }}
+        />
+        <span style={{ fontSize: 11, color: '#c8412a', border: '1px solid #c8412a', borderRadius: 3, padding: '0 6px' }}>議論用・未確定</span>
+      </header>
       <nav style={{ display: 'flex', gap: 6, padding: '6px 12px', borderBottom: '1px solid #ddd8cc', background: '#fff' }}>
         {SCREENS.map((s) => (
           <button
