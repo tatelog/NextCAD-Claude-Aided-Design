@@ -10,6 +10,8 @@ import { useDrawing } from './store/drawing'
 import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
+import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
+import { uploadJsonToDrive } from './drive/driveUpload'
 import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
 
 const SCREENS = [
@@ -78,15 +80,20 @@ export function App() {
     setRev((r) => r + 1)
   }
 
-  const save = () => {
+  // 案件の中身（保存と Drive 保存で同じ）
+  const projectData = () => {
     const d = useDrawing.getState()
-    const data = buildSaveData({
+    return buildSaveData({
       projectName: project,
       entries: d.entries,
       storeyCount: d.storeyCount,
       storeyHeightMm: d.storeyHeightMm,
       savedAt: new Date(),
     })
+  }
+
+  const save = () => {
+    const data = projectData()
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url
@@ -94,6 +101,22 @@ export function App() {
     a.click()
     URL.revokeObjectURL(url)
     record('保存', data.projectName)
+  }
+
+  // Google Drive への保存（アプリのクライアント ID。drive.file。今回は接続まで。保存先は Drive の直下）
+  const [driveMessage, setDriveMessage] = useState<string | null>(null)
+  const saveToDrive = async () => {
+    if (!DRIVE_CLIENT_ID) return
+    setDriveMessage('Google の認証を開いています…')
+    try {
+      const data = projectData()
+      const token = await requestDriveToken(DRIVE_CLIENT_ID)
+      const id = await uploadJsonToDrive({ token, name: `${data.projectName}.json`, json: JSON.stringify(data, null, 2) })
+      setDriveMessage(`Drive に保存しました（ファイル ID: ${id}）`)
+      record('Drive 保存', data.projectName)
+    } catch (e) {
+      setDriveMessage(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
@@ -114,6 +137,16 @@ export function App() {
         <button type="button" style={button} onClick={save}>
           保存
         </button>
+        <button
+          type="button"
+          style={button}
+          onClick={saveToDrive}
+          disabled={!DRIVE_CLIENT_ID}
+          title={DRIVE_CLIENT_ID ? 'Google ドライブに案件を保存（アプリのクライアント ID）' : 'VITE_GOOGLE_CLIENT_ID が未設定のため使えない'}
+        >
+          Drive に保存
+        </button>
+        {driveMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{driveMessage}</span> : null}
         <button type="button" style={button} onClick={() => setPanel(panel === 'log' ? null : 'log')} aria-pressed={panel === 'log'}>
           作業履歴
         </button>
