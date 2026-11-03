@@ -34,6 +34,11 @@ const LAYER_OF_KIND: Record<Kind, LayerName> = {
   other: 'その他',
 }
 
+/** 動く線（段階と種類）のうち、ロックしたレイヤーに入るものが一つでもあれば true（その変形は断る） */
+export function movesLockedLayer(moved: readonly { stage: Stage; kind: Kind | null }[], locked: Record<LayerName, boolean>): boolean {
+  return moved.some((m) => locked[layerOfSegment(m.stage, m.kind)])
+}
+
 /** 線（段階と意味）のレイヤー。F4 は外形。F5・F9 は種類のレイヤー（種類が無ければその他） */
 export function layerOfSegment(stage: Stage, kind: Kind | null): LayerName {
   if (stage === 'F4') return '外形'

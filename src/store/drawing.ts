@@ -6,7 +6,9 @@ import { createViewport, type Viewport } from '../geom/viewport'
 import { SNAP_RADIUS_PX, snapRadiusMm } from '../input/snap'
 import type { Node, Segment, Stroke } from '../model/schema'
 import { movedSegmentIds } from '../plan/semanticConfirm'
+import { movesLockedLayer } from '../plan/layers'
 import { useSemantic } from './semantic'
+import { useLayers } from './layers'
 
 /** 1 ストロークを 1 単位にした記録 */
 interface StrokeEntry {
@@ -100,13 +102,18 @@ export const useDrawing = create<DrawingState>((set, get) => {
     transform: (fn) => {
       const before = get().entries
       const after = fn(before)
-      commit(after)
       // 動いた線の種類は消さず、種類を持つ線だけに「要確認」の印を付ける（再判定は Worker の配備後）。増えた線・消えた線は動いた線に入らない
-      const moved = movedSegmentIds(
+      const movedIds = movedSegmentIds(
         before.flatMap((e) => e.segments),
         after.flatMap((e) => e.segments),
       )
-      if (moved.length > 0) useSemantic.getState().markNeedsReview(moved)
+      // ロックしたレイヤーの線が動くなら、変形は全体を取り消す（何も変えない。履歴も増やさない）
+      const stageOf = new Map(before.flatMap((e) => e.segments).map((s) => [s.id, s.stage] as const))
+      const assignments = useSemantic.getState().assignments
+      const moved = movedIds.map((id) => ({ stage: stageOf.get(id) ?? 'F4', kind: assignments[id]?.kind ?? null }))
+      if (movesLockedLayer(moved, useLayers.getState().locked)) return
+      commit(after)
+      if (movedIds.length > 0) useSemantic.getState().markNeedsReview(movedIds)
     },
     undo: () =>
       set((s) => {
