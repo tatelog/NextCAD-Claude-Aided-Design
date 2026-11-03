@@ -5,6 +5,8 @@ import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
+import { siteRuleFromDistricts } from '../law/siteRule'
+import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
 import { useDrawing } from '../store/drawing'
@@ -53,19 +55,25 @@ export function P03Volume() {
   }, [closure, storeyCount, storeyHeightMm])
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
+  // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
+  const siteMatches = useSite((s) => s.matches)
+  const siteRule = useMemo(() => (siteMatches ? siteRuleFromDistricts(siteMatches) : null), [siteMatches])
+  const effectiveZone = siteRule?.zone ?? zone
+  const inputFar = farLimit === '' ? null : Number(farLimit)
+  const effectiveFar = siteRule?.farPercent ?? inputFar
+
   const legal = useMemo(() => {
-    const far = farLimit === '' ? null : Number(farLimit)
-    if (far === null || !Number.isFinite(far) || far <= 0) {
+    if (effectiveFar === null || !Number.isFinite(effectiveFar) || effectiveFar <= 0) {
       return { boundaries: [], pending: ['容積率の限度（上限）が未入力'] }
     }
     return legalBoundaries({
       footprint: DUMMY_PARCEL,
       roadEdgeIndex: roadEdge,
       roadWidthMm: Number(roadWidth) || 0,
-      zone,
-      farPercent: far,
+      zone: effectiveZone,
+      farPercent: effectiveFar,
     })
-  }, [farLimit, roadEdge, roadWidth, zone])
+  }, [effectiveFar, effectiveZone, roadEdge, roadWidth])
 
   const cut = useMemo(() => {
     if (!volume) return null
@@ -202,6 +210,13 @@ export function P03Volume() {
               容積率の上限 (%)
               <input type="number" min={1} step={10} value={farLimit} placeholder="未入力（判定不能）" onChange={(e) => setFarLimit(e.target.value)} />
             </label>
+            {siteRule ? (
+              <p className="muted">
+                PLATEAU（P1 で取得）から: 区分 {siteRule.zone}、容積率の限度 {siteRule.farPercent === null ? '未取得' : `${siteRule.farPercent} %`}
+              </p>
+            ) : (
+              <p className="muted">PLATEAU の用途地域が一つに決まらない（P1 で取得していない、または複数）。下の入力を使う。</p>
+            )}
             <label>
               用途地域
               <select value={zone} onChange={(e) => setZone(e.target.value as Zone)}>

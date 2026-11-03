@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ATTRIBUTION, tileFromLonLat, tileUrl } from '../map/tiles'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
+import { useSite } from '../store/site'
 
 const DEFAULT = { lon: 139.7671, lat: 35.6812 }
 
@@ -21,6 +22,7 @@ export function P1Site() {
     try {
       const r = await loadDistrictsAt({ lat: Number(latText), lon: Number(lonText), cityCode }, (url) => fetch(url))
       setResult(r)
+      useSite.getState().setMatches(r.matches)
     } catch (e) {
       setResult(null)
       setError(e instanceof Error ? e.message : String(e))
