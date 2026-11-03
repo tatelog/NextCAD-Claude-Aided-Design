@@ -11,6 +11,9 @@ export interface Env extends ClassifyEnv {
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
+/** 一度に送れる線分の数（D-02 C12） */
+const MAX_SEGMENTS = 200
+
 const BodySchema = z.object({
   segments: z.array(
     z.object({
@@ -43,12 +46,20 @@ export async function handleRequest(request: Request, env: Env, fetchImpl: Fetch
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
   if (url.pathname !== '/classify') return json(404, { error: 'not found' }, cors)
   if (request.method !== 'POST') return json(405, { error: 'method not allowed' }, cors)
+  // 接続元の制限（D-06 N6）。ALLOWED_ORIGIN が設定されていれば、その接続元からの呼び出しだけ受ける。Claude は呼ばない
+  if (env.ALLOWED_ORIGIN && request.headers.get('origin') !== env.ALLOWED_ORIGIN) {
+    return json(403, { error: '接続元が許されていない' }, cors)
+  }
 
   let parsed: z.infer<typeof BodySchema>
   try {
     parsed = BodySchema.parse(await request.json())
   } catch {
     return json(400, { error: '線分の形が正しくない' }, cors)
+  }
+  // 一度に送れる線分の上限（D-02 C12。費用の月あたりの上限は別に決める）
+  if (parsed.segments.length > MAX_SEGMENTS) {
+    return json(413, { error: `一度に送れる線分は ${MAX_SEGMENTS} 本まで` }, cors)
   }
 
   try {
