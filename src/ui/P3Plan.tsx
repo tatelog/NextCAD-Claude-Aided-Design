@@ -35,6 +35,7 @@ import { balconyOfUnit } from '../plan/balcony'
 import { firstFloorCountsOf } from '../plan/commonAreas'
 import { outlineArcsOf } from '../volume/outlineArcs'
 import { gridSegmentsToArc, svgArcPath } from '../volume/curvedGrid'
+import { cellsInsideArc } from '../plan/arcCells'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
@@ -183,6 +184,8 @@ export function P3Plan() {
   const firstFloorNames = useFirstFloor((s) => s.names)
   // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
   const outlineArcs = outlineArcsOf(useDrawing((s) => s.entries))
+  // 円弧の外形があるとき、区画は四隅が円の内側のものだけを表示する（ハブ A-03 G5。自動作成の数は矩形のまま）
+  const arcCut = outlineArcs[0] && units.cells ? cellsInsideArc(units.cells.cells, outlineArcs[0]) : null
   const { hideTile, showTile } = usePanelTiles.getState()
   // ダブルクリックで開く住戸の詳細（ハブ A-03 G76）。閉じると null に戻る
   const [detailUnitId, setDetailUnitId] = useState<string | null>(null)
@@ -279,7 +282,7 @@ export function P3Plan() {
             {auto ? auto.shaftRects.map((s) => (
               <rect key={s.id} x={s.x0} y={s.y0} width={s.x1 - s.x0} height={s.y1 - s.y0} fill={s.kind === 'PS' ? '#f3e3b8' : '#d9c48a'} stroke="#7a5a10" strokeWidth={12} />
             )) : null}
-            {units.cells.cells.map((c) => (
+            {(arcCut ? arcCut.inside : units.cells.cells).map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
             <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
