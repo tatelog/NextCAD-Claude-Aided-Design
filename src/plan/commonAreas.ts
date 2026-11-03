@@ -25,3 +25,8 @@ export function commonAreasOf(floor: CommonFloor, optional: readonly string[] = 
   const chosen = OPTIONAL.filter((o) => optional.includes(o.name) && (o.floor === 'any' || o.floor === floor)).map((o) => o.name)
   return [...REQUIRED[floor], ...chosen]
 }
+
+/** 左メニューに出す共用部のグループ（基準階・1F の順）。各階は必須の名前だけ */
+export function commonAreaGroups(): { floor: CommonFloor; names: string[] }[] {
+  return (['基準階', '1F'] as const).map((floor) => ({ floor, names: commonAreasOf(floor) }))
+}

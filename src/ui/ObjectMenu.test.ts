@@ -340,3 +340,17 @@ describe('ObjectMenu（描ける。仕様 6）', () => {
     expect(OBJECT_MENU_WIDTH).toBe(180)
   })
 })
+
+// 仕様 7（共用部のグループ。ハブ A-03 G75）: 一覧の下に、共用部のグループを基準階・1F の名前で出す。件数は出さない（配置は未配線）。
+describe('ObjectMenu（共用部のグループ。仕様 7）', () => {
+  it('基準階と 1F の必須の名前を、一覧の下に 1 行ずつ出す', () => {
+    const lines = findAll(render(), isTag('div')).map(textOf)
+    expect(lines).toContain('基準階：廊下、階段 A、階段 B、EV ホール、EPS、DS')
+    expect(lines).toContain('1F：エントランス、風除室、ロビー、管理室、メールコーナー、ゴミ置場')
+  })
+
+  it('共用部のグループには件数を出さない（種類の行の数は 12 のまま）', () => {
+    expect(buttonsOf(render())).toHaveLength(12)
+    expect(findAll(render(), isTag('div')).map(textOf).some((t) => t.startsWith('基準階：') && /\d/.test(t))).toBe(false)
+  })
+})

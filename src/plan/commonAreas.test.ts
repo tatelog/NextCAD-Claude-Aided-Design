@@ -5,7 +5,17 @@
 // 仕様 4: 任意の共用部は、選んだものだけ入る。選んでいない名前や、その階に無い名前は入らない。
 // 仕様 5: 同じ階の中で、共用部の名前は重複しない。
 import { describe, expect, it } from 'vitest'
-import { commonAreasOf } from './commonAreas'
+import { commonAreaGroups, commonAreasOf } from './commonAreas'
+
+// 仕様 6（左メニューのグループ）: 共用部のグループは、基準階・1F の順に、各階の必須の名前を持つ。commonAreasOf と同じ名前。
+describe('共用部のグループ（左メニュー用）', () => {
+  it('仕様 6: 基準階・1F の順に、各階の必須の名前を並べる（commonAreasOf と同じ）', () => {
+    expect(commonAreaGroups()).toEqual([
+      { floor: '基準階', names: commonAreasOf('基準階') },
+      { floor: '1F', names: commonAreasOf('1F') },
+    ])
+  })
+})
 
 describe('共用部の名前（階ごと）', () => {
   it('仕様 1: 基準階の必須の共用部', () => {
