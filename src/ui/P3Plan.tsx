@@ -5,8 +5,8 @@ import { checkSpan, gridLines } from '../plan/grid'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
-import { countObjects, type ObjectKind } from '../plan/objectMenu'
-import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
+import type { ObjectKind } from '../plan/objectMenu'
+import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { useSite } from '../store/site'
@@ -14,6 +14,7 @@ import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
+import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -120,8 +121,6 @@ export function P3Plan() {
     }),
     [widthText, depthText, lines, auto, core.rect, units.cells],
   )
-  const objectRows = useMemo(() => countObjects(objectSources), [objectSources])
-  const objectDetail = useMemo(() => (selectedKind ? detailOfKind(selectedKind, objectSources) : null), [selectedKind, objectSources])
 
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   let judge: string = '許容範囲は未決（D-02 C6）'
@@ -136,62 +135,8 @@ export function P3Plan() {
   const W = Number(widthText)
   const D = Number(depthText)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 320px', height: '100%' }}>
-      <aside style={{ padding: 12, borderRight: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 14, margin: '0 0 4px' }}>オブジェクト</h2>
-        <p style={{ fontSize: 11, color: '#666', margin: '0 0 8px' }}>種類ごとの件数（P3 の自動作成の結果）</p>
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
-          {objectRows.map((r) => (
-            <li key={r.kind} style={{ borderBottom: '1px dashed #e6e4dc' }}>
-              <button
-                type="button"
-                aria-pressed={selectedKind === r.kind}
-                onClick={() => setSelectedKind((s) => toggleKind(s, r.kind))}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  width: '100%',
-                  padding: '3px 4px',
-                  border: 0,
-                  background: selectedKind === r.kind ? '#ece8da' : 'transparent',
-                  color: 'inherit',
-                  font: 'inherit',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                <span>{r.label}</span>
-                <span>
-                  <strong>{r.count}</strong>
-                  {r.note ? <span style={{ color: '#a33', fontSize: 11, marginLeft: 4 }}>（{r.note}）</span> : null}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {objectDetail ? (
-          <section aria-label={`${objectDetail.label}の中身`} style={{ marginTop: 12 }}>
-            <h3 style={{ fontSize: 13, margin: '0 0 4px' }}>{objectDetail.label}の中身</h3>
-            {objectDetail.emptyText ? (
-              <p style={{ fontSize: 12, color: '#666', margin: 0 }}>{objectDetail.emptyText}</p>
-            ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
-                {objectDetail.entries.map((e, i) => (
-                  <li key={i} style={{ padding: '4px 0', borderBottom: '1px dashed #e6e4dc' }}>
-                    <strong>{e.title}</strong>
-                    {e.lines.map((line, j) => (
-                      <div key={j} style={{ color: '#444' }}>
-                        {line}
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ) : null}
-      </aside>
+    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
+      <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（P3 の自動作成の結果）" />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
           <div style={{ position: 'relative' }}>
