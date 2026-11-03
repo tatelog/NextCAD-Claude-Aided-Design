@@ -6,6 +6,7 @@ import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
+import { placeBySetback } from '../volume/placeBySetback'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
@@ -46,15 +47,27 @@ export function P03Volume() {
   const [zone, setZone] = useState<Zone>('住居系')
   const [roadEdge, setRoadEdge] = useState(0)
   const [roadWidth, setRoadWidth] = useState('6000')
+  // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
+  const [westText, setWestText] = useState('')
+  const [southText, setSouthText] = useState('')
+
+  // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
+  const placedFootprint = useMemo(() => {
+    if (!closure.closed || closure.footprint === null) return null
+    const w = Number(westText)
+    const s = Number(southText)
+    if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return closure.footprint
+    return placeBySetback(closure.footprint, DUMMY_PARCEL, { west: w, south: s })
+  }, [closure, westText, southText])
 
   const volume = useMemo(() => {
-    if (!closure.closed) return null
+    if (!closure.closed || placedFootprint === null) return null
     try {
-      return extrudeVolume({ footprint: closure.footprint, storey_count: storeyCount, storey_height: storeyHeightMm })
+      return extrudeVolume({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
     } catch {
       return null
     }
-  }, [closure, storeyCount, storeyHeightMm])
+  }, [closure, placedFootprint, storeyCount, storeyHeightMm])
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
@@ -241,6 +254,14 @@ export function P03Volume() {
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
+            <label>
+              西の離れ (mm)
+              <input type="number" value={westText} placeholder="空欄は描いた位置" onChange={(e) => setWestText(e.target.value)} />
+            </label>
+            <label>
+              南の離れ (mm)
+              <input type="number" value={southText} placeholder="空欄は描いた位置" onChange={(e) => setSouthText(e.target.value)} />
+            </label>
             {setback ? (
               <dl>
                 <dt>北</dt>
