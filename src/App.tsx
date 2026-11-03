@@ -1,6 +1,6 @@
 // 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・作業履歴・メニュー・保留）。
 // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { P03Volume } from './ui/P03Volume'
 import { P1Site } from './ui/P1Site'
 import { P3Plan } from './ui/P3Plan'
@@ -11,6 +11,8 @@ import { useFixtures } from './store/fixtures'
 import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
+import { parseSaveData } from './app/loadData'
+import { useSemantic } from './store/semantic'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
 import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
@@ -105,6 +107,23 @@ export function App() {
     record('保存', data.projectName)
   }
 
+  // 読み込み（保存した JSON を選ぶ）。一覧・階数・階高・什器・案件名を戻す。意味づけは保存していないので、読んだあとは空に戻す
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [loadMessage, setLoadMessage] = useState<string | null>(null)
+  const load = async (file: File) => {
+    try {
+      const p = parseSaveData(JSON.parse(await file.text()))
+      useDrawing.setState({ entries: p.entries, past: [], redoStack: [], storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fitted: false })
+      useFixtures.setState({ fixtures: p.fixtures })
+      useSemantic.getState().clear()
+      setProject(p.projectName)
+      setLoadMessage(`「${p.projectName}」を読み込みました`)
+      record('読み込み', p.projectName)
+    } catch (e) {
+      setLoadMessage(`読み込めませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   // Google Drive への保存（アプリのクライアント ID。drive.file。今回は接続まで。保存先は Drive の直下）
   const [driveMessage, setDriveMessage] = useState<string | null>(null)
   const saveToDrive = async () => {
@@ -136,6 +155,22 @@ export function App() {
         <span title="Claude の判定の失敗は、まだ数えていない（P3 の意味づけを接続したら数える）" style={{ fontSize: 12, color: '#5b6670' }}>
           保留 0
         </span>
+        <button type="button" style={button} onClick={() => fileInput.current?.click()}>
+          読み込み
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/json,.json"
+          aria-label="保存した案件の JSON を選ぶ"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void load(file)
+          }}
+        />
+        {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
         <button type="button" style={button} onClick={save}>
           保存
         </button>
