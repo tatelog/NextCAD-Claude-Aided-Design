@@ -22,6 +22,8 @@ import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
 import { useSemantic } from './store/semantic'
+import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
+import { useLayers } from './store/layers'
 
 const SCREENS = [
   { id: 'P1', name: '敷地' },
@@ -88,6 +90,9 @@ export function App() {
   const featureOn = useFeatures((s) => s.on)
   // 入力スナップは、ツールバーのボタンと同じ状態を読む（二つの欄が食い違わないように）
   const inputSnapGrid = useUi((s) => s.inputSnapGrid)
+  // レイヤーの表示とロック（G66）。筆界はロック固定
+  const layerVisible = useLayers((s) => s.visible)
+  const layerLocked = useLayers((s) => s.locked)
   const setFeature = (key: FeatureKey, on: boolean) => {
     useFeatures.getState().setOn(key, on)
     const patch = featureUiPatch(key, on)
@@ -405,6 +410,37 @@ export function App() {
                   />{' '}
                   グリッド（P3 の平面）
                 </label>
+                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
+                  <strong style={{ fontSize: 13 }}>レイヤー（表示とロック。筆界はロック固定）</strong>
+                  {LAYER_NAMES.map((name) => (
+                    <div key={name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginBottom: 2 }}>
+                      <span style={{ width: 90 }}>{name}</span>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={layerVisible[name]}
+                          onChange={(e) => {
+                            useLayers.getState().setVisible(name, e.target.checked)
+                            record('レイヤー', `${name} 表示 ${e.target.checked ? '入' : '切'}`)
+                          }}
+                        />{' '}
+                        表示
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={layerLocked[name]}
+                          disabled={FIXED_LOCKED.includes(name)}
+                          onChange={(e) => {
+                            useLayers.getState().setLocked(name, e.target.checked)
+                            record('レイヤー', `${name} ロック ${e.target.checked ? '入' : '切'}`)
+                          }}
+                        />{' '}
+                        ロック
+                      </label>
+                    </div>
+                  ))}
+                </div>
                 <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
                   <strong style={{ fontSize: 13 }}>機能のオンオフ（案。項目の中身は未決）</strong>
                   {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
