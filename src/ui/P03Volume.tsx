@@ -8,6 +8,7 @@ import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
+import { judgeSlope } from '../volume/slopeJudge'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
@@ -226,6 +227,14 @@ export function P03Volume() {
                 <dd>{m2(cut.building_area_mm2)} m²</dd>
                 <dt>延床面積</dt>
                 <dd>{m2(cut.gross_floor_area_mm2)} m²</dd>
+                <dt>斜線（北・隣地・道路）</dt>
+                <dd>
+                  {legal.boundaries.length === 0
+                    ? '判定する規則が無い'
+                    : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
+                </dd>
+                <dt>日影</dt>
+                <dd>未適用（条例の値の確認が要る）</dd>
                 <dt>容積率</dt>
                 <dd>
                   {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
