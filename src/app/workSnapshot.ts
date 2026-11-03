@@ -41,9 +41,14 @@ export function parseSnapshot(json: string): ParsedSnapshot {
   return { entries: p.entries, storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fixtures: p.fixtures }
 }
 
-/** 線が変わったときの作業ログの行（線の本数と、その時点の状態） */
-export function lineChangeEntry(state: SnapshotState, at: string): { at: string; screen: string; action: string; target: string; snapshot: string } {
-  return { at, screen: 'P2', action: '線の変更', target: `線 ${state.entries.length} 本`, snapshot: snapshotJson(state) }
+/** 線が変わったときの作業ログの行（線の本数、前→後、その時点の状態。誰は代表） */
+export function lineChangeEntry(
+  state: SnapshotState,
+  at: string,
+  prevCount?: number,
+): { at: string; screen: string; action: string; target: string; snapshot: string; change: string; who: string } {
+  const change = prevCount === undefined ? '' : `${prevCount} 本 → ${state.entries.length} 本`
+  return { at, screen: 'P2', action: '線の変更', target: `線 ${state.entries.length} 本`, snapshot: snapshotJson(state), change, who: '代表' }
 }
 
 /** 文字列の状態を画面に戻す。案件名は、いまの名前のまま */

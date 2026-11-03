@@ -44,7 +44,15 @@ export async function openWorkLog(): Promise<void> {
   createWorkLogTable(db)
 }
 
-export function recordWorkLog(entry: { at: string; screen: string; action: string; target: string; snapshot?: string | null }): void {
+export function recordWorkLog(entry: {
+  at: string
+  screen: string
+  action: string
+  target: string
+  snapshot?: string | null
+  change?: string
+  who?: string
+}): void {
   if (db === null) return
   insertLogRow(db, entry)
   // 状態は新しい順に上限の数だけ残す（古い行は行だけ残る）

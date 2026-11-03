@@ -4,7 +4,7 @@
 // 仕様 3: 2 回とも失敗したら、失敗を返す（理由を含む）。3 回目はしない（呼び出し 2 回）。
 // 仕様 4: 保留の一覧は、積むと件数が増え、外すと減る。件数は一覧の長さと一致する。
 import { beforeEach, describe, expect, it } from 'vitest'
-import { judgeWithOneRetry } from './pendingJudgments'
+import { judgeWithOneRetry, pendingLogEntry } from './pendingJudgments'
 import { usePending } from '../store/pending'
 
 describe('judgeWithOneRetry（自動の 1 回再試行）', () => {
@@ -38,6 +38,20 @@ describe('judgeWithOneRetry（自動の 1 回再試行）', () => {
     expect(calls).toBe(2)
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toContain('応答なし 2')
+  })
+})
+
+// 仕様（G31・G32）: 保留の保存先は作業ログ。保留の行は、操作「保留」・誰は Claude・対象に理由。
+describe('保留の作業ログの行', () => {
+  it('操作は保留、誰は Claude、対象に理由', () => {
+    expect(pendingLogEntry('応答なし', '2026-11-04T03:00:00.000Z')).toEqual({
+      at: '2026-11-04T03:00:00.000Z',
+      screen: '判定',
+      action: '保留',
+      target: '応答なし',
+      change: '',
+      who: 'Claude',
+    })
   })
 })
 

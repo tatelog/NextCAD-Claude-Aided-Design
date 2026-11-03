@@ -12,6 +12,10 @@ export interface WorkLogRow {
   screen: string
   action: string
   target: string
+  /** 前→後（変わった内容の要約。無ければ空） */
+  change: string
+  /** 誰（代表・Claude）。既定は代表 */
+  who: string
   /** この行に状態が付いているか（状態の本体は snapshotOfRow で取る） */
   hasSnapshot: boolean
 }
@@ -23,20 +27,30 @@ export function createWorkLogTable(db: Database): void {
     screen TEXT NOT NULL,
     action TEXT NOT NULL,
     target TEXT NOT NULL,
-    snapshot TEXT
+    snapshot TEXT,
+    change TEXT NOT NULL DEFAULT '',
+    who TEXT NOT NULL DEFAULT '代表'
   )`)
   // 状態の列が無い古い表（この変更の前に作られた表）には、列を足す
   const columns = db.exec('PRAGMA table_info(work_log)')[0]?.values ?? []
   if (!columns.some((c) => String(c[1]) === 'snapshot')) db.run('ALTER TABLE work_log ADD COLUMN snapshot TEXT')
+  // 前→後と誰の列も、古い表には後から足す（既存の行の誰は既定の代表）
+  if (!columns.some((c) => String(c[1]) === 'change')) db.run("ALTER TABLE work_log ADD COLUMN change TEXT NOT NULL DEFAULT ''")
+  if (!columns.some((c) => String(c[1]) === 'who')) db.run("ALTER TABLE work_log ADD COLUMN who TEXT NOT NULL DEFAULT '代表'")
 }
 
-export function insertLogRow(db: Database, entry: { at: string; screen: string; action: string; target: string; snapshot?: string | null }): void {
-  db.run('INSERT INTO work_log (at, screen, action, target, snapshot) VALUES (?, ?, ?, ?, ?)', [
+export function insertLogRow(
+  db: Database,
+  entry: { at: string; screen: string; action: string; target: string; snapshot?: string | null; change?: string; who?: string },
+): void {
+  db.run('INSERT INTO work_log (at, screen, action, target, snapshot, change, who) VALUES (?, ?, ?, ?, ?, ?, ?)', [
     entry.at,
     entry.screen,
     entry.action,
     entry.target,
     entry.snapshot ?? null,
+    entry.change ?? '',
+    entry.who ?? '代表',
   ])
 }
 
@@ -49,7 +63,7 @@ export function readRecentLog(db: Database, opts: { limit: number; screen?: stri
   }
   params.push(opts.limit)
   const result = db.exec(
-    `SELECT id, at, screen, action, target, (snapshot IS NOT NULL) AS has_snapshot FROM work_log ${where} ORDER BY id DESC LIMIT ?`,
+    `SELECT id, at, screen, action, target, (snapshot IS NOT NULL) AS has_snapshot, change, who FROM work_log ${where} ORDER BY id DESC LIMIT ?`,
     params,
   )
   const rows = result[0]?.values ?? []
@@ -60,6 +74,8 @@ export function readRecentLog(db: Database, opts: { limit: number; screen?: stri
     action: String(v[3]),
     target: String(v[4]),
     hasSnapshot: Number(v[5]) === 1,
+    change: String(v[6]),
+    who: String(v[7]),
   }))
 }
 

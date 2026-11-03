@@ -48,6 +48,33 @@ describe('作業履歴の SQLite', () => {
   })
 })
 
+// 仕様（ハブ D-04 作業履歴。1 行＝時刻・画面・操作・対象・前→後・誰）:
+// 仕様 9: 行に「前→後」（change）と「誰」（who）を付けて取り出せる。誰の既定は「代表」。
+// 仕様 10: 古い表に列を足しても、既存の行の「誰」は「代表」になる。
+describe('作業履歴の行の前→後と誰', () => {
+  it('前→後と誰を付けて取り出せ、誰を省けば代表', async () => {
+    const SQL = await initSqlJs()
+    const db = new SQL.Database()
+    createWorkLogTable(db)
+    insertLogRow(db, { ...row(1), change: '0 本 → 1 本', who: 'Claude' })
+    insertLogRow(db, row(2))
+    const rows = readRecentLog(db, { limit: 10 })
+    expect(rows.map((r) => [r.change, r.who])).toEqual([
+      ['', '代表'],
+      ['0 本 → 1 本', 'Claude'],
+    ])
+  })
+
+  it('古い表（前→後・誰の列が無い）に列を足すと、既存の行の誰は代表', async () => {
+    const SQL = await initSqlJs()
+    const old = new SQL.Database()
+    old.run(`CREATE TABLE work_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, screen TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, snapshot TEXT)`)
+    old.run('INSERT INTO work_log (at, screen, action, target) VALUES (?, ?, ?, ?)', [row(1).at, 'P2', '切替', 't1'])
+    createWorkLogTable(old)
+    expect(readRecentLog(old, { limit: 10 }).map((r) => r.who)).toEqual(['代表'])
+  })
+})
+
 // 仕様（G68 の復元。仮置き）: 行に、その時点の状態（スナップショットの文字列）を付けられる。
 // 仕様 6: 状態を付けた行は、その文字列を同じ内容で取り出せる。付けなかった行は null。
 // 仕様 7: 状態を持つ行は、新しい順に上限の数だけ残し、古い行は状態を外す（行そのものは残す）。

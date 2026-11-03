@@ -21,6 +21,7 @@ import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from 
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
+import { pendingLogEntry } from './app/pendingJudgments'
 import { useSemantic } from './store/semantic'
 import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
@@ -122,7 +123,12 @@ export function App() {
       { segments, workerUrl: WORKER_URL, enabled: useFeatures.getState().on.classifyClaude, fetchImpl: (url, init) => fetch(url, init) },
       {
         suggest: (id, kind) => useSemantic.getState().suggest(id, kind),
-        addPending: (error) => usePending.getState().add({ id: `judge-${Date.now()}`, label: '意味づけの判定', error, at: new Date().toISOString() }),
+        addPending: (error) => {
+          const at = new Date().toISOString()
+          usePending.getState().add({ id: `judge-${Date.now()}`, label: '意味づけの判定', error, at })
+          // 保留の保存先は作業ログ（G31・G32）
+          recordWorkLog(pendingLogEntry(error, at))
+        },
       },
     )
     setJudgeMessage(judgeText(outcome))

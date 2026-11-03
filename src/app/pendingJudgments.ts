@@ -4,6 +4,11 @@ const ATTEMPTS = 2
 
 export type RetryResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
+/** 保留を作業ログへ書く行（保存先は作業ログ。操作は保留、誰は Claude、対象に理由） */
+export function pendingLogEntry(error: string, at: string): { at: string; screen: string; action: string; target: string; change: string; who: string } {
+  return { at, screen: '判定', action: '保留', target: error, change: '', who: 'Claude' }
+}
+
 export async function judgeWithOneRetry<T>(run: () => Promise<T>): Promise<RetryResult<T>> {
   let error = ''
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {

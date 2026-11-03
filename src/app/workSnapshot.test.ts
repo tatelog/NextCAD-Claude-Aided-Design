@@ -3,6 +3,7 @@
 // 仕様 2: 壊れた文字列や形の違う状態は、戻さずに例外にする。
 // 仕様 3: 線が変わった行は、その時点の線の本数を目標に書き、状態を付ける。
 // 仕様 4: 状態を戻すと、画面の状態（線・階数・階高・什器）がその時点のものになる。案件名は今の名前のまま。
+// 仕様 5: 線の変更の行には、前の本数→今の本数（前→後）を書く。誰は代表（代表の操作）。
 import { beforeEach, describe, expect, it } from 'vitest'
 import { lineChangeEntry, parseSnapshot, restoreSnapshotJson, snapshotJson } from './workSnapshot'
 import { useDrawing } from '../store/drawing'
@@ -71,6 +72,18 @@ describe('線の変更の行（仕様 3）', () => {
     expect(e.target).toBe('線 1 本')
     expect(e.screen).toBe('P2')
     expect(parseSnapshot(e.snapshot).entries).toEqual([entry])
+  })
+})
+
+describe('線の変更の行の前→後（仕様 5）', () => {
+  it('前の本数を渡すと、前→後を「0 本 → 1 本」の形で書き、誰は代表', () => {
+    const e = lineChangeEntry(state, '2026-11-04T02:00:00.000Z', 0)
+    expect(e.change).toBe('0 本 → 1 本')
+    expect(e.who).toBe('代表')
+  })
+
+  it('前の本数を渡さなければ、前→後は空', () => {
+    expect(lineChangeEntry(state, '2026-11-04T02:00:00.000Z').change).toBe('')
   })
 })
 

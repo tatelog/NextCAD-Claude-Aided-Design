@@ -18,6 +18,6 @@ export function startLineLog(): () => void {
       storeyHeightMm: s.storeyHeightMm,
       fixtures: useFixtures.getState().fixtures,
     }
-    recordWorkLog(lineChangeEntry(state, new Date().toISOString()))
+    recordWorkLog(lineChangeEntry(state, new Date().toISOString(), prev.entries.length))
   })
 }
