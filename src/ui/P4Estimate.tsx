@@ -6,7 +6,7 @@ import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
-import { planExteriorQuantities } from '../estimate/planExterior'
+import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
 import { structureQuantities } from '../estimate/structureQuantities'
 import { sashQuantity } from '../estimate/sashQuantity'
 import { useDrawing } from '../store/drawing'
@@ -102,6 +102,8 @@ export function P4Estimate() {
         storeyCount: plan.ev.storey_count,
       })
       out.push(ext.balcony, ext.corridor)
+      // 手すり（G62）。バルコニーの付く面の辺の長さ × 高さ（仮置き）
+      out.push(railingQuantity({ cells: plan.cells, outline: { W: plan.widthMm, D: plan.depthMm }, storeyCount: plan.ev.storey_count }))
     }
     out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
     return out

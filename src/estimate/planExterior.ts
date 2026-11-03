@@ -27,6 +27,18 @@ function overlapMm2(a: Rect, b: Rect): number {
   return w > 0 && h > 0 ? w * h : 0
 }
 
+/** 手すりの高さ（mm）の既定。出典が無いので仮置き */
+export const RAILING_HEIGHT_MM = 1100
+
+/** 手すり（バルコニーの付く面の辺の長さ × 高さ）。階数分。仮置きの印を付ける */
+export function railingQuantity(input: { cells: readonly Rect[]; outline: { W: number; D: number }; storeyCount: number }): Quantity {
+  const railingMm2 = input.cells.reduce((sum, c) => {
+    const faces = balconyOfUnit(c, { outline: input.outline }).faces
+    return sum + faces.reduce((s, f) => s + (f === '上' || f === '下' ? c.x1 - c.x0 : c.y1 - c.y0) * RAILING_HEIGHT_MM, 0)
+  }, 0)
+  return { item: '手すり', category: '外装', quantity: (railingMm2 / M2) * input.storeyCount, unit: 'm2', provisional: true }
+}
+
 export function planExteriorQuantities(input: PlanExteriorInput): { balcony: Quantity; corridor: Quantity } {
   const { corridor, cores, cells, outline, storeyCount } = input
   const corridorMm2 = (corridor.x1 - corridor.x0) * (corridor.y1 - corridor.y0) - cores.reduce((sum, c) => sum + overlapMm2(corridor, c), 0)
