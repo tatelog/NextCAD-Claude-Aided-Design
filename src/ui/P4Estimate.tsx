@@ -3,6 +3,9 @@
 import { useMemo, useState } from 'react'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
+import { effectiveQuantity } from '../estimate/autoQuantity'
+import { buildingExteriorQuantities } from '../estimate/quantities'
+import { useSite } from '../store/site'
 
 const SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
@@ -25,22 +28,55 @@ export function P4Estimate() {
     }
   }, [csv])
 
+  // P2 の外形から拾った数量（外壁・屋根）。P2 で外形が閉じていれば入る
+  const volume = useSite((s) => s.volume)
+  // 外形の 2D（SVG は y を下へ向けるので、y を反転して表示する）
+  const planBox = useMemo(() => {
+    if (!volume) return { x0: 0, y0: 0, w: 1, h: 1 }
+    const xs = volume.footprint.map((p) => p.x)
+    const ys = volume.footprint.map((p) => -p.y)
+    const pad = 1_000
+    const x0 = Math.min(...xs) - pad
+    const y0 = Math.min(...ys) - pad
+    return { x0, y0, w: Math.max(...xs) - x0 + pad, h: Math.max(...ys) - y0 + pad }
+  }, [volume])
+  const autoList = useMemo(() => {
+    if (!volume) return []
+    const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+    return [
+      { item: q.exterior_wall.item, quantity: q.exterior_wall.quantity },
+      { item: q.roof.item, quantity: q.roof.quantity },
+    ]
+  }, [volume])
+
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
     const lines = parsed.rows
-      .map((r) => ({ price_id: r.id, quantity: Number(quantities[r.id] ?? '') }))
+      .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
       .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
       return estimateCost(parsed.rows, lines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities])
+  }, [parsed, quantities, autoList])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', height: '100%' }}>
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
+        {volume ? (
+          <figure style={{ margin: '0 0 12px' }}>
+            <svg viewBox={`${planBox.x0} ${planBox.y0} ${planBox.w} ${planBox.h}`} style={{ width: '100%', maxWidth: 420, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>
+              <polygon points={volume.footprint.map((p) => `${p.x},${-p.y}`).join(' ')} fill="rgba(47,122,79,0.12)" stroke="#2f7a4f" strokeWidth={planBox.w / 160} />
+            </svg>
+            <figcaption style={{ fontSize: 12, color: '#666' }}>
+              外形（P2）。外壁と屋根は外装として拾う。室の内装の塗り分けは、P3 で部屋を作ってから出す（未実装）。
+            </figcaption>
+          </figure>
+        ) : (
+          <p style={{ fontSize: 12, color: '#666' }}>P2 で外形を閉じると、外壁と屋根の数量を自動で拾います。</p>
+        )}
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={8} style={{ width: '100%', fontFamily: 'monospace' }} />
         {'error' in parsed ? (
           <p style={{ color: '#a33' }}>単価 CSV: {parsed.error}</p>
@@ -68,6 +104,10 @@ export function P4Estimate() {
                       onChange={(e) => setQuantities({ ...quantities, [r.id]: e.target.value })}
                       style={{ width: 90, textAlign: 'right' }}
                     />
+                    {(() => {
+                      const eq = effectiveQuantity(r, quantities[r.id] ?? '', autoList)
+                      return eq && eq.source === '自動' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(eq.quantity).toLocaleString('ja-JP')} m²</span> : null
+                    })()}
                   </td>
                 </tr>
               ))}

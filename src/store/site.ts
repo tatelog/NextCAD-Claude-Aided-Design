@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import type { UseDistrict } from '../plateau/urf'
 import type { PlateauBuilding } from '../plateau/bldg'
+import type { Point } from '../geom/viewport'
 
 interface SiteState {
   matches: UseDistrict[] | null
@@ -18,6 +19,9 @@ interface SiteState {
   /** 日影規制の判定（P2）。規制値が無い用途地域は null。図書の法的チェックに使う */
   shadow: '適合' | '不適合' | null
   setShadow: (shadow: '適合' | '不適合' | null) => void
+  /** 外形と階（P2）。P4 の数量の自動拾いと、2D の図に使う。閉じていなければ null */
+  volume: { footprint: Point[]; storey_count: number; storey_height: number } | null
+  setVolume: (volume: { footprint: Point[]; storey_count: number; storey_height: number } | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -30,4 +34,6 @@ export const useSite = create<SiteState>((set) => ({
   setRoadSlope: (roadSlope) => set({ roadSlope }),
   shadow: null,
   setShadow: (shadow) => set({ shadow }),
+  volume: null,
+  setVolume: (volume) => set({ volume }),
 }))

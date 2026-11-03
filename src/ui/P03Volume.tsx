@@ -168,6 +168,10 @@ export function P03Volume() {
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
+  // 外形と階を P4 に渡す（数量の自動拾い）
+  useEffect(() => {
+    useSite.getState().setVolume(volume ? { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height } : null)
+  }, [volume])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
