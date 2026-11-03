@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 import type { Kind } from '../plan/semantic'
 import type { Assignment } from '../plan/semanticConfirm'
+import { reviewStatusOf } from '../plan/reviewThreshold'
 
 export interface SemanticState {
   /** 線の id → 意味づけ。種類を持つ線だけが入る */
@@ -17,7 +18,7 @@ export interface SemanticState {
   /** 要確認の印を付ける。種類を持つ線だけに付き、種類と誰がは変えない。種類を持たない線には何も作らない */
   markNeedsReview: (segmentIds: readonly string[]) => void
   /** Claude の提案。要確認の Claude の割り当てとして入れる。人が確定した線は上書きしない（G14） */
-  suggest: (segmentId: string, kind: Kind) => void
+  suggest: (segmentId: string, kind: Kind, confidence: number) => void
   /** 全部消す */
   clear: () => void
 }
@@ -45,11 +46,11 @@ export const useSemantic = create<SemanticState>((set) => ({
       }
       return marked ? { assignments: next } : s
     }),
-  suggest: (segmentId, kind) =>
+  suggest: (segmentId, kind, confidence) =>
     set((s) => {
       const current = s.assignments[segmentId]
       if (current !== undefined && current.by === 'human') return s
-      return { assignments: { ...s.assignments, [segmentId]: { kind, status: 'needs_review', by: 'claude' } } }
+      return { assignments: { ...s.assignments, [segmentId]: { kind, status: reviewStatusOf(confidence), by: 'claude' } } }
     }),
   clear: () => set({ assignments: {} }),
 }))

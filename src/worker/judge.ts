@@ -12,7 +12,7 @@ export type JudgeOutcome =
 
 export interface JudgeSinks {
   /** Claude の提案を一本ずつ入れる（店舗が、人の確定を守る） */
-  suggest: (segmentId: string, kind: Kind) => void
+  suggest: (segmentId: string, kind: Kind, confidence: number) => void
   /** 再試行でも失敗した判定を、保留の一覧に積む */
   addPending: (error: string) => void
 }
@@ -40,7 +40,7 @@ export async function judgeSegments(
   if (input.segments.length === 0) return { state: 'skipped' }
   try {
     const out = await classifyViaWorker(input.segments, input.workerUrl, input.fetchImpl)
-    for (const r of out) sinks.suggest(r.segment_id, r.kind)
+    for (const r of out) sinks.suggest(r.segment_id, r.kind, r.confidence)
     return { state: 'applied', count: out.length }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)

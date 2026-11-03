@@ -107,8 +107,8 @@ describe('店舗への提案（仕様 3・6）', () => {
 
   it('提案は要確認の Claude の割り当てになり、人が確定した線は上書きしない', () => {
     useSemantic.getState().setKind('h1', 'column')
-    useSemantic.getState().suggest('c1', 'wall')
-    useSemantic.getState().suggest('h1', 'wall')
+    useSemantic.getState().suggest('c1', 'wall', 0.3)
+    useSemantic.getState().suggest('h1', 'wall', 0.9)
     const a = useSemantic.getState().assignments
     expect(a.c1).toEqual({ kind: 'wall', status: 'needs_review', by: 'claude' })
     expect(a.h1).toEqual({ kind: 'column', status: 'confirmed', by: 'human' })

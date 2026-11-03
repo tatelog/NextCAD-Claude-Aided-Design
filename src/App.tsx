@@ -122,7 +122,7 @@ export function App() {
     const outcome = await judgeSegments(
       { segments, workerUrl: WORKER_URL, enabled: useFeatures.getState().on.classifyClaude, fetchImpl: (url, init) => fetch(url, init) },
       {
-        suggest: (id, kind) => useSemantic.getState().suggest(id, kind),
+        suggest: (id, kind, confidence) => useSemantic.getState().suggest(id, kind, confidence),
         addPending: (error) => {
           const at = new Date().toISOString()
           usePending.getState().add({ id: `judge-${Date.now()}`, label: '意味づけの判定', error, at })
