@@ -13,6 +13,8 @@ export interface SlopeBoundary {
   coefficient: number
   /** 立ち上がり（mm）。0 以上 */
   riseMm: number
+  /** 距離の上限（mm）。道路斜線のように、境界からこの距離を超えれば制限しない（別表第三） */
+  maxDistanceMm?: number
 }
 
 const BoundarySchema = z.object({
@@ -22,6 +24,7 @@ const BoundarySchema = z.object({
   }),
   coefficient: z.number().positive(),
   riseMm: z.number().min(0),
+  maxDistanceMm: z.number().positive().optional(),
 })
 
 const round = (v: number) => Math.round(v * 1e6) / 1e6
@@ -54,7 +57,8 @@ export function cutFootprint(footprint: readonly Point[], boundaries: readonly S
   for (const raw of boundaries) {
     const b = BoundarySchema.parse(raw)
     if (topZMm <= b.riseMm) continue
-    const dist = (topZMm - b.riseMm) / b.coefficient
+    const byHeight = (topZMm - b.riseMm) / b.coefficient
+    const dist = b.maxDistanceMm === undefined ? byHeight : Math.min(b.maxDistanceMm, byHeight)
     poly = clipHalfPlane(poly, b, dist)
     if (poly.length === 0) return []
   }
