@@ -1,8 +1,10 @@
 // 描くキャンバス（共通部品）。指・マウス・ペンを Pointer Events で一つに扱い、入力の種類で挙動を変えない（G23）。
 // 振り分けは input/gesture.ts（本数と中ボタン・Shift だけ見る）。1 本 = 描く。2 本 = パンとズーム。
 // ホイール = カーソル位置でズーム。中ボタン／Shift + ドラッグ = パン。ダブルタップ・右クリック = サークルメニュー（G52）。
+// 外形が閉じていれば、角（四角）と辺の中点（丸）につまみを出す。つまみの上で押したら線は描かず、つまんで外形を動かす（G65）。
 import { useEffect, useMemo, useRef } from 'react'
 import { findClosedOutline } from '../canvas/closure'
+import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
 import { gridStepFor } from '../input/gridSteps'
@@ -11,16 +13,42 @@ import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewp
 import type { Node, Segment, Stroke } from '../model/schema'
 import { DUMMY_SITE_MM, useDrawing } from '../store/drawing'
 import { useUi } from '../store/ui'
+import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
 
 interface PointerTrack {
   id: number
   last: Point
 }
 
+/** つまみ（G65）を動かしている最中に見せる外形。弾かれる位置（valid: false）では動かす前の形のまま */
+interface HandleDragView {
+  segments: Segment[]
+  footprint: Point[]
+  active: HandleRef
+  valid: boolean
+}
+
+/** つまんでいる最中。from は押したときの外形。離したとき、view.footprint が成り立っていれば store に確定する */
+interface HandleDrag {
+  pointerId: number
+  handle: HandleRef
+  from: Point[]
+  view: HandleDragView
+}
+
 /** 近づいた端点の輪の色。アクセント色の定義がまだ無いので、道具のアクティブ表示（pen.css）と同じ色。仮置き */
 const ENDPOINT_RING_COLOR = '#1f2a44'
 
+/** つまみの描き方。四角は一辺、丸は直径（画面の px）。当たり判定の半径 12 px より小さく描く。色は端点の輪と同じ。仮置き */
+const HANDLE_DRAW_SIZE_PX = 10
+const HANDLE_COLOR = '#1f2a44'
+/** 動かした結果が外形として成り立たない（離すと元に戻る）ときの、つまんでいるつまみの色。「議論用・未確定」の赤と同じ。仮置き */
+const HANDLE_INVALID_COLOR = '#c8412a'
+
 const toPenInput = (type: string): Stroke['pen_input'] => (type === 'pen' ? 'pen' : type === 'touch' ? 'touch' : 'mouse')
+
+/** つまみで動かした先の吸着。入力スナップがオンなら見ている拡大率の段の入力側（gridSteps）、オフなら整数 mm（座標は整数 mm のまま） */
+const handleSnapMm = (vp: Viewport): number => (useUi.getState().inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : 1)
 
 export function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -28,6 +56,7 @@ export function DrawingCanvas() {
   const setViewport = useDrawing((s) => s.setViewport)
   const fitViewport = useDrawing((s) => s.fitViewport)
   const addStroke = useDrawing((s) => s.addStroke)
+  const transform = useDrawing((s) => s.transform)
   const entries = useDrawing((s) => s.entries)
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
@@ -39,6 +68,8 @@ export function DrawingCanvas() {
   }, [segments])
 
   const drawingRef = useRef<{ pointerId: number; pointerType: string; points: Point[] } | null>(null)
+  /** つまみ（外形の角・辺の中点）をつまんでいる最中。つまんでいる間は線を描かない（G65） */
+  const handleDragRef = useRef<HandleDrag | null>(null)
   const pointersRef = useRef<Map<number, PointerTrack>>(new Map())
   const panRef = useRef<{ last: Point } | null>(null)
   const lastTapRef = useRef<TapRecord | null>(null)
@@ -65,7 +96,17 @@ export function DrawingCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    paint(canvas, viewport, segments, nodes, footprint, drawingRef.current?.points ?? null, displayGrid, hoverRef.current)
+    paint(
+      canvas,
+      viewport,
+      segments,
+      nodes,
+      footprint,
+      drawingRef.current?.points ?? null,
+      displayGrid,
+      hoverRef.current,
+      handleDragRef.current?.view ?? null,
+    )
   }, [viewport, segments, nodes, footprint, displayGrid])
 
   useEffect(() => {
@@ -87,6 +128,7 @@ export function DrawingCanvas() {
         drawingRef.current?.points ?? null,
         displayGrid,
         hoverRef.current,
+        handleDragRef.current?.view ?? null,
       )
 
     const onDown = (e: PointerEvent) => {
@@ -107,8 +149,9 @@ export function DrawingCanvas() {
       canvas.setPointerCapture(e.pointerId)
       pointersRef.current.set(e.pointerId, { id: e.pointerId, last: p })
       if (intent === 'pan-zoom') {
-        // 2 本目が来たら描くのをやめてパン・ズームに切り替える
+        // 2 本目が来たら描くのも、つまみを動かすのもやめてパン・ズームに切り替える（つまみは確定せずに元の形へ）
         drawingRef.current = null
+        handleDragRef.current = null
         panRef.current = null
         hoverRef.current = null
         repaint()
@@ -128,6 +171,22 @@ export function DrawingCanvas() {
         hoverRef.current = null
         repaint()
         openCircleMenu(p)
+        return
+      }
+      // つまみ（外形の角・辺の中点。12 px 以内）の上で押したら、線は描き始めずにそのつまみを動かす。つまみが優先（G65）
+      const vp = viewportRef.current
+      const handle = footprint ? hitTestHandle(footprintHandles(footprint), pxToMm(vp, p), vp.mmPerPx) : null
+      if (footprint && handle) {
+        const active: HandleRef = { kind: handle.kind, index: handle.index }
+        drawingRef.current = null
+        hoverRef.current = null
+        handleDragRef.current = {
+          pointerId: e.pointerId,
+          handle: active,
+          from: footprint,
+          view: { segments, footprint, active, valid: true },
+        }
+        repaint()
         return
       }
       // 既存の端点の近く（24 px 以内）で押したら、その端点から描き始める。近い端点は輪で示す（G37）
@@ -176,6 +235,20 @@ export function DrawingCanvas() {
         panRef.current.last = p
         return
       }
+      // つまみを動かしている最中: 入力スナップの段に吸着させた先へ外形を動かして見せる。成り立たない形は元の形のまま
+      const hd = handleDragRef.current
+      if (hd && hd.pointerId === e.pointerId) {
+        const vp = viewportRef.current
+        const r = dragHandle(hd.from, hd.handle, pxToMm(vp, p), handleSnapMm(vp))
+        hd.view = {
+          segments: moveOutlineVertices(entries, hd.from, r.footprint).flatMap((en) => en.segments),
+          footprint: r.footprint,
+          active: hd.handle,
+          valid: r.valid,
+        }
+        repaint()
+        return
+      }
       const d = drawingRef.current
       if (d && d.pointerId === e.pointerId) {
         d.points.push(p)
@@ -188,6 +261,15 @@ export function DrawingCanvas() {
       pointersRef.current.delete(e.pointerId)
       if (panRef.current) {
         panRef.current = null
+        return
+      }
+      // つまみを離した: 成り立つ形で、動いていれば 1 操作（1 変形）として store に確定する。成り立たない形は元のまま
+      const hd = handleDragRef.current
+      if (hd && hd.pointerId === e.pointerId) {
+        handleDragRef.current = null
+        const moved = hd.view.valid && hd.view.footprint.some((q, i) => q.x !== hd.from[i]!.x || q.y !== hd.from[i]!.y)
+        if (moved) transform((es) => moveOutlineVertices(es, hd.from, hd.view.footprint))
+        else repaint()
         return
       }
       const d = drawingRef.current
@@ -218,10 +300,11 @@ export function DrawingCanvas() {
       setViewport(zoomAt(viewportRef.current, wheelZoomFactor(e.deltaY), local(e)))
     }
 
-    // キャンセル（OS がジェスチャを奪った等）は、描きかけの線を確定せずに捨てる
+    // キャンセル（OS がジェスチャを奪った等）は、描きかけの線も、動かしかけのつまみも、確定せずに捨てる
     const onCancel = (e: PointerEvent) => {
       pointersRef.current.delete(e.pointerId)
       if (drawingRef.current?.pointerId === e.pointerId) drawingRef.current = null
+      if (handleDragRef.current?.pointerId === e.pointerId) handleDragRef.current = null
       panRef.current = null
       hoverRef.current = null
       repaint()
@@ -256,7 +339,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, setViewport, openCircleMenu, segments, nodes, footprint, displayGrid])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, segments, nodes, footprint, displayGrid])
 
   return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
 }
@@ -270,9 +353,13 @@ function paint(
   currentPx: Point[] | null,
   showGrid: boolean,
   hoverPx: Point | null,
+  handleView: HandleDragView | null,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
+  // つまみを動かしている最中は、動かした外形（成り立たない位置では動かす前の形）を見せる
+  const shownSegments = handleView ? handleView.segments : segments
+  const shownFootprint = handleView ? handleView.footprint : footprint
   const dpr = window.devicePixelRatio || 1
   const rect = canvas.getBoundingClientRect()
   const w = rect.width
@@ -322,10 +409,10 @@ function paint(
   ctx.setLineDash([])
 
   // 閉じた外形の塗り
-  if (footprint && footprint.length >= 3) {
+  if (shownFootprint && shownFootprint.length >= 3) {
     ctx.fillStyle = 'rgba(46, 125, 50, 0.12)'
     ctx.beginPath()
-    footprint.forEach((p, i) => {
+    shownFootprint.forEach((p, i) => {
       const q = mmToPx(vp, p)
       if (i === 0) ctx.moveTo(q.x, q.y)
       else ctx.lineTo(q.x, q.y)
@@ -339,7 +426,7 @@ function paint(
   ctx.lineWidth = 2.5
   ctx.lineCap = 'round'
   ctx.beginPath()
-  for (const s of segments) {
+  for (const s of shownSegments) {
     const pts = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as Point[]) : null
     if (pts && pts.length > 1) {
       pts.forEach((p, i) => {
@@ -376,6 +463,25 @@ function paint(
     for (const c of ringCentersPx(nodes, hoverPx, vp)) {
       ctx.beginPath()
       ctx.arc(c.x, c.y, ENDPOINT_RING_RADIUS_PX, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+
+  // 外形のつまみ（G65）: 角は四角、辺の中点は丸。つまんでいるものは塗り、元に戻る位置では赤にする
+  if (shownFootprint && shownFootprint.length >= 3) {
+    const half = HANDLE_DRAW_SIZE_PX / 2
+    const active = handleView?.active ?? null
+    ctx.lineWidth = 2
+    for (const handle of footprintHandles(shownFootprint)) {
+      const c = mmToPx(vp, handle)
+      const picked = active !== null && active.kind === handle.kind && active.index === handle.index
+      const color = picked && handleView && !handleView.valid ? HANDLE_INVALID_COLOR : HANDLE_COLOR
+      ctx.strokeStyle = color
+      ctx.fillStyle = picked ? color : '#ffffff'
+      ctx.beginPath()
+      if (handle.shape === 'square') ctx.rect(c.x - half, c.y - half, HANDLE_DRAW_SIZE_PX, HANDLE_DRAW_SIZE_PX)
+      else ctx.arc(c.x, c.y, half, 0, Math.PI * 2)
+      ctx.fill()
       ctx.stroke()
     }
   }
