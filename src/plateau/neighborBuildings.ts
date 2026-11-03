@@ -46,6 +46,16 @@ export async function loadNeighborBuildings(
   fetchImpl: typeof fetch = fetch,
   radiusMm: number = DEFAULT_RADIUS_MM,
 ): Promise<PlateauBuilding[]> {
+  try {
+    return await readNeighbors(point, zipUrl, fetchImpl, radiusMm)
+  } catch (e) {
+    // 接続できないとき fetch は TypeError を投げる（ブラウザでは「Failed to fetch」と出るだけ）。HTTP のエラーは範囲取得の文言のまま
+    if (e instanceof TypeError) throw new Error('PLATEAU の建物データに接続できませんでした。通信か中継を確かめて、もう一度試してください')
+    throw e
+  }
+}
+
+async function readNeighbors(point: LatLon, zipUrl: string, fetchImpl: typeof fetch, radiusMm: number): Promise<PlateauBuilding[]> {
   const zip = await openZip(zipUrl, fetchImpl)
   const names = new Set(zip.entries.map((e) => e.name))
   const codes = neighborMeshCodes(point)

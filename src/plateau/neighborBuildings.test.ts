@@ -97,4 +97,12 @@ describe('loadNeighborBuildings（周辺建物の読み込み）', () => {
     const zip = buildZip([{ name: 'udx/bldg/53394608_bldg_6697_op.gml', data: gmlWithBuildings([far]) }])
     await expect(loadNeighborBuildings(POINT, 'https://example.test/ward.zip', serveZip(zip, []))).resolves.toEqual([])
   })
+
+  it('通信そのものが切れたら（接続できない）、通信か中継を確かめるよう伝える文言にする', async () => {
+    // 接続できないとき fetch は TypeError を投げる（ブラウザの「Failed to fetch」）
+    const offline = (async () => {
+      throw new TypeError('Failed to fetch')
+    }) as unknown as typeof fetch
+    await expect(loadNeighborBuildings(POINT, 'https://example.test/ward.zip', offline)).rejects.toThrow('接続できませんでした')
+  })
 })
