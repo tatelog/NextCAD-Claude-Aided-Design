@@ -1,0 +1,61 @@
+// 仕様: 地点（経緯度）と区から、その地点の用途地域を取る（D-02 C4、ハブ E-85）。
+// 仕様 1: 地点から 2 次メッシュを求め、API（datacatalog/citygml/mm:{メッシュ}）で、区の urf のファイルを探す。
+// 仕様 2: そのファイルを取り、用途地域を解析し、地点を含む用途地域を返す。
+// 仕様 3: 区に urf の項目が無ければ、ファイルは取らず、file = null・matches = []（別の区は使わない）。
+// 仕様 4: API の応答が正常でなければ例外（推測で埋めない）。
+import { describe, expect, it } from 'vitest'
+import { loadDistrictsAt } from './load'
+
+const apiJson = (cityCode: string) => ({
+  cities: [
+    {
+      cityCode,
+      year: 2025,
+      files: {
+        urf: [{ code: '533946', url: 'https://example.invalid/urf.gml', fileSize: 100, features: 1 }],
+      },
+    },
+  ],
+})
+
+const gml = `
+<urf:UseDistrict gml:id="a">
+  <urf:function codeSpace="x">1</urf:function>
+  <urf:lod1MultiSurface><gml:MultiSurface><gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing><gml:posList>
+    35.60 139.70 35.60 139.90 35.80 139.90 35.80 139.70 35.60 139.70
+  </gml:posList></gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember></gml:MultiSurface></urf:lod1MultiSurface>
+  <urf:floorAreaRate>300</urf:floorAreaRate>
+  <urf:buildingCoverageRate>60</urf:buildingCoverageRate>
+</urf:UseDistrict>`
+
+function router(apiStatus: number, cityCode: string, requested: string[]) {
+  return async (url: string) => {
+    requested.push(url)
+    if (url.startsWith('https://api.plateauview.mlit.go.jp/')) {
+      return new Response(JSON.stringify(apiJson(cityCode)), { status: apiStatus })
+    }
+    return new Response(gml, { status: 200 })
+  }
+}
+
+describe('loadDistrictsAt（地点の用途地域）', () => {
+  it('地点を含む用途地域を返し、メッシュ 533946 の API と区のファイルを使う', async () => {
+    const requested: string[] = []
+    const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13108' }, router(200, '13108', requested))
+    expect(requested[0]).toBe('https://api.plateauview.mlit.go.jp/datacatalog/citygml/mm:533946')
+    expect(requested[1]).toBe('https://example.invalid/urf.gml')
+    expect(r.file).toEqual({ url: 'https://example.invalid/urf.gml', fileSize: 100, cityCode: '13108' })
+    expect(r.matches.map((m) => m.floorAreaRatePercent)).toEqual([300])
+  })
+
+  it('区に urf の項目が無ければ、ファイルは取らず空を返す', async () => {
+    const requested: string[] = []
+    const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13116' }, router(200, '13108', requested))
+    expect(requested).toHaveLength(1)
+    expect(r).toEqual({ file: null, districts: [], matches: [] })
+  })
+
+  it('API の応答が正常でなければ例外', async () => {
+    await expect(loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13108' }, router(500, '13108', []))).rejects.toThrow()
+  })
+})
