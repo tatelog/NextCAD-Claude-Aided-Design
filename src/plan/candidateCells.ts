@@ -11,6 +11,8 @@ export interface CandidateInput {
   corridor_mm: number
   unit_depth_mm: number
   span_mm: number
+  /** 中廊下（既定）か片廊下（廊下を東の縁に通し、区画は西側だけ） */
+  layout?: '中廊下' | '片廊下'
 }
 
 export interface Rect {
@@ -28,12 +30,24 @@ export function candidateCells(input: CandidateInput): { corridor: Rect; cells: 
   const ud = positive.parse(input.unit_depth_mm)
   const s = positive.parse(input.span_mm)
   if (cw >= W) throw new Error('廊下が建物の幅より広い')
+  const lines = gridLines(D, s)
+
+  if (input.layout === '片廊下') {
+    // 廊下を東の縁に通し、区画は西側だけ（廊下の辺に接する）
+    if (ud > W - cw) throw new Error('住戸の奥行が建物の幅（廊下を除く）を超える')
+    const corridor: Rect = { id: 'corridor', x0: W - cw, y0: 0, x1: W, y1: D }
+    const cells: Rect[] = []
+    for (let k = 0; k < lines.length - 1; k++) {
+      cells.push({ id: `L${k}`, x0: W - cw - ud, y0: lines[k]!, x1: W - cw, y1: lines[k + 1]! })
+    }
+    return { corridor, cells }
+  }
+
   if ((W - cw) % 2 !== 0) throw new Error('建物の幅と廊下の幅の差は偶数にする（中央に通すため）')
   const half = (W - cw) / 2
   if (ud > half) throw new Error('住戸の奥行が建物の半幅を超える')
 
   const corridor: Rect = { id: 'corridor', x0: half, y0: 0, x1: half + cw, y1: D }
-  const lines = gridLines(D, s)
   const cells: Rect[] = []
   for (let k = 0; k < lines.length - 1; k++) {
     const y0 = lines[k]!

@@ -37,6 +37,25 @@ describe('candidateCells（廊下の両側の住戸候補）', () => {
     expect(() => candidateCells({ ...input, unit_depth_mm: 9_500 })).toThrow()
   })
 
+  it('片廊下は廊下を建物の東の縁に通し、区画は西側だけに並ぶ（数は中廊下の半分）', () => {
+    const c = candidateCells({ ...input, layout: '片廊下' })
+    expect(c.cells).toHaveLength(4)
+    expect(c.corridor.x1).toBe(20_000)
+    expect(c.cells.every((x) => x.x1 <= c.corridor.x0)).toBe(true)
+    const r = countUnits({
+      outline: [
+        { x: 0, y: 0 },
+        { x: 20_000, y: 0 },
+        { x: 20_000, y: 12_000 },
+        { x: 0, y: 12_000 },
+      ],
+      corridors: [c.corridor],
+      cores: [],
+      cells: c.cells,
+    })
+    expect(r.usable_count).toBe(4)
+  })
+
   it('区画 ID は重複しない', () => {
     const ids = candidateCells(input).cells.map((x) => x.id)
     expect(new Set(ids).size).toBe(ids.length)
