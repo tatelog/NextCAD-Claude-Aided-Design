@@ -10,6 +10,8 @@ import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
 import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
+import { shadowOf } from '../volume/shadow'
+import { useUi } from '../store/ui'
 import { shadowRuleFor } from '../law/shadowRule'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
@@ -51,6 +53,8 @@ export function P03Volume() {
   const [view, setView] = useState<'plan' | '3d'>('3d')
   const [homeToken, setHomeToken] = useState(0)
   const siteBuildings = useSite((s) => s.buildings)
+  const showShadow = useUi((s) => s.showShadow)
+  const showNeighbors = useUi((s) => s.showNeighbors)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
     () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, PARCEL_CENTER_MM) : []),
@@ -139,6 +143,11 @@ export function P03Volume() {
   useEffect(() => {
     useSite.getState().setRoadSlope(roadSlope)
   }, [roadSlope])
+  // 地面に落ちる日影（時刻の太陽の位置から、建物の影の形）。太陽が地平線の上のときだけ
+  const sunShadow = useMemo(
+    () => (volume && sun && sun.altitudeDeg > 0 ? shadowOf(volume.footprint, volume.total_height, sun.altitudeDeg, sun.azimuthFromSouthDeg) : null),
+    [volume, sun],
+  )
   // 日影規制（冬至 8:00〜16:00）。切り取り前の形で判定する（安全側）。規制値が無い用途地域は対象外と出す
   const shadowJudge = useMemo(() => {
     const rule = shadowRuleFor(zone, 2)
@@ -221,7 +230,8 @@ export function P03Volume() {
             <div style={{ flex: 1, minWidth: 0, minHeight: 420 }}>
               <Volume3D
                 footprint={volume.footprint}
-                neighbors={neighbors}
+                shadow={showShadow ? sunShadow : null}
+                neighbors={showNeighbors ? neighbors : []}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}

@@ -6,6 +6,7 @@ import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { useSite } from '../store/site'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { worldPixel } from '../map/worldPixel'
+import { useUi } from '../store/ui'
 
 const DEFAULT = { lon: 139.7671, lat: 35.6812 }
 // 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
@@ -24,6 +25,7 @@ export function P1Site() {
   const [neighborLoading, setNeighborLoading] = useState(false)
   const [neighborError, setNeighborError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
+  const showNeighbors = useUi((s) => s.showNeighbors)
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -60,7 +62,7 @@ export function P1Site() {
 
   // 周辺建物の footprint を、3×3 タイルの左上を原点にしたピクセルの多角形にする
   const buildingPolygons = useMemo(() => {
-    if (!siteBuildings) return []
+    if (!siteBuildings || !showNeighbors) return []
     try {
       const c = tileFromLonLat({ lon: Number(lonText), lat: Number(latText) }, zoom)
       const ox = (c.x - 1) * 256
@@ -78,7 +80,7 @@ export function P1Site() {
     } catch {
       return []
     }
-  }, [siteBuildings, lonText, latText, zoom])
+  }, [siteBuildings, lonText, latText, zoom, showNeighbors])
 
   const tiles = useMemo(() => {
     const lon = Number(lonText)
