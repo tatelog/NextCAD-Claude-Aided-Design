@@ -16,6 +16,8 @@ export interface SemanticState {
   clearKind: (segmentId: string) => void
   /** 要確認の印を付ける。種類を持つ線だけに付き、種類と誰がは変えない。種類を持たない線には何も作らない */
   markNeedsReview: (segmentIds: readonly string[]) => void
+  /** Claude の提案。要確認の Claude の割り当てとして入れる。人が確定した線は上書きしない（G14） */
+  suggest: (segmentId: string, kind: Kind) => void
   /** 全部消す */
   clear: () => void
 }
@@ -42,6 +44,12 @@ export const useSemantic = create<SemanticState>((set) => ({
         marked = true
       }
       return marked ? { assignments: next } : s
+    }),
+  suggest: (segmentId, kind) =>
+    set((s) => {
+      const current = s.assignments[segmentId]
+      if (current !== undefined && current.by === 'human') return s
+      return { assignments: { ...s.assignments, [segmentId]: { kind, status: 'needs_review', by: 'claude' } } }
     }),
   clear: () => set({ assignments: {} }),
 }))

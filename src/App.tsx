@@ -20,6 +20,8 @@ import { uploadJsonToDrive } from './drive/driveUpload'
 import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
+import { judgeSegments, judgeText } from './worker/judge'
+import { useSemantic } from './store/semantic'
 
 const SCREENS = [
   { id: 'P1', name: '敷地' },
@@ -32,6 +34,9 @@ const SCREENS = [
 type ScreenId = (typeof SCREENS)[number]['id']
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
+
+// 判定の Worker の URL（配備先は未決。未設定なら判定は送らない）
+const WORKER_URL: string = import.meta.env.VITE_WORKER_URL ?? ''
 
 export function App() {
   const [screen, setScreen] = useState<ScreenId>('P2')
@@ -98,6 +103,24 @@ export function App() {
     setScreen(id)
     recordWorkLog({ at: new Date().toISOString(), screen: id, action: '切替', target: id })
     setRev((r) => r + 1)
+  }
+
+  // 意味づけの判定（Claude）。F5・F9 の線を Worker に送り、結果は要確認の提案として入れる。失敗は保留へ（G9・G14・G31）
+  const [judgeMessage, setJudgeMessage] = useState<string | null>(null)
+  const judgeNow = async () => {
+    const segments = useDrawing
+      .getState()
+      .entries.flatMap((e) => e.segments)
+      .filter((s) => s.stage === 'F5' || s.stage === 'F9')
+      .map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 } }))
+    const outcome = await judgeSegments(
+      { segments, workerUrl: WORKER_URL, enabled: useFeatures.getState().on.classifyClaude, fetchImpl: (url, init) => fetch(url, init) },
+      {
+        suggest: (id, kind) => useSemantic.getState().suggest(id, kind),
+        addPending: (error) => usePending.getState().add({ id: `judge-${Date.now()}`, label: '意味づけの判定', error, at: new Date().toISOString() }),
+      },
+    )
+    setJudgeMessage(judgeText(outcome))
   }
 
   // 作業履歴の行の時点に戻す（線・階数・階高・什器。案件名は今のまま）。戻したことも行に残る
@@ -210,7 +233,17 @@ export function App() {
         />
         <span style={{ fontSize: 11, color: '#c8412a', border: '1px solid #c8412a', borderRadius: 3, padding: '0 6px' }}>議論用・未確定</span>
         <span style={{ flex: 1 }} />
-        <span title="Claude の判定で、再試行しても失敗したもの（判定の接続はまだなので、今は積まれない）" style={{ fontSize: 12, color: '#5b6670' }}>
+        <button
+          type="button"
+          style={button}
+          onClick={judgeNow}
+          disabled={!WORKER_URL || !featureOn.classifyClaude}
+          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : 'VITE_WORKER_URL が未設定のため送れない'}
+        >
+          意味づけを判定
+        </button>
+        {judgeMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{judgeMessage}</span> : null}
+        <span title="Claude の判定で、再試行しても失敗したもの（保留の一覧）" style={{ fontSize: 12, color: '#5b6670' }}>
           保留 {pendingCount}
         </span>
         <button type="button" style={button} onClick={() => fileInput.current?.click()}>
