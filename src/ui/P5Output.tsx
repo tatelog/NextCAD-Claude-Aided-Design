@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { SHEETS, legalCheckFor } from '../permit/sheetList'
 import { classLabelsOf } from '../law/buildingClass'
+import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
 import { useSite } from '../store/site'
 
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
@@ -25,6 +26,7 @@ export function P5Output() {
   const [wallText, setWallText] = useState('200')
   const [heightText, setHeightText] = useState('3000')
   const [storeysText, setStoreysText] = useState('3')
+  const [fireZone, setFireZone] = useState<FireZone>('なし')
   const [tab, setTab] = useState<'bim' | 'pdf'>('bim')
   const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
   const [applicant, setApplicant] = useState('')
@@ -77,6 +79,14 @@ export function P5Output() {
           階数
           <input value={storeysText} onChange={(e) => setStoreysText(e.target.value)} style={{ width: 120, marginLeft: 8 }} />
         </label>
+        <label style={{ display: 'block', marginBottom: 6 }}>
+          防火地域の区分（P1 の地点を人が選ぶ。自動の接続は未了）
+          <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
+            <option value="なし">なし</option>
+            <option value="防火">防火地域</option>
+            <option value="準防火">準防火地域</option>
+          </select>
+        </label>
       </section>
 
       {valid ? (
@@ -93,6 +103,11 @@ export function P5Output() {
             })
             return `${labels.article6} ／ ${labels.article20}（出典: e-Gov 法令、第 20 条は抜粋の範囲）`
           })()}
+        </p>
+      ) : null}
+      {valid && fireZone !== 'なし' ? (
+        <p style={{ fontSize: 12, color: '#a86b00', margin: '0 0 12px' }}>
+          防火・準防火（{fireZone}地域）: 令 136 条の 2 {fireZoneClass({ zone: fireZone, aboveGroundStoreys: storeys, floorAreaM2: DUMMY_AREA_M2 * storeys, wood: false })}。構造の基準は判定不能（他の条と延焼防止時間で定まる。ハブ G28）
         </p>
       ) : null}
       <section style={{ marginBottom: 16 }}>
