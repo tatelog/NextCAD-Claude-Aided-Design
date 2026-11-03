@@ -5,9 +5,13 @@
 import { useState } from 'react'
 import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { SHEETS, legalCheckFor } from '../permit/sheetList'
+import { classLabelsOf } from '../law/buildingClass'
 import { useSite } from '../store/site'
 
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
+
+// 仮の外周（20 m × 30 m）の床面積（㎡）
+const DUMMY_AREA_M2 = 600
 
 const DUMMY_FOOTPRINT = [
   { x: 0, y: 0 },
@@ -75,6 +79,22 @@ export function P5Output() {
         </label>
       </section>
 
+      {valid ? (
+        <p style={{ fontSize: 12, color: '#444', margin: '0 0 12px' }}>
+          号区分（大規模の判定。仮の外周 20 m × 30 m・RC・共同住宅として数える。区域内は仮置き）:{' '}
+          {(() => {
+            const labels = classLabelsOf({
+              structure: 'RC',
+              heightM: (storeys * height) / 1000,
+              aboveGroundStoreys: storeys,
+              totalFloorAreaM2: DUMMY_AREA_M2 * storeys,
+              specialUseAreaM2: DUMMY_AREA_M2 * storeys,
+              inPlanningArea: true,
+            })
+            return `${labels.article6} ／ ${labels.article20}（出典: e-Gov 法令、第 20 条は抜粋の範囲）`
+          })()}
+        </p>
+      ) : null}
       <section style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>IFC の件数</h3>
         {valid ? (
