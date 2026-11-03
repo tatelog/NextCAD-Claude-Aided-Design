@@ -3,6 +3,7 @@
 import type { Point } from '../geom/viewport'
 import type { AutoPlan } from './autoPlan'
 import { candidateCells, type Rect } from './candidateCells'
+import type { Fixture } from './fixtures'
 import { gridLines } from './grid'
 import type { ObjectDetailSources } from './objectDetail'
 
@@ -16,6 +17,7 @@ const emptySources = (): ObjectDetailSources => ({
   cores: [],
   shafts: [],
   corridors: [],
+  fixtures: [],
   units: [],
   rooms: [],
 })
@@ -53,10 +55,12 @@ function corridorsOf(plan: AutoPlan, spanMm: number): readonly Rect[] {
  * P3 の自動作成の結果から、左メニューの入力を作る。P3 の画面が描くものと同じ規則:
  * 外形 = 原点から 幅 × 奥行 の矩形の 1 件 / 通り芯 = gridLines(奥行, スパン) / 廊下 = 全廊下 / 住戸 = 区画候補 / コア・縦シャフト・部屋 = 結果のまま。
  * 筆界は P1 の筆界が P3 にまだ入らないので 0 件（仮置き）。柱・壁・開口はデータが無いので入力に含めない。
- * 結果が無い（null・未指定）ときは、どの種類も空。入力は書き換えない。
+ * 什器（G69） = 第 2 引数に渡された、P3 で置いた什器の一覧（店舗のもの。置いた順、区画なしも含む）。省略すると空。
+ * 什器は自動作成の結果ではないので、結果が無くても、渡された什器はそのまま入れる（P4 の什器の欄と同じ値）。
+ * 結果が無い（null・未指定）ときは、什器以外のどの種類も空。入力は書き換えない。
  */
-export function objectSourcesOfPlan(plan: AutoPlan | null | undefined): ObjectDetailSources {
-  if (!plan) return emptySources()
+export function objectSourcesOfPlan(plan: AutoPlan | null | undefined, fixtures: readonly Fixture[] = []): ObjectDetailSources {
+  if (!plan) return { ...emptySources(), fixtures }
   // 奥行 = スパン数 × スパン（自動作成の決め方）。結果にスパンは残らないので割り戻す
   const spanMm = plan.depthMm / plan.spans
   return {
@@ -66,6 +70,7 @@ export function objectSourcesOfPlan(plan: AutoPlan | null | undefined): ObjectDe
     cores: plan.cores,
     shafts: plan.shaftRects,
     corridors: corridorsOf(plan, spanMm),
+    fixtures,
     units: plan.cells,
     rooms: plan.rooms,
   }
@@ -75,6 +80,7 @@ export function objectSourcesOfPlan(plan: AutoPlan | null | undefined): ObjectDe
  * P2 の 2D 平面で、左メニューの入力を作る。持っているのは外形（閉じた輪郭の頂点列）と仮の筆界（矩形）だけ。
  * 頂点が 3 つ以上なら外形 1 件（頂点の数ではなく輪郭の数）。閉じていない（null・未指定・3 つ未満）なら 0 件。
  * 筆界は渡されれば 1 件。中身は件数にしか使わない（筆界・外形の中身は未配線）。入力は書き換えない。
+ * 什器は P3 の道具なので、P2 は渡さない（空）。
  */
 export function objectSourcesOfFootprint(footprint?: readonly Point[] | null, parcel?: unknown): ObjectDetailSources {
   return {

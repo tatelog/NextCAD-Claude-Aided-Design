@@ -7,6 +7,10 @@
 // 仕様 4（置いた什器）: 置いた什器は、その区画の中央に品目名で出る。右パネルに、置いた什器の一覧（外すボタン付き）と、種類ごとの件数が出る。
 //   区画が無くなった什器は、落とさず「区画なし」に数える（図には出さない）。
 // 仕様 5（区画の id を知らせる）: P3 は、いまの区画（住戸の区画候補）の id を店舗に知らせる。P4 が「区画なし」を数えるのに使う。
+// 仕様 6（左メニューの什器・G69）: P3 の左メニューの「什器」の行（廊下の次・住戸の前）に、置いた什器の数が出る。区画なしの什器も数える。
+//   左メニューの入力には、店舗の什器の一覧（右パネルの一覧と同じもの）を渡す。
+// 仕様 7（平面の印を押すと外す・G69。仮置き）: 平面の層（FixtureLayer）へ、店舗の「外す」を渡す。品目を選んでいないとき、置いた什器の印は押せる
+//   （層が、押した印の什器の id で呼ぶ）。品目を選んでいる間は、印は押せない（印の上を押しても区画に届き、続けて置ける）。
 // 描画は実物（react-dom/server の静的描画）。差し替えるのは、店舗の読み出しだけ（zustand はサーバー側の描画で初期値を返すため）。
 //   部品（FixturePalette・FixtureLayer）は実物のまま描き、受け取った props だけ控える。
 //   useEffect はサーバー側の描画では動かないので、呼ばれた場所でその場で動かす（店舗への知らせを確かめるため）。
@@ -206,5 +210,44 @@ describe('区画の id を店舗に知らせる（仕様 5）', () => {
   it('描くと、いまの区画（P3 の区画の候補）の id を店舗に知らせる', () => {
     htmlOf()
     expect(fx.state.setUnitIds).toHaveBeenCalledWith(CELLS.map((c) => c.id))
+  })
+})
+
+describe('平面の印を押すと外す（仕様 7）', () => {
+  it('平面の層へ、店舗の「外す」を渡す（右パネルの「外す」と同じ操作）', () => {
+    fx.state.fixtures = [fixture('fixture-1', kitchen, first.id)]
+    htmlOf()
+    expect(layerProps().onRemove).toBe(fx.state.remove)
+    expect(layerProps().onRemove).toBe(paletteProps().onRemove)
+  })
+
+  it('品目を選んでいなければ、置いた什器の印は押せる（印に什器の id が付き、押せなくする none が無い）', () => {
+    fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id)]
+    const html = htmlOf()
+    expect(html).toContain('data-fixture="fixture-1"')
+    expect(html).toContain('data-fixture="fixture-2"')
+    expect(html).not.toContain('pointer-events="none"')
+  })
+
+  it('品目を選んでいる間は、印は押せない（区画を押して続けて置ける）', () => {
+    fx.state.selectedItem = kitchen
+    fx.state.fixtures = [fixture('fixture-1', kitchen, first.id)]
+    expect(htmlOf()).toContain('pointer-events="none"')
+  })
+})
+
+describe('P3 の左メニューに什器の件数が出る（仕様 6）', () => {
+  it('置いた什器の数が、廊下の次・住戸の前の「什器」の行に出る（区画なしの什器も数える）', () => {
+    fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id), fixture('fixture-3', kitchen, null)]
+    expect(textOf(htmlOf())).toContain(`廊下1什器3住戸${CELLS.length}`)
+  })
+
+  it('いまの区画に無い区画の什器も、左メニューの件数には数える（右パネルでは「区画なし」）', () => {
+    fx.state.fixtures = [fixture('fixture-1', kitchen, 'ZZ'), fixture('fixture-2', toilet, first.id)]
+    expect(textOf(htmlOf())).toContain(`廊下1什器2住戸${CELLS.length}`)
+  })
+
+  it('何も置いていなければ、「什器」の行は 0', () => {
+    expect(textOf(htmlOf())).toContain(`廊下1什器0住戸${CELLS.length}`)
   })
 })

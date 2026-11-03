@@ -12,20 +12,27 @@
 // 仕様 7（未配線）: 筆界・外形・柱・壁・開口は、中身のデータが無いので「未配線」と出す。
 // 仕様 8（共通の 2 行）: 全てのオブジェクトに「意味づけの結果: 未配線」「レイヤー: <名前>」の 2 行を、この順に最後へ付ける。
 // 仕様 9（レイヤー名・仮置き）: 筆界→筆界、外形→外形、通り芯→通り芯、柱→柱、コア→コア、縦シャフト→縦シャフト（G66）、
-//   廊下→その他、住戸→住戸、壁→壁、開口→開口、部屋→部屋。「（G66）」は決定の出典（グリル記録 G66）で、レイヤー名は「縦シャフト」。
+//   廊下→その他、住戸→住戸、壁→壁、開口→開口、部屋→部屋、什器→その他（G13: 什器は「その他」の属性）。
+//   「（G66）」は決定の出典（グリル記録 G66）で、レイヤー名は「縦シャフト」。
 // 仕様 10（壁と開口の数・仮置き。画面側の案の中身の項目どおり）: 住戸の中身に「壁と開口の数: 未配線」の 1 行を、面積・部屋の数の次に出す。
 //   P3 に壁と開口のデータがまだ無く、数を決められないので「未配線」。壁と開口を別々の行にはせず、1 行にまとめる。
 //   住戸の行は 5 行（面積・部屋の数・壁と開口の数・意味づけの結果・レイヤー）。住戸以外の種類の行には出さない。
 //   壁・開口の種類を選んだときは、これまでどおり件数 0 で「なし」。
 // 仕様 11（純粋）: 入力を書き換えない。同じ入力には同じ出力。前の呼び出しに左右されない。
+// 仕様 12（什器・仮置き。ハブ A-03 G69）: 什器は P3 で置いたもの（店舗の一覧。置いた順）。1 件ごとに、見出し「什器 <id>」と次の行を出す。
+//   「品目: <品目名>」（キッチン・ユニットバス・洗面・便器・収納）、「区画: <区画の id>」（区画の指定が無い（null）ときは「区画: 区画なし」）、
+//   そして仕様 8 の「意味づけの結果: 未配線」「レイヤー: その他」（仕様 9）。壁と開口の数の行は出さない。
+//   区画の指定がある什器は、その区画がいま無くても、置いた区画の id をそのまま出す（区画なしにするのは、区画の指定が無いときだけ）。
+//   件数が 0 なら「なし」（仕様 3）。一覧は入力の並びのまま、区画なしの什器も落とさない（仕様 2）。
 // 今回やらない: P2 の 2D と P4 への表示。
 import { describe, expect, it } from 'vitest'
 import type { Rect } from './candidateCells'
+import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from './fixtures'
 import { detailOfKind, layerOfKind, toggleKind, type ObjectDetailSources } from './objectDetail'
 import type { ObjectKind } from './objectMenu'
 import { roomsOfCells, type Room } from './rooms'
 
-// 11 種類と名前（左メニューの仕様どおり）
+// 12 種類と名前（左メニューの仕様どおり。什器は縦シャフト・廊下の後、住戸の前）
 const KINDS: readonly (readonly [ObjectKind, string])[] = [
   ['siteBoundary', '筆界'],
   ['outline', '外形'],
@@ -34,6 +41,7 @@ const KINDS: readonly (readonly [ObjectKind, string])[] = [
   ['core', 'コア'],
   ['shaft', '縦シャフト'],
   ['corridor', '廊下'],
+  ['fixture', '什器'],
   ['unit', '住戸'],
   ['wall', '壁'],
   ['opening', '開口'],
@@ -49,6 +57,7 @@ const LAYER_OF: Record<ObjectKind, string> = {
   core: 'コア',
   shaft: '縦シャフト',
   corridor: 'その他',
+  fixture: 'その他',
   unit: '住戸',
   wall: '壁',
   opening: '開口',
@@ -69,8 +78,32 @@ const SIZE = '寸法: 3000 × 6000 mm'
 // n 個の長方形（ID は prefix + 通し番号）
 const rects = (prefix: string, n: number): Rect[] => Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, ...RECT }))
 
+// 品目は名前で引く（品目の ID は仮置きなので、試験に書かない）
+function itemOf(label: string): FixtureItem {
+  const found = FIXTURE_ITEMS.find((i) => i.label === label)
+  if (!found) throw new Error(`品目「${label}」が無い`)
+  return found.id
+}
+const kitchen = itemOf('キッチン')
+const unitBath = itemOf('ユニットバス')
+const washbasin = itemOf('洗面')
+const toilet = itemOf('便器')
+const storage = itemOf('収納')
+const fx = (id: string, item: FixtureItem, unitId: string | null): Fixture => ({ id, item, unitId })
+
 // 種類ごとに件数がすべて違う入力（種類の取り違えを見つけるため）
 const UNITS = Array.from({ length: 6 }, (_, i) => cell(`L${i}`, 7000 * i))
+// 什器 8 件（置いた順。区画なしが 2 件、いまの区画 L0〜L5 に無い区画 ZZ が 1 件。id は連番とは限らない）
+const FIXTURES: Fixture[] = [
+  fx('fixture-1', kitchen, 'L0'),
+  fx('fixture-2', unitBath, 'L0'),
+  fx('fixture-3', washbasin, 'L1'),
+  fx('fixture-4', toilet, null),
+  fx('fixture-5', storage, 'L2'),
+  fx('fixture-6', kitchen, 'L3'),
+  fx('fixture-8', toilet, 'ZZ'),
+  fx('fixture-9', storage, null),
+]
 const FULL: ObjectDetailSources = {
   siteBoundaries: [{ id: 'b0' }, { id: 'b1' }],
   outlines: [{ id: 'o0' }],
@@ -78,6 +111,7 @@ const FULL: ObjectDetailSources = {
   cores: rects('core', 3),
   shafts: rects('shaft', 5),
   corridors: rects('cor', 4),
+  fixtures: FIXTURES,
   units: UNITS,
   rooms: roomsOfCells(UNITS),
 }
@@ -89,6 +123,7 @@ const FULL_COUNTS: Record<ObjectKind, number> = {
   core: 3,
   shaft: 5,
   corridor: 4,
+  fixture: 8,
   unit: 6,
   wall: 0,
   opening: 0,
@@ -138,7 +173,7 @@ describe('toggleKind（種類の選択。仕様 1）', () => {
 })
 
 describe('layerOfKind（種類→レイヤー名。仕様 9）', () => {
-  it('11 種類すべてが、仕様のレイヤー名になる（廊下は「その他」、縦シャフトは「縦シャフト」）', () => {
+  it('12 種類すべてが、仕様のレイヤー名になる（廊下と什器は「その他」、縦シャフトは「縦シャフト」）', () => {
     for (const [kind] of KINDS) expect(layerOfKind(kind), kind).toBe(LAYER_OF[kind])
   })
 })
@@ -174,6 +209,7 @@ describe('detailOfKind（一覧と「なし」。仕様 2・3）', () => {
       cores: [],
       shafts: [],
       corridors: [],
+      fixtures: [],
       units: [],
       rooms: [],
     }
@@ -213,6 +249,10 @@ describe('detailOfKind（一覧と「なし」。仕様 2・3）', () => {
     const grid = detailOfKind('grid', FULL).entries.map((e) => e.title)
     grid.forEach((t, i) => expect(t).toContain(String(i + 1)))
     expect(new Set(grid).size).toBe(grid.length)
+
+    const fixtures = detailOfKind('fixture', FULL).entries.map((e) => e.title)
+    FIXTURES.forEach((f, i) => expect(fixtures[i]).toContain(f.id))
+    expect(new Set(fixtures).size).toBe(fixtures.length)
   })
 })
 
@@ -358,6 +398,73 @@ describe('detailOfKind（中身が無い種類は「未配線」。仕様 7）',
   })
 })
 
+describe('detailOfKind（什器の中身。仕様 12）', () => {
+  it('1 件ごとに、見出し「什器 <id>」と、品目・区画・意味づけの結果・レイヤーの 4 行を出す', () => {
+    expect(detailOfKind('fixture', { fixtures: [fx('fixture-1', kitchen, 'L0')] }).entries).toEqual([
+      { title: '什器 fixture-1', lines: ['品目: キッチン', '区画: L0', MEANING, 'レイヤー: その他'] },
+    ])
+  })
+
+  it('品目は品目の名前で出す（5 品目とも）', () => {
+    const fixtures = [
+      fx('fixture-1', kitchen, 'L0'),
+      fx('fixture-2', unitBath, 'L0'),
+      fx('fixture-3', washbasin, 'L0'),
+      fx('fixture-4', toilet, 'L0'),
+      fx('fixture-5', storage, 'L0'),
+    ]
+    expect(linesOf('fixture', { fixtures }).map((l) => l[0])).toEqual([
+      '品目: キッチン',
+      '品目: ユニットバス',
+      '品目: 洗面',
+      '品目: 便器',
+      '品目: 収納',
+    ])
+  })
+
+  it('区画の指定が無い（null）什器は、「区画: 区画なし」と出す', () => {
+    expect(linesOf('fixture', { fixtures: [fx('fixture-1', toilet, null)] })).toEqual([
+      ['品目: 便器', '区画: 区画なし', MEANING, 'レイヤー: その他'],
+    ])
+  })
+
+  it('区画の指定がある什器は、その区画がいま無くても、置いた区画の id をそのまま出す（区画なしにするのは指定が無いときだけ。仮置き）', () => {
+    const fixtures = [fx('fixture-1', kitchen, 'ZZ')]
+    expect(linesOf('fixture', { fixtures })[0]?.[1]).toBe('区画: ZZ')
+    expect(linesOf('fixture', { fixtures, units: [cell('L0')] })[0]?.[1]).toBe('区画: ZZ')
+  })
+
+  it('一覧は入力の並び（置いた順）のまま、区画なしの什器も落とさない', () => {
+    expect(detailOfKind('fixture', FULL).entries.map((e) => e.title)).toEqual(FIXTURES.map((f) => `什器 ${f.id}`))
+    expect(linesOf('fixture', FULL).map((l) => l[1])).toEqual([
+      '区画: L0',
+      '区画: L0',
+      '区画: L1',
+      '区画: 区画なし',
+      '区画: L2',
+      '区画: L3',
+      '区画: ZZ',
+      '区画: 区画なし',
+    ])
+  })
+
+  it('什器が 0 件なら、一覧が空で「なし」（未指定でも空配列でも）。ほかの種類の入力があっても同じ', () => {
+    const inputs: ObjectDetailSources[] = [{}, { fixtures: [] }, { ...FULL, fixtures: [] }]
+    for (const sources of inputs) {
+      const d = detailOfKind('fixture', sources)
+      expect(d.entries).toEqual([])
+      expect(d.emptyText).toBe(NONE)
+    }
+  })
+
+  it('什器の入力は、ほかの種類の一覧に混ざらない（什器だけの入力では、ほかの種類は「なし」）', () => {
+    for (const [kind] of KINDS) {
+      if (kind === 'fixture') continue
+      expect(detailOfKind(kind, { fixtures: FIXTURES }).entries, kind).toEqual([])
+    }
+  })
+})
+
 describe('detailOfKind（全てのオブジェクトに付く 2 行。仕様 8）', () => {
   it('どの種類のどのオブジェクトも、最後の 2 行が「意味づけの結果: 未配線」「レイヤー: <名前>」', () => {
     let seen = 0
@@ -367,8 +474,8 @@ describe('detailOfKind（全てのオブジェクトに付く 2 行。仕様 8�
         expect(e.lines.slice(-2), `${kind} ${e.title}`).toEqual([MEANING, `レイヤー: ${LAYER_OF[kind]}`])
       }
     }
-    // 空振りでないこと（件数の合計 = 2+1+7+3+5+4+6+24 = 52）
-    expect(seen).toBe(52)
+    // 空振りでないこと（件数の合計 = 2+1+7+3+5+4+8+6+24 = 60）
+    expect(seen).toBe(60)
   })
 
   it('住戸は、面積・部屋の数・壁と開口の数・意味づけの結果・レイヤーの 5 行（壁と開口の数は「未配線」）', () => {
@@ -408,8 +515,8 @@ describe('detailOfKind（壁と開口の数は住戸にだけ出す。仕様 10�
         expect(e.lines.some((l) => /壁|開口/.test(l)), `${kind} ${e.title}`).toBe(false)
       }
     }
-    // 空振りでないこと（住戸の 6 件を除いた件数の合計 = 2+1+7+3+5+4+24 = 46）
-    expect(seen).toBe(46)
+    // 空振りでないこと（住戸の 6 件を除いた件数の合計 = 2+1+7+3+5+4+8+24 = 54）
+    expect(seen).toBe(54)
   })
 
   it('壁・開口の種類を選んだときは、住戸がそろっていても件数 0 で「なし」（壁と開口の数は種類の行としては出さない）', () => {

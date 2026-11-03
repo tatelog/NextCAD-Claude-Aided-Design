@@ -77,8 +77,9 @@ export function P4Estimate() {
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
+  // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
-  const objectSources = useMemo(() => objectSourcesOfPlan(plan), [plan])
+  const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
 
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null

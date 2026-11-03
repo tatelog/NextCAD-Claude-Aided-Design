@@ -124,6 +124,7 @@ export function P3Plan() {
   }, [unitIds, setFixtureUnitIds])
 
   // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数と、選んだ種類の中身を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
+  // 什器（G69）は、店舗の一覧（置いた什器。区画なしも含む）をそのまま渡す
   const objectSources = useMemo<ObjectDetailSources>(
     () => ({
       outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
@@ -131,11 +132,12 @@ export function P3Plan() {
       cores: auto ? auto.cores : core.rect ? [core.rect] : [],
       shafts: auto ? auto.shaftRects : [],
       corridors: units.cells ? units.cells.corridors : [],
+      fixtures,
       units: units.cells ? units.cells.cells : [],
       // 自動作成の前は部屋が無い。空の配列ではなく未指定にして、住戸の部屋の数を「未算定」と出す（件数は 0 のまま）
       rooms: auto ? auto.rooms : undefined,
     }),
-    [widthText, depthText, lines, auto, core.rect, units.cells],
+    [widthText, depthText, lines, auto, core.rect, units.cells, fixtures],
   )
 
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
@@ -191,7 +193,7 @@ export function P3Plan() {
             {units.cells.cells.map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
-            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} />
+            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} />
             {lines.map((y) => (
               <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
             ))}

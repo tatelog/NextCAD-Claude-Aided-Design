@@ -12,15 +12,19 @@
 // 仕様 3（外形）: 建物の外形は 1 件。中身は未配線（仮置き）。
 // 仕様 4（通り芯）: 柱割りの位置（mm）の並び。奥行方向に、端から昇順で、スパン数 + 1 本。区画の境目はすべて通り芯の上にある（区画は柱割りに従う）。
 // 仕様 5（柱・壁・開口）: データが無いので、結果がそろっていても件数 0 のまま（入力に含めない）。
-// 仕様 6（結果が無い）: 自動作成の前（null・未指定）は、どの種類の入力も空の配列で、件数は全部 0。中身は「なし」。
+// 仕様 6（結果が無い）: 自動作成の前（null・未指定）は、どの種類の入力も空の配列で、件数は全部 0。中身は「なし」（什器は、渡されていれば仕様 9a）。
 // 仕様 7（部屋の数）: 結果があるとき、住戸の中身の「部屋の数」は未算定ではなく、区画ごとの部屋の数になる（部屋の入力も渡す）。
 // 仕様 8（注記）: 自動作成の前（結果が無い）ときだけ、「自動作成の後に出ます」と注記する（P4 の左メニュー用）。
 // 仕様 9（純粋）: 入力を書き換えない。同じ入力には同じ出力。前の呼び出しに左右されない。
+// 仕様 9a（什器・仮置き。ハブ A-03 G69。P4 は渡す）: objectSourcesOfPlan(plan, fixtures) の第 2 引数に、P3 で置いた什器の一覧
+//   （店舗の fixtures。置いた順）を渡すと、什器の入力になる。什器は自動作成の結果ではなく店舗のものなので、結果（plan）の有無によらず、
+//   渡した什器がそのまま入る（P4 の什器の欄と同じ値）。区画なしの什器も落とさない。省略すると空の配列（件数 0）。
+//   什器を渡しても、ほかの種類の入力は変わらない。
 //
 // 【P2 の 2D 平面から】objectSourcesOfFootprint(footprint, parcel)。外形（閉じた輪郭の頂点列）と仮の筆界（矩形）だけを持つ。
 // 仕様 10（外形）: 閉じた輪郭（頂点が 3 つ以上）なら外形は 1 件。頂点の数ではなく輪郭の数を数える。閉じていない（null・未指定・頂点が 3 つ未満）なら 0 件。
 // 仕様 11（筆界）: 仮の筆界（矩形）を渡せば筆界は 1 件。渡さなければ 0 件。
-// 仕様 12（P2 に無いもの）: 通り芯・コア・縦シャフト・廊下・住戸・部屋は P2 に無いので、空の配列（件数 0）。
+// 仕様 12（P2 に無いもの）: 通り芯・コア・縦シャフト・廊下・什器・住戸・部屋は P2 に無い（什器は P3 の道具で、P2 は渡さない）ので、空の配列（件数 0）。
 // 仕様 13（中身）: 筆界・外形の中身は未配線（detailOfKind の「中身: 未配線」）。
 // 仕様 14（結果が無い）: 外形も筆界も無ければ、自動作成の前の P3 と同じ（全部空）。
 // 仕様 15（純粋）: 仕様 9 と同じ。
@@ -28,12 +32,13 @@ import { describe, expect, it } from 'vitest'
 import type { Point } from '../geom/viewport'
 import { generateAutoPlan } from './autoPlan'
 import { candidateCells } from './candidateCells'
+import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from './fixtures'
 import { gridLines } from './grid'
 import { detailOfKind, type ObjectDetailSources } from './objectDetail'
 import { countObjects, type ObjectKind } from './objectMenu'
 import { noticeOfPlan, objectSourcesOfFootprint, objectSourcesOfPlan } from './objectSourcesOfPlan'
 
-// 左メニューの 11 種類
+// 左メニューの 12 種類（什器は縦シャフト・廊下の後、住戸の前）
 const KINDS: readonly ObjectKind[] = [
   'siteBoundary',
   'outline',
@@ -42,6 +47,7 @@ const KINDS: readonly ObjectKind[] = [
   'core',
   'shaft',
   'corridor',
+  'fixture',
   'unit',
   'wall',
   'opening',
@@ -51,6 +57,19 @@ const NOTED = ['column', 'wall', 'opening']
 const NONE = 'なし'
 const MEANING = '意味づけの結果: 未配線'
 const NOT_WIRED = '中身: 未配線'
+
+// 品目は名前で引く（品目の ID は仮置きなので、試験に書かない）
+function itemOf(label: string): FixtureItem {
+  const found = FIXTURE_ITEMS.find((i) => i.label === label)
+  if (!found) throw new Error(`品目「${label}」が無い`)
+  return found.id
+}
+const kitchen = itemOf('キッチン')
+const toilet = itemOf('便器')
+const storage = itemOf('収納')
+const fx = (id: string, item: FixtureItem, unitId: string | null): Fixture => ({ id, item, unitId })
+// P3 で置いた什器 4 件（置いた順。区画なし 1 件、いまの区画に無い区画 ZZ が 1 件。id は連番とは限らない）。中廊下の区画は L0〜L3・R0〜R3
+const FIXTURES: Fixture[] = [fx('fixture-1', kitchen, 'L0'), fx('fixture-2', toilet, 'R3'), fx('fixture-3', storage, null), fx('fixture-5', kitchen, 'ZZ')]
 
 // 自動作成の入力（autoPlan.test.ts の仕様と同じ値）
 const BASE = {
@@ -233,6 +252,7 @@ describe('objectSourcesOfPlan（結果が無いとき。仕様 6）', () => {
     cores: [],
     shafts: [],
     corridors: [],
+    fixtures: [],
     units: [],
     rooms: [],
   }
@@ -245,10 +265,10 @@ describe('objectSourcesOfPlan（結果が無いとき。仕様 6）', () => {
     expect(objectSourcesOfPlan(undefined)).toEqual(EMPTY)
   })
 
-  it('件数は全部 0（11 種類）で、注記が付くのは柱・壁・開口だけ', () => {
+  it('件数は全部 0（12 種類）で、注記が付くのは柱・壁・開口だけ', () => {
     const rows = countObjects(objectSourcesOfPlan(null))
-    expect(rows).toHaveLength(11)
-    expect(rows.map((r) => r.count)).toEqual(new Array(11).fill(0))
+    expect(rows).toHaveLength(12)
+    expect(rows.map((r) => r.count)).toEqual(new Array(12).fill(0))
     expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual(NOTED)
   })
 
@@ -274,6 +294,54 @@ describe('noticeOfPlan（自動作成の前の注記。仕様 8）', () => {
   })
 })
 
+describe('objectSourcesOfPlan（什器。仕様 9a）', () => {
+  it('什器を渡さなければ、什器は 0 件（空の配列）で、中身は「なし」', () => {
+    for (const plan of [MID, SIDE]) {
+      const s = objectSourcesOfPlan(plan)
+      expect(s.fixtures).toEqual([])
+      expect(countsOf(s).fixture).toBe(0)
+      expect(detailOfKind('fixture', s).emptyText).toBe(NONE)
+    }
+  })
+
+  it('渡した什器が置いた順にそのまま入り、件数は渡した数（区画なし・いまの区画に無い区画の什器も含む）', () => {
+    const s = objectSourcesOfPlan(MID, FIXTURES)
+    expect(s.fixtures).toEqual(FIXTURES)
+    expect(countsOf(s)).toEqual(withCounts({ outline: 1, grid: 5, core: 3, shaft: 10, corridor: 1, fixture: 4, unit: 8, room: 32 }))
+  })
+
+  it('什器の中身は、見出し「什器 <id>」と、品目・区画（区画なしは「区画なし」）・意味づけの結果・レイヤー', () => {
+    const s = objectSourcesOfPlan(MID, FIXTURES)
+    expect(titlesOf('fixture', s)).toEqual(['什器 fixture-1', '什器 fixture-2', '什器 fixture-3', '什器 fixture-5'])
+    expect(linesOf('fixture', s)).toEqual([
+      ['品目: キッチン', '区画: L0', MEANING, 'レイヤー: その他'],
+      ['品目: 便器', '区画: R3', MEANING, 'レイヤー: その他'],
+      ['品目: 収納', '区画: 区画なし', MEANING, 'レイヤー: その他'],
+      ['品目: キッチン', '区画: ZZ', MEANING, 'レイヤー: その他'],
+    ])
+  })
+
+  it('什器を渡しても、什器以外の入力は変わらない（廊下タイプ 4 種類）', () => {
+    for (const [layout, target] of LAYOUTS) {
+      const plan = generateAutoPlan({ ...BASE, targetPerFloor: target, layout })
+      expect({ ...objectSourcesOfPlan(plan, FIXTURES), fixtures: [] }).toEqual(objectSourcesOfPlan(plan))
+    }
+  })
+
+  it('結果が無い（null・未指定）ときも、渡した什器は入る（什器は店舗のもの）。ほかの種類は空のまま', () => {
+    for (const plan of [null, undefined]) {
+      const s = objectSourcesOfPlan(plan, FIXTURES)
+      expect(s).toEqual({ ...objectSourcesOfPlan(null), fixtures: FIXTURES })
+      expect(countsOf(s)).toEqual(withCounts({ fixture: 4 }))
+    }
+  })
+
+  it('什器を空の配列で渡しても、渡さないときと同じ', () => {
+    expect(objectSourcesOfPlan(MID, [])).toEqual(objectSourcesOfPlan(MID))
+    expect(objectSourcesOfPlan(null, [])).toEqual(objectSourcesOfPlan(null))
+  })
+})
+
 describe('objectSourcesOfPlan（純粋。仕様 9）', () => {
   it('入力を書き換えない（凍結した結果でも動き、中身が変わらず、件数も同じ）', () => {
     const frozen = deepFreeze(structuredClone(MID))
@@ -289,6 +357,15 @@ describe('objectSourcesOfPlan（純粋。仕様 9）', () => {
     objectSourcesOfPlan(null)
     expect(objectSourcesOfPlan(MID)).toEqual(first)
     expect(countsOf(first)).toEqual(withCounts({ outline: 1, grid: 5, core: 3, shaft: 10, corridor: 1, unit: 8, room: 32 }))
+  })
+
+  it('什器を渡しても、凍結した入力を書き換えず、件数と中身も同じ', () => {
+    const frozenPlan = deepFreeze(structuredClone(MID))
+    const frozenFixtures = deepFreeze(structuredClone(FIXTURES))
+    const before = JSON.stringify([frozenPlan, frozenFixtures])
+    expect(() => objectSourcesOfPlan(frozenPlan, frozenFixtures)).not.toThrow()
+    expect(JSON.stringify([frozenPlan, frozenFixtures])).toBe(before)
+    expect(objectSourcesOfPlan(frozenPlan, frozenFixtures)).toEqual(objectSourcesOfPlan(MID, FIXTURES))
   })
 })
 
@@ -362,19 +439,20 @@ describe('objectSourcesOfFootprint（P2 の仮の筆界。仕様 11）', () => {
 })
 
 describe('objectSourcesOfFootprint（P2 に無いもの・中身。仕様 12〜14）', () => {
-  it('通り芯・コア・縦シャフト・廊下・住戸・部屋は、空の配列（件数 0）', () => {
+  it('通り芯・コア・縦シャフト・廊下・什器・住戸・部屋は、空の配列（件数 0。P2 は什器を渡さない）', () => {
     const s = objectSourcesOfFootprint(SQUARE, PARCEL)
     expect(s.gridLines).toEqual([])
     expect(s.cores).toEqual([])
     expect(s.shafts).toEqual([])
     expect(s.corridors).toEqual([])
+    expect(s.fixtures).toEqual([])
     expect(s.units).toEqual([])
     expect(s.rooms).toEqual([])
   })
 
   it('柱・壁・開口は 0 件のまま「意味づけ未配線」の注記が付き、ほかの種類には付かない', () => {
     const rows = countObjects(objectSourcesOfFootprint(SQUARE, PARCEL))
-    expect(rows).toHaveLength(11)
+    expect(rows).toHaveLength(12)
     expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual(NOTED)
   })
 
@@ -386,7 +464,7 @@ describe('objectSourcesOfFootprint（P2 に無いもの・中身。仕様 12〜1
 
   it('P2 に無い種類を選んでも、中身は空で「なし」と出す', () => {
     const s = objectSourcesOfFootprint(SQUARE, PARCEL)
-    for (const kind of ['grid', 'column', 'core', 'shaft', 'corridor', 'unit', 'wall', 'opening', 'room'] as const) {
+    for (const kind of ['grid', 'column', 'core', 'shaft', 'corridor', 'fixture', 'unit', 'wall', 'opening', 'room'] as const) {
       const d = detailOfKind(kind, s)
       expect(d.entries, kind).toEqual([])
       expect(d.emptyText, kind).toBe(NONE)

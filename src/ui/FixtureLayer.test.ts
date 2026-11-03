@@ -1,13 +1,18 @@
 // 仕様（ハブ A-03 G69、D-04 P3）: P3 の平面（SVG。座標は mm）に、什器の層を重ねる。
 // 品目を選んで区画の四角を押すと、その区画に什器を置く。置く場所は区画の中央（仮置き）。
-// props: cells（区画の候補。mm）、fixtures（置いた什器）、active（品目を選んでいるとき true）、onTap（押した区画の id を渡す）。
+// props: cells（区画の候補。mm）、fixtures（置いた什器）、active（品目を選んでいるとき true）、onTap（押した区画の id を渡す）、
+//   onRemove（押した印の什器の id を渡す。外すのは呼び出し側）。
 // 仕様 1（押せる区画）: active のとき、区画ごとに 1 つ、区画と同じ位置・大きさの押せる四角を、区画の並びで出す。押すと、その区画の id が onTap に渡る。
 // 仕様 2（選んでいないとき）: active でなければ、押せる四角を出さない。
 // 仕様 3（置いた什器）: 置いた什器は、品目の名前を、その区画の中央（中央揃え）に出す。
 // 仕様 4（同じ区画に複数）: x は中央のまま、y は中央を中心に、置いた順に上から下へ、文字の大きさ以上の間隔で並べる。
 // 仕様 5（区画なし）: 区画の指定が無い什器と、区画の一覧に無い区画の什器は、図に出さない（置く場所が無いだけで、一覧には残る）。
-// 仕様 6（押しを邪魔しない）: 什器の文字は押せない（pointer-events: none）。文字の上を押しても区画に届き、同じ区画に続けて置ける。
+// 仕様 6（押しを邪魔しない）: 品目を選んでいる間（active）は、什器の文字は押せない（pointer-events: none）。文字の上を押しても区画に届き、同じ区画に続けて置ける。
 // 仕様 7（描ける）: SVG の中で、サーバー側の描画で例外が出ない。
+// 仕様 8（印を押すと外す・仮置き。G69）: 置いた什器の文字は、外すための印でもある。品目を選んでいないとき（active でない）は押せて、
+//   押すと、その什器の id が onRemove に渡る（外すのは呼び出し側。右パネルの一覧の「外す」と同じ）。印には什器の id が付く（data-fixture）。
+//   読み上げの名前は「<品目名>を外す」で、ボタンの役割を持つ。品目を選んでいる間は押せず（仕様 6）、onRemove は呼ばれない。
+//   図に出ない什器（区画なし・区画の一覧に無い区画）は、印も無い。
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -59,7 +64,7 @@ function textOf(node: ReactNode): string {
 
 const isTag = (tag: string) => (el: El) => el.type === tag
 const render = (props: Partial<FixtureLayerProps> = {}): ReactElement =>
-  FixtureLayer({ cells: CELLS, fixtures: [], active: false, onTap: () => undefined, ...props })
+  FixtureLayer({ cells: CELLS, fixtures: [], active: false, onTap: () => undefined, onRemove: () => undefined, ...props })
 const rectsOf = (tree: ReactNode) => findAll(tree, isTag('rect'))
 const textsOf = (tree: ReactNode) => findAll(tree, isTag('text'))
 
@@ -154,10 +159,100 @@ describe('FixtureLayer（区画なしと、押しの邪魔。仕様 5・6）', (
   })
 })
 
+describe('FixtureLayer（印を押すと外す。仕様 8）', () => {
+  // L0 に 2 つ（置いた順に fixture-1・fixture-9）、L1 に 1 つ、R0 に 1 つ。id は連番とは限らない
+  const PLACED = [
+    fx('fixture-1', kitchen, 'L0'),
+    fx('fixture-2', toilet, 'L1'),
+    fx('fixture-7', storage, 'R0'),
+    fx('fixture-9', kitchen, 'L0'),
+  ]
+  const markOf = (marks: El[], id: string): El => {
+    const found = marks.find((m) => m.props['data-fixture'] === id)
+    if (!found) throw new Error(`印 ${id} が無い`)
+    return found
+  }
+  const press = (mark: El) => (mark.props.onClick as () => void)()
+
+  it('印には什器の id が付く（印と什器が 1 対 1）', () => {
+    const marks = textsOf(render({ fixtures: PLACED }))
+    expect(marks.map((m) => m.props['data-fixture']).sort()).toEqual(['fixture-1', 'fixture-2', 'fixture-7', 'fixture-9'])
+  })
+
+  it('印の id と、印の文字・位置が対応する（別々の区画は中央、同じ区画は置いた順に上から下へ）', () => {
+    const marks = textsOf(render({ fixtures: PLACED }))
+    expect([textOf(markOf(marks, 'fixture-2')), markOf(marks, 'fixture-2').props.x, markOf(marks, 'fixture-2').props.y]).toEqual(['便器', 4500, 3000])
+    expect([textOf(markOf(marks, 'fixture-7')), markOf(marks, 'fixture-7').props.x, markOf(marks, 'fixture-7').props.y]).toEqual(['収納', 1500, 11000])
+    const first = markOf(marks, 'fixture-1')
+    const second = markOf(marks, 'fixture-9')
+    expect([textOf(first), first.props.x]).toEqual(['キッチン', 1500])
+    expect([textOf(second), second.props.x]).toEqual(['キッチン', 1500])
+    expect(first.props.y as number).toBeLessThan(second.props.y as number)
+    expect((first.props.y as number) + (second.props.y as number)).toBe(6000)
+  })
+
+  it('品目を選んでいないとき、印を押すと、押した印の什器の id が onRemove に 1 回だけ渡る（どの印でも）', () => {
+    for (const f of PLACED) {
+      const onRemove = vi.fn()
+      press(markOf(textsOf(render({ active: false, fixtures: PLACED, onRemove })), f.id))
+      expect(onRemove, f.id).toHaveBeenCalledTimes(1)
+      expect(onRemove, f.id).toHaveBeenCalledWith(f.id)
+    }
+  })
+
+  it('印を押しても、区画に置く（onTap）は呼ばれない', () => {
+    const onTap = vi.fn()
+    press(markOf(textsOf(render({ fixtures: PLACED, onTap })), 'fixture-1'))
+    expect(onTap).not.toHaveBeenCalled()
+  })
+
+  it('品目を選んでいないとき、印は押せる（pointer-events: none ではない）', () => {
+    for (const m of textsOf(render({ active: false, fixtures: PLACED }))) {
+      expect(m.props.pointerEvents).not.toBe('none')
+      expect(typeof m.props.onClick).toBe('function')
+    }
+  })
+
+  it('品目を選んでいる間は、印は押せず（pointer-events: none）、押すためのハンドラも無い（onRemove は呼ばれない）', () => {
+    const onRemove = vi.fn()
+    const marks = textsOf(render({ active: true, fixtures: PLACED, onRemove }))
+    expect(marks).toHaveLength(4)
+    for (const m of marks) {
+      expect(m.props.pointerEvents).toBe('none')
+      expect(m.props.onClick).toBeUndefined()
+    }
+    expect(onRemove).not.toHaveBeenCalled()
+  })
+
+  it('印の読み上げの名前は「<品目名>を外す」で、ボタンの役割を持つ（押せるとき）', () => {
+    const marks = textsOf(render({ fixtures: PLACED }))
+    expect(markOf(marks, 'fixture-1').props['aria-label']).toBe('キッチンを外す')
+    expect(markOf(marks, 'fixture-2').props['aria-label']).toBe('便器を外す')
+    expect(markOf(marks, 'fixture-7').props['aria-label']).toBe('収納を外す')
+    for (const m of marks) expect(m.props.role).toBe('button')
+  })
+
+  it('図に出ない什器（区画なし・区画の一覧に無い区画）には、印も無い', () => {
+    const fixtures = [fx('fixture-1', kitchen, null), fx('fixture-2', toilet, 'ZZ'), fx('fixture-3', storage, 'L0')]
+    expect(textsOf(render({ fixtures })).map((m) => m.props['data-fixture'])).toEqual(['fixture-3'])
+  })
+
+  it('SVG の描画で、押せる印には id が付き、品目を選んでいる間は none になる', () => {
+    const draw = (active: boolean) =>
+      renderToStaticMarkup(
+        createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: PLACED, active, onTap: () => undefined, onRemove: () => undefined })),
+      )
+    const idle = draw(false)
+    for (const f of PLACED) expect(idle, f.id).toContain(`data-fixture="${f.id}"`)
+    expect(idle).not.toContain('pointer-events="none"')
+    expect(draw(true)).toContain('pointer-events="none"')
+  })
+})
+
 describe('FixtureLayer（描ける。仕様 7）', () => {
   it('SVG の中で、サーバー側の描画で例外が出ず、置いた什器が中央の座標で出る', () => {
     const html = renderToStaticMarkup(
-      createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: [fx('fixture-1', kitchen, 'L0')], active: true, onTap: () => undefined })),
+      createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: [fx('fixture-1', kitchen, 'L0')], active: true, onTap: () => undefined, onRemove: () => undefined })),
     )
     expect(html).toContain('キッチン')
     expect(html).toContain('x="1500"')
@@ -167,7 +262,7 @@ describe('FixtureLayer（描ける。仕様 7）', () => {
 
   it('品目を選んでいるときだけ、押せる四角が描かれる', () => {
     const draw = (active: boolean) =>
-      renderToStaticMarkup(createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: [], active, onTap: () => undefined })))
+      renderToStaticMarkup(createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: [], active, onTap: () => undefined, onRemove: () => undefined })))
     expect(draw(true).match(/<rect/g)).toHaveLength(3)
     expect(draw(false)).not.toContain('<rect')
   })

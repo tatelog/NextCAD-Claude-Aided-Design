@@ -1,10 +1,11 @@
 // P3 の左メニューで、選んだ種類の中身を下に出す（ハブ A-03 G55、D-04 共通部品「左メニュー」）。描画にも状態にも依存しない純粋な処理。
 // 文言とレイヤー名は仮置き。出せる項目だけを出す:
 //   住戸 = 面積・部屋の数・壁と開口の数（「未配線」。P3 に壁と開口のデータが無い。仮置き） / 通り芯 = 位置 / コア・縦シャフト・廊下・部屋 = 寸法 /
-//   筆界・外形 = 「未配線」（中身のデータが無い）。
+//   筆界・外形 = 「未配線」（中身のデータが無い） / 什器（G69） = 品目・区画（区画の指定が無いときは「区画なし」）。
 // 柱・壁・開口は P3 にデータが無く件数 0 なので「なし」（壁と開口の数は、種類の行としては出さず、住戸の 1 行にまとめる）。
 // 全てのオブジェクトの最後に「意味づけの結果」と「レイヤー」の 2 行を付ける。
 import type { Rect } from './candidateCells'
+import { fixtureLabel, type Fixture } from './fixtures'
 import { countObjects, type ObjectKind, type ObjectSources } from './objectMenu'
 import type { Room } from './rooms'
 
@@ -15,6 +16,8 @@ export interface ObjectDetailSources extends ObjectSources {
   cores?: readonly Rect[]
   shafts?: readonly Rect[]
   corridors?: readonly Rect[]
+  /** P3 で置いた什器（店舗の一覧。置いた順。区画なしの什器も含む） */
+  fixtures?: readonly Fixture[]
   /** 住戸の区画候補 */
   units?: readonly Rect[]
   rooms?: readonly Room[]
@@ -39,8 +42,10 @@ const UNWIRED = '未配線'
 const NOT_COMPUTED = '未算定'
 // 壁と開口の数（G55 の中身の項目）。P3 に壁と開口のデータが無く数を決められないので、住戸の 1 行に「未配線」と出す（仮置き）
 const WALL_OPENING_COUNT_LINE = `壁と開口の数: ${UNWIRED}`
+// 什器の区画の指定が無いとき（仮置き）
+const NO_UNIT = '区画なし'
 
-// 種類→レイヤー名（仮置き）。廊下は専用のレイヤーが無く「その他」。縦シャフトは G66 で独立したレイヤーになった。
+// 種類→レイヤー名（仮置き）。廊下は専用のレイヤーが無く「その他」。縦シャフトは G66 で独立したレイヤーになった。什器は G13 で「その他」の属性。
 const LAYER_OF: Record<ObjectKind, string> = {
   siteBoundary: '筆界',
   outline: '外形',
@@ -49,6 +54,7 @@ const LAYER_OF: Record<ObjectKind, string> = {
   core: 'コア',
   shaft: '縦シャフト',
   corridor: 'その他',
+  fixture: 'その他',
   unit: '住戸',
   wall: '壁',
   opening: '開口',
@@ -106,6 +112,9 @@ function entriesOf(kind: ObjectKind, s: ObjectDetailSources): ObjectDetailEntry[
       return rectEntries(kind, s.shafts)
     case 'corridor':
       return rectEntries(kind, s.corridors)
+    case 'fixture':
+      // 区画の指定が無い（null）ときだけ「区画なし」。指定があれば、その区画がいま無くても、置いた区画の id をそのまま出す（仮置き）
+      return (s.fixtures ?? []).map((f) => entry(kind, f.id, [`品目: ${fixtureLabel(f.item)}`, `区画: ${f.unitId ?? NO_UNIT}`]))
     case 'room':
       return rectEntries(kind, s.rooms)
     case 'siteBoundary':
