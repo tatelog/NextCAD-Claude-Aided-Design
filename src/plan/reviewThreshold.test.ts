@@ -1,5 +1,5 @@
 // 仕様（ハブ A-03 G10・G14、D-04 「要確認の印」）: Claude の提案の確信度が低い線には「要確認」の印を付ける。閾値は仮置き（G10 で測ってから決める）。
-// 仕様 1: 確信度が閾値（0.8・仮置き）以上なら、提案は確定（confirmed）として入る。閾値より低ければ要確認（needs_review）。
+// 仕様 1: 確信度が閾値（0.85・仮置き。ハブ G10 の二段閾値の上段）以上なら、提案は確定（confirmed）として入る。閾値より低ければ要確認（needs_review）。
 // 仕様 2: 閾値ちょうどは確定。数でない・0 から 1 の外は、安全側に要確認にする。
 // 仕様 3: 店舗に入れた提案は、この判定に従う（誰が＝Claude）。人が確定した線は上書きしない。
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -7,13 +7,14 @@ import { REVIEW_THRESHOLD, reviewStatusOf } from './reviewThreshold'
 import { useSemantic } from '../store/semantic'
 
 describe('提案の確認状態（仕様 1・2）', () => {
-  it('閾値は 0.8（仮置き）', () => {
-    expect(REVIEW_THRESHOLD).toBe(0.8)
+  it('閾値は 0.85（仮置き。ハブ G10）', () => {
+    expect(REVIEW_THRESHOLD).toBe(0.85)
   })
 
   it('閾値以上は確定、閾値より低いと要確認。閾値ちょうどは確定', () => {
     expect(reviewStatusOf(0.9)).toBe('confirmed')
-    expect(reviewStatusOf(0.8)).toBe('confirmed')
+    expect(reviewStatusOf(0.85)).toBe('confirmed')
+    expect(reviewStatusOf(0.84)).toBe('needs_review')
     expect(reviewStatusOf(0.5)).toBe('needs_review')
   })
 
