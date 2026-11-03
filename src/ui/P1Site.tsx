@@ -16,6 +16,9 @@ export function P1Site() {
   const [result, setResult] = useState<DistrictLoad | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
+  const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
+
   const fetchDistricts = async () => {
     setLoading(true)
     setError(null)
@@ -80,7 +83,11 @@ export function P1Site() {
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法規の値</h3>
           <dl style={{ margin: 0 }}>
             <dt>用途地域・建蔽率・容積率</dt>
-            <dd>未取得（PLATEAU 未接続。D-02 C4）</dd>
+            <dd>
+              {siteDistrict
+                ? `建蔽率 ${siteDistrict.buildingCoverageRatePercent ?? '未取得'} %、容積率 ${siteDistrict.floorAreaRatePercent ?? '未取得'} %`
+                : '未取得（地点を入れて「この地点の用途地域を取る」）'}
+            </dd>
             <dt>前面道路の幅員</dt>
             <dd>未取得（筆界の取得が未決。D-02 C4）</dd>
             <dt>真北</dt>
