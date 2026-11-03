@@ -1,8 +1,13 @@
-// P5 出力（D-04 P5、D-02 C9・C10・C11）。IFC は実際に書き出せる。申請 PDF と法的チェックは未実装（図書ルールと図枠は未決。D-02 C10）。
+// P5 出力（D-04 P5、D-02 C9・C10・C11）。IFC は実際に書き出せる。確認申請の図書一覧と図書ごとの法的チェックは出す。
+// 申請 PDF の書き出しは未実装（図枠の規定と書式一式は未決。D-02 C10）。
 // IFC の書き出しは、ダミーの外形（20 m × 30 m）で行う。線の位置は P2 で描いた外形ではない。
 // 壁厚と階高は画面で変えられる（モックのとおり。2D への返りは P2 の外形の画面で行う）。
 import { useState } from 'react'
 import { writeIfc, type IfcSchema } from '../ifc/writer'
+import { SHEETS, legalCheckFor } from '../permit/sheetList'
+import { useSite } from '../store/site'
+
+const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
 
 const DUMMY_FOOTPRINT = [
   { x: 0, y: 0 },
@@ -16,6 +21,11 @@ export function P5Output() {
   const [wallText, setWallText] = useState('200')
   const [heightText, setHeightText] = useState('3000')
   const [storeysText, setStoreysText] = useState('3')
+  const [tab, setTab] = useState<'bim' | 'pdf'>('bim')
+  const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
+  const [applicant, setApplicant] = useState('')
+  const [onSheets, setOnSheets] = useState<Record<string, boolean>>(() => Object.fromEntries(SHEETS.map((s) => [s.name, true])))
+  const roadSlope = useSite((s) => s.roadSlope)
 
   const wall = Number(wallText)
   const height = Number(heightText)
@@ -37,6 +47,17 @@ export function P5Output() {
       <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P5 出力</h2>
       <p style={{ color: '#a33' }}>注: 書き出すのはダミーの外形（20 m × 30 m）。P2 で描いた外形ではありません。</p>
 
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        <button type="button" aria-pressed={tab === 'bim'} onClick={() => setTab('bim')}>
+          BIM 出力（IFC）
+        </button>
+        <button type="button" aria-pressed={tab === 'pdf'} onClick={() => setTab('pdf')}>
+          建築確認申請
+        </button>
+      </div>
+
+      {tab === 'bim' && (
+        <>
       <section style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>BIM の属性</h3>
         <label style={{ display: 'block', marginBottom: 6 }}>
@@ -112,14 +133,74 @@ export function P5Output() {
         <p style={{ color: '#666', fontSize: 12 }}>IFC4 は円弧を曲線のまま、IFC2X3 は折れ線で書く（D-02 C9）。開口・什器・縦シャフトは未対応。</p>
       </section>
 
-      <section>
-        <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>確認申請の書類（PDF）</h3>
-        <p style={{ color: '#666' }}>未実装。図書の一覧と図枠は、ハブでは未決（D-02 C10）。モックの図書一覧を採るか、ハブを正とするかで作り方が変わる。</p>
-      </section>
-      <section>
-        <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法的チェック</h3>
-        <p style={{ color: '#666' }}>未実装。斜線・日影の値の確認と、検査項目の範囲が要る（D-02 C11）。</p>
-      </section>
+        </>
+      )}
+
+      {tab === 'pdf' && (
+        <>
+          <section style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>図書一覧と法的チェック</h3>
+            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr>
+                  <th align="left">図書</th>
+                  <th align="left">根拠</th>
+                  <th align="left">出す</th>
+                  <th align="left">法的チェック</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SHEETS.map((s) => {
+                  const check = legalCheckFor(s, { roadSlope, shadow: null, applicantFilled: applicant.trim() !== '' })
+                  return (
+                    <tr key={s.name}>
+                      <td>
+                        {s.name}
+                        {!s.confirmed && <span style={{ color: '#a86b00', marginLeft: 6, fontSize: 12 }}>要確認</span>}
+                      </td>
+                      <td style={{ color: '#666', fontSize: 12 }}>{s.basis}</td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`${s.name} を出す`}
+                          checked={onSheets[s.name] ?? false}
+                          onChange={(e) => setOnSheets((prev) => ({ ...prev, [s.name]: e.target.checked }))}
+                        />
+                      </td>
+                      <td style={{ color: TONE_COLOR[check.tone] }}>{check.text}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p style={{ color: '#666', fontSize: 12 }}>
+              図書の範囲は施行規則 第1条の3 と表一・表二（RC 造の共同住宅）から。書式一式は自治体と申請の種類で変わるため未決。日影図は適用条件と条例値が未確認のため「要確認」。
+            </p>
+          </section>
+
+          <section style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>申請者と図枠</h3>
+            <label style={{ display: 'block', marginBottom: 6 }}>
+              申請者
+              <input value={applicant} onChange={(e) => setApplicant(e.target.value)} style={{ width: 240, marginLeft: 8 }} />
+            </label>
+            <div style={{ marginBottom: 8 }}>
+              図枠:{' '}
+              {(['A3横', 'A1'] as const).map((f) => (
+                <button key={f} type="button" aria-pressed={frame === f} onClick={() => setFrame(f)} style={{ marginLeft: 6 }}>
+                  {f}
+                </button>
+              ))}
+            </div>
+            <button type="button" disabled>
+              PDF を出す（未実装）
+            </button>
+            <p style={{ color: '#666', fontSize: 12 }}>
+              PDF の書き出しは、図枠の寸法規定と書式が決まってから作る（D-02 C10）。今は図書の一覧と、図書ごとの法的チェックまで。
+            </p>
+          </section>
+        </>
+      )}
     </div>
   )
 }

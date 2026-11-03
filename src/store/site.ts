@@ -12,6 +12,9 @@ interface SiteState {
   /** 周辺建物を取ったときの基準点 */
   sitePoint: { lat: number; lon: number } | null
   setBuildings: (buildings: PlateauBuilding[] | null, sitePoint: { lat: number; lon: number } | null) => void
+  /** 道路斜線の判定（P2）。判定が無ければ null。図書の法的チェックに使う */
+  roadSlope: '適合' | '超過' | null
+  setRoadSlope: (roadSlope: '適合' | '超過' | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -20,4 +23,6 @@ export const useSite = create<SiteState>((set) => ({
   buildings: null,
   sitePoint: null,
   setBuildings: (buildings, sitePoint) => set({ buildings, sitePoint }),
+  roadSlope: null,
+  setRoadSlope: (roadSlope) => set({ roadSlope }),
 }))

@@ -1,6 +1,6 @@
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
@@ -128,6 +128,15 @@ export function P03Volume() {
 
   // 敷地との離れ（敷地が矩形のときだけ。G67）
   const setback = useMemo(() => (volume ? setbackFromRectParcel(DUMMY_PARCEL, volume.footprint) : null), [volume])
+  // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
+  const roadSlope = useMemo(() => {
+    const road = legal.boundaries.filter((b) => b.kind === 'road')
+    if (!volume || road.length === 0) return null
+    return judgeSlope(volume.footprint, road, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+  }, [volume, legal])
+  useEffect(() => {
+    useSite.getState().setRoadSlope(roadSlope)
+  }, [roadSlope])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
