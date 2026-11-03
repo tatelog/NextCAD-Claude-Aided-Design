@@ -69,7 +69,8 @@ function segmentsIntersect(p1: Point, p2: Point, p3: Point, p4: Point): boolean 
   return false
 }
 
-function isSimple(poly: readonly Point[]): boolean {
+// 辺の中点のつまみは 2 頂点を同時に動かすので、moveVertex（1 頂点ずつ）ではなく、動かした後の形を直接検査する
+export function isSimple(poly: readonly Point[]): boolean {
   const n = poly.length
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {

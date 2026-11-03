@@ -1,6 +1,7 @@
 // P4 積算（D-02 C8、D-03 T-04・T-10、D-04 P4）。工事原価を円の整数で出す。
 // 材料費 = 造作単価 × 数量、労務費 = 労務単価 × 歩掛 × 数量。直接仮設・共通仮設費・現場管理費・一般管理費は入れない（G19）。
 // 出典のない単価は provisional（未確定）として、行と合計に残す（G22）。
+// 単価表と数量の行に載らない、金額の決まった行（什器の 台数 × 単価 など。G69）は、3 つ目の引数で渡す。内訳の行・区分の小計・合計に入り、出典なしの印も残る。
 import { z } from 'zod'
 
 export const CATEGORIES = ['躯体', '外装', '内装', '外構'] as const
@@ -34,6 +35,18 @@ export const QuantityLineSchema = z.object({
 
 export type QuantityLine = z.infer<typeof QuantityLineSchema>
 
+/** 単価表と数量の行に載らない、金額の決まった行（什器の 台数 × 単価 など）。円は 0 以上の整数 */
+export const AmountLineSchema = z.object({
+  /** 内訳の行の price_id になる。単価表の id と重ならない文字列 */
+  id: z.string().min(1),
+  category: z.enum(CATEGORIES),
+  yen: z.number().int().min(0),
+  /** 出典なしの仮置き（G22）なら true。行・区分の小計・合計に残る */
+  provisional: z.boolean(),
+})
+
+export type AmountLine = z.infer<typeof AmountLineSchema>
+
 export interface EstimateLine {
   price_id: string
   category: Category
@@ -54,12 +67,13 @@ export interface Estimate {
   lines: EstimateLine[]
 }
 
-export function estimateCost(priceRows: unknown[], quantityLines: unknown[]): Estimate {
+export function estimateCost(priceRows: unknown[], quantityLines: unknown[], amountLines: unknown[] = []): Estimate {
   const prices = z.array(PriceRowSchema).parse(priceRows)
   const lines = z.array(QuantityLineSchema).parse(quantityLines)
+  const amounts = z.array(AmountLineSchema).parse(amountLines)
 
   const byId = new Map(prices.map((p) => [p.id, p]))
-  const outLines: EstimateLine[] = lines.map((line) => {
+  const priceLines: EstimateLine[] = lines.map((line) => {
     const row = byId.get(line.price_id)
     if (!row) throw new Error(`単価 ID が単価表に無い: ${line.price_id}`)
     const amount = row.kind === '造作' ? row.unit_price * line.quantity : row.unit_price * row.factor! * line.quantity
@@ -70,6 +84,11 @@ export function estimateCost(priceRows: unknown[], quantityLines: unknown[]): Es
       provisional: row.provisional || row.source_ref.trim() === '',
     }
   })
+  // 金額の決まった行（什器など）は、単価表と数量の行のあとに並べる
+  const outLines: EstimateLine[] = [
+    ...priceLines,
+    ...amounts.map((a) => ({ price_id: a.id, category: a.category, yen: a.yen, provisional: a.provisional })),
+  ]
 
   const subtotals = Object.fromEntries(
     CATEGORIES.map((c) => [c, { yen: 0, provisional: false }]),

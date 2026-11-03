@@ -5,6 +5,10 @@ import { strokeToSegments } from '../canvas/strokeToSegments'
 import { createViewport, type Viewport } from '../geom/viewport'
 import { SNAP_RADIUS_PX, snapRadiusMm } from '../input/snap'
 import type { Node, Segment, Stroke } from '../model/schema'
+import { movedSegmentIds } from '../plan/semanticConfirm'
+import { movesLockedLayer } from '../plan/layers'
+import { useSemantic } from './semantic'
+import { useLayers } from './layers'
 
 /** 1 ストロークを 1 単位にした記録 */
 interface StrokeEntry {
@@ -42,7 +46,10 @@ export interface DrawingState {
   fitViewport: (vp: Viewport) => void
   /** 1 本のストロークを 1 単位として追加。gridMm は入力スナップのグリッド（null で無効） */
   addStroke: (stroke: Stroke, gridMm?: number | null) => void
-  /** 線分をまとめて変える操作（変形）。1 回の呼び出しが 1 単位 */
+  /**
+   * 線分をまとめて変える操作（変形）。1 回の呼び出しが 1 単位。
+   * 動いた線（座標または revision が変わった線）のうち種類を持つものは、意味づけの店舗で「要確認」にする（G65 の既定。仮置き）
+   */
   transform: (fn: (entries: StrokeEntry[]) => StrokeEntry[]) => void
   undo: () => void
   redo: () => void
@@ -92,7 +99,22 @@ export const useDrawing = create<DrawingState>((set, get) => {
       }
       commit([...entries, entry])
     },
-    transform: (fn) => commit(fn(get().entries)),
+    transform: (fn) => {
+      const before = get().entries
+      const after = fn(before)
+      // 動いた線の種類は消さず、種類を持つ線だけに「要確認」の印を付ける（再判定は Worker の配備後）。増えた線・消えた線は動いた線に入らない
+      const movedIds = movedSegmentIds(
+        before.flatMap((e) => e.segments),
+        after.flatMap((e) => e.segments),
+      )
+      // ロックしたレイヤーの線が動くなら、変形は全体を取り消す（何も変えない。履歴も増やさない）
+      const stageOf = new Map(before.flatMap((e) => e.segments).map((s) => [s.id, s.stage] as const))
+      const assignments = useSemantic.getState().assignments
+      const moved = movedIds.map((id) => ({ stage: stageOf.get(id) ?? 'F4', kind: assignments[id]?.kind ?? null }))
+      if (movesLockedLayer(moved, useLayers.getState().locked)) return
+      commit(after)
+      if (movedIds.length > 0) useSemantic.getState().markNeedsReview(movedIds)
+    },
     undo: () =>
       set((s) => {
         const prev = s.past[s.past.length - 1]

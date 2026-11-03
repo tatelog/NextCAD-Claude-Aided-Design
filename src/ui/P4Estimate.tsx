@@ -4,10 +4,17 @@ import { useMemo, useState } from 'react'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
+import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { roomFinishTotals } from '../estimate/roomQuantities'
+import type { ObjectKind } from '../plan/objectMenu'
+import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import type { RoomKind } from '../plan/rooms'
+import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
+import { FixtureLayer } from './FixtureLayer'
+import { FixtureSummary } from './FixtureSummary'
+import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 
 const SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
@@ -17,6 +24,8 @@ const SAMPLE = [
 ].join('\n')
 
 const yen = (n: number) => `${n.toLocaleString('ja-JP')} 円`
+// P4 の平面の什器の印は読み取りのみ（押しても置かず、外さない）。FixtureLayer の押しのハンドラは必須なので、何もしない関数を渡す
+const NO_OP = () => undefined
 // 天井高（仮置き）。階高から天井の仕上げを引く値は未決のため、ここは固定の仮置き
 const CEILING_MM = 2400
 // 区分の並び（モックの P4: 躯体・外装・内装・外構）。躯体と外構は数量をまだ拾えない
@@ -54,6 +63,16 @@ export function P4Estimate() {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
+  // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
+  const fixtures = useFixtures((s) => s.fixtures)
+  const fixtureUnitIds = useFixtures((s) => s.unitIds)
+  const fixtureUnitPriceTexts = useFixtures((s) => s.unitPriceTexts)
+  const setFixtureUnitPriceText = useFixtures((s) => s.setUnitPriceText)
+  // 工事原価（概算）に渡す什器の行（単価を入れて、1 台以上置いた品目。区分は内装）
+  const fixtureAmountLines = useMemo(
+    () => fixtureCostLines(estimateFixtureCost(fixtures, parseUnitPrices(fixtureUnitPriceTexts))),
+    [fixtures, fixtureUnitPriceTexts],
+  )
   const autoQuantities = useMemo(() => {
     const out: { item: string; category: string; quantity: number }[] = []
     if (volume) {
@@ -68,20 +87,32 @@ export function P4Estimate() {
   }, [volume, plan])
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
+  // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
+  // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
+  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
+  const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
+
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
     const lines = parsed.rows
       .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
       .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
-      return estimateCost(parsed.rows, lines)
+      return estimateCost(parsed.rows, lines, fixtureAmountLines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities, autoList])
+  }, [parsed, quantities, autoList, fixtureAmountLines])
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
+      <ObjectMenu
+        sources={objectSources}
+        selectedKind={selectedKind}
+        onSelect={setSelectedKind}
+        caption="種類ごとの件数（P3 の自動作成の結果）"
+        notice={noticeOfPlan(plan)}
+      />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
         {plan ? (
@@ -91,6 +122,7 @@ export function P4Estimate() {
               {plan.rooms.map((r) => (
                 <rect key={r.id} x={r.x0} y={r.y0} width={r.x1 - r.x0} height={r.y1 - r.y0} fill={ROOM_FILL[r.kind]} stroke="#8a8478" strokeWidth={20} />
               ))}
+              <FixtureLayer cells={plan.cells} fixtures={fixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
             </svg>
             <figcaption style={{ fontSize: 12, color: '#666' }}>
               P3 の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。3LDK の洋室 3 室は未決のため、ここは 2 室。
@@ -146,6 +178,12 @@ export function P4Estimate() {
             </tbody>
           </table>
         </section>
+        <FixtureSummary
+          fixtures={fixtures}
+          unitIds={fixtureUnitIds ?? undefined}
+          unitPriceTexts={fixtureUnitPriceTexts}
+          onUnitPriceChange={setFixtureUnitPriceText}
+        />
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={8} style={{ width: '100%', fontFamily: 'monospace' }} />
         {'error' in parsed ? (
           <p style={{ color: '#a33' }}>単価 CSV: {parsed.error}</p>

@@ -1,13 +1,18 @@
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
-import { extrudeVolume } from '../volume/extrude'
+import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
+import { NumericLineForm } from './NumericLineForm'
+import { useFeatures } from '../store/features'
+import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type RoadWidthSource } from '../volume/roadWidthSource'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
+import { rotateOutline } from '../canvas/outlineEdit'
+import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
 import { cutFloors } from '../volume/slope'
@@ -27,6 +32,9 @@ import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
 import { neighborVolumes } from '../volume/neighborLocal'
+import type { ObjectKind } from '../plan/objectMenu'
+import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
+import { ObjectMenu } from './ObjectMenu'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -45,14 +53,19 @@ export function P03Volume() {
   const entries = useDrawing((s) => s.entries)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
   const closure = useMemo(() => findClosedOutline(segments), [segments])
+  // 左メニュー（G55）の入力: 外形（閉じた輪郭）と仮の筆界（ダミー）から。P1 の筆界が入るまでの仮
+  const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, DUMMY_PARCEL), [closure])
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
   const setStoreyHeightMm = useDrawing((s) => s.setStoreyHeightMm)
   const clear = useDrawing((s) => s.clear)
+  const transform = useDrawing((s) => s.transform)
   const placement = useUi((s) => s.toolbarPlacement)
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
+  // 左メニュー（G55）で選んだ種類（1 つだけ。もう一度押すと外れる）。2D 平面のときだけ出す（3D のときに出すかは未決）
+  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const [homeToken, setHomeToken] = useState(0)
   const siteBuildings = useSite((s) => s.buildings)
   const showShadow = useUi((s) => s.showShadow)
@@ -74,6 +87,8 @@ export function P03Volume() {
   const [zone, setZone] = useState<Zone>('住居系')
   const [roadEdge, setRoadEdge] = useState(0)
   const [roadWidth, setRoadWidth] = useState('6000')
+  // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
+  const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   const [westText, setWestText] = useState('')
   const [southText, setSouthText] = useState('')
@@ -81,6 +96,24 @@ export function P03Volume() {
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
   // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
   const [aligned, setAligned] = useState(false)
+  // 回転（G71）: 右パネルの角度（°）と刻み。「回す」で外形を重心のまわりに回し、store に確定する
+  const [rotateText, setRotateText] = useState('0')
+  const [rotateStep, setRotateStep] = useState<RotationStep>('free')
+  // 機能のオンオフ（G70）: 回転の表示と操作、つまみ、斜線と日影の再計算
+  const featureOn = useFeatures((s) => s.on)
+  const rotateDeg = snapAngle(Number(rotateText), rotateStep)
+  // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
+  const knobSnapshotRef = useRef<typeof entries | null>(null)
+  const onKnobRotateStart = () => {
+    knobSnapshotRef.current = useDrawing.getState().entries
+  }
+  const onKnobRotate = (deg: number) => {
+    const snapshot = knobSnapshotRef.current ?? useDrawing.getState().entries
+    knobSnapshotRef.current = null
+    // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない（右の「回す」と同じ）
+    setAligned(false)
+    transform(() => rotateOutline(snapshot, deg))
+  }
   const roadDeg = (() => {
     const a = DUMMY_PARCEL[roadEdge]!
     const b = DUMMY_PARCEL[(roadEdge + 1) % DUMMY_PARCEL.length]!
@@ -89,21 +122,21 @@ export function P03Volume() {
 
   const placedFootprint = useMemo(() => {
     if (!closure.closed || closure.footprint === null) return null
-    const base = aligned ? alignToDirection(closure.footprint, roadDeg) : closure.footprint
+    // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
+    const base = aligned ? roundFootprintMm(alignToDirection(closure.footprint, roadDeg)) : closure.footprint
     const w = Number(westText)
     const s = Number(southText)
     if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
-    return placeBySetback(base, DUMMY_PARCEL, { west: w, south: s })
+    return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: w, south: s }))
   }, [closure, westText, southText, aligned, roadDeg])
 
-  const volume = useMemo(() => {
+  // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
+  const extruded = useMemo<ExtrudeResult | null>(() => {
     if (!closure.closed || placedFootprint === null) return null
-    try {
-      return extrudeVolume({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
-    } catch {
-      return null
-    }
+    return extrudeOrReason({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
   }, [closure, placedFootprint, storeyCount, storeyHeightMm])
+  const volume = extruded?.ok ? extruded.volume : null
+  const volumeError = extruded && !extruded.ok ? extruded.reason : null
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
@@ -165,8 +198,12 @@ export function P03Volume() {
   )
   // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
   const shadowJudge = useMemo(() => {
+    // 再計算をオフにしているときは、判定を計算せずに止めていると出す（G70）
+    if (!featureOn.shadowRecalc) return { text: '再計算を止めている（機能のオンオフ）', result: null as '適合' | '不適合' | null }
     const rule = shadowRuleFor(zone, 2)
-    if (!volume) return { text: '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
+    if (!volume) {
+      return { text: volumeError ? `立体を作れないので判定できない（${volumeError}）` : '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
+    }
     if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
     const judgment = judgeShadow({
       lot: DUMMY_PARCEL,
@@ -179,7 +216,7 @@ export function P03Volume() {
     if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
-  }, [volume, zone, stackedFloors])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -230,6 +267,9 @@ export function P03Volume() {
         )}
       </header>
       <div className="p03-body">
+        {view === 'plan' && (
+          <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（外形と仮の筆界）" />
+        )}
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
@@ -242,6 +282,10 @@ export function P03Volume() {
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
+                rotationStep={rotateStep}
+                onRotateStart={featureOn.knobs && featureOn.rotateOperation ? onKnobRotateStart : undefined}
+                onRotate={featureOn.knobs && featureOn.rotateOperation ? onKnobRotate : undefined}
+                onStoreyCount={featureOn.knobs ? setStoreyCount : undefined}
               />
               {showMiniMap && boundsOf([volume.footprint]) ? (
                 <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
@@ -249,7 +293,7 @@ export function P03Volume() {
             </div>
           ) : (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center', background: '#f4f4f2' }}>
-              <p className="muted">外形が閉じると 3D が出る</p>
+              <p className="muted">{volumeError ? `立体を作れないので 3D が出ない（${volumeError}）` : '外形が閉じると 3D が出る'}</p>
             </div>
           )
         ) : (
@@ -354,6 +398,17 @@ export function P03Volume() {
               前面道路の幅員 (mm)
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
+            <label>
+              幅員の出どころ（G16。仮置き）
+              <select value={roadSource} onChange={(e) => setRoadSource(e.target.value as RoadWidthSource)}>
+                {ROAD_WIDTH_SOURCES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">採用: {roadWidthNote(roadSource, Number(roadWidth) || 0)}</p>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
             <button type="button" onClick={() => setAligned((v) => !v)} disabled={!closure.closed}>
               {aligned ? '向きを戻す' : '道路に平行に合わせる'}
@@ -382,6 +437,42 @@ export function P03Volume() {
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
+          </section>
+          <section>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
+            <NumericLineForm />
+          </section>
+          <section style={featureOn.rotateDisplay ? undefined : { display: 'none' }}>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
+            <label>
+              回転角 (°、反時計回り)
+              <input type="number" value={rotateText} onChange={(e) => setRotateText(e.target.value)} />
+            </label>
+            <label>
+              刻み
+              <select
+                value={String(rotateStep)}
+                onChange={(e) => setRotateStep(ROTATION_STEPS.find((s) => String(s) === e.target.value) ?? 'free')}
+              >
+                {ROTATION_STEPS.map((s) => (
+                  <option key={String(s)} value={String(s)}>
+                    {s === 'free' ? '自由' : `${s}°`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">回す量: {rotateDeg}°（刻みで丸めた値）</p>
+            <button
+              type="button"
+              disabled={!closure.closed || rotateDeg === 0 || !featureOn.rotateOperation}
+              onClick={() => {
+                // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない
+                setAligned(false)
+                transform((es) => rotateOutline(es, rotateDeg))
+              }}
+            >
+              回す
+            </button>
           </section>
           <section>
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">

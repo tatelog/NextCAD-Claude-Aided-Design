@@ -3,13 +3,18 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { useDrawing } from '../store/drawing'
 import { useUi, type ToolbarPlacement } from '../store/ui'
+import { ToolIcon } from './toolIcons'
+import { isToolEnabled } from './toolAvailability'
 import './pen.css'
 
-const PLACEMENTS: { value: ToolbarPlacement; label: string }[] = [
-  { value: 'top', label: '上' },
-  { value: 'left', label: '左' },
-  { value: 'free', label: '独立' },
+const PLACEMENTS: { value: ToolbarPlacement; label: string; icon: 'place-top' | 'place-left' | 'place-free' }[] = [
+  { value: 'top', label: '上', icon: 'place-top' },
+  { value: 'left', label: '左', icon: 'place-left' },
+  { value: 'free', label: '独立', icon: 'place-free' },
 ]
+
+// この道具箱は P2（ボリューム作図）に置く。その画面で使えない道具（什器は P3 で使う）はグレーアウトする（G69）
+const PEN_SCREEN = 'P2' as const
 
 export interface PenToolbarProps {
   /** 独立のときの位置の基準にする要素（この中で動かす） */
@@ -55,36 +60,54 @@ export function PenToolbar({ placement }: PenToolbarProps) {
           type="button"
           className="pen-toolbar-handle"
           title="つかんで動かす"
+          aria-label="つかんで動かす"
           onPointerDown={onHandleDown}
           onPointerMove={onHandleMove}
           onPointerUp={onHandleUp}
           onPointerCancel={onHandleUp}
         >
-          ⠿
+          <ToolIcon name="grip" />
         </button>
       )}
       <span className="pen-toolbar-group">
-        <button type="button" className={penMode === 'line' ? 'is-active' : undefined} aria-pressed={penMode === 'line'} onClick={() => setPenMode('line')}>
-          直線
+        <button type="button" aria-label="直線" title="直線" className={penMode === 'line' ? 'is-active' : undefined} aria-pressed={penMode === 'line'} onClick={() => setPenMode('line')}>
+          <ToolIcon name="line" />
+          <span>直線</span>
         </button>
-        <button type="button" className={penMode === 'curve' ? 'is-active' : undefined} aria-pressed={penMode === 'curve'} onClick={() => setPenMode('curve')}>
-          曲線
+        <button type="button" aria-label="曲線" title="曲線" className={penMode === 'curve' ? 'is-active' : undefined} aria-pressed={penMode === 'curve'} onClick={() => setPenMode('curve')}>
+          <ToolIcon name="curve" />
+          <span>曲線</span>
         </button>
       </span>
       <span className="pen-toolbar-group">
-        <button type="button" onClick={undo} disabled={!canUndo}>
-          Undo
+        <button type="button" aria-label="Undo" title="Undo" onClick={undo} disabled={!canUndo}>
+          <ToolIcon name="undo" />
+          <span>Undo</span>
         </button>
-        <button type="button" onClick={redo} disabled={!canRedo}>
-          Redo
+        <button type="button" aria-label="Redo" title="Redo" onClick={redo} disabled={!canRedo}>
+          <ToolIcon name="redo" />
+          <span>Redo</span>
         </button>
       </span>
       <span className="pen-toolbar-group" title="表示グリッドと入力スナップは別の設定（吸着に使うのは入力スナップだけ）">
-        <button type="button" className={displayGrid ? 'is-active' : undefined} aria-pressed={displayGrid} onClick={() => setDisplayGrid(!displayGrid)}>
-          表示グリッド
+        <button type="button" aria-label="表示グリッド" title="表示グリッド" className={displayGrid ? 'is-active' : undefined} aria-pressed={displayGrid} onClick={() => setDisplayGrid(!displayGrid)}>
+          <ToolIcon name="grid" />
+          <span>表示グリッド</span>
         </button>
-        <button type="button" className={inputSnapGrid ? 'is-active' : undefined} aria-pressed={inputSnapGrid} onClick={() => setInputSnapGrid(!inputSnapGrid)}>
-          入力スナップ
+        <button type="button" aria-label="入力スナップ" title="入力スナップ" className={inputSnapGrid ? 'is-active' : undefined} aria-pressed={inputSnapGrid} onClick={() => setInputSnapGrid(!inputSnapGrid)}>
+          <ToolIcon name="snap" />
+          <span>入力スナップ</span>
+        </button>
+      </span>
+      <span className="pen-toolbar-group" title="什器は P3 で使う（P2 では使えない）">
+        <button
+          type="button"
+          aria-label="什器"
+          title={isToolEnabled('fixture', PEN_SCREEN) ? '什器' : '什器（P3 で使う）'}
+          disabled={!isToolEnabled('fixture', PEN_SCREEN)}
+        >
+          <ToolIcon name="fixture" />
+          <span>什器</span>
         </button>
       </span>
       <span className="pen-toolbar-group" title="道具の置き場">
@@ -95,8 +118,11 @@ export function PenToolbar({ placement }: PenToolbarProps) {
             className={placement === p.value ? 'is-active' : undefined}
             aria-pressed={placement === p.value}
             onClick={() => setToolbarPlacement(p.value)}
+            aria-label={p.label}
+            title={`置き場: ${p.label}`}
           >
-            {p.label}
+            <ToolIcon name={p.icon} />
+            <span>{p.label}</span>
           </button>
         ))}
       </span>

@@ -4,6 +4,7 @@
 // 仕様 3: 基準点からの平面距離（平面直角 IX 系、m を mm）。北へ 0.001° ≈ 111 m、東へ 0.001° ≈ 90 m。
 // 仕様 4: 周辺建物は、ZIP にあるメッシュのファイルだけを読む。無いメッシュはエラーにせず飛ばす。
 // 仕様 5: 基準点から半径（既定 400 m）以内に頂点がある建物だけを返す。
+// 仕様 6: 候補の 9 メッシュがどれも zip に無いときは、範囲外の可能性を伝えるエラーにする（黙って 0 棟にしない）。1 つでもあれば、半径内に建物が無くても空の配列。
 import { describe, expect, it } from 'vitest'
 import { loadNeighborBuildings, neighborMeshCodes, toPlaneMm } from './neighborBuildings'
 import { buildZip, serveZip, type FixtureFile } from './zipFixture'
@@ -84,5 +85,24 @@ describe('loadNeighborBuildings（周辺建物の読み込み）', () => {
     const near1 = buildings.find((b) => b.id === 'bldg_near')!
     expect(near1.footprints[0]![0]).toEqual({ lat: near.lat, lon: near.lon })
     expect(near1.heightM).toBe(10)
+  })
+
+  it('候補の 9 メッシュがどれも zip に無いときは、範囲外の可能性を伝えるエラーにする', async () => {
+    // 千代田区の点に江東区の zip を当てたときの想定。候補の番号（53394608 とその周囲）以外のファイルだけがある
+    const zip = buildZip([{ name: 'udx/bldg/53394700_bldg_6697_op.gml', data: gmlWithBuildings([far]) }])
+    await expect(loadNeighborBuildings(POINT, 'https://example.test/ward.zip', serveZip(zip, []))).rejects.toThrow('範囲外')
+  })
+
+  it('候補のメッシュが一つでも zip にあれば、半径内に建物が無くても空の配列を返す（エラーにしない）', async () => {
+    const zip = buildZip([{ name: 'udx/bldg/53394608_bldg_6697_op.gml', data: gmlWithBuildings([far]) }])
+    await expect(loadNeighborBuildings(POINT, 'https://example.test/ward.zip', serveZip(zip, []))).resolves.toEqual([])
+  })
+
+  it('通信そのものが切れたら（接続できない）、通信か中継を確かめるよう伝える文言にする', async () => {
+    // 接続できないとき fetch は TypeError を投げる（ブラウザの「Failed to fetch」）
+    const offline = (async () => {
+      throw new TypeError('Failed to fetch')
+    }) as unknown as typeof fetch
+    await expect(loadNeighborBuildings(POINT, 'https://example.test/ward.zip', offline)).rejects.toThrow('接続できませんでした')
   })
 })

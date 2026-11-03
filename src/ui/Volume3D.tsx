@@ -9,6 +9,8 @@ import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
 import { cameraForFace, type Face } from './viewFaces'
+import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
+import type { RotationStep } from '../volume/rotation'
 
 const FACE_LABELS: { face: Face; label: string }[] = [
   { face: 'top', label: '上' },
@@ -37,7 +39,8 @@ function CameraDirector({ request }: { request: FaceRequest | null }) {
 
 const MM_TO_M = 1 / 1000
 
-function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
+/** 三角形の一覧（mm）を three の形にする。P1 の周辺建物（NeighborScene3D）と同じ変換を使う */
+export function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
   const positions: number[] = []
   for (const tri of mesh.triangles) {
     for (const v of tri) positions.push(v.x * MM_TO_M, v.z * MM_TO_M, v.y * MM_TO_M)
@@ -88,9 +91,28 @@ interface Volume3DProps {
   storeyHeightMm: number
   /** ホーム（既定の向きに戻す）を押した回数。変わると視点を戻す。 */
   homeToken: number
+  /** 3D の角の回転つまみ（G71）をつまんだとき（つまんだ時点の外形を覚えるため）。 */
+  onRotateStart?: () => void
+  /** 離したとき: 回す量（°、反時計回り。刻みで丸めた値）。渡さなければ回転のつまみは出さない。 */
+  onRotate?: (deg: number) => void
+  /** 回転のつまみの刻み（右パネルの刻み）。省略は自由。 */
+  rotationStep?: RotationStep
+  /** 3D の上面の高さのつまみ（G65）を離したとき: 新しい階数（1 以上・上限 30）。渡さなければ高さのつまみは出さない。 */
+  onStoreyCount?: (n: number) => void
 }
 
-export function Volume3D({ footprint, shadow, neighbors, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
+export function Volume3D({
+  footprint,
+  shadow,
+  neighbors,
+  storeyCount,
+  storeyHeightMm,
+  homeToken,
+  onRotateStart,
+  onRotate,
+  rotationStep = 'free',
+  onStoreyCount,
+}: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
   const neighborGeo = useMemo(() => {
@@ -99,10 +121,24 @@ export function Volume3D({ footprint, shadow, neighbors, storeyCount, storeyHeig
     return toGeometry({ triangles })
   }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
-  const geometry = useMemo(
-    () => toGeometry(buildVolumeMesh({ footprint, storey_count: storeyCount, storey_height: storeyHeightMm })),
-    [footprint, storeyCount, storeyHeightMm],
-  )
+  // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
+  const [knobPreview, setKnobPreview] = useState<KnobPreview | null>(null)
+  const shownFootprint = knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
+  const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
+  const geometry = useMemo(() => {
+    const build = (fp: Point[], storeys: number) => toGeometry(buildVolumeMesh({ footprint: fp, storey_count: storeys, storey_height: storeyHeightMm }))
+    // 仮の形が立体にならないとき（丸めで外形が崩れたとき）は、実際の形のまま見せる
+    if (shownFootprint !== footprint || shownStoreyCount !== storeyCount) {
+      try {
+        return build(shownFootprint, shownStoreyCount)
+      } catch {
+        return build(footprint, storeyCount)
+      }
+    }
+    return build(footprint, storeyCount)
+  }, [footprint, shownFootprint, storeyCount, shownStoreyCount, storeyHeightMm])
+  // 仮の形を作り直すたびに、古い形の GPU の領域を解放する
+  useEffect(() => () => geometry.dispose(), [geometry])
   const ground = useMemo(() => groundSize(footprint), [footprint])
 
   const [faceRequest, setFaceRequest] = useState<FaceRequest | null>(null)
@@ -139,8 +175,28 @@ export function Volume3D({ footprint, shadow, neighbors, storeyCount, storeyHeig
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
         </mesh>
       )}
+      {(onRotate || onStoreyCount) && (
+        <VolumeKnobs
+          footprint={footprint}
+          storeyCount={storeyCount}
+          storeyHeightMm={storeyHeightMm}
+          preview={knobPreview}
+          onPreview={setKnobPreview}
+          rotationStep={rotationStep}
+          onRotateStart={onRotateStart}
+          onRotate={onRotate}
+          onStoreyCount={onStoreyCount}
+        />
+      )}
       <OrbitControls ref={controlsRef} makeDefault />
     </Canvas>
+    {knobPreview?.kind === 'height' && (
+      <div
+        style={{ position: 'absolute', left: 8, bottom: 8, padding: '2px 8px', border: '1px solid #b8b2a4', borderRadius: 4, background: '#fff', fontSize: 12, pointerEvents: 'none' }}
+      >
+        高さ {knobPreview.storeyCount} 階（{(knobPreview.heightMm / 1000).toFixed(1)} m）
+      </div>
+    )}
     <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 4 }}>
       {FACE_LABELS.map(({ face, label }) => (
         <button
