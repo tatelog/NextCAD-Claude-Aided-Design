@@ -17,7 +17,9 @@ import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './s
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
-import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
+import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
+import { startLineLog } from './app/workLogLines'
+import { restoreSnapshotJson } from './app/workSnapshot'
 
 const SCREENS = [
   { id: 'P1', name: '敷地' },
@@ -67,6 +69,8 @@ export function App() {
       () => setLogReady(false),
     )
   }, [])
+  // 線が変わるたびに、作業履歴の行を状態つきで書く（G68。戻せるように）
+  useEffect(() => startLineLog(), [])
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
   const showShadow = useUi((s) => s.showShadow)
   const showNeighbors = useUi((s) => s.showNeighbors)
@@ -94,6 +98,18 @@ export function App() {
     setScreen(id)
     recordWorkLog({ at: new Date().toISOString(), screen: id, action: '切替', target: id })
     setRev((r) => r + 1)
+  }
+
+  // 作業履歴の行の時点に戻す（線・階数・階高・什器。案件名は今のまま）。戻したことも行に残る
+  const restoreRow = (id: number) => {
+    const json = snapshotOfWorkLogRow(id)
+    if (json === null) return
+    try {
+      restoreSnapshotJson(json, project)
+      record('履歴', `#${id} の時点に戻す`)
+    } catch (e) {
+      setLoadMessage(`戻せませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   // 案件の中身（保存と Drive 保存で同じ）
@@ -288,6 +304,11 @@ export function App() {
                   {recentWorkLog(200).map((l) => (
                     <li key={l.id}>
                       {l.at.slice(11, 19)} {l.screen} {l.action} {l.target}
+                      {l.hasSnapshot ? (
+                        <button type="button" style={{ ...button, marginLeft: 6, padding: '0 6px', fontSize: 11 }} onClick={() => restoreRow(l.id)}>
+                          この時点に戻す
+                        </button>
+                      ) : null}
                     </li>
                   ))}
                 </ol>

@@ -2,7 +2,17 @@
 // localStorage は保存できないときに例外を出すため、読み書きは try で囲み、表は画面の中でも使える。
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
-import { createWorkLogTable, exportWorkLog, insertLogRow, readRecentLog, restoreWorkLog, type WorkLogRow } from './workLogDb'
+import {
+  SNAPSHOT_KEEP,
+  createWorkLogTable,
+  exportWorkLog,
+  insertLogRow,
+  keepLatestSnapshots,
+  readRecentLog,
+  restoreWorkLog,
+  snapshotOfRow as readSnapshotOfRow,
+  type WorkLogRow,
+} from './workLogDb'
 
 const KEY = 'work-log-sqlite-v1'
 let SQL: SqlJsStatic | null = null
@@ -34,9 +44,11 @@ export async function openWorkLog(): Promise<void> {
   createWorkLogTable(db)
 }
 
-export function recordWorkLog(entry: { at: string; screen: string; action: string; target: string }): void {
+export function recordWorkLog(entry: { at: string; screen: string; action: string; target: string; snapshot?: string | null }): void {
   if (db === null) return
   insertLogRow(db, entry)
+  // 状態は新しい順に上限の数だけ残す（古い行は行だけ残る）
+  keepLatestSnapshots(db, SNAPSHOT_KEEP)
   try {
     localStorage.setItem(KEY, bytesToBase64(exportWorkLog(db)))
   } catch {
@@ -46,4 +58,9 @@ export function recordWorkLog(entry: { at: string; screen: string; action: strin
 
 export function recentWorkLog(limit: number): WorkLogRow[] {
   return db === null ? [] : readRecentLog(db, { limit })
+}
+
+/** 行の状態（戻すときに使う）。無い行・表が開いていないときは null */
+export function snapshotOfWorkLogRow(id: number): string | null {
+  return db === null ? null : readSnapshotOfRow(db, id)
 }
