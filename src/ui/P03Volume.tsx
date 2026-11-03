@@ -153,7 +153,7 @@ export function P03Volume() {
               />
             </div>
           ) : (
-            <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center', background: '#f4f4f2' }}>
               <p className="muted">外形が閉じると 3D が出る</p>
             </div>
           )
