@@ -15,6 +15,9 @@ interface SiteState {
   /** 道路斜線の判定（P2）。判定が無ければ null。図書の法的チェックに使う */
   roadSlope: '適合' | '超過' | null
   setRoadSlope: (roadSlope: '適合' | '超過' | null) => void
+  /** 日影規制の判定（P2）。規制値が無い用途地域は null。図書の法的チェックに使う */
+  shadow: '適合' | '不適合' | null
+  setShadow: (shadow: '適合' | '不適合' | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -25,4 +28,6 @@ export const useSite = create<SiteState>((set) => ({
   setBuildings: (buildings, sitePoint) => set({ buildings, sitePoint }),
   roadSlope: null,
   setRoadSlope: (roadSlope) => set({ roadSlope }),
+  shadow: null,
+  setShadow: (shadow) => set({ shadow }),
 }))

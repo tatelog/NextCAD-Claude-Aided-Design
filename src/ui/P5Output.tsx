@@ -26,6 +26,7 @@ export function P5Output() {
   const [applicant, setApplicant] = useState('')
   const [onSheets, setOnSheets] = useState<Record<string, boolean>>(() => Object.fromEntries(SHEETS.map((s) => [s.name, true])))
   const roadSlope = useSite((s) => s.roadSlope)
+  const shadow = useSite((s) => s.shadow)
 
   const wall = Number(wallText)
   const height = Number(heightText)
@@ -151,7 +152,7 @@ export function P5Output() {
               </thead>
               <tbody>
                 {SHEETS.map((s) => {
-                  const check = legalCheckFor(s, { roadSlope, shadow: null, applicantFilled: applicant.trim() !== '' })
+                  const check = legalCheckFor(s, { roadSlope, shadow, applicantFilled: applicant.trim() !== '' })
                   return (
                     <tr key={s.name}>
                       <td>

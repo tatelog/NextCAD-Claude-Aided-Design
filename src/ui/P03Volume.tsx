@@ -9,6 +9,8 @@ import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
 import { judgeSlope } from '../volume/slopeJudge'
+import { judgeShadow } from '../law/shadowRegulation'
+import { shadowRuleFor } from '../law/shadowRule'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
@@ -137,6 +139,26 @@ export function P03Volume() {
   useEffect(() => {
     useSite.getState().setRoadSlope(roadSlope)
   }, [roadSlope])
+  // 日影規制（冬至 8:00〜16:00）。切り取り前の形で判定する（安全側）。規制値が無い用途地域は対象外と出す
+  const shadowJudge = useMemo(() => {
+    const rule = shadowRuleFor(zone, 2)
+    if (!volume) return { text: '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
+    if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
+    const judgment = judgeShadow({
+      lot: DUMMY_PARCEL,
+      buildings: [{ footprint: volume.footprint, heightMm: volume.total_height }],
+      rule,
+      lat: 35.67,
+      lon: 139.86,
+      date: new Date(Date.UTC(2026, 11, 22)),
+    })
+    if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
+    const w = judgment.worst!
+    return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
+  }, [volume, zone])
+  useEffect(() => {
+    useSite.getState().setShadow(shadowJudge.result)
+  }, [shadowJudge])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
@@ -267,7 +289,7 @@ export function P03Volume() {
                     : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
                 </dd>
                 <dt>日影</dt>
-                <dd>未適用（条例の値の確認が要る）</dd>
+                <dd>{shadowJudge.text}</dd>
                 <dt>容積率</dt>
                 <dd>
                   {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
@@ -336,7 +358,7 @@ export function P03Volume() {
               <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
-            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は未適用（条例の値の確認が要る）。北側は真北の配線が未実装。</p>
+            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
           </section>
           <section>
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
