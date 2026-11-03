@@ -9,11 +9,18 @@
 //  4. 曲線（spline）は制御点の両端を端点にそろえる。辺ごと動かすときは間の制御点も一緒に動く
 //  5. 変えた線分の revision を 1 進める
 //  6. 入力の entries は書き換えない
+//
+// 回転（ハブ A-03 G71）も同じ書き換えで確定する。仮置き:
+//  - 回転の中心は外形の重心。正の角度は反時計回り（mm の +y が画面の上。既存の rotateFootprint と同じ向き）
+//  - 回した結果の頂点は mm の整数に丸める（座標は整数 mm のまま。extrudeVolume は整数 mm の外形しか受け付けない）
+//  - 回すと外形の座標が変わり、斜線・日影は既存の処理で計算し直される（外形が extrudeVolume に通ること）
 import { describe, expect, it } from 'vitest'
 import type { Node, Segment } from '../model/schema'
+import { extrudeVolume } from '../volume/extrude'
 import { dragHandle, type HandleRef } from '../volume/footprintHandles'
+import { outlineCentroid } from '../volume/rotation'
 import { findClosedOutline } from './closure'
-import { moveOutlineVertices } from './outlineEdit'
+import { moveOutlineVertices, rotateOutline } from './outlineEdit'
 
 type Pt = { x: number; y: number }
 interface Entry {
@@ -260,5 +267,164 @@ describe('外形の確定: つまみ（dragHandle）の結果をそのまま確�
       const b = at.get(s.end_node_id)!
       expect([s.x1, s.y1, s.x2, s.y2]).toEqual([a.x, a.y, b.x, b.y])
     }
+  })
+})
+
+describe('回転（G71）: 外形の重心を中心に回す', () => {
+  // 頂点の列から、端点（n1, n2, ...）と線分（s1, s2, ...）が 1 つの輪になった entries を作る
+  const loop = (pts: Pt[], segExtra: Record<string, Partial<Segment>> = {}): Entry[] => {
+    const nodes = pts.map((p, i) => node(`n${i + 1}`, p.x, p.y))
+    const segments = nodes.map((n, i) => seg(`s${i + 1}`, n, nodes[(i + 1) % nodes.length]!, segExtra[`s${i + 1}`] ?? {}))
+    return [{ tag: 'loop', nodes, segments }]
+  }
+  const square = (): Pt[] => [
+    { x: 0, y: 0 },
+    { x: 4000, y: 0 },
+    { x: 4000, y: 4000 },
+    { x: 0, y: 4000 },
+  ]
+  const rectPts = (): Pt[] => [
+    { x: 0, y: 0 },
+    { x: 4000, y: 0 },
+    { x: 4000, y: 3000 },
+    { x: 0, y: 3000 },
+  ]
+  const lPts = (): Pt[] => [
+    { x: 0, y: 0 },
+    { x: 6000, y: 0 },
+    { x: 6000, y: 2000 },
+    { x: 2000, y: 2000 },
+    { x: 2000, y: 6000 },
+    { x: 0, y: 6000 },
+  ]
+  const edgeLengths = (poly: Pt[]): number[] =>
+    poly.map((p, i) => {
+      const q = poly[(i + 1) % poly.length]!
+      return Math.hypot(q.x - p.x, q.y - p.y)
+    })
+  const areaOf = (poly: Pt[]): number =>
+    Math.abs(
+      poly.reduce((sum, p, i) => {
+        const q = poly[(i + 1) % poly.length]!
+        return sum + p.x * q.y - q.x * p.y
+      }, 0),
+    ) / 2
+  const allCoordinates = (es: Entry[]): number[] => [
+    ...nodesOf(es).flatMap((n) => [n.x, n.y]),
+    ...segmentsOf(es).flatMap((s) => [s.x1, s.y1, s.x2, s.y2]),
+  ]
+
+  it('正方形を 90° 回すと、頂点が重心 (2000, 2000) のまわりに反時計回りに移る', () => {
+    const rotated = rotateOutline(loop(square()), 90)
+    expect(nodesOf(rotated).map((n) => [n.id, n.x, n.y])).toEqual([
+      ['n1', 4000, 0],
+      ['n2', 4000, 4000],
+      ['n3', 0, 4000],
+      ['n4', 0, 0],
+    ])
+  })
+
+  it('負の角度は時計回り（-90° で、90° とは逆向きに移る）', () => {
+    const rotated = rotateOutline(loop(square()), -90)
+    expect(nodesOf(rotated).map((n) => [n.id, n.x, n.y])).toEqual([
+      ['n1', 0, 4000],
+      ['n2', 0, 0],
+      ['n3', 4000, 0],
+      ['n4', 4000, 4000],
+    ])
+  })
+
+  it('正方形を 90° 回しても、辺の長さと面積は変わらない', () => {
+    const out = outlineOf(rotateOutline(loop(square()), 90))
+    expect(edgeLengths(out)).toEqual([4000, 4000, 4000, 4000])
+    expect(areaOf(out)).toBe(16_000_000)
+  })
+
+  it('90° でない角度（30°）でも、辺の長さは 2 mm 以内、面積は 0.1 % 以内で変わらない（整数 mm への丸めの分だけ）', () => {
+    const out = outlineOf(rotateOutline(loop(rectPts()), 30))
+    const lengths = edgeLengths(out)
+    ;[4000, 3000, 4000, 3000].forEach((expected, i) => {
+      expect(Math.abs(lengths[i]! - expected)).toBeLessThanOrEqual(2)
+    })
+    expect(Math.abs(areaOf(out) - 12_000_000) / 12_000_000).toBeLessThan(0.001)
+  })
+
+  it('回転の中心は外形の重心: 凹んだ外形（L 字、重心 (2200, 2200)）を 30° 回しても、重心は 2 mm 以内しか動かない', () => {
+    const out = outlineOf(rotateOutline(loop(lPts()), 30))
+    const c = outlineCentroid(out)
+    expect(Math.abs(c!.x - 2200)).toBeLessThanOrEqual(2)
+    expect(Math.abs(c!.y - 2200)).toBeLessThanOrEqual(2)
+  })
+
+  it('回した後の端点と線分の座標は、すべて整数 mm（-0 も無い）', () => {
+    const rotated = rotateOutline(loop(lPts()), 17)
+    const all = allCoordinates(rotated)
+    expect(all.length).toBeGreaterThan(0)
+    for (const v of all) {
+      expect(Number.isInteger(v)).toBe(true)
+      expect(Object.is(v, -0)).toBe(false)
+    }
+  })
+
+  it('線分の座標は端点に合い、閉じた外形は端点の並びのまま回った形になる', () => {
+    const rotated = rotateOutline(loop(lPts()), 17)
+    const at = new Map(nodesOf(rotated).map((n) => [n.id, n]))
+    for (const s of segmentsOf(rotated)) {
+      const a = at.get(s.start_node_id)!
+      const b = at.get(s.end_node_id)!
+      expect([s.x1, s.y1, s.x2, s.y2]).toEqual([a.x, a.y, b.x, b.y])
+    }
+    expect(outlineOf(rotated)).toEqual(nodesOf(rotated).map((n) => ({ x: n.x, y: n.y })))
+  })
+
+  it('回した外形は extrudeVolume（整数 mm の外形だけを受け付ける）にそのまま通り、建築面積はほぼ変わらない', () => {
+    const footprint = outlineOf(rotateOutline(loop(rectPts()), 17))
+    const volume = extrudeVolume({ footprint, storey_count: 5, storey_height: 3000 })
+    expect(Math.abs(volume.building_area_mm2 - 12_000_000) / 12_000_000).toBeLessThan(0.001)
+  })
+
+  it('0° と 360° は何も変えない（revision も進めない）', () => {
+    expect(rotateOutline(loop(rectPts()), 0)).toEqual(loop(rectPts()))
+    expect(rotateOutline(loop(rectPts()), 360)).toEqual(loop(rectPts()))
+  })
+
+  it('座標が変わった線分の revision を 1 進める', () => {
+    const rotated = rotateOutline(loop(square()), 90)
+    expect(segmentsOf(rotated).map((s) => [s.id, s.revision])).toEqual([
+      ['s1', 2],
+      ['s2', 2],
+      ['s3', 2],
+      ['s4', 2],
+    ])
+  })
+
+  it('曲線（spline）の制御点も同じ回転で回り、両端は端点に一致する', () => {
+    const control: Pt[] = [
+      { x: 0, y: 0 },
+      { x: 1000, y: -500 },
+      { x: 3000, y: -500 },
+      { x: 4000, y: 0 },
+    ]
+    const rotated = rotateOutline(loop(square(), { s1: { curve: 'spline', curve_params: { control_points: control } } }), 90)
+    const s1 = segmentsOf(rotated).find((s) => s.id === 's1')!
+    expect((s1.curve_params as { control_points: Pt[] }).control_points).toEqual([
+      { x: 4000, y: 0 },
+      { x: 4500, y: 1000 },
+      { x: 4500, y: 3000 },
+      { x: 4000, y: 4000 },
+    ])
+    expect([s1.x1, s1.y1, s1.x2, s1.y2]).toEqual([4000, 0, 4000, 4000])
+  })
+
+  it('外形が閉じていない（重心を決める外形が無い）ときは、何も変えない', () => {
+    const open = loop(square()).map((e) => ({ ...e, segments: e.segments.slice(0, 3) }))
+    expect(rotateOutline(open, 90)).toEqual(open)
+  })
+
+  it('入力の entries は書き換えない。端点・線分以外の項目は保つ', () => {
+    const entries = loop(lPts())
+    const rotated = rotateOutline(entries, 17)
+    expect(entries).toEqual(loop(lPts()))
+    expect(rotated.map((e) => e.tag)).toEqual(['loop'])
   })
 })

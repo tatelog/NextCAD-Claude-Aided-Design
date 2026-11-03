@@ -8,6 +8,8 @@ import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
+import { rotateOutline } from '../canvas/outlineEdit'
+import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
 import { cutFloors } from '../volume/slope'
@@ -50,6 +52,7 @@ export function P03Volume() {
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
   const setStoreyHeightMm = useDrawing((s) => s.setStoreyHeightMm)
   const clear = useDrawing((s) => s.clear)
+  const transform = useDrawing((s) => s.transform)
   const placement = useUi((s) => s.toolbarPlacement)
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
@@ -81,6 +84,10 @@ export function P03Volume() {
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
   // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
   const [aligned, setAligned] = useState(false)
+  // 回転（G71）: 右パネルの角度（°）と刻み。「回す」で外形を重心のまわりに回し、store に確定する
+  const [rotateText, setRotateText] = useState('0')
+  const [rotateStep, setRotateStep] = useState<RotationStep>('free')
+  const rotateDeg = snapAngle(Number(rotateText), rotateStep)
   const roadDeg = (() => {
     const a = DUMMY_PARCEL[roadEdge]!
     const b = DUMMY_PARCEL[(roadEdge + 1) % DUMMY_PARCEL.length]!
@@ -89,11 +96,12 @@ export function P03Volume() {
 
   const placedFootprint = useMemo(() => {
     if (!closure.closed || closure.footprint === null) return null
-    const base = aligned ? alignToDirection(closure.footprint, roadDeg) : closure.footprint
+    // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
+    const base = aligned ? roundFootprintMm(alignToDirection(closure.footprint, roadDeg)) : closure.footprint
     const w = Number(westText)
     const s = Number(southText)
     if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
-    return placeBySetback(base, DUMMY_PARCEL, { west: w, south: s })
+    return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: w, south: s }))
   }, [closure, westText, southText, aligned, roadDeg])
 
   const volume = useMemo(() => {
@@ -382,6 +390,38 @@ export function P03Volume() {
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
+          </section>
+          <section>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
+            <label>
+              回転角 (°、反時計回り)
+              <input type="number" value={rotateText} onChange={(e) => setRotateText(e.target.value)} />
+            </label>
+            <label>
+              刻み
+              <select
+                value={String(rotateStep)}
+                onChange={(e) => setRotateStep(ROTATION_STEPS.find((s) => String(s) === e.target.value) ?? 'free')}
+              >
+                {ROTATION_STEPS.map((s) => (
+                  <option key={String(s)} value={String(s)}>
+                    {s === 'free' ? '自由' : `${s}°`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">回す量: {rotateDeg}°（刻みで丸めた値）</p>
+            <button
+              type="button"
+              disabled={!closure.closed || rotateDeg === 0}
+              onClick={() => {
+                // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない
+                setAligned(false)
+                transform((es) => rotateOutline(es, rotateDeg))
+              }}
+            >
+              回す
+            </button>
           </section>
           <section>
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
