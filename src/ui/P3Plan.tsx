@@ -36,7 +36,7 @@ import { firstFloorCountsOf } from '../plan/commonAreas'
 import { outlineArcsOf } from '../volume/outlineArcs'
 import { gridSegmentsToArc, svgArcPath } from '../volume/curvedGrid'
 import { cellsInsideArc } from '../plan/arcCells'
-import { wallPolygonsOf } from '../plan/wallOutline'
+import { wallPolygonsJoined } from '../plan/wallOutline'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
@@ -186,7 +186,7 @@ export function P3Plan() {
   // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
   const outlineArcs = outlineArcsOf(useDrawing((s) => s.entries))
   // 壁の輪郭（ハブ A-03 G4）。壁厚は仮置きで P5 の既定と同じ 200 mm
-  const wallPolys = wallPolygonsOf(
+  const wallPolys = wallPolygonsJoined(
     drawnEntries.flatMap((e) => e.segments).map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 }, kind: assignments[s.id]?.kind ?? null })),
     200,
   )

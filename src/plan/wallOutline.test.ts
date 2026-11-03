@@ -4,7 +4,7 @@
 // 仕様 3: 壁の線だけを輪郭にする（種類が wall の線）。種類の無い線・ほかの種類は出さない。
 // 仕様 4: 入力を書き換えず、同じ入力には同じ出力。
 import { describe, expect, it } from 'vitest'
-import { wallPolygonsOf, wallRectOf } from './wallOutline'
+import { wallPolygonsJoined, wallPolygonsOf, wallRectOf } from './wallOutline'
 
 describe('壁の輪郭（仕様 1〜4）', () => {
   it('仕様 1: 水平の壁は、中心線の両側に厚さの半分ずつの四角形（左側の辺を a→b の順に、続けて右側を b→a の順に 4 点）', () => {
@@ -42,5 +42,30 @@ describe('壁の輪郭（仕様 1〜4）', () => {
     const lines = [{ id: 'w', a: { x: 0, y: 0 }, b: { x: 1000, y: 0 }, kind: 'wall' as const }]
     expect(wallPolygonsOf(lines, 200)).toEqual(wallPolygonsOf(lines, 200))
     expect(lines[0]!.b).toEqual({ x: 1000, y: 0 })
+  })
+})
+
+// 仕様 5（角の取り合い）: 端点が他の壁の端点と重なる（つながる）壁は、その端で厚さの半分だけ伸ばし、角を埋める。L の角は外側の角が四角に埋まる。
+// 仕様 6: つながらない端は伸ばさない。
+describe('壁の角の取り合い（仕様 5・6）', () => {
+  const L = [
+    { id: 'h', a: { x: 0, y: 0 }, b: { x: 1000, y: 0 }, kind: 'wall' as const },
+    { id: 'v', a: { x: 1000, y: 0 }, b: { x: 1000, y: 1000 }, kind: 'wall' as const },
+  ]
+
+  it('仕様 5: L の角では、横の壁の右端と縦の壁の下端が伸び、外側の角（1100, -100）を含む', () => {
+    const polys = wallPolygonsJoined(L, 200)
+    expect(polys).toHaveLength(2)
+    const h = polys[0]!
+    const v = polys[1]!
+    expect(h.map((p) => Math.round(p.x))).toContain(1100)
+    expect(v.map((p) => Math.round(p.y))).toContain(-100)
+    expect(h.some((p) => Math.round(p.x) === 1100 && Math.round(p.y) === -100)).toBe(true)
+    expect(v.some((p) => Math.round(p.x) === 1100 && Math.round(p.y) === -100)).toBe(true)
+  })
+
+  it('仕様 6: つながらない単独の壁は、伸ばさない（wallPolygonsOf と同じ）', () => {
+    const alone = [{ id: 'h', a: { x: 0, y: 0 }, b: { x: 1000, y: 0 }, kind: 'wall' as const }]
+    expect(wallPolygonsJoined(alone, 200)).toEqual(wallPolygonsOf(alone, 200))
   })
 })

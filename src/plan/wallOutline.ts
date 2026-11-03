@@ -32,3 +32,26 @@ export function wallRectOf(a: Point, b: Point, thicknessMm: number): Point[] {
 export function wallPolygonsOf(lines: readonly WallLine[], thicknessMm: number): Point[][] {
   return lines.filter((l) => l.kind === 'wall').map((l) => wallRectOf(l.a, l.b, thicknessMm)).filter((p) => p.length > 0)
 }
+
+const NODE_TOL_MM = 1
+const near = (p: Point, q: Point) => Math.hypot(p.x - q.x, p.y - q.y) <= NODE_TOL_MM
+
+/**
+ * 壁の輪郭（角の取り合い）。端点が、ほかの壁の端点と重なる（つながる）ところでは、壁を厚さの半分だけ伸ばして角を埋める。
+ * 90 度の角では、外側の角が四角に埋まり、内側は重なって見えない。斜めの角や、中間に当たる T 字は、近似（伸ばす量は同じ）。
+ */
+export function wallPolygonsJoined(lines: readonly WallLine[], thicknessMm: number): Point[][] {
+  const walls = lines.filter((l) => l.kind === 'wall' && (l.a.x !== l.b.x || l.a.y !== l.b.y))
+  const h = thicknessMm / 2
+  return walls.map((w, i) => {
+    const others = walls.filter((_, j) => j !== i)
+    const len = Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y)
+    const ux = (w.b.x - w.a.x) / len
+    const uy = (w.b.y - w.a.y) / len
+    const sharedA = others.some((o) => near(o.a, w.a) || near(o.b, w.a))
+    const sharedB = others.some((o) => near(o.a, w.b) || near(o.b, w.b))
+    const a = sharedA ? { x: w.a.x - ux * h, y: w.a.y - uy * h } : w.a
+    const b = sharedB ? { x: w.b.x + ux * h, y: w.b.y + uy * h } : w.b
+    return wallRectOf(a, b, thicknessMm)
+  }).filter((p) => p.length > 0)
+}
