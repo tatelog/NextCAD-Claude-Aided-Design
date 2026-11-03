@@ -12,6 +12,7 @@ import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
+import { usePending } from './store/pending'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
@@ -71,6 +72,8 @@ export function App() {
   const showDimensions = useUi((s) => s.showDimensions)
   const showGrid = useUi((s) => s.showGrid)
   const showMiniMap = useUi((s) => s.showMiniMap)
+  // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
+  const pendingCount = usePending((s) => s.items.length)
 
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
@@ -181,8 +184,8 @@ export function App() {
         />
         <span style={{ fontSize: 11, color: '#c8412a', border: '1px solid #c8412a', borderRadius: 3, padding: '0 6px' }}>議論用・未確定</span>
         <span style={{ flex: 1 }} />
-        <span title="Claude の判定の失敗は、まだ数えていない（P3 の意味づけを接続したら数える）" style={{ fontSize: 12, color: '#5b6670' }}>
-          保留 0
+        <span title="Claude の判定で、再試行しても失敗したもの（判定の接続はまだなので、今は積まれない）" style={{ fontSize: 12, color: '#5b6670' }}>
+          保留 {pendingCount}
         </span>
         <button type="button" style={button} onClick={() => fileInput.current?.click()}>
           読み込み
