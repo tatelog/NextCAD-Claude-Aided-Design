@@ -347,14 +347,12 @@ describe('ObjectMenu（共用部のグループ。仕様 7）', () => {
   it('基準階は名前と数（SOURCES の結果から）を、1F は名前だけを、一覧の下に 1 行ずつ出す', () => {
     const lines = findAll(render(), isTag('div')).map(textOf)
     expect(lines).toContain('基準階：廊下 1、階段 A 1、階段 B 0、EV ホール 0、EPS 0、DS 0')
-    expect(lines).toContain('1F：エントランス、風除室、ロビー、管理室、メールコーナー、ゴミ置場')
+    expect(lines).toContain('1F：エントランス 0、風除室 0、ロビー 0、管理室 0、メールコーナー 0、ゴミ置場 0')
   })
 
-  it('1F の行には件数を出さず、種類の行の数は 12 のまま', () => {
+  it('1F の行は、区画に付けた名前の数を出す（渡されたときだけ。種類の行の数は 12 のまま）', () => {
     expect(buttonsOf(render())).toHaveLength(12)
-    const floorLine = findAll(render(), isTag('div')).map(textOf).find((t) => t.startsWith('1F：'))
-    expect(floorLine).toBeDefined()
-    // 「1F」の 1 は階の名前なので、名前の部分（：の後）に数字が無いことを見る
-    expect(/\d/.test(floorLine!.slice(floorLine!.indexOf('：') + 1))).toBe(false)
+    const lines = findAll(render({ firstFloorCounts: [{ name: 'エントランス', count: 2 }] }), isTag('div')).map(textOf)
+    expect(lines).toContain('1F：エントランス 2、風除室 0、ロビー 0、管理室 0、メールコーナー 0、ゴミ置場 0')
   })
 })

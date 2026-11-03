@@ -5,7 +5,7 @@
 // 仕様 4: 任意の共用部は、選んだものだけ入る。選んでいない名前や、その階に無い名前は入らない。
 // 仕様 5: 同じ階の中で、共用部の名前は重複しない。
 import { describe, expect, it } from 'vitest'
-import { commonAreaCountsOf, commonAreaGroups, commonAreasOf } from './commonAreas'
+import { commonAreaCountsOf, commonAreaGroups, commonAreasOf, firstFloorCountsOf } from './commonAreas'
 
 // 仕様 6（左メニューのグループ）: 共用部のグループは、基準階・1F の順に、各階の必須の名前を持つ。commonAreasOf と同じ名前。
 describe('共用部のグループ（左メニュー用）', () => {
@@ -70,5 +70,22 @@ describe('共用部の数（基準階）', () => {
 
   it('仕様 8: 名前は基準階の必須の名前と同じ並び', () => {
     expect(commonAreaCountsOf({}).map((c) => c.name)).toEqual(commonAreasOf('基準階'))
+  })
+})
+
+// 仕様 9（1F の数）: 1F の共用部の数は、利用者が基準階の区画に 1F の名前を付けた数で数える（1F 専用の平面はまだ無い）。
+// 1F の必須の名前だけを、仕様の並びで出す。名前の無い区画と、1F の名前でない区画は数えない。
+describe('1F の共用部の数（区画に名前を付けた数）', () => {
+  it('仕様 9: 名前を付けた区画の数を、1F の名前ごとに数える', () => {
+    const counts = firstFloorCountsOf({ 'cell-1': 'エントランス', 'cell-2': 'エントランス', 'cell-3': 'ゴミ置場', 'cell-4': '廊下' })
+    expect(counts).toEqual([
+      { name: 'エントランス', count: 2 },
+      { name: '風除室', count: 0 },
+      { name: 'ロビー', count: 0 },
+      { name: '管理室', count: 0 },
+      { name: 'メールコーナー', count: 0 },
+      { name: 'ゴミ置場', count: 1 },
+    ])
+    expect(firstFloorCountsOf({}).map((c) => c.name)).toEqual(commonAreasOf('1F'))
   })
 })

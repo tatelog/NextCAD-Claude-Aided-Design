@@ -56,6 +56,15 @@ describe('住戸の詳細パネル（仕様 1〜6）', () => {
     expect(none).toMatch(/<button[^>]*disabled[^>]*>同タイプの住戸に反映/)
   })
 
+  it('仕様 7（1F の名前）: 1F の共用部として使う名前を、選べる欄で出す（なし・1F の名前の 6 つ）。選ぶと、その名前を渡す', () => {
+    let picked: string | null | undefined
+    const out = html(DETAIL, { firstFloorName: null, onSetFirstFloorName: (n) => (picked = n) })
+    expect(out).toContain('1F の共用部として使う')
+    expect(out).toContain('エントランス')
+    expect(out).toContain('ゴミ置場')
+    expect(picked).toBeUndefined()
+  })
+
   it('仕様 4: 区画が無いときは何も出さない', () => {
     expect(html(null)).toBe('')
   })

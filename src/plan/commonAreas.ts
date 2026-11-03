@@ -46,6 +46,15 @@ export function commonAreaCountsOf(src: { corridors?: readonly unknown[]; cores?
   ]
 }
 
+/**
+ * 1F の共用部の数（区画に名前を付けた数。ハブ A-03 G75）。1F 専用の平面はまだ無いので、利用者が基準階の区画に 1F の名前を付ける。
+ * 名前ごとに、その名前を付けた区画の数。1F の必須の名前だけを、仕様の並びで出す。
+ */
+export function firstFloorCountsOf(names: Readonly<Record<string, string>>): { name: string; count: number }[] {
+  const assigned = Object.values(names)
+  return commonAreasOf('1F').map((name) => ({ name, count: assigned.filter((n) => n === name).length }))
+}
+
 /** 左メニューに出す共用部のグループ（基準階・1F の順）。各階は必須の名前だけ */
 export function commonAreaGroups(): { floor: CommonFloor; names: string[] }[] {
   return (['基準階', '1F'] as const).map((floor) => ({ floor, names: commonAreasOf(floor) }))

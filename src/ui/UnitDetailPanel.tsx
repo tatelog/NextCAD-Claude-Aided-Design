@@ -1,6 +1,7 @@
 // 住戸の詳細パネル（ハブ A-03 G76）。P3 の図面で住戸をダブルクリックすると、右から出る。中身は plan/unitDetail の結果。
 // 操作は二つ。「この住戸を直す（P3 に戻る）」は閉じるだけ（描き直しは図面で行う）。「同タイプの住戸に反映」は未配線（住戸タイプの持ち方が未決）。
 import type { UnitDetail } from '../plan/unitDetail'
+import { commonAreasOf } from '../plan/commonAreas'
 
 export interface UnitDetailPanelProps {
   /** 選んだ住戸の詳細。無ければ何も出さない */
@@ -21,11 +22,17 @@ export interface UnitDetailPanelProps {
   sameTypeIds: string[]
   /** 「同タイプの住戸に反映」を押したとき（この住戸の什器を同タイプへ） */
   onApplySameType: () => void
+  /** この区画に付いている 1F の名前（無ければ null） */
+  firstFloorName?: string | null
+  /** 1F の名前を選んだとき（null は外す）。省略すると欄を出さない */
+  onSetFirstFloorName?: (name: string | null) => void
 }
 
 const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join('、') : 'なし')
+// 1F の共用部の名前（必須の 6 つ）
+const FIRST_FLOOR_NAMES = commonAreasOf('1F')
 
-export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, balcony, sameTypeIds, onApplySameType }: UnitDetailPanelProps) {
+export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, balcony, sameTypeIds, onApplySameType, firstFloorName = null, onSetFirstFloorName }: UnitDetailPanelProps) {
   if (!detail) return null
   return (
     <aside
@@ -68,6 +75,23 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
         </li>
         <li>{walls === undefined || openings === undefined ? '壁と開口: 未配線' : `壁 ${walls} 本・開口 ${openings} 箇所（描いた線から）`}</li>
       </ul>
+      {onSetFirstFloorName ? (
+        <label style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
+          1F の共用部として使う
+          <select
+            value={firstFloorName ?? ''}
+            onChange={(e) => onSetFirstFloorName(e.target.value === '' ? null : e.target.value)}
+            style={{ width: '100%' }}
+          >
+            <option value="">なし</option>
+            {FIRST_FLOOR_NAMES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button type="button" onClick={onClose}>
           この住戸を直す（P3 に戻る）

@@ -18,9 +18,11 @@ export interface ObjectMenuProps {
   caption?: string
   /** 説明文の下に出す注記（赤字）。省略すると出さない */
   notice?: string
+  /** 1F の共用部の名前ごとの数（区画に付けた数）。省略すると、どれも 0 */
+  firstFloorCounts?: { name: string; count: number }[]
 }
 
-export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice }: ObjectMenuProps) {
+export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice, firstFloorCounts }: ObjectMenuProps) {
   const rows = countObjects(sources)
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
   return (
@@ -74,10 +76,10 @@ export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類�
           <div key={g.floor}>
             {g.floor === '基準階'
               ? `基準階：${commonAreaCountsOf(sources).map((c) => `${c.name} ${c.count}`).join('、')}`
-              : `${g.floor}：${g.names.join('、')}`}
+              : `${g.floor}：${g.names.map((name) => `${name} ${firstFloorCounts?.find((c) => c.name === name)?.count ?? 0}`).join('、')}`}
           </div>
         ))}
-        <div style={{ color: '#a33', fontSize: 11 }}>1F の配置は未配線（件数は出さない）</div>
+        <div style={{ color: '#a33', fontSize: 11 }}>1F は、基準階の区画に 1F の名前を付けた数（1F 専用の平面はまだ無い）</div>
       </div>
       {detail ? (
         <section aria-label={`${detail.label}の中身`} style={{ marginTop: 12 }}>

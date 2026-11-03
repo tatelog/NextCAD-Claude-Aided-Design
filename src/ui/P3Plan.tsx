@@ -32,6 +32,8 @@ import { copyFixturesToSameType, sameTypeUnitIds, unitDetailOf } from '../plan/u
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
+import { firstFloorCountsOf } from '../plan/commonAreas'
+import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
 export function P3Plan() {
@@ -175,6 +177,8 @@ export function P3Plan() {
   const shadowResult = useSite((s) => s.shadow)
   const storeyCount = useDrawing((s) => s.storeyCount)
   const hiddenTiles = usePanelTiles((s) => s.hidden)
+  // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
+  const firstFloorNames = useFirstFloor((s) => s.names)
   const { hideTile, showTile } = usePanelTiles.getState()
   // ダブルクリックで開く住戸の詳細（ハブ A-03 G76）。閉じると null に戻る
   const [detailUnitId, setDetailUnitId] = useState<string | null>(null)
@@ -221,7 +225,7 @@ export function P3Plan() {
   const D = Number(depthText)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
-      <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（P3 の自動作成の結果）" />
+      <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（P3 の自動作成の結果）" firstFloorCounts={firstFloorCountsOf(firstFloorNames)} />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
           <div style={{ position: 'relative' }}>
@@ -498,6 +502,10 @@ export function P3Plan() {
             walls={kindCounts?.walls}
             openings={kindCounts?.openings}
             balcony={cell ? balconyOfUnit(cell, { outline: { W, D } }) : undefined}
+            firstFloorName={detailUnitId ? (firstFloorNames[detailUnitId] ?? null) : null}
+            onSetFirstFloorName={(name) => {
+              if (detailUnitId) useFirstFloor.getState().setName(detailUnitId, name)
+            }}
             rooms={cell ? roomsOfCells([cell]).map((r) => r.kind) : []}
             sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
             onApplySameType={() => {
