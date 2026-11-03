@@ -28,7 +28,8 @@ import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
-import { unitDetailOf } from '../plan/unitDetail'
+import { copyFixturesToSameType, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
+import { roomsOfCells } from '../plan/rooms'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
 export function P3Plan() {
@@ -306,6 +307,8 @@ export function P3Plan() {
             ))}
           </p>
         ) : null}
+        {hiddenTiles['p3-form'] ? null : (
+        <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
           <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
@@ -331,6 +334,8 @@ export function P3Plan() {
           P2 の外形から幅・奥行きを取る（矩形のみ）
         </button>
         {outlineMessage ? <p style={{ color: '#a33', fontSize: 12, margin: '0 0 4px' }}>{outlineMessage}</p> : null}
+        </PanelTile>
+        )}
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下の幅 (mm)
           <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
@@ -425,6 +430,8 @@ export function P3Plan() {
             <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
           </PanelTile>
         )}
+        {hiddenTiles['p3-result'] ? null : (
+        <PanelTile title="住戸数・スパンの判定" onHide={() => hideTile('p3-result')}>
         <p>スパンの判定: {judge}</p>
         {units.result ? (
           <>
@@ -446,6 +453,8 @@ export function P3Plan() {
         <p style={{ color: '#666', fontSize: 12 }}>
           閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
+        </PanelTile>
+        )}
         {hiddenTiles.milestone ? null : (
           <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
             <section style={{ marginBottom: 10 }}>
@@ -470,10 +479,23 @@ export function P3Plan() {
           </PanelTile>
         )}
       </aside>
-      <UnitDetailPanel
-        detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells: units.cells.cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
-        onClose={() => setDetailUnitId(null)}
-      />
+      {(() => {
+        const cells = units.cells ? units.cells.cells : []
+        const cell = cells.find((c) => c.id === detailUnitId)
+        return (
+          <UnitDetailPanel
+            detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
+            onClose={() => setDetailUnitId(null)}
+            storeyCount={storeyCount}
+            ceilingMm={2400}
+            rooms={cell ? roomsOfCells([cell]).map((r) => r.kind) : []}
+            sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
+            onApplySameType={() => {
+              if (detailUnitId) useFixtures.setState({ fixtures: copyFixturesToSameType(detailUnitId, cells, fixtures) })
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

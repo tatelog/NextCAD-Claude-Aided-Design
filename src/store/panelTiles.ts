@@ -16,6 +16,8 @@ export const PANEL_TILES: readonly { id: string; title: string }[] = [
   { id: 'milestone', title: '節目の要約' },
   { id: 'semantic', title: '意味づけの確認（G14）' },
   { id: 'auto', title: '自動で作る（柱割り・間取り・縦シャフト）' },
+  { id: 'p3-form', title: '廊下・寸法の入力' },
+  { id: 'p3-result', title: '住戸数・スパンの判定' },
   // P2（ボリューム）の右パネルの節。閉じた節は display: none で残す（入力の値は画面の状態に残る）
   { id: 'p2-outline', title: '外形' },
   { id: 'p2-storey', title: '階数・階高' },

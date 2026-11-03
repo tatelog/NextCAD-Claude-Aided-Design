@@ -6,11 +6,21 @@ export interface UnitDetailPanelProps {
   /** 選んだ住戸の詳細。無ければ何も出さない */
   detail: UnitDetail | null
   onClose: () => void
+  /** 階数（基準階を何階に複製するか）。無ければ未配線と出す */
+  storeyCount?: number
+  /** 天井高（mm。仮置き）。無ければ未配線と出す */
+  ceilingMm?: number
+  /** 区画の部屋の種類 */
+  rooms?: string[]
+  /** 同じ間口・奥行の住戸の ID。無ければ「同タイプの住戸に反映」は押せない */
+  sameTypeIds: string[]
+  /** 「同タイプの住戸に反映」を押したとき（この住戸の什器を同タイプへ） */
+  onApplySameType: () => void
 }
 
 const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join('、') : 'なし')
 
-export function UnitDetailPanel({ detail, onClose }: UnitDetailPanelProps) {
+export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], sameTypeIds, onApplySameType }: UnitDetailPanelProps) {
   if (!detail) return null
   return (
     <aside
@@ -39,18 +49,24 @@ export function UnitDetailPanel({ detail, onClose }: UnitDetailPanelProps) {
         <li>{`廊下側 ${listOrNone(detail.corridorSides)}`}</li>
         <li>{`外側 ${listOrNone(detail.outerSides)}`}</li>
         <li>{`置いた什器 ${listOrNone(detail.fixtures)}`}</li>
+        <li>{`部屋 ${listOrNone(rooms)}`}</li>
+        <li>{storeyCount === undefined ? '配置（階）: 未配線' : `配置（階）: 基準階（${storeyCount} 階に複製）`}</li>
+        <li>{ceilingMm === undefined ? '天井高: 未配線' : `天井高 ${ceilingMm} mm（仮置き）`}</li>
       </ul>
       <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px', fontSize: 12, color: '#a33' }}>
-        <li>配置（階）: 未配線</li>
-        <li>天井高: 未配線</li>
         <li>バルコニー: 未配線</li>
-        <li>部屋・壁と開口: 未配線</li>
+        <li>壁と開口: 未配線</li>
       </ul>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button type="button" onClick={onClose}>
           この住戸を直す（P3 に戻る）
         </button>
-        <button type="button" disabled title="未配線。住戸タイプの持ち方が未決（D-03）">
+        <button
+          type="button"
+          disabled={sameTypeIds.length === 0}
+          title={sameTypeIds.length === 0 ? '同じ間口・奥行の住戸が無い' : `同タイプ: ${sameTypeIds.join('、')}`}
+          onClick={onApplySameType}
+        >
           同タイプの住戸に反映
         </button>
       </div>

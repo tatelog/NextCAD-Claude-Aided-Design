@@ -1,7 +1,7 @@
 // 住戸の詳細（ハブ A-03 G76・D-04 P3「住戸の詳細」）。図面で住戸を押したときに出す中身を、区画（mm）と隣・廊下・外形・置いた什器から決める。決定論。
 // 側の名前（上・下・左・右）は、平面の座標（x は右、y は下）で決める。並びは 左・上・右・下（固定）。
 import type { Rect } from './candidateCells'
-import { fixtureLabel, type Fixture } from './fixtures'
+import { fixtureLabel, placeFixture, type Fixture } from './fixtures'
 
 export interface UnitDetailSources {
   /** 区画の候補（mm） */
@@ -73,4 +73,24 @@ export function unitDetailOf(id: string, src: UnitDetailSources): UnitDetail | n
   const frontageMm = cell.x1 - cell.x0
   const depthMm = cell.y1 - cell.y0
   return { id, frontageMm, depthMm, areaM2: (frontageMm * depthMm) / 1_000_000, neighbors, corridorSides, outerSides: inOrder(outerSides), fixtures }
+}
+
+/** 同じ間口と奥行の区画（同タイプ。G76）。自分は入らない。区画の並びの順 */
+export function sameTypeUnitIds(id: string, cells: readonly Rect[]): string[] {
+  const me = cells.find((c) => c.id === id)
+  if (!me) return []
+  const width = me.x1 - me.x0
+  const depth = me.y1 - me.y0
+  return cells.filter((c) => c.id !== id && c.x1 - c.x0 === width && c.y1 - c.y0 === depth).map((c) => c.id)
+}
+
+/** この住戸の什器を、同タイプの住戸に反映する。同タイプの住戸の什器は外し、この住戸の品目と同じ並びで置き直す。ほかの住戸と区画の無い什器は変えない。入力は書き換えない。 */
+export function copyFixturesToSameType(id: string, cells: readonly Rect[], fixtures: readonly Fixture[]): Fixture[] {
+  const targets = sameTypeUnitIds(id, cells)
+  const source = fixtures.filter((f) => f.unitId === id)
+  let next = fixtures.filter((f) => f.unitId === null || !targets.includes(f.unitId))
+  for (const unitId of targets) {
+    for (const f of source) next = placeFixture(next, f.item, unitId)
+  }
+  return next
 }

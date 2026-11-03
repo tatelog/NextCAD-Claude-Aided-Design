@@ -9,7 +9,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Rect } from './candidateCells'
 import { FIXTURE_ITEMS, type Fixture } from './fixtures'
-import { unitDetailOf } from './unitDetail'
+import { copyFixturesToSameType, sameTypeUnitIds, unitDetailOf } from './unitDetail'
+import { fixtureLabel } from './fixtures'
 
 // 建物は幅 6000・奥行 12000。A は左上、B は右上、C は左下。K は B の下の廊下（幅 1600）
 const CELLS: Rect[] = [
@@ -63,5 +64,25 @@ describe('住戸の詳細（ダブルクリック。仕様 1〜7）', () => {
     const first = unitDetailOf('A', SOURCES)
     expect(unitDetailOf('A', SOURCES)).toEqual(first)
     expect(CELLS[0]).toEqual({ id: 'A', x0: 0, y0: 0, x1: 3000, y1: 6000 })
+  })
+})
+
+// 仕様 8（同タイプ）: 間口と奥行が同じ区画を、同タイプとする（自分は入らない）。
+// 仕様 9（反映）: 同タイプの住戸の什器を、この住戸の品目と同じ並びにそろえる（既存の什器は外す）。ほかの住戸の什器は変えない。
+describe('同タイプの住戸（G76）', () => {
+  const D: Rect = { id: 'D', x0: 0, y0: 12000, x1: 6000, y1: 15000 }
+
+  it('仕様 8: 同じ間口と奥行の区画だけを、同タイプとする（D は幅と奥行が違うので入らない）', () => {
+    expect(sameTypeUnitIds('A', [...CELLS, D])).toEqual(['B', 'C'])
+    expect(sameTypeUnitIds('D', [...CELLS, D])).toEqual([])
+  })
+
+  it('仕様 9: 同タイプの住戸の什器を、この住戸と同じ品目にそろえる（ほかは変えない）', () => {
+    const next = copyFixturesToSameType('A', CELLS, FIXTURES)
+    const labelsOf = (unitId: string) => next.filter((f) => f.unitId === unitId).map((f) => fixtureLabel(f.item))
+    expect(labelsOf('A')).toEqual(['キッチン'])
+    expect(labelsOf('B')).toEqual(['キッチン'])
+    expect(labelsOf('C')).toEqual(['キッチン'])
+    expect(next.filter((f) => f.unitId === null)).toHaveLength(1)
   })
 })

@@ -12,7 +12,7 @@ import { PANEL_TILES, usePanelTiles } from './panelTiles'
 beforeEach(() => usePanelTiles.getState().reset())
 
 describe('右パネルのタイルの一覧（仕様 6）', () => {
-  it('ID と名前を持ち、ID が重複しない（P3 の 4 つと P2 の 5 つ）', () => {
+  it('ID と名前を持ち、ID が重複しない（P3 の 6 つと P2 の 5 つ）', () => {
     const ids = PANEL_TILES.map((t) => t.id)
     expect(new Set(ids).size).toBe(ids.length)
     expect(PANEL_TILES.every((t) => t.id !== '' && t.title !== '')).toBe(true)
@@ -21,6 +21,8 @@ describe('右パネルのタイルの一覧（仕様 6）', () => {
       '節目の要約',
       '意味づけの確認（G14）',
       '自動で作る（柱割り・間取り・縦シャフト）',
+      '廊下・寸法の入力',
+      '住戸数・スパンの判定',
       '外形',
       '階数・階高',
       'ボリューム',
