@@ -2,6 +2,7 @@
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
 import { useMemo, useState } from 'react'
 import { ATTRIBUTION, tileFromLonLat, tileUrl } from '../map/tiles'
+import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 
 const DEFAULT = { lon: 139.7671, lat: 35.6812 }
 
@@ -9,6 +10,24 @@ export function P1Site() {
   const [lonText, setLonText] = useState(String(DEFAULT.lon))
   const [latText, setLatText] = useState(String(DEFAULT.lat))
   const [zoom, setZoom] = useState(15)
+  const [cityCode, setCityCode] = useState('13108')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<DistrictLoad | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchDistricts = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const r = await loadDistrictsAt({ lat: Number(latText), lon: Number(lonText), cityCode }, (url) => fetch(url))
+      setResult(r)
+    } catch (e) {
+      setResult(null)
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const tiles = useMemo(() => {
     const lon = Number(lonText)
@@ -65,6 +84,34 @@ export function P1Site() {
             <dt>真北</dt>
             <dd>未算出（系番号は自治体で決まる。D-02 C4）</dd>
           </dl>
+        </section>
+        <section>
+          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            区のコード（例: 13108 は江東区）
+            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <button type="button" onClick={fetchDistricts} disabled={loading}>
+            {loading ? '取得中…' : 'この地点の用途地域を取る'}
+          </button>
+          {error && <p style={{ color: '#a33' }}>{error}</p>}
+          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
+          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
+          {result && result.matches.map((m) => (
+            <dl key={m.id} style={{ margin: '6px 0' }}>
+              <dt>区分コード</dt>
+              <dd>{m.function ?? '未取得'}</dd>
+              <dt>容積率</dt>
+              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
+              <dt>建蔽率</dt>
+              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
+              <dt>高さの上限</dt>
+              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
+              <dt>告示番号</dt>
+              <dd>{m.notificationNumber ?? '未取得'}</dd>
+            </dl>
+          ))}
+          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
         </section>
       </aside>
     </div>

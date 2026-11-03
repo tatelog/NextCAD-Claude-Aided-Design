@@ -58,6 +58,25 @@ describe('parseUseDistricts（用途地域の解析）', () => {
   })
 })
 
+describe('parseUseDistricts（三つ組の座標）', () => {
+  // 実データは srsDimension="3"（緯度 経度 高さ の三つ組）。二つ組として読むと緯度が崩れる（2026-11-03 に発見）
+  const xml3 = `
+<urf:UseDistrict gml:id="c">
+  <urf:function codeSpace="x">1</urf:function>
+  <urf:lod1MultiSurface><gml:MultiSurface srsDimension="3"><gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing><gml:posList>
+    35.60 139.80 10 35.60 139.90 10 35.70 139.90 10 35.70 139.80 10 35.60 139.80 10
+  </gml:posList></gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember></gml:MultiSurface></urf:lod1MultiSurface>
+  <urf:floorAreaRate>60</urf:floorAreaRate>
+</urf:UseDistrict>`
+
+  it('三つ組の座標から、緯度・経度だけを環として読む', () => {
+    const d = parseUseDistricts(xml3)
+    expect(d[0]!.ring).toHaveLength(5)
+    expect(d[0]!.ring[0]).toEqual({ lat: 35.6, lon: 139.8 })
+    expect(d[0]!.ring[1]).toEqual({ lat: 35.6, lon: 139.9 })
+  })
+})
+
 describe('districtsAt（点を含む用途地域）', () => {
   const d = parseUseDistricts(xml)
 

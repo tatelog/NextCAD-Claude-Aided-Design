@@ -36,8 +36,11 @@ export function parseUseDistricts(xml: string): UseDistrict[] {
     const block = xml.slice(from, to < 0 ? undefined : to)
     const pos = block.match(/<gml:posList>([^<]*)<\/gml:posList>/)
     const nums = pos ? pos[1]!.trim().split(/\s+/).map(Number) : []
+    // 次元は srsDimension（実データは 3: 緯度 経度 高さ）。無ければ 2
+    const dimMatch = block.match(/srsDimension="(\d+)"/)
+    const dim = dimMatch ? Number(dimMatch[1]) : 2
     const ring: { lat: number; lon: number }[] = []
-    for (let k = 0; k + 1 < nums.length; k += 2) ring.push({ lat: nums[k]!, lon: nums[k + 1]! })
+    for (let k = 0; k + 1 < nums.length; k += dim) ring.push({ lat: nums[k]!, lon: nums[k + 1]! })
     return {
       id: m[1]!,
       function: tagNumber(block, 'function'),

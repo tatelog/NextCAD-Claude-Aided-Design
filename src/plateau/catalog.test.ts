@@ -50,6 +50,13 @@ describe('findPlateauFile（区とメッシュを指定）', () => {
     expect(() => findPlateauFile(dup, { cityCode: '13108', meshCode: '533946', kind: 'urf' })).toThrow()
   })
 
+  it('指定以外の種類（例: htd）の項目に欠けがあっても、urf の取得は止めない（実応答で確認。2026-11-03）', () => {
+    const withOther = structuredClone(response)
+    ;(withOther.cities[0]!.files as Record<string, unknown>).htd = [{ code: '533946', url: 'https://example.invalid/htd.gml' }]
+    const f = findPlateauFile(withOther, { cityCode: '13108', meshCode: '533946', kind: 'urf' })
+    expect(f).toMatchObject({ status: '有', url: 'https://example.invalid/13108_533946_urf.gml' })
+  })
+
   it('応答の形が違えば弾く', () => {
     expect(() => findPlateauFile({ nope: true }, { cityCode: '13108', meshCode: '533946', kind: 'urf' })).toThrow()
   })
