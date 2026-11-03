@@ -1,7 +1,8 @@
 // P3 の左メニューで、選んだ種類の中身を下に出す（ハブ A-03 G55、D-04 共通部品「左メニュー」）。描画にも状態にも依存しない純粋な処理。
 // 文言とレイヤー名は仮置き。出せる項目だけを出す:
-//   住戸 = 面積・部屋の数 / 通り芯 = 位置 / コア・縦シャフト・廊下・部屋 = 寸法 / 筆界・外形 = 「未配線」（中身のデータが無い）。
-// 柱・壁・開口は P3 にデータが無く件数 0 なので「なし」。壁と開口の数は今回は出さない。
+//   住戸 = 面積・部屋の数・壁と開口の数（「未配線」。P3 に壁と開口のデータが無い。仮置き） / 通り芯 = 位置 / コア・縦シャフト・廊下・部屋 = 寸法 /
+//   筆界・外形 = 「未配線」（中身のデータが無い）。
+// 柱・壁・開口は P3 にデータが無く件数 0 なので「なし」（壁と開口の数は、種類の行としては出さず、住戸の 1 行にまとめる）。
 // 全てのオブジェクトの最後に「意味づけの結果」と「レイヤー」の 2 行を付ける。
 import type { Rect } from './candidateCells'
 import { countObjects, type ObjectKind, type ObjectSources } from './objectMenu'
@@ -36,6 +37,8 @@ export interface ObjectDetail {
 const NONE = 'なし'
 const UNWIRED = '未配線'
 const NOT_COMPUTED = '未算定'
+// 壁と開口の数（G55 の中身の項目）。P3 に壁と開口のデータが無く数を決められないので、住戸の 1 行に「未配線」と出す（仮置き）
+const WALL_OPENING_COUNT_LINE = `壁と開口の数: ${UNWIRED}`
 
 // 種類→レイヤー名（仮置き）。廊下は専用のレイヤーが無く「その他」。縦シャフトは G66 で独立したレイヤーになった。
 const LAYER_OF: Record<ObjectKind, string> = {
@@ -94,7 +97,7 @@ const unwiredEntries = (kind: ObjectKind, items: readonly unknown[] | undefined)
 function entriesOf(kind: ObjectKind, s: ObjectDetailSources): ObjectDetailEntry[] {
   switch (kind) {
     case 'unit':
-      return (s.units ?? []).map((u) => entry(kind, u.id, [areaLine(u), roomCountLine(u, s.rooms)]))
+      return (s.units ?? []).map((u) => entry(kind, u.id, [areaLine(u), roomCountLine(u, s.rooms), WALL_OPENING_COUNT_LINE]))
     case 'grid':
       return (s.gridLines ?? []).map((pos, i) => entry(kind, i + 1, [`位置: ${pos} mm`]))
     case 'core':

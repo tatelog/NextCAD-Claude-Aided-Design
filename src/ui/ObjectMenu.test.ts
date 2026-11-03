@@ -10,7 +10,7 @@
 // 仕様 4（選び方）: 行を押すと、onSelect に次の選びを渡す。何も選んでいなければ押した種類、別の種類を押せばその種類、
 //   選んでいる種類をもう一度押せば null（toggleKind）。選んでいる行だけ aria-pressed が true。
 // 仕様 5（中身）: 種類を選んでいるとき、一覧の下に「<名前>の中身」の欄を出し、detailOfKind の見出しと行を並べる。
-//   件数が 0 のときは「なし」だけ。選んでいなければ欄は無い。壁と開口の数は出さない（detailOfKind のまま）。
+//   件数が 0 のときは「なし」だけ。選んでいなければ欄は無い。壁と開口の数は、住戸の中身の 1 行に「未配線」と出す（detailOfKind のまま。仮置き）。
 // 仕様 6（描ける）: React で描ける（サーバー側の描画で例外が出ない）。帯の幅は OBJECT_MENU_WIDTH（呼び出し側の列の幅に使う）。
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -205,16 +205,18 @@ describe('ObjectMenu（選んだ種類の中身。仕様 5）', () => {
     expect(findAll(sections[0], isTag('h3')).map(textOf)).toEqual(['住戸の中身'])
   })
 
-  it('住戸の中身は、区画ごとに見出しと 4 行（面積・部屋の数・意味づけの結果・レイヤー）を、入力の並びのまま出す', () => {
+  it('住戸の中身は、区画ごとに見出しと 5 行（面積・部屋の数・壁と開口の数・意味づけの結果・レイヤー）を、入力の並びのまま出す', () => {
     const section = sectionOf(render({ selectedKind: 'unit' }))[0]
     expect(findAll(section, isTag('strong')).map(textOf)).toEqual(['住戸 L0', '住戸 L1'])
     expect(findAll(section, isTag('div')).map(textOf)).toEqual([
       '面積: 36.0 m²',
       '部屋の数: 4',
+      '壁と開口の数: 未配線',
       '意味づけの結果: 未配線',
       'レイヤー: 住戸',
       '面積: 36.0 m²',
       '部屋の数: 4',
+      '壁と開口の数: 未配線',
       '意味づけの結果: 未配線',
       'レイヤー: 住戸',
     ])
@@ -237,7 +239,7 @@ describe('ObjectMenu（選んだ種類の中身。仕様 5）', () => {
     expect(findAll(section, isTag('li'))).toHaveLength(0)
   })
 
-  it('データが無い種類（柱・壁・開口）を選んでも、「なし」を出す（壁と開口の数は出さない）', () => {
+  it('データが無い種類（柱・壁・開口）を選んでも、「なし」を出す（壁と開口の数の行は、住戸の中身にだけ出る）', () => {
     for (const kind of ['column', 'wall', 'opening'] as const) {
       const section = sectionOf(render({ selectedKind: kind }))[0]
       expect(findAll(section, isTag('p')).map(textOf), kind).toEqual(['なし'])

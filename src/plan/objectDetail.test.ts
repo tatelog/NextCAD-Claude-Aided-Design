@@ -4,7 +4,7 @@
 // 仕様 1（選択）: 左の行を押すと、その種類が選ばれる。選ばれるのは 1 つだけ。選んでいる種類をもう一度押すと、選びを外す。
 // 仕様 2（一覧）: 選んだ種類のオブジェクトを、一覧で下に出す。他の種類は混ぜない。並びは入力の並びのまま。
 // 仕様 3（空）: 件数が 0 なら「なし」と出す（0 でなければ出さない）。
-// 仕様 4（住戸）: 住戸（区画候補）は、面積（m²、小数 1 桁）と部屋の数を出す。
+// 仕様 4（住戸）: 住戸（区画候補）は、面積（m²、小数 1 桁）と部屋の数を出す（その次に、仕様 10 の壁と開口の数が続く）。
 //   部屋の数は、P3 の部屋（rooms）のうち、その区画に属するものを数える。属し方は rooms.ts の roomsOfCells に従う
 //   （部屋の ID は「区画の ID + '-' + 接尾辞」）。決められない（部屋の情報が無い）ときは「未算定」と出す。
 // 仕様 5（通り芯）: 位置（mm）を出す。
@@ -13,7 +13,10 @@
 // 仕様 8（共通の 2 行）: 全てのオブジェクトに「意味づけの結果: 未配線」「レイヤー: <名前>」の 2 行を、この順に最後へ付ける。
 // 仕様 9（レイヤー名・仮置き）: 筆界→筆界、外形→外形、通り芯→通り芯、柱→柱、コア→コア、縦シャフト→縦シャフト（G66）、
 //   廊下→その他、住戸→住戸、壁→壁、開口→開口、部屋→部屋。「（G66）」は決定の出典（グリル記録 G66）で、レイヤー名は「縦シャフト」。
-// 仕様 10（壁と開口の数）: 今回は出さない。未配線として項目も出さない。
+// 仕様 10（壁と開口の数・仮置き。画面側の案の中身の項目どおり）: 住戸の中身に「壁と開口の数: 未配線」の 1 行を、面積・部屋の数の次に出す。
+//   P3 に壁と開口のデータがまだ無く、数を決められないので「未配線」。壁と開口を別々の行にはせず、1 行にまとめる。
+//   住戸の行は 5 行（面積・部屋の数・壁と開口の数・意味づけの結果・レイヤー）。住戸以外の種類の行には出さない。
+//   壁・開口の種類を選んだときは、これまでどおり件数 0 で「なし」。
 // 仕様 11（純粋）: 入力を書き換えない。同じ入力には同じ出力。前の呼び出しに左右されない。
 // 今回やらない: P2 の 2D と P4 への表示。
 import { describe, expect, it } from 'vitest'
@@ -53,6 +56,7 @@ const LAYER_OF: Record<ObjectKind, string> = {
 }
 
 const MEANING = '意味づけの結果: 未配線'
+const WALL_OPENING = '壁と開口の数: 未配線'
 const NONE = 'なし'
 
 // 区画（幅 = x1 − x0、奥行 = y1 − y0。mm）。既定は 6000 × 7200（43.2 m²。田の字・縦長・角・単独のどれでも割れる寸法）
@@ -367,31 +371,53 @@ describe('detailOfKind（全てのオブジェクトに付く 2 行。仕様 8�
     expect(seen).toBe(52)
   })
 
-  it('住戸は、面積・部屋の数・意味づけの結果・レイヤーの 4 行だけ（出せる項目だけを出す）', () => {
+  it('住戸は、面積・部屋の数・壁と開口の数・意味づけの結果・レイヤーの 5 行（壁と開口の数は「未配線」）', () => {
     const a = cell('L0')
     expect(linesOf('unit', { units: [a], rooms: roomsOfCells([a]) })).toEqual([
-      ['面積: 43.2 m²', '部屋の数: 4', MEANING, 'レイヤー: 住戸'],
+      ['面積: 43.2 m²', '部屋の数: 4', WALL_OPENING, MEANING, 'レイヤー: 住戸'],
     ])
   })
 })
 
-describe('detailOfKind（壁と開口の数は出さない。仕様 10）', () => {
-  it('どの種類のどのオブジェクトの行にも、壁・開口は出てこない', () => {
+describe('detailOfKind（壁と開口の数は住戸にだけ出す。仕様 10）', () => {
+  it('全ての住戸の行に、面積・部屋の数の次に「壁と開口の数: 未配線」が 1 行だけ出る', () => {
+    const entries = detailOfKind('unit', FULL).entries
+    expect(entries).toHaveLength(6)
+    for (const e of entries) {
+      expect(e.lines.filter((l) => /壁|開口/.test(l)), e.title).toEqual([WALL_OPENING])
+      expect(e.lines[2], e.title).toBe(WALL_OPENING)
+    }
+  })
+
+  it('壁と開口は別々の行にせず、住戸の行の数は 5（面積・部屋の数・壁と開口の数・意味づけの結果・レイヤー）', () => {
+    for (const e of detailOfKind('unit', FULL).entries) expect(e.lines, e.title).toHaveLength(5)
+  })
+
+  it('部屋の情報が無く、部屋の数が「未算定」のときも、壁と開口の数は「未配線」のまま', () => {
+    expect(linesOf('unit', { units: [cell('L0')] })).toEqual([
+      ['面積: 43.2 m²', '部屋の数: 未算定', WALL_OPENING, MEANING, 'レイヤー: 住戸'],
+    ])
+  })
+
+  it('住戸以外の種類のどのオブジェクトの行にも、壁・開口は出てこない', () => {
     let seen = 0
     for (const [kind] of KINDS) {
+      if (kind === 'unit') continue
       for (const e of detailOfKind(kind, FULL).entries) {
         seen += 1
         expect(e.lines.some((l) => /壁|開口/.test(l)), `${kind} ${e.title}`).toBe(false)
       }
     }
-    // 空振りでないこと（件数の合計 = 2+1+7+3+5+4+6+24 = 52）
-    expect(seen).toBe(52)
+    // 空振りでないこと（住戸の 6 件を除いた件数の合計 = 2+1+7+3+5+4+24 = 46）
+    expect(seen).toBe(46)
   })
 
-  it('住戸の行の数は 4 のまま（壁の数・開口の数の行を足さない）', () => {
-    const entries = detailOfKind('unit', FULL).entries
-    expect(entries).toHaveLength(6)
-    for (const e of entries) expect(e.lines).toHaveLength(4)
+  it('壁・開口の種類を選んだときは、住戸がそろっていても件数 0 で「なし」（壁と開口の数は種類の行としては出さない）', () => {
+    for (const kind of ['wall', 'opening'] as const) {
+      const d = detailOfKind(kind, FULL)
+      expect(d.entries, kind).toEqual([])
+      expect(d.emptyText, kind).toBe(NONE)
+    }
   })
 })
 
