@@ -7,6 +7,7 @@ import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
+import { alignToDirection } from '../volume/alignToRoad'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
@@ -52,13 +53,22 @@ export function P03Volume() {
   const [southText, setSouthText] = useState('')
 
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
+  // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
+  const [aligned, setAligned] = useState(false)
+  const roadDeg = (() => {
+    const a = DUMMY_PARCEL[roadEdge]!
+    const b = DUMMY_PARCEL[(roadEdge + 1) % DUMMY_PARCEL.length]!
+    return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
+  })()
+
   const placedFootprint = useMemo(() => {
     if (!closure.closed || closure.footprint === null) return null
+    const base = aligned ? alignToDirection(closure.footprint, roadDeg) : closure.footprint
     const w = Number(westText)
     const s = Number(southText)
-    if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return closure.footprint
-    return placeBySetback(closure.footprint, DUMMY_PARCEL, { west: w, south: s })
-  }, [closure, westText, southText])
+    if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
+    return placeBySetback(base, DUMMY_PARCEL, { west: w, south: s })
+  }, [closure, westText, southText, aligned, roadDeg])
 
   const volume = useMemo(() => {
     if (!closure.closed || placedFootprint === null) return null
@@ -254,6 +264,9 @@ export function P03Volume() {
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
+            <button type="button" onClick={() => setAligned((v) => !v)} disabled={!closure.closed}>
+              {aligned ? '向きを戻す' : '道路に平行に合わせる'}
+            </button>
             <label>
               西の離れ (mm)
               <input type="number" value={westText} placeholder="空欄は描いた位置" onChange={(e) => setWestText(e.target.value)} />
