@@ -7,6 +7,7 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
+import { triangulatePolygon } from '../geom/triangulate'
 import { cameraForFace, type Face } from './viewFaces'
 
 const FACE_LABELS: { face: Face; label: string }[] = [
@@ -63,15 +64,30 @@ function groundSize(footprint: readonly Point[]): { width: number; depth: number
   }
 }
 
+// 地面に落ちる影（平面の多角形）を、地面のすぐ上の薄い面にする（D-04 P2「地面に日影の影」、G54）
+function shadowGeometry(shadow: readonly Point[]): THREE.BufferGeometry {
+  const positions: number[] = []
+  for (const [a, b, c] of triangulatePolygon(shadow)) {
+    for (const v of [a, b, c]) positions.push(v.x * MM_TO_M, 0.002, v.y * MM_TO_M)
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 interface Volume3DProps {
   footprint: Point[]
+  /** 地面に落ちる影（任意）。太陽の位置から作る */
+  shadow?: Point[] | null
   storeyCount: number
   storeyHeightMm: number
   /** ホーム（既定の向きに戻す）を押した回数。変わると視点を戻す。 */
   homeToken: number
 }
 
-export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
+export function Volume3D({ footprint, shadow, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
+  const shadowGeo = useMemo(() => (shadow && shadow.length >= 3 ? shadowGeometry(shadow) : null), [shadow])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const geometry = useMemo(
     () => toGeometry(buildVolumeMesh({ footprint, storey_count: storeyCount, storey_height: storeyHeightMm })),
@@ -103,6 +119,11 @@ export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: 
         <meshStandardMaterial color="#e6e3dc" />
       </mesh>
       <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
+      {shadowGeo && (
+        <mesh geometry={shadowGeo}>
+          <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+      )}
       <OrbitControls ref={controlsRef} makeDefault />
     </Canvas>
     <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 4 }}>
