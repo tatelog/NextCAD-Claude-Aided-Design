@@ -7,6 +7,7 @@ import { countUnits } from '../plan/units'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { useSite } from '../store/site'
+import { useUi } from '../store/ui'
 import { P3Canvas } from './P3Canvas'
 
 export function P3Plan() {
@@ -24,6 +25,8 @@ export function P3Plan() {
   const [storeyHeightText, setStoreyHeightText] = useState('3000')
   const [evCountText, setEvCountText] = useState('2')
   const [auto, setAuto] = useState<AutoPlan | null>(null)
+  const showDimensions = useUi((s) => s.showDimensions)
+  const showGrid = useUi((s) => s.showGrid)
   const [autoError, setAutoError] = useState<string | null>(null)
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
@@ -108,7 +111,25 @@ export function P3Plan() {
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
           <svg width="100%" viewBox={`-500 -500 ${W + 1000} ${D + 1000}`} style={{ maxHeight: '70vh', background: '#fff', border: '1px solid #ddd8cc' }}>
+            {showGrid ? (
+              <g stroke="#e3e6df" strokeWidth={6}>
+                {Array.from({ length: Math.floor(W / 1000) + 1 }, (_, i) => (
+                  <line key={`gx${i}`} x1={i * 1000} y1={0} x2={i * 1000} y2={D} />
+                ))}
+                {Array.from({ length: Math.floor(D / 1000) + 1 }, (_, i) => (
+                  <line key={`gy${i}`} x1={0} y1={i * 1000} x2={W} y2={i * 1000} />
+                ))}
+              </g>
+            ) : null}
             <rect x={0} y={0} width={W} height={D} fill="none" stroke="#1f2a44" strokeWidth={40} />
+            {showDimensions ? (
+              <g stroke="#1f5f8b" strokeWidth={12} fontSize={300} fill="#1f5f8b">
+                <line x1={0} y1={D + 700} x2={W} y2={D + 700} />
+                <text x={W / 2} y={D + 1000} textAnchor="middle">{W} mm</text>
+                <line x1={W + 700} y1={0} x2={W + 700} y2={D} />
+                <text x={W + 1000} y={D / 2} textAnchor="start">{D} mm</text>
+              </g>
+            ) : null}
             <rect x={units.cells.corridor.x0} y={0} width={units.cells.corridor.x1 - units.cells.corridor.x0} height={D} fill="#eee" />
             {core.rect ? (
               <rect x={core.rect.x0} y={core.rect.y0} width={core.rect.x1 - core.rect.x0} height={core.rect.y1 - core.rect.y0} fill="#e6f2ed" stroke="#1f2a44" strokeWidth={20} />

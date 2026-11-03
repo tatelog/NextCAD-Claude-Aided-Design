@@ -42,6 +42,8 @@ export function App() {
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
   const showShadow = useUi((s) => s.showShadow)
   const showNeighbors = useUi((s) => s.showNeighbors)
+  const showDimensions = useUi((s) => s.showDimensions)
+  const showGrid = useUi((s) => s.showGrid)
 
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
@@ -159,8 +161,30 @@ export function App() {
                   />{' '}
                   周辺建物（P1 の地図と P2 の 3D）
                 </label>
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={showDimensions}
+                    onChange={(e) => {
+                      useUi.getState().setShowDimensions(e.target.checked)
+                      record('表示', `寸法線 ${e.target.checked ? '入' : '切'}`)
+                    }}
+                  />{' '}
+                  寸法線（P3 の平面）
+                </label>
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={showGrid}
+                    onChange={(e) => {
+                      useUi.getState().setShowGrid(e.target.checked)
+                      record('表示', `グリッド ${e.target.checked ? '入' : '切'}`)
+                    }}
+                  />{' '}
+                  グリッド（P3 の平面）
+                </label>
                 <p style={{ fontSize: 11, color: '#666' }}>
-                  寸法線・全体図・グリッドなどは、対応する機能がまだ無いため、この一覧には出していない。
+                  全体図（右下の縮図）は、画面をまたぐ敷地の範囲を持っていないため、まだ出していない。
                 </p>
               </>
             )}
