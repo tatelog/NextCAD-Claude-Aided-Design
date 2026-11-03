@@ -101,4 +101,21 @@ describe('Worker の受け口', () => {
     expect(res.status).toBe(413)
     expect(calls).toHaveLength(0)
   })
+
+  // 仕様 8（月の上限・ハブ A-03 G29、D-06 N7）: 置き場（USAGE）の今月の件数が上限に達していれば 429。Claude は呼ばず、件数も増やさない。
+  it('仕様 8（月の上限）: 今月の件数が上限に達していれば 429。Claude は呼ばない', async () => {
+    const { f, calls } = apiFetch(true, good)
+    const data = new Map<string, string>()
+    const kv = {
+      get: async (key: string) => data.get(key) ?? null,
+      put: async (key: string, value: string) => void data.set(key, value),
+    }
+    const month = new Date().toISOString().slice(0, 7)
+    data.set(`classify:${month}`, '2')
+    const e = { ...env, USAGE: kv, MONTHLY_CLASSIFY_LIMIT: '2' }
+    const res = await handleRequest(req('POST', '/classify', { segments: segs }), e, f)
+    expect(res.status).toBe(429)
+    expect(calls).toHaveLength(0)
+    expect(data.get(`classify:${month}`)).toBe('2')
+  })
 })

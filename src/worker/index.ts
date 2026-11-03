@@ -3,16 +3,23 @@
 import { z } from 'zod'
 import { classifySegments, PENDING, type Env as ClassifyEnv } from './classify'
 import { proxyPlateau } from './plateauProxy'
+import { admitMonthly, type KvLike } from './monthlyCap'
 
 export interface Env extends ClassifyEnv {
   /** ブラウザの接続元として許すオリジン（例: 利用者のアプリの URL）。未設定なら CORS のヘッダーは返さない */
   ALLOWED_ORIGIN?: string
+  /** 今月の判定の件数を数える置き場（Cloudflare KV。binding 名 USAGE）。無ければ月の上限は効かない（D-06 N7） */
+  USAGE?: KvLike
+  /** 月の判定の上限（件数）。文字列の数。未設定なら DEFAULT_MONTHLY_LIMIT */
+  MONTHLY_CLASSIFY_LIMIT?: string
 }
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
 /** 一度に送れる線分の数（D-02 C12） */
 const MAX_SEGMENTS = 200
+/** 月の判定の既定の上限（件数。仮置き。費用の見積もりで決め直す） */
+const DEFAULT_MONTHLY_LIMIT = 1000
 
 const BodySchema = z.object({
   segments: z.array(
@@ -60,6 +67,12 @@ export async function handleRequest(request: Request, env: Env, fetchImpl: Fetch
   // 一度に送れる線分の上限（D-02 C12。費用の月あたりの上限は別に決める）
   if (parsed.segments.length > MAX_SEGMENTS) {
     return json(413, { error: `一度に送れる線分は ${MAX_SEGMENTS} 本まで` }, cors)
+  }
+
+  // 月の上限（D-06 N7）。上限に達していれば、Claude は呼ばない
+  const limit = Number(env.MONTHLY_CLASSIFY_LIMIT ?? DEFAULT_MONTHLY_LIMIT)
+  if ((await admitMonthly(env.USAGE, new Date(), limit)) === 'over') {
+    return json(429, { error: '今月の判定の上限に達した' }, cors)
   }
 
   try {
