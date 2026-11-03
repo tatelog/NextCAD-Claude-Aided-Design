@@ -2,6 +2,7 @@
 // 取れるのは矩形の外形だけ。矩形でなければ null を返し、呼び出し側が「手で入れてください」と案内する。
 // 外形の左下（最小の x と y）は、P3 の平面を外形の位置に重ねる原点として返しておく（今回は使わない。3D の対応の準備）。
 import type { Point } from '../geom/viewport'
+import { isSimple } from '../volume/placement'
 
 export interface OutlineDimensions {
   /** x の最大 − 最小（四捨五入した整数 mm） */
@@ -58,6 +59,8 @@ export function outlineDimensions(footprint: readonly Point[], axisToleranceDeg 
   // 角 = 入ってくる辺と出ていく辺の向きが変わる頂点。角が 4 つなら、水平と垂直が交互に並ぶ矩形
   const corners = pts.filter((_, i) => kinds[(i + n - 1) % n] !== kinds[i])
   if (corners.length !== 4) return null
+  // 角が 4 つでも、辺が別の辺に乗る・交わる形（行って戻る線など）は矩形ではない（仕様 12）
+  if (!isSimple(pts)) return null
 
   const xs = corners.map((q) => q.x)
   const ys = corners.map((q) => q.y)

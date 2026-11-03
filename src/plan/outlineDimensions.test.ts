@@ -17,6 +17,7 @@
 //   少し斜めに残る。そのままでは矩形に見えないので、P2 と同じ許容差で、描いた大きさに近い幅と奥行きが取れる。
 // 仕様 11（辺の途中の頂点・仮置きの読み）: 同じ向きの辺が続く所の頂点（辺の途中の頂点）は、角に数えない。頂点が 5 つ以上でも、角が 4 つなら矩形。
 //   どの頂点から始まっても同じ結果。行って戻るだけで幅か奥行きが 0 になる形は矩形にしない。
+// 仕様 12（自分と重なる形）: 角が 4 つでも、辺が別の辺の上に乗る・交わる形（行って戻る線を含む）は矩形にしない。
 import { beforeEach, describe, expect, it } from 'vitest'
 import { findClosedOutline } from '../canvas/closure'
 import type { Point } from '../geom/viewport'
@@ -345,5 +346,21 @@ describe('P2 で手描きした外形（実際の描画の手順。仕様 10）'
     expect(f).toHaveLength(4)
     expect(outlineDimensions(f)).toBeNull()
     expectNearIntended(outlineDimensions(f, DRAW_OPTIONS.axisSnapDeg))
+  })
+})
+
+describe('自分と重なる形は矩形にしない（仕様 12）', () => {
+  // 下の辺の上に、右の頂点から左へ戻る線が乗る。角は 4 つ（(0,0)・(10000,0)・(10000,12000)・(0,12000)）で、軸に平行な辺だけ
+  const spike = [p(0, 0), p(20000, 0), p(10000, 0), p(10000, 12000), p(0, 12000)]
+
+  it('角が 4 つでも、辺が別の辺の上に乗る形（行って戻る線を含む）は null', () => {
+    expect(outlineDimensions(spike)).toBeNull()
+  })
+
+  it('回る向きや始まりが違っても、閉じる点をつけても null（10 通り）', () => {
+    variantsOf(spike).forEach((pts, i) => {
+      expect(outlineDimensions(pts), `並び ${i}`).toBeNull()
+      expect(outlineDimensions([...pts, pts[0]!]), `並び ${i}（閉じる点つき）`).toBeNull()
+    })
   })
 })
