@@ -31,6 +31,7 @@ import { PanelTile } from './PanelTile'
 import { copyFixturesToSameType, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
+import { balconyOfUnit } from '../plan/balcony'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
 export function P3Plan() {
@@ -496,6 +497,7 @@ export function P3Plan() {
             ceilingMm={2400}
             walls={kindCounts?.walls}
             openings={kindCounts?.openings}
+            balcony={cell ? balconyOfUnit(cell, { outline: { W, D } }) : undefined}
             rooms={cell ? roomsOfCells([cell]).map((r) => r.kind) : []}
             sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
             onApplySameType={() => {

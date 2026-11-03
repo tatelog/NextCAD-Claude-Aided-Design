@@ -15,6 +15,8 @@ export interface UnitDetailPanelProps {
   /** 描いた線のうち、区画の中の壁の本数と開口の数（意味づけの結果）。無ければ未配線と出す */
   walls?: number
   openings?: number
+  /** バルコニー（仮置きの面と面積。plan/balcony）。無ければ未配線と出す */
+  balcony?: { faces: readonly string[]; areaM2: number }
   /** 同じ間口・奥行の住戸の ID。無ければ「同タイプの住戸に反映」は押せない */
   sameTypeIds: string[]
   /** 「同タイプの住戸に反映」を押したとき（この住戸の什器を同タイプへ） */
@@ -23,7 +25,7 @@ export interface UnitDetailPanelProps {
 
 const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join('、') : 'なし')
 
-export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, sameTypeIds, onApplySameType }: UnitDetailPanelProps) {
+export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, balcony, sameTypeIds, onApplySameType }: UnitDetailPanelProps) {
   if (!detail) return null
   return (
     <aside
@@ -57,7 +59,13 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
         <li>{ceilingMm === undefined ? '天井高: 未配線' : `天井高 ${ceilingMm} mm（仮置き）`}</li>
       </ul>
       <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px', fontSize: 12, color: '#a33' }}>
-        <li>バルコニー: 未配線</li>
+        <li>
+          {balcony === undefined
+            ? 'バルコニー: 未配線'
+            : balcony.faces.length === 0
+              ? 'バルコニー: なし（外周の下の辺に接しない）'
+              : `バルコニー: ${balcony.faces.join('、')}の面 ${balcony.areaM2.toFixed(2)} m²（仮置き: 奥行 1600 mm）`}
+        </li>
         <li>{walls === undefined || openings === undefined ? '壁と開口: 未配線' : `壁 ${walls} 本・開口 ${openings} 箇所（描いた線から）`}</li>
       </ul>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

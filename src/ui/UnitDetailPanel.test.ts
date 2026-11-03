@@ -68,9 +68,11 @@ describe('住戸の詳細パネル（仕様 1〜6）', () => {
     expect(html(DETAIL)).toContain('配置（階）: 未配線')
   })
 
-  it('仕様 6: バルコニーは未配線と出す。壁と開口は、数が渡されたときは描いた線の数を出し、無いときは未配線', () => {
+  it('仕様 6: バルコニーは、面と面積（仮置き）を出す。無いときは未配線。壁と開口は、数が渡されたときは描いた線の数を出し、無いときは未配線', () => {
     const out = html(DETAIL)
     expect(out).toContain('バルコニー: 未配線')
+    expect(html(DETAIL, { balcony: { faces: ['下'], areaM2: 4.8 } })).toContain('バルコニー: 下の面 4.80 m²（仮置き: 奥行 1600 mm）')
+    expect(html(DETAIL, { balcony: { faces: [], areaM2: 0 } })).toContain('バルコニー: なし（外周の下の辺に接しない）')
     expect(out).toContain('壁と開口: 未配線')
     expect(html(DETAIL, { walls: 2, openings: 1 })).toContain('壁 2 本・開口 1 箇所（描いた線から）')
   })
