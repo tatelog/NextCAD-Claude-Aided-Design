@@ -2,7 +2,7 @@
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
-import { extrudeVolume } from '../volume/extrude'
+import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
@@ -123,14 +123,13 @@ export function P03Volume() {
     return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: w, south: s }))
   }, [closure, westText, southText, aligned, roadDeg])
 
-  const volume = useMemo(() => {
+  // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
+  const extruded = useMemo<ExtrudeResult | null>(() => {
     if (!closure.closed || placedFootprint === null) return null
-    try {
-      return extrudeVolume({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
-    } catch {
-      return null
-    }
+    return extrudeOrReason({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
   }, [closure, placedFootprint, storeyCount, storeyHeightMm])
+  const volume = extruded?.ok ? extruded.volume : null
+  const volumeError = extruded && !extruded.ok ? extruded.reason : null
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
@@ -193,7 +192,9 @@ export function P03Volume() {
   // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
   const shadowJudge = useMemo(() => {
     const rule = shadowRuleFor(zone, 2)
-    if (!volume) return { text: '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
+    if (!volume) {
+      return { text: volumeError ? `立体を作れないので判定できない（${volumeError}）` : '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
+    }
     if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
     const judgment = judgeShadow({
       lot: DUMMY_PARCEL,
@@ -206,7 +207,7 @@ export function P03Volume() {
     if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
-  }, [volume, zone, stackedFloors])
+  }, [volume, volumeError, zone, stackedFloors])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -283,7 +284,7 @@ export function P03Volume() {
             </div>
           ) : (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center', background: '#f4f4f2' }}>
-              <p className="muted">外形が閉じると 3D が出る</p>
+              <p className="muted">{volumeError ? `立体を作れないので 3D が出ない（${volumeError}）` : '外形が閉じると 3D が出る'}</p>
             </div>
           )
         ) : (
