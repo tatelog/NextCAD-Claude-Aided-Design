@@ -1,7 +1,7 @@
 // P3 の左メニューで、選んだ種類の中身を下に出す（ハブ A-03 G55、D-04 共通部品「左メニュー」）。描画にも状態にも依存しない純粋な処理。
 // 文言とレイヤー名は仮置き。出せる項目だけを出す:
 //   住戸 = 面積・部屋の数・壁と開口の数（「未配線」。P3 に壁と開口のデータが無い。仮置き） / 通り芯 = 位置 / コア・縦シャフト・廊下・部屋 = 寸法 /
-//   筆界・外形 = 「未配線」（中身のデータが無い） / 什器（G69） = 品目・区画（区画の指定が無いときは「区画なし」）。
+//   筆界・外形 = 「未配線」（中身のデータが無い） / 什器（G69） = 品目・区画（いまの区画に無いときは「区画なし」）。
 // 柱・壁・開口は P3 にデータが無く件数 0 なので「なし」（壁と開口の数は、種類の行としては出さず、住戸の 1 行にまとめる）。
 // 全てのオブジェクトの最後に「意味づけの結果」と「レイヤー」の 2 行を付ける。
 import type { Rect } from './candidateCells'
@@ -112,9 +112,14 @@ function entriesOf(kind: ObjectKind, s: ObjectDetailSources): ObjectDetailEntry[
       return rectEntries(kind, s.shafts)
     case 'corridor':
       return rectEntries(kind, s.corridors)
-    case 'fixture':
-      // 区画の指定が無い（null）ときだけ「区画なし」。指定があれば、その区画がいま無くても、置いた区画の id をそのまま出す（仮置き）
-      return (s.fixtures ?? []).map((f) => entry(kind, f.id, [`品目: ${fixtureLabel(f.item)}`, `区画: ${f.unitId ?? NO_UNIT}`]))
+    case 'fixture': {
+      // いまの区画（units）に無い什器は「区画なし」（右パネルと P4 の数え方と同じ）。区画の一覧が無いときは、置いた区画の id をそのまま出す（仮置き）
+      const unitIds = s.units ? new Set(s.units.map((u) => u.id)) : null
+      return (s.fixtures ?? []).map((f) => {
+        const placed = f.unitId !== null && (unitIds === null || unitIds.has(f.unitId))
+        return entry(kind, f.id, [`品目: ${fixtureLabel(f.item)}`, `区画: ${placed ? f.unitId : NO_UNIT}`])
+      })
+    }
     case 'room':
       return rectEntries(kind, s.rooms)
     case 'siteBoundary':
