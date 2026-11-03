@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
+import { useFeatures } from '../store/features'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
 import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
@@ -104,7 +105,7 @@ export function DrawingCanvas() {
       footprint,
       drawingRef.current?.points ?? null,
       displayGrid,
-      hoverRef.current,
+      useFeatures.getState().on.endpointRing ? hoverRef.current : null,
       handleDragRef.current?.view ?? null,
     )
   }, [viewport, segments, nodes, footprint, displayGrid])
@@ -127,7 +128,7 @@ export function DrawingCanvas() {
         footprint,
         drawingRef.current?.points ?? null,
         displayGrid,
-        hoverRef.current,
+        useFeatures.getState().on.endpointRing ? hoverRef.current : null,
         handleDragRef.current?.view ?? null,
       )
 
@@ -170,7 +171,7 @@ export function DrawingCanvas() {
         drawingRef.current = null
         hoverRef.current = null
         repaint()
-        openCircleMenu(p)
+        if (useFeatures.getState().on.circleMenu) openCircleMenu(p)
         return
       }
       // つまみ（外形の角・辺の中点。12 px 以内）の上で押したら、線は描き始めずにそのつまみを動かす。つまみが優先（G65）
@@ -320,7 +321,7 @@ export function DrawingCanvas() {
     // 右クリックはサークルメニュー（G52）。ブラウザの既定のメニューは出さない
     const onContextMenu = (e: MouseEvent) => {
       e.preventDefault()
-      openCircleMenu(local(e))
+      if (useFeatures.getState().on.circleMenu) openCircleMenu(local(e))
     }
 
     canvas.addEventListener('pointerdown', onDown)

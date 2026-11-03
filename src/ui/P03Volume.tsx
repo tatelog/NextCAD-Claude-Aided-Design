@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
 import { NumericLineForm } from './NumericLineForm'
+import { useFeatures } from '../store/features'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
@@ -95,6 +96,8 @@ export function P03Volume() {
   // 回転（G71）: 右パネルの角度（°）と刻み。「回す」で外形を重心のまわりに回し、store に確定する
   const [rotateText, setRotateText] = useState('0')
   const [rotateStep, setRotateStep] = useState<RotationStep>('free')
+  // 機能のオンオフ（G70）: 回転の表示と操作、つまみ、斜線と日影の再計算
+  const featureOn = useFeatures((s) => s.on)
   const rotateDeg = snapAngle(Number(rotateText), rotateStep)
   // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
   const knobSnapshotRef = useRef<typeof entries | null>(null)
@@ -192,6 +195,8 @@ export function P03Volume() {
   )
   // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
   const shadowJudge = useMemo(() => {
+    // 再計算をオフにしているときは、判定を計算せずに止めていると出す（G70）
+    if (!featureOn.shadowRecalc) return { text: '再計算を止めている（機能のオンオフ）', result: null as '適合' | '不適合' | null }
     const rule = shadowRuleFor(zone, 2)
     if (!volume) {
       return { text: volumeError ? `立体を作れないので判定できない（${volumeError}）` : '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
@@ -208,7 +213,7 @@ export function P03Volume() {
     if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -275,9 +280,9 @@ export function P03Volume() {
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
                 rotationStep={rotateStep}
-                onRotateStart={onKnobRotateStart}
-                onRotate={onKnobRotate}
-                onStoreyCount={setStoreyCount}
+                onRotateStart={featureOn.knobs && featureOn.rotateOperation ? onKnobRotateStart : undefined}
+                onRotate={featureOn.knobs && featureOn.rotateOperation ? onKnobRotate : undefined}
+                onStoreyCount={featureOn.knobs ? setStoreyCount : undefined}
               />
               {showMiniMap && boundsOf([volume.footprint]) ? (
                 <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
@@ -423,7 +428,7 @@ export function P03Volume() {
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
             <NumericLineForm />
           </section>
-          <section>
+          <section style={featureOn.rotateDisplay ? undefined : { display: 'none' }}>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
             <label>
               回転角 (°、反時計回り)
@@ -445,7 +450,7 @@ export function P03Volume() {
             <p className="muted">回す量: {rotateDeg}°（刻みで丸めた値）</p>
             <button
               type="button"
-              disabled={!closure.closed || rotateDeg === 0}
+              disabled={!closure.closed || rotateDeg === 0 || !featureOn.rotateOperation}
               onClick={() => {
                 // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない
                 setAligned(false)

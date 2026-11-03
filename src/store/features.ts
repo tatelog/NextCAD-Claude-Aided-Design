@@ -39,15 +39,15 @@ export const FEATURE_ITEMS: readonly FeatureItem[] = [
   { key: 'showDimensions', group: '表示', label: '寸法線（P3 の平面）', connected: true },
   { key: 'showGrid', group: '表示', label: 'グリッド（P3 の平面）', connected: true },
   { key: 'showMiniMap', group: '表示', label: '全体図（右下の縮図）', connected: true },
-  { key: 'rotateDisplay', group: '操作', label: '回転表示', connected: false },
-  { key: 'rotateOperation', group: '操作', label: '回転操作', connected: false },
+  { key: 'rotateDisplay', group: '操作', label: '回転表示（回転の欄を出す）', connected: true },
+  { key: 'rotateOperation', group: '操作', label: '回転操作（回す・つまみで回す）', connected: true },
   { key: 'inputSnap', group: '操作', label: '入力スナップ', connected: true },
-  { key: 'endpointRing', group: '操作', label: '端点の輪', connected: false },
-  { key: 'circleMenu', group: '操作', label: 'サークルメニュー', connected: false },
-  { key: 'knobs', group: '操作', label: 'つまみ', connected: false },
+  { key: 'endpointRing', group: '操作', label: '端点の輪', connected: true },
+  { key: 'circleMenu', group: '操作', label: 'サークルメニュー', connected: true },
+  { key: 'knobs', group: '操作', label: 'つまみ', connected: true },
   { key: 'classifyClaude', group: '計算', label: '意味づけ（Claude）', connected: false },
-  { key: 'shadowRecalc', group: '計算', label: '斜線・日影の再計算', connected: false },
-  { key: 'autoSave', group: '計算', label: '自動保存', connected: false },
+  { key: 'shadowRecalc', group: '計算', label: '斜線・日影の再計算', connected: true },
+  { key: 'autoSave', group: '計算', label: '自動保存（作業履歴に状態を残す）', connected: true },
 ]
 
 /** 機能の一つをオンオフしたときに、画面の状態へ出す変更。つながっていない項目は null（何も変えない） */

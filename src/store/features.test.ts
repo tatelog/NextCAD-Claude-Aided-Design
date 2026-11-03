@@ -17,9 +17,10 @@ describe('機能の一覧（仕様 1・4）', () => {
     expect(count('計算')).toBe(3)
   })
 
-  it('つながっている項目は 6 個（表示 5 と入力スナップ）', () => {
+  it('つながっている項目は 13 個。意味づけ（Claude）だけ未接続（Worker の配備待ち）', () => {
     const connected = FEATURE_ITEMS.filter((i) => i.connected).map((i) => i.key)
-    expect(connected.sort()).toEqual(['inputSnap', 'showDimensions', 'showGrid', 'showMiniMap', 'showNeighbors', 'showShadow'].sort())
+    expect(connected).toHaveLength(13)
+    expect(connected).not.toContain('classifyClaude')
   })
 })
 
@@ -51,8 +52,8 @@ describe('つながっている項目の画面への反映（仕様 5）', () =>
     expect(featureUiPatch('inputSnap', false)).toEqual({ inputSnapGrid: false })
   })
 
-  it('つながっていない項目は、変更を出さない（null）', () => {
+  it('画面の状態に出す変更が無い項目は、変更を出さない（null）。端点の輪は描く画面が設定を直接読む', () => {
     expect(featureUiPatch('endpointRing', false)).toBeNull()
-    expect(featureUiPatch('autoSave', true)).toBeNull()
+    expect(featureUiPatch('classifyClaude', true)).toBeNull()
   })
 })

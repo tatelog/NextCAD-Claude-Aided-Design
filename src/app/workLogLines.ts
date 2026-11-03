@@ -2,6 +2,7 @@
 // 戻すこと・読み込みも、線が変われば同じ経路で行に残る。
 import { useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
+import { useFeatures } from '../store/features'
 import { recordWorkLog } from './workLogStore'
 import { lineChangeEntry } from './workSnapshot'
 
@@ -9,6 +10,8 @@ import { lineChangeEntry } from './workSnapshot'
 export function startLineLog(): () => void {
   return useDrawing.subscribe((s, prev) => {
     if (s.entries === prev.entries) return
+    // 自動保存（機能のオンオフ）をオフにしているときは、状態を残さない
+    if (!useFeatures.getState().on.autoSave) return
     const state = {
       entries: s.entries,
       storeyCount: s.storeyCount,
