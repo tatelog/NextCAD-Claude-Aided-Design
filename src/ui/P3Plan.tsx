@@ -26,6 +26,11 @@ import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
+import { usePanelTiles } from '../store/panelTiles'
+import { PanelTile } from './PanelTile'
+
+// 右パネルのタイルの名前（閉じた項目を戻す行で使う。ハブ A-03 G73）
+const TILE_TITLES: Record<string, string> = { fixtures: '什器', milestone: '節目の要約', semantic: '意味づけの確認（G14）' }
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -167,6 +172,8 @@ export function P3Plan() {
   const siteMatches = useSite((s) => s.matches)
   const shadowResult = useSite((s) => s.shadow)
   const storeyCount = useDrawing((s) => s.storeyCount)
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const { hideTile, showTile } = usePanelTiles.getState()
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const milestoneRows = useMemo(
     () =>
@@ -288,6 +295,16 @@ export function P3Plan() {
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
+        {Object.keys(hiddenTiles).length > 0 ? (
+          <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
+            閉じた項目:{' '}
+            {Object.keys(hiddenTiles).map((id) => (
+              <button key={id} type="button" onClick={() => showTile(id)} style={{ marginRight: 6, fontSize: 12 }}>
+                {TILE_TITLES[id] ?? id} を戻す
+              </button>
+            ))}
+          </p>
+        ) : null}
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
           <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
@@ -398,7 +415,11 @@ export function P3Plan() {
             </dl>
           ) : null}
         </fieldset>
-        <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
+        {hiddenTiles.fixtures ? null : (
+          <PanelTile title="什器" onHide={() => hideTile('fixtures')}>
+            <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
+          </PanelTile>
+        )}
         <p>スパンの判定: {judge}</p>
         {units.result ? (
           <>
@@ -420,21 +441,29 @@ export function P3Plan() {
         <p style={{ color: '#666', fontSize: 12 }}>
           閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
-        <section style={{ marginBottom: 10 }}>
-          <strong style={{ fontSize: 13 }}>節目の要約</strong>
-          <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
-            {milestoneRows.map((r) => (
-              <li key={r.label} style={{ fontSize: 12, color: r.status === 'ng' ? '#c8412a' : undefined }}>
-                {r.status === 'ok' ? '済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
-              </li>
-            ))}
-          </ul>
-        </section>
-        <SemanticConfirm
-          rows={semanticRows}
-          onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
-          onConfirm={setSemanticKind}
-        />
+        {hiddenTiles.milestone ? null : (
+          <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
+            <section style={{ marginBottom: 10 }}>
+              <strong style={{ fontSize: 13 }}>節目の要約</strong>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
+                {milestoneRows.map((r) => (
+                  <li key={r.label} style={{ fontSize: 12, color: r.status === 'ng' ? '#c8412a' : undefined }}>
+                    {r.status === 'ok' ? '済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </PanelTile>
+        )}
+        {hiddenTiles.semantic ? null : (
+          <PanelTile title="意味づけの確認（G14）" onHide={() => hideTile('semantic')}>
+            <SemanticConfirm
+              rows={semanticRows}
+              onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
+              onConfirm={setSemanticKind}
+            />
+          </PanelTile>
+        )}
       </aside>
     </div>
   )
