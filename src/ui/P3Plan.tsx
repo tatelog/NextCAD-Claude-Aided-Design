@@ -14,6 +14,8 @@ export function P3Plan() {
   const [spanText, setSpanText] = useState('3000')
   const [minText, setMinText] = useState('')
   const [maxText, setMaxText] = useState('')
+  const [layoutText, setLayoutText] = useState<'中廊下' | '片廊下'>('中廊下')
+  const [targetText, setTargetText] = useState('')
 
   const lines = useMemo(() => {
     try {
@@ -31,6 +33,7 @@ export function P3Plan() {
         corridor_mm: Number(corridorText),
         unit_depth_mm: Number(unitDepthText),
         span_mm: Number(spanText),
+        layout: layoutText,
       })
       const W = Number(widthText)
       const D = Number(depthText)
@@ -49,7 +52,7 @@ export function P3Plan() {
     } catch (e) {
       return { cells: null, result: null, error: e instanceof Error ? e.message : String(e) }
     }
-  }, [widthText, depthText, corridorText, unitDepthText, spanText])
+  }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText])
 
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   let judge: string = '許容範囲は未決（D-02 C6）'
@@ -86,6 +89,17 @@ export function P3Plan() {
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
         <label style={{ display: 'block', marginBottom: 4 }}>
+          廊下タイプ
+          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as '中廊下' | '片廊下')} style={{ width: '100%' }}>
+            <option value="中廊下">中廊下</option>
+            <option value="片廊下">片廊下</option>
+          </select>
+        </label>
+        <label style={{ display: 'block', marginBottom: 6 }}>
+          目標の戸数
+          <input value={targetText} onChange={(e) => setTargetText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
+        </label>
+        <label style={{ display: 'block', marginBottom: 4 }}>
           建物の幅 (mm)
           <input value={widthText} onChange={(e) => setWidthText(e.target.value)} style={{ width: '100%' }} />
         </label>
@@ -121,7 +135,13 @@ export function P3Plan() {
               {units.result.plan_status === '成立' ? '' : '（不成立のため確定しない）'}
             </p>
             <p style={{ color: '#666', fontSize: 12 }}>
-              区画の作り方は仮置き（中央の廊下の両側に、柱割りの通りごとに並べる）。除外: {units.result.excluded.length} 件
+              目標 {targetText === '' ? '未入力' : `${targetText} 戸`}
+              {targetText !== '' && units.result.plan_status === '成立'
+                ? `（差 ${units.result.usable_count - Number(targetText)} 戸）`
+                : ''}
+            </p>
+            <p style={{ color: '#666', fontSize: 12 }}>
+              区画の作り方は仮置き（廊下タイプに従い、柱割りの通りごとに並べる）。除外: {units.result.excluded.length} 件
             </p>
           </>
         ) : null}
