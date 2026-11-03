@@ -15,6 +15,8 @@ export interface SlopeBoundary {
   riseMm: number
   /** 距離の上限（mm）。道路斜線のように、境界からこの距離を超えれば制限しない（別表第三） */
   maxDistanceMm?: number
+  /** どの斜線か（図書の判定を分けるため）。道路・北側・隣地 */
+  kind?: 'road' | 'north' | 'adjacent'
 }
 
 const BoundarySchema = z.object({
@@ -25,6 +27,7 @@ const BoundarySchema = z.object({
   coefficient: z.number().positive(),
   riseMm: z.number().min(0),
   maxDistanceMm: z.number().positive().optional(),
+  kind: z.enum(['road', 'north', 'adjacent']).optional(),
 })
 
 const round = (v: number) => Math.round(v * 1e6) / 1e6

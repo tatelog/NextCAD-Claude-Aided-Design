@@ -7,6 +7,7 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
+import { triangulatePolygon } from '../geom/triangulate'
 import { cameraForFace, type Face } from './viewFaces'
 
 const FACE_LABELS: { face: Face; label: string }[] = [
@@ -36,7 +37,7 @@ function CameraDirector({ request }: { request: FaceRequest | null }) {
 
 const MM_TO_M = 1 / 1000
 
-function toGeometry(mesh: VolumeMesh): THREE.BufferGeometry {
+function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
   const positions: number[] = []
   for (const tri of mesh.triangles) {
     for (const v of tri) positions.push(v.x * MM_TO_M, v.z * MM_TO_M, v.y * MM_TO_M)
@@ -63,15 +64,40 @@ function groundSize(footprint: readonly Point[]): { width: number; depth: number
   }
 }
 
+// 地面に落ちる影（平面の多角形）を、地面のすぐ上の薄い面にする（D-04 P2「地面に日影の影」、G54）
+function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeometry {
+  const positions: number[] = []
+  for (const shadow of shadows) {
+    for (const [a, b, c] of triangulatePolygon(shadow)) {
+      for (const v of [a, b, c]) positions.push(v.x * MM_TO_M, 0.002, v.y * MM_TO_M)
+    }
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 interface Volume3DProps {
   footprint: Point[]
+  /** 地面に落ちる影（任意）。太陽の位置から作る */
+  shadow?: Point[][] | null
+  /** 周辺建物（任意）。底面と高さ（mm）。敷地の立体とは別の色で置く */
+  neighbors?: { footprint: Point[]; heightMm: number }[]
   storeyCount: number
   storeyHeightMm: number
   /** ホーム（既定の向きに戻す）を押した回数。変わると視点を戻す。 */
   homeToken: number
 }
 
-export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
+export function Volume3D({ footprint, shadow, neighbors, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
+  const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
+  // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
+  const neighborGeo = useMemo(() => {
+    if (!neighbors || neighbors.length === 0) return null
+    const triangles = neighbors.flatMap((n) => buildVolumeMesh({ footprint: n.footprint, storey_count: 1, storey_height: n.heightMm }).triangles)
+    return toGeometry({ triangles })
+  }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const geometry = useMemo(
     () => toGeometry(buildVolumeMesh({ footprint, storey_count: storeyCount, storey_height: storeyHeightMm })),
@@ -98,11 +124,21 @@ export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: 
       <mesh geometry={geometry}>
         <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} />
       </mesh>
+      {neighborGeo && (
+        <mesh geometry={neighborGeo}>
+          <meshStandardMaterial color="#d8d4c8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ground.cx, 0, ground.cz]}>
         <planeGeometry args={[ground.width, ground.depth]} />
         <meshStandardMaterial color="#e6e3dc" />
       </mesh>
       <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
+      {shadowGeo && (
+        <mesh geometry={shadowGeo}>
+          <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+      )}
       <OrbitControls ref={controlsRef} makeDefault />
     </Canvas>
     <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 4 }}>

@@ -42,6 +42,7 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
       inward: { x: -nOut.x, y: -nOut.y },
       coefficient: road.coefficient,
       riseMm: 0,
+      kind: 'road',
       maxDistanceMm: road.distanceMm,
     })
   } else {
@@ -62,6 +63,7 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
     boundaries.push({
       point: { x: a.x, y: a.y },
       inward: { x: -out.x, y: -out.y },
+      kind: 'adjacent',
       coefficient: adjacent.coefficient,
       riseMm: adjacent.riseMm,
     })
@@ -77,6 +79,7 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
       boundaries.push({
         point: { x: best.x, y: best.y },
         inward: { x: -N.x, y: -N.y },
+        kind: 'north',
         coefficient: north.coefficient,
         riseMm: north.riseMm,
       })

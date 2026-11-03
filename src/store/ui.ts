@@ -1,5 +1,6 @@
-// 描く画面の表示と入力の設定（D-04 共通部品「ペンのモード」、D-02 C1「グリッドとスナップ」）。
-// 道具の置き場（上・左・独立）、サークルメニュー、直線／曲線、表示グリッドと入力スナップは別々に持つ。
+// 画面の表示と入力の設定を一つに持つ。
+// 描く画面（タブレット側）: 道具の置き場（上・左・独立）、サークルメニュー、直線／曲線、表示グリッドと入力スナップ。
+// 表示の切り替え（develop 側）: 日影・周辺建物・寸法線・グリッド（P3 の背景）・全体図（モックのメニュー）。
 // 端末ごとに覚えるかどうかは未決（D-04 未決）。ここでは覚えない（メモリだけ）。
 import { create } from 'zustand'
 
@@ -29,6 +30,23 @@ export interface UiState {
   setPenMode: (m: PenMode) => void
   setDisplayGrid: (on: boolean) => void
   setInputSnapGrid: (on: boolean) => void
+
+  // 表示の切り替え（メニュー）
+  /** 地面に落ちる日影（P2 の 3D） */
+  showShadow: boolean
+  /** 周辺建物（P1 の地図と P2 の 3D） */
+  showNeighbors: boolean
+  /** 寸法線（P3 の平面） */
+  showDimensions: boolean
+  /** グリッド（P3 の平面の背景） */
+  showGrid: boolean
+  /** 全体図（右下の縮図） */
+  showMiniMap: boolean
+  setShowMiniMap: (on: boolean) => void
+  setShowShadow: (on: boolean) => void
+  setShowNeighbors: (on: boolean) => void
+  setShowDimensions: (on: boolean) => void
+  setShowGrid: (on: boolean) => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -45,4 +63,15 @@ export const useUi = create<UiState>((set) => ({
   setPenMode: (penMode) => set({ penMode }),
   setDisplayGrid: (displayGrid) => set({ displayGrid }),
   setInputSnapGrid: (inputSnapGrid) => set({ inputSnapGrid }),
+
+  showShadow: true,
+  showNeighbors: true,
+  showDimensions: true,
+  showGrid: true,
+  showMiniMap: true,
+  setShowMiniMap: (on) => set({ showMiniMap: on }),
+  setShowShadow: (on) => set({ showShadow: on }),
+  setShowNeighbors: (on) => set({ showNeighbors: on }),
+  setShowDimensions: (on) => set({ showDimensions: on }),
+  setShowGrid: (on) => set({ showGrid: on }),
 }))

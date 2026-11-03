@@ -1,21 +1,32 @@
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
+import { placeBySetback } from '../volume/placeBySetback'
+import { alignToDirection } from '../volume/alignToRoad'
+import { judgeSlope } from '../volume/slopeJudge'
+import { judgeShadow } from '../law/shadowRegulation'
+import { cutFloors } from '../volume/slope'
+import { shadowOf } from '../volume/shadow'
+import { useUi } from '../store/ui'
+import { MiniMap } from './MiniMap'
+import { boundsOf } from './mapBounds'
+import { shadowRuleFor } from '../law/shadowRule'
+import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
 import { useDrawing } from '../store/drawing'
-import { useUi } from '../store/ui'
 import { CircleMenu } from './CircleMenu'
 import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
+import { neighborVolumes } from '../volume/neighborLocal'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -27,6 +38,8 @@ const DUMMY_PARCEL = [
   { x: 0, y: 30_000 },
 ]
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
+// 周辺建物は P1 の基準点を、ダミー筆界の中心（20 m × 30 m の中心）に合わせて置く（筆界が入るまでの仮）
+const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
 
 export function P03Volume() {
   const entries = useDrawing((s) => s.entries)
@@ -41,20 +54,56 @@ export function P03Volume() {
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
   const [homeToken, setHomeToken] = useState(0)
+  const siteBuildings = useSite((s) => s.buildings)
+  const showShadow = useUi((s) => s.showShadow)
+  const showNeighbors = useUi((s) => s.showNeighbors)
+  const showMiniMap = useUi((s) => s.showMiniMap)
+  const sitePoint = useSite((s) => s.sitePoint)
+  const neighbors = useMemo(
+    () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, PARCEL_CENTER_MM) : []),
+    [siteBuildings, sitePoint],
+  )
 
   const [farLimit, setFarLimit] = useState('')
+  // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は江東区の点（35.67N, 139.86E）
+  const [solarTime, setSolarTime] = useState('12:00')
+  const sun = useMemo(() => {
+    if (!/^\d{2}:\d{2}$/.test(solarTime)) return null
+    return solarPosition({ lat: 35.67, lon: 139.86, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
+  }, [solarTime])
   const [zone, setZone] = useState<Zone>('住居系')
   const [roadEdge, setRoadEdge] = useState(0)
   const [roadWidth, setRoadWidth] = useState('6000')
+  // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
+  const [westText, setWestText] = useState('')
+  const [southText, setSouthText] = useState('')
+
+  // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
+  // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
+  const [aligned, setAligned] = useState(false)
+  const roadDeg = (() => {
+    const a = DUMMY_PARCEL[roadEdge]!
+    const b = DUMMY_PARCEL[(roadEdge + 1) % DUMMY_PARCEL.length]!
+    return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
+  })()
+
+  const placedFootprint = useMemo(() => {
+    if (!closure.closed || closure.footprint === null) return null
+    const base = aligned ? alignToDirection(closure.footprint, roadDeg) : closure.footprint
+    const w = Number(westText)
+    const s = Number(southText)
+    if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
+    return placeBySetback(base, DUMMY_PARCEL, { west: w, south: s })
+  }, [closure, westText, southText, aligned, roadDeg])
 
   const volume = useMemo(() => {
-    if (!closure.closed) return null
+    if (!closure.closed || placedFootprint === null) return null
     try {
-      return extrudeVolume({ footprint: closure.footprint, storey_count: storeyCount, storey_height: storeyHeightMm })
+      return extrudeVolume({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
     } catch {
       return null
     }
-  }, [closure, storeyCount, storeyHeightMm])
+  }, [closure, placedFootprint, storeyCount, storeyHeightMm])
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
@@ -88,6 +137,56 @@ export function P03Volume() {
 
   // 敷地との離れ（敷地が矩形のときだけ。G67）
   const setback = useMemo(() => (volume ? setbackFromRectParcel(DUMMY_PARCEL, volume.footprint) : null), [volume])
+  // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
+  const roadSlope = useMemo(() => {
+    const road = legal.boundaries.filter((b) => b.kind === 'road')
+    if (!volume || road.length === 0) return null
+    return judgeSlope(volume.footprint, road, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+  }, [volume, legal])
+  useEffect(() => {
+    useSite.getState().setRoadSlope(roadSlope)
+  }, [roadSlope])
+  // 切り取った階ごとの形（階の天端までの立体）。斜線が無ければ階ごとに外形のまま
+  const stackedFloors = useMemo(() => {
+    if (!volume) return []
+    const floors =
+      legal.boundaries.length > 0
+        ? cutFloors(volume.footprint, legal.boundaries, volume)
+        : Array.from({ length: volume.storey_count }, () => volume.footprint)
+    return floors.map((f, i) => ({ footprint: f, heightMm: (i + 1) * volume.storey_height })).filter((b) => b.footprint.length >= 3)
+  }, [volume, legal])
+  // 地面に落ちる日影（時刻の太陽の位置から、切り取った階ごとの影の形）。太陽が地平線の上のときだけ
+  const sunShadow = useMemo(
+    () =>
+      sun && sun.altitudeDeg > 0 && stackedFloors.length > 0
+        ? stackedFloors.map((b) => shadowOf(b.footprint, b.heightMm, sun.altitudeDeg, sun.azimuthFromSouthDeg))
+        : null,
+    [stackedFloors, sun],
+  )
+  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
+  const shadowJudge = useMemo(() => {
+    const rule = shadowRuleFor(zone, 2)
+    if (!volume) return { text: '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
+    if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
+    const judgment = judgeShadow({
+      lot: DUMMY_PARCEL,
+      buildings: stackedFloors,
+      rule,
+      lat: 35.67,
+      lon: 139.86,
+      date: new Date(Date.UTC(2026, 11, 22)),
+    })
+    if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
+    const w = judgment.worst!
+    return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
+  }, [volume, zone, stackedFloors])
+  useEffect(() => {
+    useSite.getState().setShadow(shadowJudge.result)
+  }, [shadowJudge])
+  // 外形と階を P4 に渡す（数量の自動拾い）
+  useEffect(() => {
+    useSite.getState().setVolume(volume ? { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height } : null)
+  }, [volume])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
@@ -126,19 +225,27 @@ export function P03Volume() {
           </button>
         </span>
         <span className="p03-note">議論用・未確定。筆界はダミー（20 m × 30 m）。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
+        {siteBuildings && (
+          <span className="p03-note">周辺建物の底面 {neighbors.length} 件（P1 の地点を敷地中心に仮配置。高さ不明は表示しない）</span>
+        )}
       </header>
       <div className="p03-body">
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
           volume ? (
-            <div style={{ flex: 1, minWidth: 0, minHeight: 420 }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
               <Volume3D
                 footprint={volume.footprint}
+                shadow={showShadow ? sunShadow : null}
+                neighbors={showNeighbors ? neighbors : []}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
               />
+              {showMiniMap && boundsOf([volume.footprint]) ? (
+                <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
+              ) : null}
             </div>
           ) : (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center', background: '#f4f4f2' }}>
@@ -194,6 +301,18 @@ export function P03Volume() {
                 <dd>{m2(cut.building_area_mm2)} m²</dd>
                 <dt>延床面積</dt>
                 <dd>{m2(cut.gross_floor_area_mm2)} m²</dd>
+                <dt>太陽の高さ（冬至）</dt>
+                <dd>{sun ? `${sun.altitudeDeg.toFixed(1)} °` : '時刻を入れる（HH:MM）'}</dd>
+                <dt>太陽の方位</dt>
+                <dd>{sun ? `南から ${sun.azimuthFromSouthDeg.toFixed(1)} °` : '—'}</dd>
+                <dt>斜線（北・隣地・道路）</dt>
+                <dd>
+                  {legal.boundaries.length === 0
+                    ? '判定する規則が無い'
+                    : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
+                </dd>
+                <dt>日影</dt>
+                <dd>{shadowJudge.text}</dd>
                 <dt>容積率</dt>
                 <dd>
                   {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
@@ -205,6 +324,10 @@ export function P03Volume() {
             <label>
               容積率の上限 (%)
               <input type="number" min={1} step={10} value={farLimit} placeholder="未入力（判定不能）" onChange={(e) => setFarLimit(e.target.value)} />
+            </label>
+            <label>
+              日射の時刻（冬至・HH:MM）
+              <input value={solarTime} onChange={(e) => setSolarTime(e.target.value)} />
             </label>
             {siteRule ? (
               <p className="muted">
@@ -232,6 +355,17 @@ export function P03Volume() {
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
+            <button type="button" onClick={() => setAligned((v) => !v)} disabled={!closure.closed}>
+              {aligned ? '向きを戻す' : '道路に平行に合わせる'}
+            </button>
+            <label>
+              西の離れ (mm)
+              <input type="number" value={westText} placeholder="空欄は描いた位置" onChange={(e) => setWestText(e.target.value)} />
+            </label>
+            <label>
+              南の離れ (mm)
+              <input type="number" value={southText} placeholder="空欄は描いた位置" onChange={(e) => setSouthText(e.target.value)} />
+            </label>
             {setback ? (
               <dl>
                 <dt>北</dt>
@@ -247,7 +381,7 @@ export function P03Volume() {
               <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
-            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は未適用（条例の値の確認が要る）。北側は真北の配線が未実装。</p>
+            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
           </section>
           <section>
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">

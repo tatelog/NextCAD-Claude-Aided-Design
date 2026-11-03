@@ -2,8 +2,15 @@
 // 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決（D-02 C6）。画面では利用者が入れた値だけで計算する。
 import { useMemo, useState } from 'react'
 import { checkSpan, gridLines } from '../plan/grid'
-import { candidateCells } from '../plan/candidateCells'
+import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
+import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
+import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
+import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { useSite } from '../store/site'
+import { useUi } from '../store/ui'
+import { MiniMap } from './MiniMap'
+import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 
 export function P3Plan() {
@@ -14,8 +21,47 @@ export function P3Plan() {
   const [spanText, setSpanText] = useState('3000')
   const [minText, setMinText] = useState('')
   const [maxText, setMaxText] = useState('')
-  const [layoutText, setLayoutText] = useState<'中廊下' | '片廊下'>('中廊下')
+  const [layoutText, setLayoutText] = useState<CorridorLayout>('中廊下')
+  const [unitTypeText, setUnitTypeText] = useState<'ファミリー' | '単独'>('ファミリー')
+  const [patternText, setPatternText] = useState<RoomPattern>('田の字')
   const [targetText, setTargetText] = useState('')
+  const [coreText, setCoreText] = useState<CoreRectText>({ x0: '', y0: '', x1: '', y1: '' })
+  const [storeysText, setStoreysText] = useState('5')
+  const [storeyHeightText, setStoreyHeightText] = useState('3000')
+  const [evCountText, setEvCountText] = useState('2')
+  const [auto, setAuto] = useState<AutoPlan | null>(null)
+  const showDimensions = useUi((s) => s.showDimensions)
+  const showGrid = useUi((s) => s.showGrid)
+  const showMiniMap = useUi((s) => s.showMiniMap)
+  const [autoError, setAutoError] = useState<string | null>(null)
+
+  // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
+  const runAuto = () => {
+    try {
+      const storeys = Number(storeysText)
+      const g = generateAutoPlan({
+        targetPerFloor: Number(targetText),
+        storeyCount: storeys,
+        storeyHeightMm: Number(storeyHeightText),
+        spanMm: Number(spanText),
+        unitDepthMm: Number(unitDepthText),
+        corridorMm: Number(corridorText),
+        layout: layoutText,
+        unitType: unitTypeText,
+        pattern: patternText,
+        evCount: Number(evCountText),
+        evStops: Array.from({ length: storeys }, (_, i) => i + 1),
+      })
+      setWidthText(String(g.widthMm))
+      setDepthText(String(g.depthMm))
+      setAuto(g)
+      useSite.getState().setPlan(g)
+      setAutoError(null)
+    } catch (e) {
+      setAuto(null)
+      setAutoError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const lines = useMemo(() => {
     try {
@@ -24,6 +70,8 @@ export function P3Plan() {
       return null
     }
   }, [depthText, spanText])
+
+  const core = parseCoreRect(coreText)
 
   const units = useMemo(() => {
     try {
@@ -45,14 +93,14 @@ export function P3Plan() {
           { x: 0, y: D },
         ],
         corridors: [c.corridor],
-        cores: [],
+        cores: core.rect ? [core.rect] : [],
         cells: c.cells,
       })
       return { cells: c, result: r, error: null as string | null }
     } catch (e) {
       return { cells: null, result: null, error: e instanceof Error ? e.message : String(e) }
     }
-  }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText])
+  }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText, core.rect])
 
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   let judge: string = '許容範囲は未決（D-02 C6）'
@@ -70,9 +118,39 @@ export function P3Plan() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', height: '100%' }}>
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
+          <div style={{ position: 'relative' }}>
           <svg width="100%" viewBox={`-500 -500 ${W + 1000} ${D + 1000}`} style={{ maxHeight: '70vh', background: '#fff', border: '1px solid #ddd8cc' }}>
+            {showGrid ? (
+              <g stroke="#e3e6df" strokeWidth={6}>
+                {Array.from({ length: Math.floor(W / 1000) + 1 }, (_, i) => (
+                  <line key={`gx${i}`} x1={i * 1000} y1={0} x2={i * 1000} y2={D} />
+                ))}
+                {Array.from({ length: Math.floor(D / 1000) + 1 }, (_, i) => (
+                  <line key={`gy${i}`} x1={0} y1={i * 1000} x2={W} y2={i * 1000} />
+                ))}
+              </g>
+            ) : null}
             <rect x={0} y={0} width={W} height={D} fill="none" stroke="#1f2a44" strokeWidth={40} />
-            <rect x={units.cells.corridor.x0} y={0} width={units.cells.corridor.x1 - units.cells.corridor.x0} height={D} fill="#eee" />
+            {showDimensions ? (
+              <g stroke="#1f5f8b" strokeWidth={12} fontSize={300} fill="#1f5f8b">
+                <line x1={0} y1={D + 700} x2={W} y2={D + 700} />
+                <text x={W / 2} y={D + 1000} textAnchor="middle">{W} mm</text>
+                <line x1={W + 700} y1={0} x2={W + 700} y2={D} />
+                <text x={W + 1000} y={D / 2} textAnchor="start">{D} mm</text>
+              </g>
+            ) : null}
+            {units.cells.corridors.map((k) => (
+              <rect key={k.id} x={k.x0} y={0} width={k.x1 - k.x0} height={D} fill="#eee" />
+            ))}
+            {core.rect ? (
+              <rect x={core.rect.x0} y={core.rect.y0} width={core.rect.x1 - core.rect.x0} height={core.rect.y1 - core.rect.y0} fill="#e6f2ed" stroke="#1f2a44" strokeWidth={20} />
+            ) : null}
+            {auto ? auto.cores.map((c) => (
+              <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill={c.id === 'evHall' ? '#dfe9f5' : '#e6f2ed'} stroke="#1f2a44" strokeWidth={20} />
+            )) : null}
+            {auto ? auto.shaftRects.map((s) => (
+              <rect key={s.id} x={s.x0} y={s.y0} width={s.x1 - s.x0} height={s.y1 - s.y0} fill={s.kind === 'PS' ? '#f3e3b8' : '#d9c48a'} stroke="#7a5a10" strokeWidth={12} />
+            )) : null}
             {units.cells.cells.map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
@@ -80,6 +158,18 @@ export function P3Plan() {
               <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
             ))}
           </svg>
+          {showMiniMap && units.cells ? (() => {
+            const rect = (r: { x0: number; y0: number; x1: number; y1: number }) => [
+              { x: r.x0, y: r.y0 },
+              { x: r.x1, y: r.y0 },
+              { x: r.x1, y: r.y1 },
+              { x: r.x0, y: r.y1 },
+            ]
+            const polys = [rect({ x0: 0, y0: 0, x1: W, y1: D }), ...units.cells.corridors.map(rect), ...units.cells.cells.map(rect)]
+            const b = boundsOf(polys)
+            return b ? <MiniMap bounds={b} polygons={polys} /> : null
+          })() : null}
+          </div>
         ) : (
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}
@@ -90,9 +180,11 @@ export function P3Plan() {
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
-          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as '中廊下' | '片廊下')} style={{ width: '100%' }}>
+          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
             <option value="中廊下">中廊下</option>
             <option value="片廊下">片廊下</option>
+            <option value="階段室">階段室型</option>
+            <option value="ツイン">ツインコリドー</option>
           </select>
         </label>
         <label style={{ display: 'block', marginBottom: 6 }}>
@@ -127,6 +219,71 @@ export function P3Plan() {
           許容範囲 最大 (mm)
           <input value={maxText} onChange={(e) => setMaxText(e.target.value)} placeholder="未決" style={{ width: '100%' }} />
         </label>
+        <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
+          <legend style={{ fontSize: 12 }}>EV コアの矩形（任意・mm。四隅すべて入れると区画の除外判定に使う）</legend>
+          {(['x0', 'y0', 'x1', 'y1'] as const).map((k) => (
+            <label key={k} style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
+              {k}
+              <input value={coreText[k]} onChange={(e) => setCoreText({ ...coreText, [k]: e.target.value })} style={{ width: '100%' }} />
+            </label>
+          ))}
+          {core.error ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{core.error}</p> : null}
+        </fieldset>
+        <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
+          <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
+          <label style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
+            階数
+            <input value={storeysText} onChange={(e) => setStoreysText(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <label style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
+            階高 (mm)
+            <input value={storeyHeightText} onChange={(e) => setStoreyHeightText(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
+            EV の基数（全階停止）
+            <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
+            住戸タイプ
+            <select value={unitTypeText} onChange={(e) => setUnitTypeText(e.target.value as 'ファミリー' | '単独')} style={{ width: '100%' }}>
+              <option value="ファミリー">ファミリー</option>
+              <option value="単独">単独（2 室）</option>
+            </select>
+          </label>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
+            間取りパターン（ファミリー）
+            <select value={patternText} disabled={unitTypeText === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
+              <option value="田の字">田の字</option>
+              <option value="縦長">縦長</option>
+              <option value="角">角（両端の住戸だけ）</option>
+            </select>
+          </label>
+          <button type="button" onClick={runAuto}>
+            柱割り・間取り・縦シャフトを作る
+          </button>
+          {autoError ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{autoError}</p> : null}
+          {auto ? (
+            <dl style={{ fontSize: 12, margin: '6px 0 0' }}>
+              <dt>柱割り</dt>
+              <dd>
+                {auto.spans} スパン（幅 {auto.widthMm} mm × 奥行 {auto.depthMm} mm）
+              </dd>
+              <dt>住戸（1 階）</dt>
+              <dd>
+                {auto.unitsPerFloor} 戸{auto.shortfall > 0 ? `（目標に ${auto.shortfall} 戸足りない）` : '（目標を満たす）'}
+              </dd>
+              <dt>縦シャフト</dt>
+              <dd>
+                PS {auto.shafts.ps}（住戸ごと）・EPS {auto.shafts.eps}・DS {auto.shafts.ds}（コア脇、仮置き）
+              </dd>
+              <dt>EV</dt>
+              <dd>
+                {auto.ev.ev_cores.length} 基・全 {auto.ev.storeys.length} 階停止
+                {auto.ev.unreachable_storeys.length > 0 ? `（停止しない階 ${auto.ev.unreachable_storeys.join(', ')}）` : ''}。配置: 階段 A・B は廊下の両端、EV ホールは中央（長さ 3 m の仮置き）
+              </dd>
+            </dl>
+          ) : null}
+        </fieldset>
         <p>スパンの判定: {judge}</p>
         {units.result ? (
           <>
@@ -145,7 +302,9 @@ export function P3Plan() {
             </p>
           </>
         ) : null}
-        <p style={{ color: '#666', fontSize: 12 }}>閉合・意味判定（Worker）は画面に未接続。コアの枠は未入力（0 件）。</p>
+        <p style={{ color: '#666', fontSize: 12 }}>
+          閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
+        </p>
       </aside>
     </div>
   )

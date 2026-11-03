@@ -3,15 +3,30 @@
 import { useMemo, useState } from 'react'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
+import { effectiveQuantity } from '../estimate/autoQuantity'
+import { buildingExteriorQuantities } from '../estimate/quantities'
+import { roomFinishTotals } from '../estimate/roomQuantities'
+import type { RoomKind } from '../plan/rooms'
+import { useSite } from '../store/site'
 
 const SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
-  'cross,造作,内装,クロス,m2,1200,,利用者入力（出典を書く）,false,v1',
+  'cross,造作,内装,壁クロス,m2,1200,,利用者入力（出典を書く）,false,v1',
   'carpenter,労務,躯体,型枠大工,人,25000,0.3,利用者入力（出典を書く）,false,v1',
   'tile,造作,外装,外壁タイル,m2,8000,,,false,v1',
 ].join('\n')
 
 const yen = (n: number) => `${n.toLocaleString('ja-JP')} 円`
+// 天井高（仮置き）。階高から天井の仕上げを引く値は未決のため、ここは固定の仮置き
+const CEILING_MM = 2400
+// 区分の並び（モックの P4: 躯体・外装・内装・外構）。躯体と外構は数量をまだ拾えない
+const CATEGORY_ORDER = ['躯体', '外装', '内装', '外構'] as const
+// 部屋の種類ごとの色（2D の塗り分け）
+const ROOM_FILL: Record<RoomKind, string> = {
+  LDK: 'rgba(31,95,139,0.22)',
+  洋室: 'rgba(122,136,96,0.18)',
+  水回り: 'rgba(90,102,112,0.35)',
+}
 
 export function P4Estimate() {
   const [csv, setCsv] = useState(SAMPLE)
@@ -25,22 +40,112 @@ export function P4Estimate() {
     }
   }, [csv])
 
+  // P2 の外形から拾った数量（外壁・屋根）。P2 で外形が閉じていれば入る
+  const volume = useSite((s) => s.volume)
+  // 外形の 2D（SVG は y を下へ向けるので、y を反転して表示する）
+  const planBox = useMemo(() => {
+    if (!volume) return { x0: 0, y0: 0, w: 1, h: 1 }
+    const xs = volume.footprint.map((p) => p.x)
+    const ys = volume.footprint.map((p) => -p.y)
+    const pad = 1_000
+    const x0 = Math.min(...xs) - pad
+    const y0 = Math.min(...ys) - pad
+    return { x0, y0, w: Math.max(...xs) - x0 + pad, h: Math.max(...ys) - y0 + pad }
+  }, [volume])
+  // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
+  const plan = useSite((s) => s.plan)
+  const autoQuantities = useMemo(() => {
+    const out: { item: string; category: string; quantity: number }[] = []
+    if (volume) {
+      const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+      out.push(q.exterior_wall, q.roof)
+    }
+    if (plan) {
+      const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
+      out.push(t.floor, t.ceiling, t.wall_cloth)
+    }
+    return out
+  }, [volume, plan])
+  const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
+
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
     const lines = parsed.rows
-      .map((r) => ({ price_id: r.id, quantity: Number(quantities[r.id] ?? '') }))
+      .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
       .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
       return estimateCost(parsed.rows, lines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities])
+  }, [parsed, quantities, autoList])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', height: '100%' }}>
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
+        {plan ? (
+          <figure style={{ margin: '0 0 12px' }}>
+            <svg viewBox={`-500 -500 ${plan.widthMm + 1000} ${plan.depthMm + 1000}`} style={{ width: '100%', maxWidth: 480, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>
+              <rect x={plan.corridor.x0} y={plan.corridor.y0} width={plan.corridor.x1 - plan.corridor.x0} height={plan.corridor.y1 - plan.corridor.y0} fill="#eee" />
+              {plan.rooms.map((r) => (
+                <rect key={r.id} x={r.x0} y={r.y0} width={r.x1 - r.x0} height={r.y1 - r.y0} fill={ROOM_FILL[r.kind]} stroke="#8a8478" strokeWidth={20} />
+              ))}
+            </svg>
+            <figcaption style={{ fontSize: 12, color: '#666' }}>
+              P3 の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。3LDK の洋室 3 室は未決のため、ここは 2 室。
+            </figcaption>
+          </figure>
+        ) : null}
+        {volume ? (
+          <figure style={{ margin: '0 0 12px' }}>
+            <svg viewBox={`${planBox.x0} ${planBox.y0} ${planBox.w} ${planBox.h}`} style={{ width: '100%', maxWidth: 420, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>
+              <polygon points={volume.footprint.map((p) => `${p.x},${-p.y}`).join(' ')} fill="rgba(47,122,79,0.12)" stroke="#2f7a4f" strokeWidth={planBox.w / 160} />
+            </svg>
+            <figcaption style={{ fontSize: 12, color: '#666' }}>
+              外形（P2）。外壁と屋根は外装として拾う。室の内装の塗り分けは、P3 で部屋を作ってから出す（未実装）。
+            </figcaption>
+          </figure>
+        ) : (
+          <p style={{ fontSize: 12, color: '#666' }}>P2 で外形を閉じると、外壁と屋根の数量を自動で拾います。</p>
+        )}
+        <section style={{ margin: '0 0 12px' }}>
+          <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>数量の内訳（区分別・自動で拾えたもの）</h3>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th align="left">区分</th>
+                <th align="left">品目</th>
+                <th align="right">数量</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CATEGORY_ORDER.map((cat) => {
+                const rows = autoQuantities.filter((q) => q.category === cat)
+                return rows.length === 0 ? (
+                  <tr key={cat}>
+                    <td>{cat}</td>
+                    <td colSpan={2} style={{ color: '#666' }}>
+                      未拾い（この区分の数量は、対応するオブジェクトを作ってから）
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((q) => (
+                    <tr key={q.item}>
+                      <td>{cat}</td>
+                      <td>
+                        {q.item}
+                        {' '}
+                        <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
+                      </td>
+                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} m²</td>
+                    </tr>
+                  ))
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={8} style={{ width: '100%', fontFamily: 'monospace' }} />
         {'error' in parsed ? (
           <p style={{ color: '#a33' }}>単価 CSV: {parsed.error}</p>
@@ -68,6 +173,10 @@ export function P4Estimate() {
                       onChange={(e) => setQuantities({ ...quantities, [r.id]: e.target.value })}
                       style={{ width: 90, textAlign: 'right' }}
                     />
+                    {(() => {
+                      const eq = effectiveQuantity(r, quantities[r.id] ?? '', autoList)
+                      return eq && eq.source === '自動' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(eq.quantity).toLocaleString('ja-JP')} m²</span> : null
+                    })()}
                   </td>
                 </tr>
               ))}
