@@ -28,6 +28,8 @@ const SaveSchema = z.object({
   storeyHeightMm: z.number().int().positive(),
   // 什器が無い古い保存には無い
   fixtures: z.array(FixtureSchema).optional(),
+  // 単価の入力が無い古い保存には無い（利用者が入れた単価。文字だけ）
+  unitPriceTexts: z.record(z.string(), z.string()).optional(),
 })
 
 export interface LoadedProject {
@@ -37,6 +39,7 @@ export interface LoadedProject {
   storeyCount: number
   storeyHeightMm: number
   fixtures: Fixture[]
+  unitPriceTexts: Record<string, string>
 }
 
 /** 保存の JSON（すでに JSON.parse 済みの値）を読む。形が合わなければ例外。 */
@@ -49,12 +52,13 @@ export function parseSaveData(json: unknown): LoadedProject {
     storeyCount: d.storeyCount,
     storeyHeightMm: d.storeyHeightMm,
     fixtures: (d.fixtures ?? []).map((f) => ({ id: f.id, item: f.item as FixtureItem, unitId: f.unitId })),
+    unitPriceTexts: d.unitPriceTexts ?? {},
   }
 }
 
 /** 読んだ案件を、画面の状態に入れる。Undo・Redo の履歴と種類（意味づけ）は、保存していないので空に戻す。 */
 export function applyLoadedProject(p: LoadedProject): void {
   useDrawing.setState({ entries: p.entries, past: [], redoStack: [], storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fitted: false })
-  useFixtures.setState({ fixtures: p.fixtures })
+  useFixtures.setState({ fixtures: p.fixtures, unitPriceTexts: p.unitPriceTexts })
   useSemantic.getState().clear()
 }

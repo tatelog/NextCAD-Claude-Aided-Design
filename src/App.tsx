@@ -172,6 +172,7 @@ export function App() {
       storeyCount: d.storeyCount,
       storeyHeightMm: d.storeyHeightMm,
       fixtures: useFixtures.getState().fixtures,
+      unitPriceTexts: useFixtures.getState().unitPriceTexts,
       savedAt: new Date(),
     })
   }
