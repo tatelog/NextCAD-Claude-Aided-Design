@@ -8,7 +8,8 @@ import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { worldPixel } from '../map/worldPixel'
 import { useUi } from '../store/ui'
 
-const DEFAULT = { lon: 139.7671, lat: 35.6812 }
+// 既定の地点は江東区の木場付近（zip の範囲内。半径 400 m に建物がある）。東京駅付近は千代田区で、この zip の外
+const DEFAULT = { lon: 139.814, lat: 35.67 }
 // 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
