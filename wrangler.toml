@@ -1,0 +1,7 @@
+# Worker（Claude の中継。D-02 C12、A-03 G29）。配備先は利用者の Cloudflare アカウント。
+# 秘密情報はここに書かない。次の二つは Cloudflare 側で設定する（wrangler secret put / ダッシュボード）:
+#   ANTHROPIC_API_KEY  ... Claude の API キー（Secrets）
+#   ALLOWED_ORIGIN     ... ブラウザの接続元（例: アプリの URL）。平文の変数でもよい
+name = "claude-aided-design-relay"
+main = "src/worker/index.ts"
+compatibility_date = "2026-10-01"
