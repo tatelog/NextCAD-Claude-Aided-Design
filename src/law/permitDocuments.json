@@ -1,0 +1,376 @@
+{
+  "meta": {
+    "asOf": "2026-11-04",
+    "scope": "RC 造の板状共同住宅（確認申請）。対象自治体は未決のため、判定は建築基準法施行規則の表を基準にする（自治体ごとの差は未確認）。",
+    "status": "草案（統括の確認待ち）。ハブ D-03 T-11 図書ルールの列（doc_code・doc_name・required_rule・rule_ref）に合わせた。",
+    "conditionLanguage": "when は always、または { field, op, value } の比較、{ all: [...] }、{ any: [...] }、{ unresolved: 理由 }（適用条件そのものが未確認のもの）。field は permitRequired.ts の PermitInput のキー。",
+    "confidence": "status『要確認』は、規則の表の行を原文（S04）で照合していないもの。sourceIds は permitSources.json の出典 ID（S01〜S13）。"
+  },
+  "documents": [
+    {
+      "id": "D01",
+      "name": "確認申請書（第二号様式）",
+      "kind": "form",
+      "basis": "施行規則 第1条の3 第1項第一号（正本・副本）、別記第二号様式",
+      "when": "always",
+      "sourceIds": ["S01", "S02", "S05", "S06", "S08"],
+      "status": "要確認",
+      "note": "記入欄は permitForms.json の F2。"
+    },
+    {
+      "id": "D02",
+      "name": "建築計画概要書（第三号様式）",
+      "kind": "form",
+      "basis": "施行規則 第1条の3 第1項第二号（別記第三号様式）",
+      "when": "always",
+      "sourceIds": ["S01", "S07"],
+      "status": "要確認",
+      "note": "記入欄は permitForms.json の F3。"
+    },
+    {
+      "id": "D03",
+      "name": "委任状",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第三号（代理者による申請）",
+      "when": { "field": "hasAgent", "op": "eq", "value": true },
+      "notApplicableReason": "代理者による申請ではないため（建築主・設計者本人が申請する）",
+      "sourceIds": ["S01"],
+      "status": "要確認"
+    },
+    {
+      "id": "D04",
+      "name": "建築士法第20条第2項の証明書の写し",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第四号（建築士が構造計算で安全性を確かめた場合、構造計算書を除く）",
+      "when": { "field": "structuralCalc", "op": "eq", "value": true },
+      "notApplicableReason": "構造計算を行わないため（構造計算書の写しは D23 の対象）",
+      "sourceIds": ["S01"],
+      "status": "要確認"
+    },
+    {
+      "id": "D05",
+      "name": "誓約書（建築物等情報モデル図書申請）",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第三号の二（令和8年省令第22号で新設）。BIM 図面審査の入出力基準適合誓約書（マニュアル別紙2）に当たる",
+      "when": { "field": "bimSubmission", "op": "eq", "value": true },
+      "notApplicableReason": "BIM 由来の図書で申請しないため（建築物等情報モデル図書申請を選ばない）",
+      "sourceIds": ["S02", "S09"],
+      "status": "要確認",
+      "note": "様式本体は未取得（ハブ A-07 の未取得一覧）。"
+    },
+    {
+      "id": "D06",
+      "name": "付近見取図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（い）。方位・道路・目標となる地物を明示",
+      "when": "always",
+      "sourceIds": ["S01", "S07", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D07",
+      "name": "配置図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（い）。縮尺・方位・敷地境界線・建築物の位置・道路の位置と幅員。表二(二十八)(二十九)の図と併せて作れる（表一の但し書）",
+      "when": "always",
+      "sourceIds": ["S01", "S07", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D08",
+      "name": "各階平面図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（い）。間取り・各室の用途・床面積、壁・筋かいの位置、通し柱・開口部、延焼のおそれのある部分の外壁",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D09",
+      "name": "床面積求積図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（い）。求積に必要な寸法と算式",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D10",
+      "name": "二面以上の立面図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（ろ）。縮尺・開口部・延焼のおそれのある部分の外壁と軒裏",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D11",
+      "name": "二面以上の断面図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（ろ）。縮尺・地盤面・各階の床と天井の高さ・軒の高さ",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D12",
+      "name": "地盤面算定表",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（ろ）",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認",
+      "note": "表一の括弧書きで、どの場合に要るかを原文で確認する。"
+    },
+    {
+      "id": "D13",
+      "name": "基礎伏図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（は）。縮尺・構造耐力上主要な部分の材料の種別と寸法",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D14",
+      "name": "各階床伏図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（は）",
+      "when": "always",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D15",
+      "name": "小屋伏図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表一（は）",
+      "when": "always",
+      "sourceIds": ["S12"],
+      "status": "要確認",
+      "note": "屋根の構造の有無で要否が変わるかは原文（S04）で確認する。RC の陸屋根でも要るとは断定しない。"
+    },
+    {
+      "id": "D16",
+      "name": "二面以上の軸組図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表二(一) 令第三章第六節（RC造）の行",
+      "when": { "field": "structure", "op": "eq", "value": "RC" },
+      "notApplicableReason": "表二(一) の令第三章第六節（RC造）の行のため、RC造以外は対象外",
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D17",
+      "name": "構造詳細図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第1項第一号 表二(一) 令第三章第六節（RC造）の行（鉄筋の配置・径・継手・定着、かぶり厚さ）",
+      "when": { "field": "structure", "op": "eq", "value": "RC" },
+      "notApplicableReason": "表二(一) の令第三章第六節（RC造）の行のため、RC造以外は対象外",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D18",
+      "name": "使用構造材料一覧表",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第一号 表二(一) 令第三章第六節（RC造）の行（材料の種別、骨材・水・混和材料の種別）",
+      "when": { "field": "structure", "op": "eq", "value": "RC" },
+      "notApplicableReason": "表二(一) の令第三章第六節（RC造）の行のため、RC造以外は対象外",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D19",
+      "name": "施工方法等計画書",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第一号 表二(一) 令第三章第六節（RC造）の行（強度試験方法・調合・養生、型枠の取外し時期・方法）",
+      "when": { "field": "structure", "op": "eq", "value": "RC" },
+      "notApplicableReason": "表二(一) の令第三章第六節（RC造）の行のため、RC造以外は対象外",
+      "sourceIds": ["S01", "S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D20",
+      "name": "令第73条・第77条・第77条の2・第79条の確認に必要な図書",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 第1項第一号 表二(一) 令第三章第六節（RC造）の行",
+      "when": { "field": "structure", "op": "eq", "value": "RC" },
+      "notApplicableReason": "表二(一) の令第三章第六節（RC造）の行のため、RC造以外は対象外",
+      "sourceIds": ["S12"],
+      "status": "要確認",
+      "note": "具体的な図書は原文で確認する（ハブ D-02 C10 の図書ルールに未反映）。"
+    },
+    {
+      "id": "D21",
+      "name": "建築設備の図書",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 第4項（建築設備を含む場合）と、建築設備の表一・表二",
+      "when": { "field": "hasBuildingEquipment", "op": "eq", "value": true },
+      "notApplicableReason": "建築設備を含まないため（給排水・換気・排煙などの設備図を要しない案件）",
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D22",
+      "name": "建築設備の概要書（別記第八号様式）",
+      "kind": "form",
+      "basis": "施行規則 第1条の3 第4項（別記第八号様式の『昇降機の概要』『建築設備の概要』に記載すべき事項）",
+      "when": { "any": [{ "field": "hasBuildingEquipment", "op": "eq", "value": true }, { "field": "hasElevator", "op": "eq", "value": true }, { "field": "heightM", "op": "gt", "value": 31 }] },
+      "notApplicableReason": "建築設備・昇降機のどちらも含まず、高さ31m以下のため（高さ31m超では非常用の昇降機が要る。法34条2項）",
+      "sourceIds": ["S12"],
+      "status": "要確認",
+      "note": "別記第八号様式の本文は未取得（ハブ A-07 の未取得一覧）。"
+    },
+    {
+      "id": "D23",
+      "name": "構造計算書（表三）",
+      "kind": "calc",
+      "basis": "施行規則 第1条の3 表三（構造計算書の種類）。法20条1項2号（RC造で高さ20m超）の構造計算、または構造計算を行う場合",
+      "when": {
+        "any": [
+          { "field": "structuralCalc", "op": "eq", "value": true },
+          { "all": [{ "field": "structure", "op": "eq", "value": "RC" }, { "field": "heightM", "op": "gt", "value": 20 }] },
+          { "field": "heightM", "op": "gt", "value": 31 }
+        ]
+      },
+      "notApplicableReason": "RC造で高さ20m以下・31m以下で、構造計算を行わないため（法20条1項3号のうち仕様規定による計画）",
+      "sourceIds": ["S03", "S12"],
+      "status": "要確認",
+      "note": "表三の種類（令81条の区分）は高さと構造で決まる。高さ31m超は令81条2項の構造計算（ハブ A-07 E-44 の転記。原文は未照合）。"
+    },
+    {
+      "id": "D24",
+      "name": "認定書の写し（表四）",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 表四（認定を受けた部材・構造方法・建材を用いる場合の認定書の写し）",
+      "when": { "field": "usesCertifiedParts", "op": "eq", "value": true },
+      "notApplicableReason": "大臣認定などを受けた部材・構造方法を用いないため",
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D25",
+      "name": "日影図",
+      "kind": "drawing",
+      "basis": "施行規則 第1条の3 表二(二十九)（法56条の2 の日影）。対象は日影規制区域内で高さ10mを超える建築物（自治体の FAQ）",
+      "when": {
+        "all": [
+          { "field": "inShadowRegulationArea", "op": "eq", "value": true, "notLabel": "日影規制区域の外" },
+          { "field": "heightM", "op": "gt", "value": 10, "notLabel": "高さ10m以下" }
+        ]
+      },
+      "notApplicableReason": "日影規制区域の外、または高さ10m以下のため（入力による。両方に当たれば両方を書く）",
+      "sourceIds": ["S11", "S12"],
+      "status": "要確認",
+      "note": "日影規制区域は自治体ごとの指定で、本システムでは判定しない（人が入力する）。高さ10m超の基準は大阪市の FAQ（二次）で、法56条の2 の本文は未照合。判定の閾値（判定ロジック judgeShadow は10m以上）との違いは K07。"
+    },
+    {
+      "id": "D26",
+      "name": "界壁に関する図書（法30条・表二(十二)）",
+      "kind": "drawing",
+      "basis": "建築基準法 第30条（長屋又は共同住宅の各戸の界壁）。表二(十二)（各階平面図、二面以上の断面図）",
+      "when": { "field": "usage", "op": "eq", "value": "共同住宅" },
+      "notApplicableReason": "共同住宅ではないため（法30条の界壁の規定は長屋・共同住宅の各戸に適用）",
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D27",
+      "name": "防火区画の図書（法26条・表二(七)）",
+      "kind": "drawing",
+      "basis": "表二(七)（防火壁・防火区画の位置と面積、各階平面図）。法26条の適用条件は未確認",
+      "when": { "unresolved": "法26条の適用条件（防火区画の対象となる建築物）は未確認" },
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D28",
+      "name": "住宅用防災機器の図書（消防法9条の2・表二(六十五)）",
+      "kind": "drawing",
+      "basis": "表二(六十五)（消防法9条の2 の住宅用防災機器、各階平面図）。適用条件は未確認",
+      "when": { "unresolved": "消防法9条の2 の適用（住戸ごとの設置義務）は未確認" },
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D29",
+      "name": "道路・隣地・北側の高さ制限に関する図書（表二(二十八)）",
+      "kind": "drawing",
+      "basis": "表二(二十八)（法56条の道路斜線。付近見取図・配置図に併記できる）",
+      "when": { "unresolved": "道路・隣地・北側の高さ制限の適用は敷地（用途地域・前面道路）ごとに確認が要る" },
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D30",
+      "name": "表五の計算書（未精査）",
+      "kind": "calc",
+      "basis": "施行規則 第1条の3 表五（特定の構造・避難安全検証等の計算書）",
+      "when": { "unresolved": "表五の各行のうち、RC共同住宅で要るものが未精査" },
+      "sourceIds": ["S12"],
+      "status": "要確認"
+    },
+    {
+      "id": "D31",
+      "name": "表二のその他の行（未精査）",
+      "kind": "other",
+      "basis": "施行規則 第1条の3 表二（約60行）。本表に挙げた行以外（防火・避難・設備・自治体の条例に関わるもの）",
+      "when": { "unresolved": "表二の残りの行は未精査（適用条件と自治体差を含む）" },
+      "sourceIds": ["S12"],
+      "status": "要確認",
+      "note": "規則の表にある図書を落とさないために残す。行ごとに当てはめるまで、要否は判定しない。"
+    },
+    {
+      "id": "D32",
+      "name": "非常用の昇降機の図書（法34条2項、高さ31m超）",
+      "kind": "drawing",
+      "basis": "建築基準法 第34条第2項（高さ31mをこえる建築物（政令で定めるものを除く）には、非常用の昇降機を設けなければならない）。原文は S14 で確認",
+      "when": { "field": "heightM", "op": "gt", "value": 31 },
+      "notApplicableReason": "高さ31m以下のため（法34条2項の対象外）",
+      "sourceIds": ["S14"],
+      "status": "要確認",
+      "note": "政令で定める建築物の除外（施行令の該当条項と条件）は未確認。昇降機の概要は D22 に含まれる。"
+    },
+    {
+      "id": "D33",
+      "name": "消防用設備等の図書（高層建築物・消防法令）",
+      "kind": "drawing",
+      "basis": "消防法 第8条の2（高さ31mを超える建築物は高層建築物）。消防長の同意（建築基準法 第93条）で審査される消防用設備等",
+      "when": { "field": "heightM", "op": "gt", "value": 31 },
+      "notApplicableReason": "高さ31m以下のため（消防法の高層建築物に当たらない）",
+      "sourceIds": ["S15", "S16", "S18"],
+      "status": "要確認",
+      "note": "消防用設備の種類と設置位置は建築地の消防署と自治体の指導要綱で違うことがある（二次資料）。31mは消防法の定義。統括防火・防災管理の届出は図書ではないので excluded に記録。"
+    },
+    {
+      "id": "D34",
+      "name": "非常コンセント設備の図（消防法施行令29条の2、地上11階以上）",
+      "kind": "drawing",
+      "basis": "消防法施行令 第29条の2（非常コンセント設備）。地上11階以上の判定は自治体の解説（神戸市、二次）",
+      "when": { "field": "storeys", "op": "gt", "value": 10 },
+      "notApplicableReason": "地上10階以下のため",
+      "sourceIds": ["S18"],
+      "status": "要確認",
+      "note": "施行令の原文は未確認。11階以上の基準は自治体の資料で見た二次情報。"
+    }
+  ],
+  "excluded": [
+    {
+      "name": "表二(一) 木造・鉄骨造・組積造などの行",
+      "reason": "RC造ではないため。構造に応じた行を当てはめる仕組みは未実装（非RC は要確認の扱い）"
+    },
+    {
+      "name": "表二 第三章第三節（木造、令第46条関係）の改正（令和8年省令第22号）",
+      "reason": "木造の行のため、RC造の案件では対象外"
+    },
+    {
+      "name": "統括防火・防災管理者の選任と届出（消防法8条の2）",
+      "reason": "高層建築物で管理権原が分かれる場合の届出（竣工後の手続き）。確認申請の図書ではないので対象外"
+    },
+    {
+      "name": "建築物エネルギー消費性能確保計画の提出（確認申請書 第二面8欄）",
+      "reason": "申請書の欄であり図書ではない。提出の要否は未確認（D-02 C10 の未決として残す）"
+    }
+  ]
+}

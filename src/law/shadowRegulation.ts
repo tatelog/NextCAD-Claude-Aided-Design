@@ -42,7 +42,7 @@ const WINDOW_END_MIN = 16 * 60
 const EDGE_STEP_MM = 2_000
 const DISTANCES_M = Array.from({ length: 20 }, (_, i) => i + 1)
 
-function pointInPolygon(p: Point, poly: readonly Point[]): boolean {
+export function pointInPolygon(p: Point, poly: readonly Point[]): boolean {
   let inside = false
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const a = poly[i]!
@@ -53,11 +53,12 @@ function pointInPolygon(p: Point, poly: readonly Point[]): boolean {
 }
 
 // 冬至日（日本時間の日付）の 8:00〜16:00 の太陽の位置
-function sunWindow(lat: number, lon: number, date: Date): { altitudeDeg: number; azimuthFromSouthDeg: number }[] {
+export function sunWindow(lat: number, lon: number, date: Date): { altitudeDeg: number; azimuthFromSouthDeg: number }[] {
   // 日本時間 8:00 は前日の 23:00 UTC
   const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - 1, 23, 0)
   const out: { altitudeDeg: number; azimuthFromSouthDeg: number }[] = []
-  for (let m = 0; m <= WINDOW_END_MIN - WINDOW_MIN; m += STEP_MIN) {
+  // 8:00〜16:00 の 8 時間を 10 分刻みで 48 点（16:00 の点は窓の外。含めると 8 時間 10 分になる）
+  for (let m = 0; m < WINDOW_END_MIN - WINDOW_MIN; m += STEP_MIN) {
     out.push(solarPosition({ lat, lon, date: new Date(start + m * 60_000) }))
   }
   return out
