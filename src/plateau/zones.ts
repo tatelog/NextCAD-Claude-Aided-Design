@@ -6,6 +6,8 @@ import { insideRing, tagNumber, tagText } from './urf'
 
 export interface FireDistrict {
   id: string
+  /** 管理者（区名、「東京都」、または不明は null） */
+  custodian: string | null
   function: number | null
   usage: number | null
   notificationNumber: string | null
@@ -14,6 +16,8 @@ export interface FireDistrict {
 
 export interface HeightDistrict {
   id: string
+  /** 管理者（区名、「東京都」、または不明は null） */
+  custodian: string | null
   function: number | null
   maximumBuildingHeightM: number | null
   minimumBuildingHeightM: number | null
@@ -45,6 +49,7 @@ export function parseFirePreventionDistricts(xml: string): FireDistrict[] {
     id,
     function: tagNumber(block, 'function'),
     usage: tagNumber(block, 'usage'),
+    custodian: tagText(block, 'custodian'),
     notificationNumber: tagText(block, 'notificationNumber'),
     ring: ringOf(block),
   }))
@@ -56,6 +61,7 @@ export function parseHeightControlDistricts(xml: string): HeightDistrict[] {
     function: tagNumber(block, 'function'),
     maximumBuildingHeightM: tagNumber(block, 'maximumBuildingHeight'),
     minimumBuildingHeightM: tagNumber(block, 'minimumBuildingHeight'),
+    custodian: tagText(block, 'custodian'),
     notificationNumber: tagText(block, 'notificationNumber'),
     ring: ringOf(block),
   }))

@@ -36,7 +36,7 @@ const response = {
 describe('findPlateauFile（区とメッシュを指定）', () => {
   it('指定の区・メッシュ・種類のファイルを返す', () => {
     const f = findPlateauFile(response, { cityCode: '13108', meshCode: '533946', kind: 'urf' })
-    expect(f).toEqual({ status: '有', url: 'https://example.invalid/13108_533946_urf.gml', fileSize: 13854226, year: 2025, cityCode: '13108' })
+    expect(f).toEqual({ status: '有', url: 'https://example.invalid/13108_533946_urf.gml', fileSize: 13854226, year: 2025, cityCode: '13108', cityName: '江東区' })
   })
 
   it('指定の区に項目が無ければ「無い」。別の区の項目は使わない', () => {

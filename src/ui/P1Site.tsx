@@ -128,6 +128,11 @@ export function P1Site() {
               {h.notificationNumber ? `、${h.notificationNumber}` : ''}
             </p>
           ))}
+          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
+            <p style={{ color: '#a33' }}>
+              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
+            </p>
+          )}
           <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
         </section>
       </aside>

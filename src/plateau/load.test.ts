@@ -10,6 +10,7 @@ const apiJson = (cityCode: string) => ({
   cities: [
     {
       cityCode,
+      cityName: '江東区',
       year: 2025,
       files: {
         urf: [{ code: '533946', url: 'https://example.invalid/urf.gml', fileSize: 100, features: 1 }],
@@ -52,7 +53,7 @@ describe('loadDistrictsAt（地点の用途地域）', () => {
     const requested: string[] = []
     const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13116' }, router(200, '13108', requested))
     expect(requested).toHaveLength(1)
-    expect(r).toEqual({ file: null, districts: [], matches: [], fireMatches: [], heightMatches: [] })
+    expect(r).toEqual({ file: null, districts: [], matches: [], fireMatches: [], heightMatches: [], fireUnknownOwner: [], heightUnknownOwner: [] })
   })
 
   it('同じファイルから、地点を含む防火地域と高度地区も返す', async () => {
@@ -76,8 +77,29 @@ describe('loadDistrictsAt（地点の用途地域）', () => {
         ? new Response(JSON.stringify(apiJson('13108')), { status: 200 })
         : new Response(withZones, { status: 200 })
     const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13108' }, fetchImpl)
-    expect(r.fireMatches.map((x) => x.id)).toEqual(['f1'])
-    expect(r.heightMatches.map((x) => x.maximumBuildingHeightM)).toEqual([14])
+    // この fixture には管理者（custodian）が無いので、不明として別に返す（対象の区の項目とは扱わない）
+    expect(r.fireMatches).toEqual([])
+    expect(r.fireUnknownOwner.map((x) => x.id)).toEqual(['f1'])
+    expect(r.heightMatches).toEqual([])
+    expect(r.heightUnknownOwner.map((x) => x.maximumBuildingHeightM)).toEqual([14])
+  })
+
+  it('防火地域は、対象の区（江東区）と東京都の項目だけを残し、隣の区の項目は捨てる。不明は別に返す', async () => {
+    const ring = `<gml:posList>35.60 139.70 10 35.60 139.90 10 35.80 139.90 10 35.80 139.70 10 35.60 139.70 10</gml:posList>`
+    const fire = (custodian: string | null) =>
+      `<urf:FirePreventionDistrict gml:id="${custodian ?? 'none'}">
+  <urf:function codeSpace="x">24</urf:function>
+  ${custodian === null ? '' : `<urf:custodian>${custodian}</urf:custodian>`}
+  <urf:lod1MultiSurface><gml:MultiSurface srsDimension="3"><gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing>${ring}</gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember></gml:MultiSurface></urf:lod1MultiSurface>
+</urf:FirePreventionDistrict>`
+    const withOwners = `${gml}${fire('江東区')}${fire('江戸川区')}${fire('東京都')}${fire(null)}`
+    const fetchImpl = async (url: string) =>
+      url.startsWith('https://api.plateauview.mlit.go.jp/')
+        ? new Response(JSON.stringify(apiJson('13108')), { status: 200 })
+        : new Response(withOwners, { status: 200 })
+    const r = await loadDistrictsAt({ lat: 35.67, lon: 139.76, cityCode: '13108' }, fetchImpl)
+    expect(r.fireMatches.map((x) => x.custodian).sort()).toEqual(['東京都', '江東区'])
+    expect(r.fireUnknownOwner.map((x) => x.custodian)).toEqual([null])
   })
 
   it('API の応答が正常でなければ例外', async () => {

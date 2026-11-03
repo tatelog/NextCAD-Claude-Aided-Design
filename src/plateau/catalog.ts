@@ -14,6 +14,7 @@ const ResponseSchema = z.object({
   cities: z.array(
     z.object({
       cityCode: z.string(),
+      cityName: z.string().optional(),
       year: z.number().optional(),
       files: z.record(z.string(), z.unknown()).optional(),
     }),
@@ -21,7 +22,7 @@ const ResponseSchema = z.object({
 })
 
 export type PlateauFileResult =
-  | { status: '有'; url: string; fileSize: number; year: number | undefined; cityCode: string }
+  | { status: '有'; url: string; fileSize: number; year: number | undefined; cityCode: string; cityName: string | undefined }
   | { status: '無' }
 
 export function findPlateauFile(
@@ -37,5 +38,5 @@ export function findPlateauFile(
   if (hits.length === 0) return { status: '無' }
   if (hits.length > 1) throw new Error(`同じ区・メッシュ・種類のファイルが ${hits.length} 件ある`)
   const f = hits[0]!
-  return { status: '有', url: f.url, fileSize: f.fileSize, year: city.year, cityCode: city.cityCode }
+  return { status: '有', url: f.url, fileSize: f.fileSize, year: city.year, cityCode: city.cityCode, cityName: city.cityName }
 }
