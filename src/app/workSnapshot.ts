@@ -3,6 +3,7 @@
 import { applyLoadedProject, parseSaveData } from './loadData'
 import type { Fixture } from '../plan/fixtures'
 import { useFixtures } from '../store/fixtures'
+import { useFirstFloor } from '../store/firstFloor'
 
 export interface SnapshotState {
   entries: readonly unknown[]
@@ -57,5 +58,13 @@ export function restoreSnapshotJson(json: string, projectName: string): void {
   const p = parseSnapshot(json)
   // 単価の入力は作業履歴に入れていないので、いまの入力を残す（戻しても単価は変えない）
   // 版（Drive の版）は作業履歴に入れていないので、ここでは使わない（applyLoadedProject は版を持たない）
-  applyLoadedProject({ ...p, unitPriceTexts: useFixtures.getState().unitPriceTexts, revision: 0, projectName, savedAt: new Date() })
+  // 1F の名前も作業履歴に入れていないので、いまの名前を残す
+  applyLoadedProject({
+    ...p,
+    unitPriceTexts: useFixtures.getState().unitPriceTexts,
+    firstFloorNames: useFirstFloor.getState().names,
+    revision: 0,
+    projectName,
+    savedAt: new Date(),
+  })
 }

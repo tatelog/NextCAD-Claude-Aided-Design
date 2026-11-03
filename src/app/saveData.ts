@@ -13,6 +13,8 @@ export interface SaveInput {
   fixtures?: readonly Fixture[]
   /** 利用者が P4 で入れた単価（品目ごとの入力の文字）。空の入力は保存しない（G20・G72） */
   unitPriceTexts?: Readonly<Record<string, string>>
+  /** 区画に付けた 1F の名前（区画の id → 名前）。無ければ項目ごと付けない（G75） */
+  firstFloorNames?: Readonly<Record<string, string>>
 }
 
 export interface SaveData {
@@ -25,6 +27,8 @@ export interface SaveData {
   fixtures?: readonly Fixture[]
   /** 利用者が入れた単価の入力（空の入力は保存しない） */
   unitPriceTexts?: Record<string, string>
+  /** 区画に付けた 1F の名前（区画の id → 名前） */
+  firstFloorNames?: Record<string, string>
 }
 
 export function buildSaveData(input: SaveInput): SaveData {
@@ -40,5 +44,6 @@ export function buildSaveData(input: SaveInput): SaveData {
     storeyHeightMm: input.storeyHeightMm,
     ...(fixtures.length > 0 ? { fixtures } : {}),
     ...(Object.keys(unitPriceTexts).length > 0 ? { unitPriceTexts } : {}),
+    ...(input.firstFloorNames && Object.keys(input.firstFloorNames).length > 0 ? { firstFloorNames: { ...input.firstFloorNames } } : {}),
   }
 }

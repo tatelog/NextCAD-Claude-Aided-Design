@@ -8,6 +8,7 @@ import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
+import { useFirstFloor } from './store/firstFloor'
 import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
@@ -173,6 +174,7 @@ export function App() {
       storeyHeightMm: d.storeyHeightMm,
       fixtures: useFixtures.getState().fixtures,
       unitPriceTexts: useFixtures.getState().unitPriceTexts,
+      firstFloorNames: useFirstFloor.getState().names,
       savedAt: new Date(),
     })
   }
