@@ -140,3 +140,17 @@ describe('generateAutoPlan の住戸タイプ（仕様 9）', () => {
     expect(generateAutoPlan({ ...base, layout: '中廊下', unitType: '単独' }).unitType).toBe('単独')
   })
 })
+
+// 仕様 10（曲線の外形に合わせる。ハブ A-03 G5）: 区画を外す判定（insideCell）を渡すと、外の区画は作らず数えず、不足は作り直した数で出す。
+describe('generateAutoPlan の区画の外し（仕様 10）', () => {
+  it('仕様 10: 外の区画は、結果の区画にも住戸の数にも入らず、不足は残りの数で出す', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下', insideCell: (c) => c.y0 < 4000 })
+    expect(g.cells.every((c) => c.y0 < 4000)).toBe(true)
+    expect(g.unitsPerFloor).toBeLessThan(8)
+    expect(g.shortfall).toBe(Math.max(0, 7 - g.unitsPerFloor))
+  })
+
+  it('仕様 10: 判定を渡さなければ、従来どおり（全部の区画）', () => {
+    expect(generateAutoPlan({ ...base, layout: '中廊下' }).unitsPerFloor).toBe(8)
+  })
+})

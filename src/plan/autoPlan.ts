@@ -28,6 +28,8 @@ export interface AutoPlanInput {
   unitType?: 'ファミリー' | '単独'
   /** 間取りパターン（既定は田の字）。角は両端の区画だけに使い、中の区画は田の字 */
   pattern?: RoomPattern
+  /** 区画を残すか（曲線の外形の内側など。ハブ A-03 G5）。省略は全部の区画。外の区画は、作らず数えない */
+  insideCell?: (cell: Rect) => boolean
 }
 
 export interface AutoCore {
@@ -132,6 +134,8 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const evY0 = (depthMm - EV_HALL_LEN_MM) / 2
   if (!Number.isInteger(evY0)) throw new Error('奥行が奇数で、EV ホールを中央に置けない')
   coresInCorridor.push({ id: 'evHall', x0: c.corridor.x0, y0: evY0, x1: c.corridor.x1, y1: evY0 + EV_HALL_LEN_MM, evCount: input.evCount })
+  // 曲線の外形などで外れる区画は、作らず数えない（G5）
+  const cells = input.insideCell ? c.cells.filter(input.insideCell) : c.cells
   const counted = countUnits({
     outline: [
       { x: 0, y: 0 },
@@ -141,10 +145,10 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     ],
     corridors: c.corridors,
     cores: coresInCorridor,
-    cells: c.cells,
+    cells,
   })
   const unitsPerFloor = counted.usable_count
-  const rooms = roomsFor(c.cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'))
+  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'))
 
   return {
     unitType: input.unitType ?? 'ファミリー',
@@ -155,10 +159,10 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     shortfall: Math.max(0, target - unitsPerFloor),
     shafts: { ps: unitsPerFloor, eps: 1, ds: 1 },
     corridor: c.corridor,
-    cells: c.cells,
+    cells,
     rooms,
     cores: coresInCorridor,
-    shaftRects: shaftsOf(c.cells, rooms, coresInCorridor, c.corridor),
+    shaftRects: shaftsOf(cells, rooms, coresInCorridor, c.corridor),
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,

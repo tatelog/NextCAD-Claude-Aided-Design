@@ -97,6 +97,8 @@ export function P3Plan() {
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeys }, (_, i) => i + 1),
+        // 円弧の外形があるときは、四隅が円の内側の区画だけを作る（ハブ A-03 G5）
+        insideCell: outlineArcs[0] ? (cell) => cellsInsideArc([cell], outlineArcs[0]!).inside.length > 0 : undefined,
       })
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
