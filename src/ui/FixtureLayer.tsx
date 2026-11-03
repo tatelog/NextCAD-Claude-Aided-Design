@@ -4,6 +4,7 @@
 // 置いた什器の文字は、外すための印でもある（仮置き）。品目を選んでいないときは押せて、押すと、その什器の id を渡す（外すのは呼び出し側）。
 // 品目を選んでいる間は、印の上を押しても区画に届き、続けて置けるよう、印は押せない。
 // 区画の指定が無い什器と、区画の一覧に無い区画の什器は、図に出さない（置く場所が無いだけで、一覧には残る）。
+// 読み取りのみ（readOnly。P4 の平面）のときは、区画の押せる四角を出さず、印も押せない（外さない）。印の文字・位置・並びは同じ。
 import type { Rect } from '../plan/candidateCells'
 import { fixtureLabel, type Fixture } from '../plan/fixtures'
 
@@ -22,11 +23,15 @@ export interface FixtureLayerProps {
   onTap: (unitId: string) => void
   /** 押した印の什器の id を渡す（品目を選んでいないときだけ押せる）。外すのは呼び出し側 */
   onRemove: (id: string) => void
+  /** 読み取りのみ（P4）。true のとき、区画の押せる四角を出さず、印も押せない。省略は false */
+  readOnly?: boolean
 }
 
-export function FixtureLayer({ cells, fixtures, active, onTap, onRemove }: FixtureLayerProps) {
-  // 印を押せるのは、品目を選んでいないとき（選んでいる間は、印の上を押しても区画に届く）
-  const pressable = !active
+export function FixtureLayer({ cells, fixtures, active, onTap, onRemove, readOnly = false }: FixtureLayerProps) {
+  // 区画の押せる四角を出すのは、品目を選んでいて、読み取りのみでないとき
+  const tappable = active && !readOnly
+  // 印を押せるのは、品目を選んでいなくて、読み取りのみでないとき（選んでいる間は、印の上を押しても区画に届く）
+  const pressable = !active && !readOnly
   return (
     <g>
       {cells.map((c) => {
@@ -35,7 +40,7 @@ export function FixtureLayer({ cells, fixtures, active, onTap, onRemove }: Fixtu
         const cy = (c.y0 + c.y1) / 2
         return (
           <g key={c.id}>
-            {active ? (
+            {tappable ? (
               <rect
                 data-unit={c.id}
                 x={c.x0}

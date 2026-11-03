@@ -12,6 +12,7 @@ import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import type { RoomKind } from '../plan/rooms'
 import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
+import { FixtureLayer } from './FixtureLayer'
 import { FixtureSummary } from './FixtureSummary'
 import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 
@@ -23,6 +24,8 @@ const SAMPLE = [
 ].join('\n')
 
 const yen = (n: number) => `${n.toLocaleString('ja-JP')} 円`
+// P4 の平面の什器の印は読み取りのみ（押しても置かず、外さない）。FixtureLayer の押しのハンドラは必須なので、何もしない関数を渡す
+const NO_OP = () => undefined
 // 天井高（仮置き）。階高から天井の仕上げを引く値は未決のため、ここは固定の仮置き
 const CEILING_MM = 2400
 // 区分の並び（モックの P4: 躯体・外装・内装・外構）。躯体と外構は数量をまだ拾えない
@@ -119,6 +122,7 @@ export function P4Estimate() {
               {plan.rooms.map((r) => (
                 <rect key={r.id} x={r.x0} y={r.y0} width={r.x1 - r.x0} height={r.y1 - r.y0} fill={ROOM_FILL[r.kind]} stroke="#8a8478" strokeWidth={20} />
               ))}
+              <FixtureLayer cells={plan.cells} fixtures={fixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
             </svg>
             <figcaption style={{ fontSize: 12, color: '#666' }}>
               P3 の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。3LDK の洋室 3 室は未決のため、ここは 2 室。

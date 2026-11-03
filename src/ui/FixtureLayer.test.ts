@@ -13,6 +13,10 @@
 //   押すと、その什器の id が onRemove に渡る（外すのは呼び出し側。右パネルの一覧の「外す」と同じ）。印には什器の id が付く（data-fixture）。
 //   読み上げの名前は「<品目名>を外す」で、ボタンの役割を持つ。品目を選んでいる間は押せず（仕様 6）、onRemove は呼ばれない。
 //   図に出ない什器（区画なし・区画の一覧に無い区画）は、印も無い。
+// 仕様 9（読み取りのみ・P4。G69 の今回の決定）: readOnly を渡すと、押せない図になる（省略・false は今までどおり）。
+//   置いた什器の印の文字・位置・並び・id（data-fixture）は、読み取りのみでないときと同じ。
+//   区画の押せる四角は、品目を選んでいる（active）ときでも出さない。印は押せず（pointer-events: none）、押すためのハンドラも、
+//   ボタンの役割も、「を外す」の読み上げも無い。区画なし・区画の一覧に無い区画の什器は、図に出ない（仕様 5 と同じ）。
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -265,5 +269,79 @@ describe('FixtureLayer（描ける。仕様 7）', () => {
       renderToStaticMarkup(createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: [], active, onTap: () => undefined, onRemove: () => undefined })))
     expect(draw(true).match(/<rect/g)).toHaveLength(3)
     expect(draw(false)).not.toContain('<rect')
+  })
+})
+
+describe('FixtureLayer（読み取りのみ。仕様 9）', () => {
+  const PLACED = [
+    fx('fixture-1', kitchen, 'L0'),
+    fx('fixture-2', toilet, 'L1'),
+    fx('fixture-7', storage, 'R0'),
+    fx('fixture-9', kitchen, 'L0'),
+  ]
+  // 印を、id・文字・位置でそろえて比べる
+  const shape = (marks: El[]) => marks.map((m) => [m.props['data-fixture'], textOf(m), m.props.x, m.props.y])
+
+  it('印の文字・位置・並び・id は、読み取りのみでないときと同じ', () => {
+    const editable = shape(textsOf(render({ fixtures: PLACED })))
+    const readOnly = shape(textsOf(render({ fixtures: PLACED, readOnly: true })))
+    expect(editable).toHaveLength(4)
+    expect(readOnly).toEqual(editable)
+  })
+
+  it('区画の中央に品目の名前が出る（読み取りのみでも）', () => {
+    const marks = textsOf(render({ fixtures: [fx('fixture-1', kitchen, 'L0'), fx('fixture-2', toilet, 'R0')], readOnly: true }))
+    expect(shape(marks)).toEqual([
+      ['fixture-1', 'キッチン', 1500, 3000],
+      ['fixture-2', '便器', 1500, 11000],
+    ])
+  })
+
+  it('品目を選んでいる（active）ときでも、押せる四角は出さない', () => {
+    expect(rectsOf(render({ active: true, readOnly: true }))).toHaveLength(0)
+    expect(rectsOf(render({ active: true, readOnly: true, fixtures: PLACED }))).toHaveLength(0)
+  })
+
+  it('印は押せない（pointer-events: none）。押すためのハンドラも、ボタンの役割も、「を外す」の読み上げも無い', () => {
+    for (const active of [false, true]) {
+      const marks = textsOf(render({ active, readOnly: true, fixtures: PLACED }))
+      expect(marks, `active=${active}`).toHaveLength(4)
+      for (const m of marks) {
+        expect(m.props.pointerEvents).toBe('none')
+        expect(m.props.onClick).toBeUndefined()
+        expect(m.props.role).toBeUndefined()
+        expect(m.props['aria-label']).toBeUndefined()
+      }
+    }
+  })
+
+  it('区画の指定が無い什器と、区画の一覧に無い区画の什器は、図に出さない', () => {
+    const fixtures = [fx('fixture-1', kitchen, null), fx('fixture-2', toilet, 'ZZ'), fx('fixture-3', storage, 'L0')]
+    expect(textsOf(render({ fixtures, readOnly: true })).map((m) => m.props['data-fixture'])).toEqual(['fixture-3'])
+  })
+
+  it('readOnly を false にすれば（省略しても）、今までどおり印は押せる', () => {
+    for (const props of [{ readOnly: false }, {}]) {
+      const marks = textsOf(render({ ...props, fixtures: PLACED }))
+      for (const m of marks) {
+        expect(m.props.pointerEvents).not.toBe('none')
+        expect(typeof m.props.onClick).toBe('function')
+        expect(m.props.role).toBe('button')
+      }
+    }
+  })
+
+  it('SVG の描画で、印の id と文字と中央の座標が出て、押せる印の目印（ボタンの役割・「を外す」）も押せる四角も出ない', () => {
+    const html = renderToStaticMarkup(
+      createElement('svg', null, createElement(FixtureLayer, { cells: CELLS, fixtures: [fx('fixture-1', kitchen, 'L0')], active: true, readOnly: true, onTap: () => undefined, onRemove: () => undefined })),
+    )
+    expect(html).toContain('キッチン')
+    expect(html).toContain('data-fixture="fixture-1"')
+    expect(html).toContain('x="1500"')
+    expect(html).toContain('y="3000"')
+    expect(html).toContain('pointer-events="none"')
+    expect(html).not.toContain('role="button"')
+    expect(html).not.toContain('を外す')
+    expect(html).not.toContain('<rect')
   })
 })
