@@ -9,7 +9,9 @@ import { roomFinishTotals } from '../estimate/roomQuantities'
 import type { ObjectKind } from '../plan/objectMenu'
 import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import type { RoomKind } from '../plan/rooms'
+import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
+import { FixtureSummary } from './FixtureSummary'
 import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 
 const SAMPLE = [
@@ -57,6 +59,9 @@ export function P4Estimate() {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
+  // 什器（G69）: P3 で置いたもの。単価が決まるまで、工事原価の合計には入れない（estimateCost には渡さない。欄の注記にも書く）
+  const fixtures = useFixtures((s) => s.fixtures)
+  const fixtureUnitIds = useFixtures((s) => s.unitIds)
   const autoQuantities = useMemo(() => {
     const out: { item: string; category: string; quantity: number }[] = []
     if (volume) {
@@ -160,6 +165,7 @@ export function P4Estimate() {
             </tbody>
           </table>
         </section>
+        <FixtureSummary fixtures={fixtures} unitIds={fixtureUnitIds ?? undefined} />
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={8} style={{ width: '100%', fontFamily: 'monospace' }} />
         {'error' in parsed ? (
           <p style={{ color: '#a33' }}>単価 CSV: {parsed.error}</p>
