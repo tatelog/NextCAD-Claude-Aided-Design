@@ -8,6 +8,8 @@ import { SHEETS, legalCheckFor } from '../permit/sheetList'
 import { classLabelsOf } from '../law/buildingClass'
 import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
 import { fireStructureItems } from '../law/fireStructure'
+import { COMPONENTS, judgeComponent, requiredMinutes } from '../law/structureFire'
+import { useComponentFire } from '../store/componentFire'
 import { useSite } from '../store/site'
 
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
@@ -28,6 +30,8 @@ export function P5Output() {
   const [heightText, setHeightText] = useState('3000')
   const [storeysText, setStoreysText] = useState('3')
   const [fireZone, setFireZone] = useState<FireZone>('なし')
+  const componentRatings = useComponentFire((st) => st.ratings)
+  const setComponentRating = useComponentFire((st) => st.setRating)
   const [tab, setTab] = useState<'bim' | 'pdf'>('bim')
   const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
   const [applicant, setApplicant] = useState('')
@@ -122,6 +126,41 @@ export function P5Output() {
             )
           })()}
         </div>
+      ) : null}
+      {valid ? (
+        <section style={{ marginBottom: 12, fontSize: 12 }}>
+          <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる。G28）</strong>
+          <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
+            <thead>
+              <tr>
+                <th align="left">部材</th>
+                <th align="right">必要（分）</th>
+                <th align="left">入力（分）</th>
+                <th align="left">判定</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPONENTS.map((c) => {
+                const rating = componentRatings[c] ?? null
+                return (
+                  <tr key={c}>
+                    <td>{c}</td>
+                    <td align="right">{requiredMinutes(c, storeys)}</td>
+                    <td>
+                      <select value={rating ?? ''} onChange={(e) => setComponentRating(c, e.target.value === '' ? null : Number(e.target.value))}>
+                        <option value="">未入力</option>
+                        {[30, 60, 90, 120, 150, 180].map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>{judgeComponent(c, storeys, rating)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
       ) : null}
       <section style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>IFC の件数</h3>
