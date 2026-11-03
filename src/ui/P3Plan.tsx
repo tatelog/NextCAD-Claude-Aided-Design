@@ -456,7 +456,8 @@ export function P3Plan() {
         {units.result ? (
           <>
             <p>
-              住戸数（仮置きの区画）: <strong>{units.result.usable_count}</strong>
+              住戸数（仮置きの区画）: <strong>{arcCut ? arcCut.inside.length : units.result.usable_count}</strong>
+              {arcCut ? '（円弧の外形の内に入る区画だけ数える。G5）' : ''}
               {units.result.plan_status === '成立' ? '' : '（不成立のため確定しない）'}
             </p>
             <p style={{ color: '#666', fontSize: 12 }}>
