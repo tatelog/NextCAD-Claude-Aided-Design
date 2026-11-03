@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
+import { NumericLineForm } from './NumericLineForm'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
@@ -417,6 +418,10 @@ export function P03Volume() {
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
+          </section>
+          <section>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
+            <NumericLineForm />
           </section>
           <section>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
