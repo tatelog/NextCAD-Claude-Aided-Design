@@ -341,16 +341,20 @@ describe('ObjectMenu（描ける。仕様 6）', () => {
   })
 })
 
-// 仕様 7（共用部のグループ。ハブ A-03 G75）: 一覧の下に、共用部のグループを基準階・1F の名前で出す。件数は出さない（配置は未配線）。
+// 仕様 7（共用部のグループ。ハブ A-03 G75）: 一覧の下に、共用部のグループを出す。基準階は、自動作成の結果から数えた数を付ける（廊下・階段 A／B・EV ホール・EPS・DS）。
+// 1F は名前だけを出す（配置は未配線なので件数は出さない）。
 describe('ObjectMenu（共用部のグループ。仕様 7）', () => {
-  it('基準階と 1F の必須の名前を、一覧の下に 1 行ずつ出す', () => {
+  it('基準階は名前と数（SOURCES の結果から）を、1F は名前だけを、一覧の下に 1 行ずつ出す', () => {
     const lines = findAll(render(), isTag('div')).map(textOf)
-    expect(lines).toContain('基準階：廊下、階段 A、階段 B、EV ホール、EPS、DS')
+    expect(lines).toContain('基準階：廊下 1、階段 A 1、階段 B 0、EV ホール 0、EPS 0、DS 0')
     expect(lines).toContain('1F：エントランス、風除室、ロビー、管理室、メールコーナー、ゴミ置場')
   })
 
-  it('共用部のグループには件数を出さない（種類の行の数は 12 のまま）', () => {
+  it('1F の行には件数を出さず、種類の行の数は 12 のまま', () => {
     expect(buttonsOf(render())).toHaveLength(12)
-    expect(findAll(render(), isTag('div')).map(textOf).some((t) => t.startsWith('基準階：') && /\d/.test(t))).toBe(false)
+    const floorLine = findAll(render(), isTag('div')).map(textOf).find((t) => t.startsWith('1F：'))
+    expect(floorLine).toBeDefined()
+    // 「1F」の 1 は階の名前なので、名前の部分（：の後）に数字が無いことを見る
+    expect(/\d/.test(floorLine!.slice(floorLine!.indexOf('：') + 1))).toBe(false)
   })
 })

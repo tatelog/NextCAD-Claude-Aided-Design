@@ -5,7 +5,7 @@
 // 仕様 4: 任意の共用部は、選んだものだけ入る。選んでいない名前や、その階に無い名前は入らない。
 // 仕様 5: 同じ階の中で、共用部の名前は重複しない。
 import { describe, expect, it } from 'vitest'
-import { commonAreaGroups, commonAreasOf } from './commonAreas'
+import { commonAreaCountsOf, commonAreaGroups, commonAreasOf } from './commonAreas'
 
 // 仕様 6（左メニューのグループ）: 共用部のグループは、基準階・1F の順に、各階の必須の名前を持つ。commonAreasOf と同じ名前。
 describe('共用部のグループ（左メニュー用）', () => {
@@ -42,5 +42,33 @@ describe('共用部の名前（階ごと）', () => {
   it('仕様 5: 同じ階の中で名前は重複しない', () => {
     const names = commonAreasOf('1F', ['ジム', 'ゲストルーム', '集会室'])
     expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+// 仕様 7（基準階の数）: 基準階の共用部の数は、自動作成の結果から数える。廊下 = 廊下の数、階段 A・B と EV ホール = コアの id（stairA・stairB・evHall）、EPS と DS = 縦シャフトの種類。
+// 仕様 8（1F）: 1F の共用部には数を出さない（配置は未配線）。基準階の名前は commonAreasOf と同じ並び。
+describe('共用部の数（基準階）', () => {
+  it('仕様 7: 自動作成の結果から、基準階の 6 種類の数を数える', () => {
+    const counts = commonAreaCountsOf({
+      corridors: [{}],
+      cores: [{ id: 'stairA' }, { id: 'stairB' }, { id: 'evHall' }, { id: 'core' }],
+      shafts: [{ kind: 'PS' }, { kind: 'EPS' }, { kind: 'DS' }],
+    })
+    expect(counts).toEqual([
+      { name: '廊下', count: 1 },
+      { name: '階段 A', count: 1 },
+      { name: '階段 B', count: 1 },
+      { name: 'EV ホール', count: 1 },
+      { name: 'EPS', count: 1 },
+      { name: 'DS', count: 1 },
+    ])
+  })
+
+  it('仕様 7（結果が無いとき）: 6 種類とも 0', () => {
+    expect(commonAreaCountsOf({}).map((c) => c.count)).toEqual([0, 0, 0, 0, 0, 0])
+  })
+
+  it('仕様 8: 名前は基準階の必須の名前と同じ並び', () => {
+    expect(commonAreaCountsOf({}).map((c) => c.name)).toEqual(commonAreasOf('基準階'))
   })
 })

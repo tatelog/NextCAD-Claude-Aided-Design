@@ -1,7 +1,7 @@
 // 左メニューの部品（ハブ A-03 G55、D-04 共通部品「左メニュー」）。P2 の 2D 平面・P3・P4 で共通に使う。
 // 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びは呼び出し側が持つ。
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
-import { commonAreaGroups } from '../plan/commonAreas'
+import { commonAreaCountsOf, commonAreaGroups } from '../plan/commonAreas'
 import { countObjects, type ObjectKind } from '../plan/objectMenu'
 
 /** 帯の幅（枠線と余白を含む）。呼び出し側の列の幅に使う。 */
@@ -71,9 +71,13 @@ export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類�
       <div aria-label="共用部（グループ）" style={{ marginTop: 12, fontSize: 12, color: '#444' }}>
         <div style={{ fontWeight: 700, marginBottom: 2 }}>共用部（グループ）</div>
         {commonAreaGroups().map((g) => (
-          <div key={g.floor}>{`${g.floor}：${g.names.join('、')}`}</div>
+          <div key={g.floor}>
+            {g.floor === '基準階'
+              ? `基準階：${commonAreaCountsOf(sources).map((c) => `${c.name} ${c.count}`).join('、')}`
+              : `${g.floor}：${g.names.join('、')}`}
+          </div>
         ))}
-        <div style={{ color: '#a33', fontSize: 11 }}>配置は未配線（件数は出さない）</div>
+        <div style={{ color: '#a33', fontSize: 11 }}>1F の配置は未配線（件数は出さない）</div>
       </div>
       {detail ? (
         <section aria-label={`${detail.label}の中身`} style={{ marginTop: 12 }}>
