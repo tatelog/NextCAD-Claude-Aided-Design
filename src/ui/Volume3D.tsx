@@ -39,7 +39,8 @@ function CameraDirector({ request }: { request: FaceRequest | null }) {
 
 const MM_TO_M = 1 / 1000
 
-function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
+/** 三角形の一覧（mm）を three の形にする。P1 の周辺建物（NeighborScene3D）と同じ変換を使う */
+export function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
   const positions: number[] = []
   for (const tri of mesh.triangles) {
     for (const v of tri) positions.push(v.x * MM_TO_M, v.z * MM_TO_M, v.y * MM_TO_M)

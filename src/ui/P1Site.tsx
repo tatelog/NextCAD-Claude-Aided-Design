@@ -7,6 +7,8 @@ import { useSite } from '../store/site'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { worldPixel } from '../map/worldPixel'
 import { useUi } from '../store/ui'
+import { neighborVolumes } from '../volume/neighborLocal'
+import { NeighborScene3D } from './NeighborScene3D'
 
 // 既定の地点は江東区の木場付近（zip の範囲内。半径 400 m に建物がある）。東京駅付近は千代田区で、この zip の外
 const DEFAULT = { lon: 139.814, lat: 35.67 }
@@ -27,6 +29,13 @@ export function P1Site() {
   const [neighborError, setNeighborError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
   const showNeighbors = useUi((s) => s.showNeighbors)
+  const siteOrigin = useSite((s) => s.sitePoint)
+  // 3D の周辺建物（基準点を原点にした mm。P1 は敷地の外形を持たないので、周辺建物だけを置く）
+  const [view3d, setView3d] = useState(false)
+  const neighbors3d = useMemo(
+    () => (siteBuildings && siteOrigin ? neighborVolumes(siteBuildings, siteOrigin, { x: 0, y: 0 }) : []),
+    [siteBuildings, siteOrigin],
+  )
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -103,7 +112,11 @@ export function P1Site() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
       <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
-        {tiles ? (
+        {view3d && neighbors3d.length > 0 ? (
+          <div style={{ width: 768, height: 768 }}>
+            <NeighborScene3D neighbors={neighbors3d} />
+          </div>
+        ) : tiles ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 256px)', gridTemplateRows: 'repeat(3, 256px)', width: 768, height: 768 }}>
             {tiles.map((t) => (
               <img key={t.key} src={t.url} alt="" width={256} height={256} />
@@ -112,7 +125,7 @@ export function P1Site() {
         ) : (
           <p style={{ padding: 16 }}>経度・緯度を入れてください</p>
         )}
-        {tiles && buildingPolygons.length > 0 && (
+        {!view3d && tiles && buildingPolygons.length > 0 && (
           <svg width={768} height={768} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
             {buildingPolygons.map((pts, i) => (
               <polygon key={i} points={pts} fill="rgba(70,80,92,0.45)" stroke="#2b3138" strokeWidth={0.8} />
@@ -207,6 +220,11 @@ export function P1Site() {
           <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
             {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
           </button>
+          {siteBuildings && neighbors3d.length > 0 && (
+            <button type="button" onClick={() => setView3d((v) => !v)} style={{ marginLeft: 8 }}>
+              {view3d ? '地図で見る' : '3D で見る'}
+            </button>
+          )}
           {neighborError && <p style={{ color: '#a33' }}>{neighborError}</p>}
           {siteBuildings && (
             <p>
