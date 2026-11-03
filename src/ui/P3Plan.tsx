@@ -28,7 +28,7 @@ import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
-import { copyFixturesToSameType, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
+import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
@@ -545,6 +545,7 @@ export function P3Plan() {
             walls={kindCounts?.walls}
             openings={kindCounts?.openings}
             balcony={cell ? balconyOfUnit(cell, { outline: { W, D } }) : undefined}
+            shaft={detailUnitId && auto ? psOfUnit(detailUnitId, auto.shaftRects) : undefined}
             firstFloorName={detailUnitId ? (firstFloorNames[detailUnitId] ?? null) : null}
             onSetFirstFloorName={(name) => {
               if (detailUnitId) useFirstFloor.getState().setName(detailUnitId, name)

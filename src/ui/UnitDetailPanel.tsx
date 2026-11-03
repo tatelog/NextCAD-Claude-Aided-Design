@@ -18,6 +18,8 @@ export interface UnitDetailPanelProps {
   openings?: number
   /** バルコニー（仮置きの面と面積。plan/balcony）。無ければ未配線と出す */
   balcony?: { faces: readonly string[]; areaM2: number }
+  /** この住戸の PS（水回りの縦シャフト。mm。plan/unitDetail の psOfUnit）。undefined は未配線、null は PS が無い */
+  shaft?: { x0: number; y0: number; x1: number; y1: number } | null
   /** 同じ間口・奥行の住戸の ID。無ければ「同タイプの住戸に反映」は押せない */
   sameTypeIds: string[]
   /** 「同タイプの住戸に反映」を押したとき（この住戸の什器を同タイプへ） */
@@ -32,7 +34,7 @@ const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join(
 // 1F の共用部の名前（必須の 6 つ）
 const FIRST_FLOOR_NAMES = commonAreasOf('1F')
 
-export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, balcony, sameTypeIds, onApplySameType, firstFloorName = null, onSetFirstFloorName }: UnitDetailPanelProps) {
+export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, balcony, shaft, sameTypeIds, onApplySameType, firstFloorName = null, onSetFirstFloorName }: UnitDetailPanelProps) {
   if (!detail) return null
   return (
     <aside
@@ -74,6 +76,13 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
               : `バルコニー: ${balcony.faces.join('、')}の面 ${balcony.areaM2.toFixed(2)} m²（仮置き: 奥行 1600 mm）`}
         </li>
         <li>{walls === undefined || openings === undefined ? '壁と開口: 未配線' : `壁 ${walls} 本・開口 ${openings} 箇所（描いた線から）`}</li>
+        <li>
+          {shaft === undefined
+            ? 'PS: 未配線'
+            : shaft === null
+              ? 'PS: なし'
+              : `PS: 位置 (${shaft.x0}, ${shaft.y0})〜(${shaft.x1}, ${shaft.y1}) mm（自動作成の水回りの隅）`}
+        </li>
       </ul>
       {onSetFirstFloorName ? (
         <label style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>

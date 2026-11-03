@@ -84,6 +84,15 @@ export function sameTypeUnitIds(id: string, cells: readonly Rect[]): string[] {
   return cells.filter((c) => c.id !== id && c.x1 - c.x0 === width && c.y1 - c.y0 === depth).map((c) => c.id)
 }
 
+/** 住戸の PS（水回りの縦シャフト）の位置（mm）。その住戸の PS が無ければ null。EPS と DS は住戸に属さないので数えない（G58） */
+export function psOfUnit(
+  unitId: string,
+  shafts: readonly { kind: string; unitId?: string; x0: number; y0: number; x1: number; y1: number }[],
+): { x0: number; y0: number; x1: number; y1: number } | null {
+  const ps = shafts.find((s) => s.kind === 'PS' && s.unitId === unitId)
+  return ps ? { x0: ps.x0, y0: ps.y0, x1: ps.x1, y1: ps.y1 } : null
+}
+
 /** この住戸の什器を、同タイプの住戸に反映する。同タイプの住戸の什器は外し、この住戸の品目と同じ並びで置き直す。ほかの住戸と区画の無い什器は変えない。入力は書き換えない。 */
 export function copyFixturesToSameType(id: string, cells: readonly Rect[], fixtures: readonly Fixture[]): Fixture[] {
   const targets = sameTypeUnitIds(id, cells)
