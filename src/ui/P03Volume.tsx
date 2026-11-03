@@ -11,7 +11,10 @@ import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
 import { useDrawing } from '../store/drawing'
+import { useUi } from '../store/ui'
+import { CircleMenu } from './CircleMenu'
 import { DrawingCanvas } from './DrawingCanvas'
+import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
@@ -33,11 +36,8 @@ export function P03Volume() {
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
   const setStoreyHeightMm = useDrawing((s) => s.setStoreyHeightMm)
-  const undo = useDrawing((s) => s.undo)
-  const redo = useDrawing((s) => s.redo)
   const clear = useDrawing((s) => s.clear)
-  const canUndo = useDrawing((s) => s.entries.length > 0)
-  const canRedo = useDrawing((s) => s.redoStack.length > 0)
+  const placement = useUi((s) => s.toolbarPlacement)
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
   const [homeToken, setHomeToken] = useState(0)
@@ -105,15 +105,7 @@ export function P03Volume() {
     <div className="p03">
       <header className="p03-toolbar">
         <strong>P03 ボリューム作図</strong>
-        <span className="p03-mode">
-          ペンのモード:
-          <button type="button" className="is-active" aria-pressed="true">
-            直線
-          </button>
-          <button type="button" disabled title="曲線モードの操作は未決（D-04 未決の一覧）">
-            曲線
-          </button>
-        </span>
+        {placement === 'top' && <PenToolbar placement="top" />}
         <span className="p03-mode">
           表示:
           <button type="button" className={view === 'plan' ? 'is-active' : undefined} aria-pressed={view === 'plan'} onClick={() => setView('plan')}>
@@ -129,19 +121,15 @@ export function P03Volume() {
           )}
         </span>
         <span className="p03-actions">
-          <button type="button" onClick={undo} disabled={!canUndo}>
-            Undo
-          </button>
-          <button type="button" onClick={redo} disabled={!canRedo}>
-            Redo
-          </button>
           <button type="button" onClick={clear} disabled={segments.length === 0}>
             全部消す
           </button>
         </span>
-        <span className="p03-note">議論用・未確定。筆界はダミー（20 m × 30 m）。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。</span>
+        <span className="p03-note">議論用・未確定。筆界はダミー（20 m × 30 m）。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
       </header>
       <div className="p03-body">
+        {placement === 'left' && <PenToolbar placement="left" />}
+        {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
           volume ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420 }}>
@@ -158,7 +146,10 @@ export function P03Volume() {
             </div>
           )
         ) : (
-          <DrawingCanvas />
+          <div className="p03-canvas-wrap">
+            <DrawingCanvas />
+            <CircleMenu />
+          </div>
         )}
         <aside className="p03-side">
           <section>
