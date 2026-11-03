@@ -22,6 +22,7 @@ import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
 import { pendingLogEntry } from './app/pendingJudgments'
+import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
 import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
@@ -94,6 +95,17 @@ export function App() {
   // レイヤーの表示とロック（G66）。筆界はロック固定
   const layerVisible = useLayers((s) => s.visible)
   const layerLocked = useLayers((s) => s.locked)
+  // 保存状態（保存した時点の案件と、いまの案件を店舗の参照で比べる。ハブ D-04 共通ヘッダー）
+  const drawEntries = useDrawing((s) => s.entries)
+  const drawStoreys = useDrawing((s) => s.storeyCount)
+  const drawHeight = useDrawing((s) => s.storeyHeightMm)
+  const drawFixtures = useFixtures((s) => s.fixtures)
+  const snapshotNow = (): SaveSnapshotState => {
+    const d = useDrawing.getState()
+    return { entries: d.entries, storeyCount: d.storeyCount, storeyHeightMm: d.storeyHeightMm, fixtures: useFixtures.getState().fixtures }
+  }
+  const [saved, setSaved] = useState<SaveSnapshotState>(snapshotNow)
+  const saveStatus = saveStatusOf(saved, { entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
   const setFeature = (key: FeatureKey, on: boolean) => {
     useFeatures.getState().setOn(key, on)
     const patch = featureUiPatch(key, on)
@@ -168,6 +180,7 @@ export function App() {
     a.click()
     URL.revokeObjectURL(url)
     record('保存', data.projectName)
+    setSaved(snapshotNow())
   }
 
   // 読み込み（保存した JSON を選ぶ）。一覧・階数・階高・什器・案件名を戻す。意味づけは保存していないので、読んだあとは空に戻す
@@ -178,6 +191,7 @@ export function App() {
       const p = parseSaveData(JSON.parse(await file.text()))
       applyLoadedProject(p)
       setProject(p.projectName)
+      setSaved(snapshotNow())
       setLoadMessage(`「${p.projectName}」を読み込みました`)
       record('読み込み', p.projectName)
     } catch (e) {
@@ -209,6 +223,7 @@ export function App() {
       const p = parseSaveData(await downloadJsonFromDrive({ token, id: driveFileId }))
       applyLoadedProject(p)
       setProject(p.projectName)
+      setSaved(snapshotNow())
       setLoadMessage(`Drive から「${p.projectName}」を読み込みました`)
       record('Drive 読み込み', p.projectName)
     } catch (e) {
@@ -227,6 +242,7 @@ export function App() {
       const id = await uploadJsonToDrive({ token, name: `${data.projectName}.json`, json: JSON.stringify(data, null, 2) })
       setDriveMessage(`Drive に保存しました（ファイル ID: ${id}）`)
       record('Drive 保存', data.projectName)
+      setSaved(snapshotNow())
     } catch (e) {
       setDriveMessage(e instanceof Error ? e.message : String(e))
     }
@@ -296,6 +312,7 @@ export function App() {
           </>
         ) : null}
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
+        <span style={{ fontSize: 11, color: saveStatus === '保存済み' ? '#5b6670' : '#a86b00' }}>{saveStatus}</span>
         <button type="button" style={button} onClick={save}>
           保存
         </button>
