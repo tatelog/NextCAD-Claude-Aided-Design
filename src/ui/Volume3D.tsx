@@ -96,6 +96,8 @@ interface Volume3DProps {
   onRotate?: (deg: number) => void
   /** 回転のつまみの刻み（右パネルの刻み）。省略は自由。 */
   rotationStep?: RotationStep
+  /** 3D の上面の高さのつまみ（G65）を離したとき: 新しい階数（1 以上・上限 30）。渡さなければ高さのつまみは出さない。 */
+  onStoreyCount?: (n: number) => void
 }
 
 export function Volume3D({
@@ -108,6 +110,7 @@ export function Volume3D({
   onRotateStart,
   onRotate,
   rotationStep = 'free',
+  onStoreyCount,
 }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
@@ -117,21 +120,22 @@ export function Volume3D({
     return toGeometry({ triangles })
   }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
-  // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は、回した外形を見せる
+  // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
   const [knobPreview, setKnobPreview] = useState<KnobPreview | null>(null)
   const shownFootprint = knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
+  const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
   const geometry = useMemo(() => {
-    const build = (fp: Point[]) => toGeometry(buildVolumeMesh({ footprint: fp, storey_count: storeyCount, storey_height: storeyHeightMm }))
+    const build = (fp: Point[], storeys: number) => toGeometry(buildVolumeMesh({ footprint: fp, storey_count: storeys, storey_height: storeyHeightMm }))
     // 仮の形が立体にならないとき（丸めで外形が崩れたとき）は、実際の形のまま見せる
-    if (shownFootprint !== footprint) {
+    if (shownFootprint !== footprint || shownStoreyCount !== storeyCount) {
       try {
-        return build(shownFootprint)
+        return build(shownFootprint, shownStoreyCount)
       } catch {
-        return build(footprint)
+        return build(footprint, storeyCount)
       }
     }
-    return build(footprint)
-  }, [footprint, shownFootprint, storeyCount, storeyHeightMm])
+    return build(footprint, storeyCount)
+  }, [footprint, shownFootprint, storeyCount, shownStoreyCount, storeyHeightMm])
   // 仮の形を作り直すたびに、古い形の GPU の領域を解放する
   useEffect(() => () => geometry.dispose(), [geometry])
   const ground = useMemo(() => groundSize(footprint), [footprint])
@@ -170,18 +174,28 @@ export function Volume3D({
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
         </mesh>
       )}
-      {onRotate && (
+      {(onRotate || onStoreyCount) && (
         <VolumeKnobs
           footprint={footprint}
+          storeyCount={storeyCount}
+          storeyHeightMm={storeyHeightMm}
           preview={knobPreview}
           onPreview={setKnobPreview}
           rotationStep={rotationStep}
           onRotateStart={onRotateStart}
           onRotate={onRotate}
+          onStoreyCount={onStoreyCount}
         />
       )}
       <OrbitControls ref={controlsRef} makeDefault />
     </Canvas>
+    {knobPreview?.kind === 'height' && (
+      <div
+        style={{ position: 'absolute', left: 8, bottom: 8, padding: '2px 8px', border: '1px solid #b8b2a4', borderRadius: 4, background: '#fff', fontSize: 12, pointerEvents: 'none' }}
+      >
+        高さ {knobPreview.storeyCount} 階（{(knobPreview.heightMm / 1000).toFixed(1)} m）
+      </div>
+    )}
     <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 4 }}>
       {FACE_LABELS.map(({ face, label }) => (
         <button

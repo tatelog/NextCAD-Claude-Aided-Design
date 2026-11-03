@@ -1,22 +1,36 @@
-// 3D のつまみ（ハブ A-03 G71 の回転。D-04 P2）。Volume3D の Canvas の中に置く。
-// 外形の頂点 0 に回転のつまみを 1 つ置く。つまんで動かすと、外形を重心のまわりに回した仮の形を見せ（store は変えない）、
-// 離したときに、刻みで丸めた角度を 1 回だけ渡して確定する（確定は呼び出し側。つまんだ時点の外形に rotateOutline を当てる）。
+// 3D のつまみ（ハブ A-03 G71 の回転、G65 の高さ。D-04 P2）。Volume3D の Canvas の中に置く。
+// 回転のつまみ: 外形の頂点 0 に 1 つ置く。つまんで動かすと、外形を重心のまわりに回した仮の形を見せ（store は変えない）、
+//   離したときに、刻みで丸めた角度を 1 回だけ渡して確定する（確定は呼び出し側。つまんだ時点の外形に rotateOutline を当てる）。
+// 高さのつまみ: 上面の中央（外形の重心の真上）に 1 つ置く。つまんで動かすと、指の高さに追従した階数の仮の形を見せ（store は変えない）、
+//   離したときに、最も近い整数の階数（1 以上・上限 30）を 1 回だけ渡して確定する。動かす値（階数）はハブでは未決の仮置き。
 // つまみの上で押しているあいだは、カメラの回転（OrbitControls）を止める。大きさは画面で一定。数値は仮置き。
 // 指・マウス・ペンのどれでも Pointer Events で一つに扱い、入力の種類で挙動を変えない。
 import { useFrame, useStore, type RootStore, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
-import { knobRotationDeg, rayHitPlaneMm, rotatedFootprint, scenePosition } from '../volume/knobs3d'
+import {
+  axisHeightAtRayMm,
+  dragHeightMm,
+  knobRotationDeg,
+  rayHitPlaneMm,
+  rotatedFootprint,
+  scenePosition,
+  storeyCountFromHeight,
+} from '../volume/knobs3d'
 import { outlineCentroid, type RotationStep } from '../volume/rotation'
 
 /** つまみの半径（画面の px）。仮置き。2D のつまみの当たり判定（半径 12 px）より少し大きくする（指で押すため）。 */
 const KNOB_RADIUS_PX = 14
 const ROTATE_COLOR = '#e07b1f'
 const ROTATE_ACTIVE_COLOR = '#f5a04a'
+const HEIGHT_COLOR = '#2a6fdb'
+const HEIGHT_ACTIVE_COLOR = '#5b97f0'
 
 /** つまみを動かしている間の仮の形（表示だけ。store は変えない）。 */
-export type KnobPreview = { kind: 'rotate'; deg: number; footprint: Point[] }
+export type KnobPreview =
+  | { kind: 'rotate'; deg: number; footprint: Point[] }
+  | { kind: 'height'; storeyCount: number; heightMm: number }
 
 type PointerHandler = (e: ThreeEvent<PointerEvent>) => void
 interface KnobHandlers {
@@ -68,6 +82,7 @@ function KnobBall({ color }: { color: string }) {
 }
 
 interface RotateDrag {
+  kind: 'rotate'
   pointerId: number
   /** つまんだ時点の外形（表示中の外形のコピー） */
   base: Point[]
@@ -79,30 +94,61 @@ interface RotateDrag {
   deg: number
 }
 
+interface HeightDrag {
+  kind: 'height'
+  pointerId: number
+  /** 軸の位置（外形の重心。平面の mm） */
+  axis: Point
+  /** つまんだ時点の階数と高さ（mm） */
+  startStoreys: number
+  startHeightMm: number
+  /** つまんだ時点の指の高さ（軸の上で視線にいちばん近い点。mm） */
+  grabHeightMm: number
+  /** いまの階数（指の高さに追従した、最も近い整数。1 以上・上限 30） */
+  storeys: number
+}
+
+type Drag = RotateDrag | HeightDrag
+
 export interface VolumeKnobsProps {
-  /** いまの外形（mm）。頂点 0 に回転のつまみを置く。 */
+  /** いまの外形（mm）。頂点 0 に回転のつまみを、重心の真上（上面の中央）に高さのつまみを置く。 */
   footprint: readonly Point[]
+  /** いまの階数と階高（mm）。高さのつまみは階数 × 階高の高さに置く。 */
+  storeyCount: number
+  storeyHeightMm: number
   /** 動かしている間の仮の形（親が持つ。表示だけ）。null は動かしていない。 */
   preview: KnobPreview | null
   onPreview: (preview: KnobPreview | null) => void
   /** 回転の刻み（右パネルの刻み） */
   rotationStep: RotationStep
-  /** つまんだとき（つまんだ時点の外形を覚えるため） */
+  /** 回転のつまみをつまんだとき（つまんだ時点の外形を覚えるため） */
   onRotateStart?: () => void
-  /** 離したとき: 回す量（°、反時計回り）。0°（動かしていない）のときは呼ばない。 */
-  onRotate: (deg: number) => void
+  /** 離したとき: 回す量（°、反時計回り）。0°（動かしていない）のときは呼ばない。渡さなければ回転のつまみは出さない。 */
+  onRotate?: (deg: number) => void
+  /** 離したとき: 新しい階数（1 以上・上限 30）。いまの階数と同じときは呼ばない。渡さなければ高さのつまみは出さない。 */
+  onStoreyCount?: (n: number) => void
 }
 
-export function VolumeKnobs({ footprint, preview, onPreview, rotationStep, onRotateStart, onRotate }: VolumeKnobsProps) {
+export function VolumeKnobs({
+  footprint,
+  storeyCount,
+  storeyHeightMm,
+  preview,
+  onPreview,
+  rotationStep,
+  onRotateStart,
+  onRotate,
+  onStoreyCount,
+}: VolumeKnobsProps) {
   const store = useStore()
-  const rotateDrag = useRef<RotateDrag | null>(null)
+  const drag = useRef<Drag | null>(null)
 
   // 取り消し（pointercancel。OS がタッチを取り上げたとき）: 確定せずに元の形へ戻し、カメラも戻す
   useEffect(() => {
     const canvas = store.getState().gl.domElement
     const onCancel = (ev: PointerEvent) => {
-      if (rotateDrag.current?.pointerId !== ev.pointerId) return
-      rotateDrag.current = null
+      if (drag.current?.pointerId !== ev.pointerId) return
+      drag.current = null
       setCameraEnabled(store, true)
       onPreview(null)
     }
@@ -113,34 +159,35 @@ export function VolumeKnobs({ footprint, preview, onPreview, rotationStep, onRot
   // 動かしている途中でこの部品が外れたら、カメラを元に戻す
   useEffect(
     () => () => {
-      if (rotateDrag.current) {
-        rotateDrag.current = null
+      if (drag.current) {
+        drag.current = null
         setCameraEnabled(store, true)
       }
     },
     [store],
   )
 
-  // 回している間は、回した外形の頂点 0 にある。動かしていないときは、いまの外形の頂点 0
-  const vertex0 = (preview?.footprint ?? footprint)[0]
-  if (footprint.length < 3 || !vertex0) return null
+  // 回転のつまみは外形の頂点 0（回している間は、回した外形の頂点 0）。高さのつまみは上面の中央（外形の重心の真上）
+  const vertex0 = (preview?.kind === 'rotate' ? preview.footprint : footprint)[0]
+  const roofCenter = outlineCentroid(footprint)
+  if (footprint.length < 3 || !vertex0 || !roofCenter) return null
 
-  const onDown: PointerHandler = (e) => {
+  const onRotateDown: PointerHandler = (e) => {
     e.stopPropagation()
     const base = footprint.map((p) => ({ x: p.x, y: p.y }))
     const pivot = outlineCentroid(base)
     if (!pivot) return
     // つまんだ点は、視線と地面の交点。外れたとき（地面と交わらない視線）は頂点 0
     const grab = rayHitPlaneMm(e.ray.origin, e.ray.direction, 0) ?? base[0]!
-    rotateDrag.current = { pointerId: e.pointerId, base, pivot, grab, deg: 0 }
+    drag.current = { kind: 'rotate', pointerId: e.pointerId, base, pivot, grab, deg: 0 }
     setCameraEnabled(store, false)
     capturable(e).setPointerCapture(e.pointerId)
     onRotateStart?.()
   }
 
-  const onMove: PointerHandler = (e) => {
-    const d = rotateDrag.current
-    if (!d || d.pointerId !== e.pointerId) return
+  const onRotateMove: PointerHandler = (e) => {
+    const d = drag.current
+    if (d?.kind !== 'rotate' || d.pointerId !== e.pointerId) return
     e.stopPropagation()
     const p = rayHitPlaneMm(e.ray.origin, e.ray.direction, 0)
     if (!p) return
@@ -150,23 +197,72 @@ export function VolumeKnobs({ footprint, preview, onPreview, rotationStep, onRot
     onPreview({ kind: 'rotate', deg, footprint: rotatedFootprint(d.base, d.pivot, deg) })
   }
 
-  const onUp: PointerHandler = (e) => {
-    const d = rotateDrag.current
-    if (!d || d.pointerId !== e.pointerId) return
+  const onRotateUp: PointerHandler = (e) => {
+    const d = drag.current
+    if (d?.kind !== 'rotate' || d.pointerId !== e.pointerId) return
     e.stopPropagation()
-    rotateDrag.current = null
+    drag.current = null
     setCameraEnabled(store, true)
     capturable(e).releasePointerCapture(e.pointerId)
     onPreview(null)
-    if (d.deg !== 0) onRotate(d.deg)
+    if (d.deg !== 0) onRotate?.(d.deg)
   }
 
+  const onHeightDown: PointerHandler = (e) => {
+    e.stopPropagation()
+    const startHeightMm = storeyCount * storeyHeightMm
+    // つまんだ時点の指の高さ。決められないとき（真上から見ているとき）は、つまみの高さ（動かしても変わらない）
+    const grabHeightMm = axisHeightAtRayMm(e.ray.origin, e.ray.direction, roofCenter) ?? startHeightMm
+    drag.current = { kind: 'height', pointerId: e.pointerId, axis: roofCenter, startStoreys: storeyCount, startHeightMm, grabHeightMm, storeys: storeyCount }
+    setCameraEnabled(store, false)
+    capturable(e).setPointerCapture(e.pointerId)
+  }
+
+  const onHeightMove: PointerHandler = (e) => {
+    const d = drag.current
+    if (d?.kind !== 'height' || d.pointerId !== e.pointerId) return
+    e.stopPropagation()
+    const nowMm = axisHeightAtRayMm(e.ray.origin, e.ray.direction, d.axis)
+    if (nowMm === null) return
+    // 建物の高さ（階数 × 階高）が指の高さに追従する。見せるのは最も近い整数の階数（離したときに確定する階数と同じ）
+    const storeys = storeyCountFromHeight(dragHeightMm(d.startHeightMm, d.grabHeightMm, nowMm), storeyHeightMm)
+    if (storeys === d.storeys) return
+    d.storeys = storeys
+    onPreview({ kind: 'height', storeyCount: storeys, heightMm: storeys * storeyHeightMm })
+  }
+
+  const onHeightUp: PointerHandler = (e) => {
+    const d = drag.current
+    if (d?.kind !== 'height' || d.pointerId !== e.pointerId) return
+    e.stopPropagation()
+    drag.current = null
+    setCameraEnabled(store, true)
+    capturable(e).releasePointerCapture(e.pointerId)
+    onPreview(null)
+    if (d.storeys !== d.startStoreys) onStoreyCount?.(d.storeys)
+  }
+
+  // 高さのつまみは、動かしている間は仮の階数の上面に置く
+  const shownStoreys = preview?.kind === 'height' ? preview.storeyCount : storeyCount
+
   return (
-    <ScreenScaled
-      position={scenePosition(vertex0, 0)}
-      handlers={{ onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp }}
-    >
-      <KnobBall color={preview?.kind === 'rotate' ? ROTATE_ACTIVE_COLOR : ROTATE_COLOR} />
-    </ScreenScaled>
+    <>
+      {onRotate && (
+        <ScreenScaled
+          position={scenePosition(vertex0, 0)}
+          handlers={{ onPointerDown: onRotateDown, onPointerMove: onRotateMove, onPointerUp: onRotateUp }}
+        >
+          <KnobBall color={preview?.kind === 'rotate' ? ROTATE_ACTIVE_COLOR : ROTATE_COLOR} />
+        </ScreenScaled>
+      )}
+      {onStoreyCount && (
+        <ScreenScaled
+          position={scenePosition(roofCenter, shownStoreys * storeyHeightMm)}
+          handlers={{ onPointerDown: onHeightDown, onPointerMove: onHeightMove, onPointerUp: onHeightUp }}
+        >
+          <KnobBall color={preview?.kind === 'height' ? HEIGHT_ACTIVE_COLOR : HEIGHT_COLOR} />
+        </ScreenScaled>
+      )}
+    </>
   )
 }

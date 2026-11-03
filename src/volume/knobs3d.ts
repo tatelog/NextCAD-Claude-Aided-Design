@@ -1,6 +1,7 @@
-// 3D のつまみ（ハブ A-03 G71 の回転。D-04 P2）の純粋な処理。描画にも状態にも依存しない。
+// 3D のつまみ（ハブ A-03 G71 の回転、G65 の高さ。D-04 P2）の純粋な処理。描画にも状態にも依存しない。
 // 平面の (x, y) mm は three の (x, 高さ, z) m に対応する（z が y。Volume3D と同じ）。数値は仮置き。
 // 回す処理そのものは canvas/outlineEdit.ts の rotateOutline、刻みは rotation.ts の snapAngle。
+// 高さのつまみが動かす値は、ハブでは未決。今回の仮置きは階数（階高は右パネルの値のまま）。
 import type { Point } from '../geom/viewport'
 import { rotateFootprint } from './placement'
 import { roundFootprintMm, snapAngle, type RotationStep } from './rotation'
@@ -63,4 +64,47 @@ export function knobRotationDeg(pivot: Point, grab: Point, current: Point, step:
  */
 export function rotatedFootprint(base: readonly Point[], pivot: Point, deg: number): Point[] {
   return roundFootprintMm(rotateFootprint(base, pivot, deg))
+}
+
+/** 階数の上限（G65 の高さのつまみ。仮置き）。 */
+export const MAX_STOREYS = 30
+
+/**
+ * 高さのつまみ（G65）: 高さ（mm）を階高で割って、最も近い整数の階数にする（四捨五入。ちょうど半分は切り上げ）。
+ * 1 以上、上限は MAX_STOREYS に丸める。階高が 0 以下、高さや階高が数でないときは 1 階。
+ */
+export function storeyCountFromHeight(heightMm: number, storeyHeightMm: number): number {
+  if (!Number.isFinite(heightMm) || !Number.isFinite(storeyHeightMm) || storeyHeightMm <= 0) return 1
+  return Math.min(MAX_STOREYS, Math.max(1, Math.round(heightMm / storeyHeightMm)))
+}
+
+// 視線が鉛直から 5° 以内（真上から見下ろす）だと、軸の上の点が決まらない（指の動きに対して高さの変わり方が大きすぎる）
+const NEAR_VERTICAL_SIN2 = Math.sin((5 * Math.PI) / 180) ** 2
+
+/**
+ * 高さのつまみ（G65）: 平面の点 axisMm の真上に立つ鉛直な軸の上で、視線（origin から direction の向き）にいちばん近い点の高さ（mm）。
+ * 視線が鉛直から 5° 以内（真上や真下から見る）、向きが零、数でない入力のときは、高さを決められないので null。
+ * direction は正規化していなくてよい。
+ */
+export function axisHeightAtRayMm(origin: Vec3, direction: Vec3, axisMm: Point): number | null {
+  const len = Math.hypot(direction.x, direction.y, direction.z)
+  if (!(len > 0) || !Number.isFinite(len)) return null
+  const dx = direction.x / len
+  const dy = direction.y / len
+  const dz = direction.z / len
+  const sin2 = 1 - dy * dy
+  if (!(sin2 >= NEAR_VERTICAL_SIN2)) return null
+  // 軸は点 (ax, 0, az) を通る鉛直な直線、視線は origin + s * d。二つの直線がいちばん近づく点の、軸の上の高さ t（m）
+  const wx = origin.x - axisMm.x / MM_PER_M
+  const wz = origin.z - axisMm.y / MM_PER_M
+  const t = (origin.y - dy * (dx * wx + dy * origin.y + dz * wz)) / sin2
+  return Number.isFinite(t) ? t * MM_PER_M + 0 : null
+}
+
+/**
+ * 高さのつまみ（G65）: つまんだ時点の高さ startHeightMm から、指の高さが grabHeightMm から nowHeightMm へ動いた分だけ変えた高さ（mm）。
+ * つまんだ点がつまみの中心から外れていても、動かさなければ跳ばない。
+ */
+export function dragHeightMm(startHeightMm: number, grabHeightMm: number, nowHeightMm: number): number {
+  return startHeightMm + (nowHeightMm - grabHeightMm)
 }

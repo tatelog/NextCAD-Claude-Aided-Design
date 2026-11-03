@@ -275,6 +275,7 @@ export function P03Volume() {
                 rotationStep={rotateStep}
                 onRotateStart={onKnobRotateStart}
                 onRotate={onKnobRotate}
+                onStoreyCount={setStoreyCount}
               />
               {showMiniMap && boundsOf([volume.footprint]) ? (
                 <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />

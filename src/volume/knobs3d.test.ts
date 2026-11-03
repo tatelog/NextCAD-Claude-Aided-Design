@@ -8,11 +8,27 @@
 //  2. 回す量は右パネルの刻み（自由・15°・90°）で丸める。自由は丸めない
 //  3. 動かしている間は、回した外形を表示だけで見せる。離したときに rotateOutline が確定する外形と同じ形（整数 mm）
 //  4. 指の位置は、3D の視線と地面（高さ 0）の交点。平面の (x, y) mm は three の (x, 高さ, z) m に対応する（z が y。Volume3D と同じ）
+//
+// 高さのつまみ（G65。代表の決定: オブジェクトにはつまみを付けて、外形の変更を容易にさせる。画面側の案（D-04）: 3D の上面に高さのつまみを置く）。
+// 未決（ハブ）: 高さのつまみが何の値を動かすか。今回の仮置き: 階数を動かす（階高は右パネルの値のまま）:
+//  5. つまんで動かすと、建物の高さ（階数 × 階高）が指の高さに追従する。つまんだ時点の高さから、指の動いた分だけ変える
+//  6. 離したときに、高さを階高で割って最も近い整数の階数にし、1 以上・上限 30 に丸める
+//  7. 指の高さは、外形の重心を通る鉛直な軸の上で、視線にいちばん近い点の高さ（真上から見下ろすと決まらない）
 import { describe, expect, it } from 'vitest'
 import { findClosedOutline } from '../canvas/closure'
 import { rotateOutline } from '../canvas/outlineEdit'
 import type { Node, Segment } from '../model/schema'
-import { knobAngleDeg, knobRotationDeg, rayHitPlaneMm, rotatedFootprint, scenePosition } from './knobs3d'
+import {
+  MAX_STOREYS,
+  axisHeightAtRayMm,
+  dragHeightMm,
+  knobAngleDeg,
+  knobRotationDeg,
+  rayHitPlaneMm,
+  rotatedFootprint,
+  scenePosition,
+  storeyCountFromHeight,
+} from './knobs3d'
 import { outlineCentroid } from './rotation'
 
 type Pt = { x: number; y: number }
@@ -256,5 +272,118 @@ describe('平面の点（mm）と高さ（mm）を、3D の位置（three の x�
   it('平面の (x, y) mm は three の (x, 高さ, y) m。mm は 1/1000 で m', () => {
     expect(scenePosition({ x: 2000, y: 3000 }, 6000)).toEqual([2, 6, 3])
     expect(scenePosition({ x: -1500, y: 0 }, 0)).toEqual([-1.5, 0, 0])
+  })
+})
+
+describe('高さのつまみ: 高さを階高で割って、最も近い整数の階数にする（1 以上・上限 30）', () => {
+  it('上限は 30 階（仮置き）', () => {
+    expect(MAX_STOREYS).toBe(30)
+  })
+
+  it('階高 3000 mm のとき、高さ 6500 mm は 2 階（四捨五入）', () => {
+    expect(storeyCountFromHeight(6500, 3000)).toBe(2)
+  })
+
+  it('階高で割り切れる高さは、その階数（3000 → 1 階、6000 → 2 階、15000 → 5 階）', () => {
+    expect(storeyCountFromHeight(3000, 3000)).toBe(1)
+    expect(storeyCountFromHeight(6000, 3000)).toBe(2)
+    expect(storeyCountFromHeight(15_000, 3000)).toBe(5)
+  })
+
+  it('最も近い整数へ（4400 mm は 1 階、4600 mm は 2 階。ちょうど半分の 4500 mm は切り上げて 2 階）', () => {
+    expect(storeyCountFromHeight(4400, 3000)).toBe(1)
+    expect(storeyCountFromHeight(4600, 3000)).toBe(2)
+    expect(storeyCountFromHeight(4500, 3000)).toBe(2)
+  })
+
+  it('階高は右パネルの値（階高 2800 mm のとき、8400 mm は 3 階、7000 mm は 2.5 階分なので 3 階）', () => {
+    expect(storeyCountFromHeight(8400, 2800)).toBe(3)
+    expect(storeyCountFromHeight(7000, 2800)).toBe(3)
+  })
+
+  it('0 や負の高さ、1 階の半分より低い高さは 1 階', () => {
+    expect(storeyCountFromHeight(0, 3000)).toBe(1)
+    expect(storeyCountFromHeight(-3000, 3000)).toBe(1)
+    expect(storeyCountFromHeight(1000, 3000)).toBe(1)
+  })
+
+  it('上限を超えるときは 30 階（ちょうど 30 階分は 30 階、31 階分や 100 m は 30 階）', () => {
+    expect(storeyCountFromHeight(90_000, 3000)).toBe(30)
+    expect(storeyCountFromHeight(93_000, 3000)).toBe(30)
+    expect(storeyCountFromHeight(100_000, 3000)).toBe(30)
+  })
+
+  it('階高が 0 以下・高さが数でないときは 1 階', () => {
+    expect(storeyCountFromHeight(6500, 0)).toBe(1)
+    expect(storeyCountFromHeight(6500, -3000)).toBe(1)
+    expect(storeyCountFromHeight(Number.NaN, 3000)).toBe(1)
+    expect(storeyCountFromHeight(6500, Number.NaN)).toBe(1)
+  })
+})
+
+describe('高さのつまみ: 指の高さ（重心を通る鉛直な軸の上で、視線にいちばん近い点の高さ。mm）', () => {
+  it('軸の上の点 (0, 高さ 3 m, 0) を狙う視線は、高さ 3000 mm', () => {
+    // 視点 (0, 5, 10) m から (0, 3, 0) m を見る
+    expect(axisHeightAtRayMm({ x: 0, y: 5, z: 10 }, { x: 0, y: -2, z: -10 }, { x: 0, y: 0 })!).toBeCloseTo(3000, 6)
+  })
+
+  it('軸は平面の点 (x, y) mm の真上（three の x・z が x・y）。軸 (4000, 7000) mm の高さ 6 m を狙う視線は 6000 mm', () => {
+    // 視点 (4, 20, 17) m から (4, 6, 7) m を見る
+    expect(axisHeightAtRayMm({ x: 4, y: 20, z: 17 }, { x: 0, y: -14, z: -10 }, { x: 4000, y: 7000 })!).toBeCloseTo(6000, 6)
+  })
+
+  it('真横から見る視線は、視点の高さ（高さ 3 m から -x の向きへ。軸に当たらず脇を通っても同じ）', () => {
+    expect(axisHeightAtRayMm({ x: 10, y: 3, z: 0 }, { x: -1, y: 0, z: 0 }, { x: 0, y: 0 })!).toBeCloseTo(3000, 6)
+    expect(axisHeightAtRayMm({ x: 10, y: 3, z: 2 }, { x: -1, y: 0, z: 0 }, { x: 0, y: 0 })!).toBeCloseTo(3000, 6)
+  })
+
+  it('斜めに見下ろす視線が軸の足元（地面）に当たるときは 0 mm', () => {
+    expect(axisHeightAtRayMm({ x: 0, y: 10, z: 5 }, { x: 0, y: -10, z: -5 }, { x: 0, y: 0 })!).toBeCloseTo(0, 6)
+  })
+
+  it('向きの長さ（正規化の有無）によらない', () => {
+    const a = axisHeightAtRayMm({ x: 0, y: 5, z: 10 }, { x: 0, y: -2, z: -10 }, { x: 0, y: 0 })!
+    const b = axisHeightAtRayMm({ x: 0, y: 5, z: 10 }, { x: 0, y: -6, z: -30 }, { x: 0, y: 0 })!
+    expect(a).toBeCloseTo(b, 6)
+  })
+
+  it('真上（鉛直から 5° 以内）から見下ろす視線は、高さを決められないので null', () => {
+    expect(axisHeightAtRayMm({ x: 1, y: 10, z: 1 }, { x: 0, y: -1, z: 0 }, { x: 0, y: 0 })).toBeNull()
+    expect(axisHeightAtRayMm({ x: 1, y: 10, z: 1 }, { x: 0.05, y: -1, z: 0 }, { x: 0, y: 0 })).toBeNull()
+    expect(axisHeightAtRayMm({ x: 1, y: -10, z: 1 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0 })).toBeNull()
+  })
+
+  it('鉛直から 11° 傾いていれば決められる', () => {
+    expect(axisHeightAtRayMm({ x: 1, y: 10, z: 1 }, { x: 0.2, y: -1, z: 0 }, { x: 0, y: 0 })).not.toBeNull()
+  })
+
+  it('向きが零のベクトルや、数でない入力は null', () => {
+    expect(axisHeightAtRayMm({ x: 0, y: 5, z: 10 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0 })).toBeNull()
+    expect(axisHeightAtRayMm({ x: Number.NaN, y: 5, z: 10 }, { x: 0, y: -2, z: -10 }, { x: 0, y: 0 })).toBeNull()
+  })
+})
+
+describe('高さのつまみ: つまんだ時点の高さから、指の動いた分だけ高さを変える', () => {
+  it('指が 3 m 上がれば、高さも 3 m 上がる（15 m → 18 m）。下げれば下がる', () => {
+    expect(dragHeightMm(15_000, 15_000, 18_000)).toBe(18_000)
+    expect(dragHeightMm(15_000, 15_000, 12_000)).toBe(12_000)
+  })
+
+  it('動かさなければ変わらない（つまんだ点が、つまみの中心から少し外れていても跳ばない）', () => {
+    expect(dragHeightMm(15_000, 15_500, 15_500)).toBe(15_000)
+  })
+
+  it('階数に直すと、5 階（階高 3000 mm）のつまみを 3 m 上げて 6 階、1 m 上げてもまだ 5 階、2.2 m 上げて 6 階', () => {
+    const storeys = (nowMm: number) => storeyCountFromHeight(dragHeightMm(15_000, 15_000, nowMm), 3000)
+    expect(storeys(18_000)).toBe(6)
+    expect(storeys(16_000)).toBe(5)
+    expect(storeys(17_200)).toBe(6)
+  })
+
+  it('地面まで下げると 1 階、うんと上げると 30 階（上限）', () => {
+    const storeys = (nowMm: number) => storeyCountFromHeight(dragHeightMm(15_000, 15_000, nowMm), 3000)
+    expect(storeys(0)).toBe(1)
+    expect(storeys(-5000)).toBe(1)
+    expect(storeys(200_000)).toBe(30)
   })
 })
