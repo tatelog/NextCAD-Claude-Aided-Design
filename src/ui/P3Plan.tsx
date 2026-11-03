@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { checkSpan, gridLines } from '../plan/grid'
 import { spanDimensions } from '../plan/spanDimension'
+import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
@@ -162,6 +163,24 @@ export function P3Plan() {
 
   // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数と、選んだ種類の中身を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
   // 什器（G69）は、店舗の一覧（置いた什器。区画なしも含む）をそのまま渡す
+  // 節目の要約（D-04 P3 の右側）。敷地・法規適合・階数階高・スパン・住戸数。確認申請に要る情報がここで揃う
+  const siteMatches = useSite((s) => s.matches)
+  const shadowResult = useSite((s) => s.shadow)
+  const storeyCount = useDrawing((s) => s.storeyCount)
+  const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
+  const milestoneRows = useMemo(
+    () =>
+      milestoneSummary({
+        zoneKnown: siteMatches !== null && siteMatches.length === 1,
+        shadow: shadowResult,
+        storeyCount,
+        storeyHeightMm,
+        spanCount: auto ? auto.spans : null,
+        unitCount: units.cells ? units.cells.cells.length : 0,
+      }),
+    [siteMatches, shadowResult, storeyCount, storeyHeightMm, auto, units.cells],
+  )
+
   const objectSources = useMemo<ObjectDetailSources>(
     () => ({
       outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
@@ -401,6 +420,16 @@ export function P3Plan() {
         <p style={{ color: '#666', fontSize: 12 }}>
           閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
+        <section style={{ marginBottom: 10 }}>
+          <strong style={{ fontSize: 13 }}>節目の要約</strong>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
+            {milestoneRows.map((r) => (
+              <li key={r.label} style={{ fontSize: 12, color: r.status === 'ng' ? '#c8412a' : undefined }}>
+                {r.status === 'ok' ? '済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
+              </li>
+            ))}
+          </ul>
+        </section>
         <SemanticConfirm
           rows={semanticRows}
           onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
