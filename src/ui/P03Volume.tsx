@@ -13,6 +13,8 @@ import { judgeShadow } from '../law/shadowRegulation'
 import { cutFloors } from '../volume/slope'
 import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
+import { MiniMap } from './MiniMap'
+import { boundsOf } from './mapBounds'
 import { shadowRuleFor } from '../law/shadowRule'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
@@ -56,6 +58,7 @@ export function P03Volume() {
   const siteBuildings = useSite((s) => s.buildings)
   const showShadow = useUi((s) => s.showShadow)
   const showNeighbors = useUi((s) => s.showNeighbors)
+  const showMiniMap = useUi((s) => s.showMiniMap)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
     () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, PARCEL_CENTER_MM) : []),
@@ -244,7 +247,7 @@ export function P03Volume() {
       <div className="p03-body">
         {view === '3d' ? (
           volume ? (
-            <div style={{ flex: 1, minWidth: 0, minHeight: 420 }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
               <Volume3D
                 footprint={volume.footprint}
                 shadow={showShadow ? sunShadow : null}
@@ -253,6 +256,9 @@ export function P03Volume() {
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
               />
+              {showMiniMap && boundsOf([volume.footprint]) ? (
+                <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
+              ) : null}
             </div>
           ) : (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center', background: '#f4f4f2' }}>

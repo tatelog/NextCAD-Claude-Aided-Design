@@ -10,6 +10,9 @@ interface UiState {
   showDimensions: boolean
   /** グリッド（P3 の平面の背景） */
   showGrid: boolean
+  /** 全体図（右下の縮図） */
+  showMiniMap: boolean
+  setShowMiniMap: (on: boolean) => void
   setShowShadow: (on: boolean) => void
   setShowNeighbors: (on: boolean) => void
   setShowDimensions: (on: boolean) => void
@@ -21,6 +24,8 @@ export const useUi = create<UiState>((set) => ({
   showNeighbors: true,
   showDimensions: true,
   showGrid: true,
+  showMiniMap: true,
+  setShowMiniMap: (on) => set({ showMiniMap: on }),
   setShowShadow: (on) => set({ showShadow: on }),
   setShowNeighbors: (on) => set({ showNeighbors: on }),
   setShowDimensions: (on) => set({ showDimensions: on }),

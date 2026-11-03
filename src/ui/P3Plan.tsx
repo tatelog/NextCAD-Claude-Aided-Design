@@ -9,6 +9,8 @@ import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { useSite } from '../store/site'
 import { useUi } from '../store/ui'
+import { MiniMap } from './MiniMap'
+import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 
 export function P3Plan() {
@@ -30,6 +32,7 @@ export function P3Plan() {
   const [auto, setAuto] = useState<AutoPlan | null>(null)
   const showDimensions = useUi((s) => s.showDimensions)
   const showGrid = useUi((s) => s.showGrid)
+  const showMiniMap = useUi((s) => s.showMiniMap)
   const [autoError, setAutoError] = useState<string | null>(null)
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
@@ -115,6 +118,7 @@ export function P3Plan() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', height: '100%' }}>
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
+          <div style={{ position: 'relative' }}>
           <svg width="100%" viewBox={`-500 -500 ${W + 1000} ${D + 1000}`} style={{ maxHeight: '70vh', background: '#fff', border: '1px solid #ddd8cc' }}>
             {showGrid ? (
               <g stroke="#e3e6df" strokeWidth={6}>
@@ -154,6 +158,18 @@ export function P3Plan() {
               <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
             ))}
           </svg>
+          {showMiniMap && units.cells ? (() => {
+            const rect = (r: { x0: number; y0: number; x1: number; y1: number }) => [
+              { x: r.x0, y: r.y0 },
+              { x: r.x1, y: r.y0 },
+              { x: r.x1, y: r.y1 },
+              { x: r.x0, y: r.y1 },
+            ]
+            const polys = [rect({ x0: 0, y0: 0, x1: W, y1: D }), ...units.cells.corridors.map(rect), ...units.cells.cells.map(rect)]
+            const b = boundsOf(polys)
+            return b ? <MiniMap bounds={b} polygons={polys} /> : null
+          })() : null}
+          </div>
         ) : (
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}

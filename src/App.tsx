@@ -8,6 +8,7 @@ import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
 import { useUi } from './store/ui'
+import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
 
@@ -21,12 +22,32 @@ const SCREENS = [
 
 type ScreenId = (typeof SCREENS)[number]['id']
 
-const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer' } as const
+const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
 
 export function App() {
   const [screen, setScreen] = useState<ScreenId>('P2')
   // 案件名（敷地名）。画面の中だけで持つ（保存のときだけ書き出す）
   const [project, setProject] = useState('')
+  // 開発用: ?seed=square で、20 m × 30 m の閉じた外形を描いた状態から始める（画面の確認用。本番ビルドには入らない）
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    if (new URLSearchParams(window.location.search).get('seed') !== 'square') return
+    const corners = [
+      [0, 0],
+      [2000, 0],
+      [2000, 3000],
+      [0, 3000],
+      [0, 0],
+    ]
+    useDrawing.getState().clear()
+    for (let i = 0; i < 4; i++) {
+      const [a, b] = [corners[i]!, corners[i + 1]!]
+      useDrawing.getState().addStroke(
+        p3Stroke({ points: [{ px: a[0]!, py: a[1]! }, { px: b[0]!, py: b[1]! }], viewScaleMmPerPx: 10, viewOriginPx: { px: 0, py: 0 }, id: `seed-${i}` }),
+      )
+    }
+  }, [])
+
   // 作業履歴（SQLite）の準備ができたか。記録のたびに rev を進めて、一覧を読み直す
   const [logReady, setLogReady] = useState(false)
   const [rev, setRev] = useState(0)
@@ -44,6 +65,7 @@ export function App() {
   const showNeighbors = useUi((s) => s.showNeighbors)
   const showDimensions = useUi((s) => s.showDimensions)
   const showGrid = useUi((s) => s.showGrid)
+  const showMiniMap = useUi((s) => s.showMiniMap)
 
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
@@ -175,6 +197,17 @@ export function App() {
                 <label style={{ display: 'block', marginBottom: 8 }}>
                   <input
                     type="checkbox"
+                    checked={showMiniMap}
+                    onChange={(e) => {
+                      useUi.getState().setShowMiniMap(e.target.checked)
+                      record('表示', `全体図 ${e.target.checked ? '入' : '切'}`)
+                    }}
+                  />{' '}
+                  全体図（右下の縮図：P2・P3）
+                </label>
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
                     checked={showGrid}
                     onChange={(e) => {
                       useUi.getState().setShowGrid(e.target.checked)
@@ -184,7 +217,7 @@ export function App() {
                   グリッド（P3 の平面）
                 </label>
                 <p style={{ fontSize: 11, color: '#666' }}>
-                  全体図（右下の縮図）は、画面をまたぐ敷地の範囲を持っていないため、まだ出していない。
+                  全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。
                 </p>
               </>
             )}
