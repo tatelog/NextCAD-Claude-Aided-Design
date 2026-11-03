@@ -6,8 +6,11 @@ import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { roomFinishTotals } from '../estimate/roomQuantities'
+import type { ObjectKind } from '../plan/objectMenu'
+import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import type { RoomKind } from '../plan/rooms'
 import { useSite } from '../store/site'
+import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 
 const SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
@@ -68,6 +71,10 @@ export function P4Estimate() {
   }, [volume, plan])
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
+  // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
+  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
+  const objectSources = useMemo(() => objectSourcesOfPlan(plan), [plan])
+
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
     const lines = parsed.rows
@@ -81,7 +88,14 @@ export function P4Estimate() {
   }, [parsed, quantities, autoList])
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
+      <ObjectMenu
+        sources={objectSources}
+        selectedKind={selectedKind}
+        onSelect={setSelectedKind}
+        caption="種類ごとの件数（P3 の自動作成の結果）"
+        notice={noticeOfPlan(plan)}
+      />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
         {plan ? (
