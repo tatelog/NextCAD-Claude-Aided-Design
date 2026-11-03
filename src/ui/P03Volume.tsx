@@ -37,6 +37,7 @@ import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
 import { ObjectMenu } from './ObjectMenu'
 import { TileClose } from './PanelTile'
 import { usePanelTiles } from '../store/panelTiles'
+import { OrdinanceStatusLine } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -365,7 +366,9 @@ export function P03Volume() {
                     : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
                 </dd>
                 <dt>日影</dt>
-                <dd>{shadowJudge.text}</dd>
+                <dd>
+                  {shadowJudge.text}（<OrdinanceStatusLine itemKey="日影時間" />）
+                </dd>
                 <dt>容積率</dt>
                 <dd>
                   {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）

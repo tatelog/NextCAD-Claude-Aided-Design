@@ -5,6 +5,7 @@ import { ATTRIBUTION, tileFromLonLat, tileUrl } from '../map/tiles'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
+import { OrdinanceForm } from './OrdinanceForm'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { worldPixel } from '../map/worldPixel'
 import { useUi } from '../store/ui'
@@ -165,6 +166,7 @@ export function P1Site() {
           </dl>
         </section>
         <section>
+          <OrdinanceForm />
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区のコード（例: 13108 は江東区）
