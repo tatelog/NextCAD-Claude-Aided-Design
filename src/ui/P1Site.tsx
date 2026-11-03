@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { ATTRIBUTION, tileFromLonLat, tileUrl } from '../map/tiles'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { useSite } from '../store/site'
+import { fireDecisionLine } from '../law/fireZone'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { worldPixel } from '../map/worldPixel'
 import { useUi } from '../store/ui'
@@ -197,6 +198,7 @@ export function P1Site() {
               {f.notificationNumber ? `、${f.notificationNumber}` : ''}
             </p>
           ))}
+          {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
           {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
           {result && result.heightMatches.map((h) => (
             <p key={h.id}>
