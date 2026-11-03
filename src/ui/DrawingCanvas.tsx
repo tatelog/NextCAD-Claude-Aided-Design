@@ -7,7 +7,8 @@ import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
 import { useFeatures } from '../store/features'
-import { visibleSegments } from '../plan/layers'
+import { layerOfSegment, visibleSegments, type LayerName } from '../plan/layers'
+import { lineStyleOf, type LineStyle } from '../plan/lineStyle'
 import { useLayers } from '../store/layers'
 import { useSemantic } from '../store/semantic'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
@@ -69,6 +70,11 @@ export function DrawingCanvas() {
   const layerVisible = useLayers((s) => s.visible)
   const assignments = useSemantic((s) => s.assignments)
   const shownSegments = useMemo(() => visibleSegments(segments, assignments, layerVisible), [segments, assignments, layerVisible])
+  // 線ごとの層（見え方を決める）。意味づけが変われば、層も見え方も変わる
+  const layerById = useMemo(
+    () => new Map(shownSegments.map((s) => [s.id, layerOfSegment(s.stage, assignments[s.id]?.kind ?? null)] as const)),
+    [shownSegments, assignments],
+  )
   const nodes = useMemo(() => entries.flatMap((e) => e.nodes), [entries])
   const footprint = useMemo(() => {
     const c = findClosedOutline(segments)
@@ -114,8 +120,9 @@ export function DrawingCanvas() {
       displayGrid,
       useFeatures.getState().on.endpointRing ? hoverRef.current : null,
       handleDragRef.current?.view ?? null,
+      layerById,
     )
-  }, [viewport, shownSegments, nodes, footprint, displayGrid])
+  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -137,6 +144,7 @@ export function DrawingCanvas() {
         displayGrid,
         useFeatures.getState().on.endpointRing ? hoverRef.current : null,
         handleDragRef.current?.view ?? null,
+        layerById,
       )
 
     const onDown = (e: PointerEvent) => {
@@ -347,7 +355,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, nodes, footprint, displayGrid])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid])
 
   return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
 }
@@ -362,6 +370,7 @@ function paint(
   showGrid: boolean,
   hoverPx: Point | null,
   handleView: HandleDragView | null,
+  layerById: ReadonlyMap<string, LayerName>,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -429,27 +438,39 @@ function paint(
     ctx.fill()
   }
 
-  // 整形後の線分。曲線は制御点を通る折れ線で描く（見た目だけ。正本は制御点）
-  ctx.strokeStyle = '#1f2a44'
-  ctx.lineWidth = 2.5
-  ctx.lineCap = 'round'
-  ctx.beginPath()
+  // 整形後の線分。層ごとの見え方（色・太さ・破線）で、同じ見え方の線をまとめて描く。曲線は制御点を通る折れ線で描く（見た目だけ。正本は制御点）
+  const groups = new Map<string, { style: LineStyle; list: Segment[] }>()
   for (const s of shownSegments) {
-    const pts = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as Point[]) : null
-    if (pts && pts.length > 1) {
-      pts.forEach((p, i) => {
-        const q = mmToPx(vp, p)
-        if (i === 0) ctx.moveTo(q.x, q.y)
-        else ctx.lineTo(q.x, q.y)
-      })
-      continue
-    }
-    const a = mmToPx(vp, { x: s.x1, y: s.y1 })
-    const b = mmToPx(vp, { x: s.x2, y: s.y2 })
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
+    const style = lineStyleOf(layerById.get(s.id) ?? 'その他')
+    const key = `${style.color}|${style.width}|${style.dash.join(',')}`
+    const group = groups.get(key)
+    if (group) group.list.push(s)
+    else groups.set(key, { style, list: [s] })
   }
-  ctx.stroke()
+  ctx.lineCap = 'round'
+  for (const { style, list } of groups.values()) {
+    ctx.strokeStyle = style.color
+    ctx.lineWidth = style.width
+    ctx.setLineDash(style.dash)
+    ctx.beginPath()
+    for (const s of list) {
+      const pts = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as Point[]) : null
+      if (pts && pts.length > 1) {
+        pts.forEach((p, i) => {
+          const q = mmToPx(vp, p)
+          if (i === 0) ctx.moveTo(q.x, q.y)
+          else ctx.lineTo(q.x, q.y)
+        })
+        continue
+      }
+      const a = mmToPx(vp, { x: s.x1, y: s.y1 })
+      const b = mmToPx(vp, { x: s.x2, y: s.y2 })
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+    }
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
 
   // 描いている最中の軌跡（px のまま）
   if (currentPx && currentPx.length > 1) {
