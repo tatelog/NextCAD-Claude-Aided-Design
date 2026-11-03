@@ -12,6 +12,9 @@ export interface UnitDetailPanelProps {
   ceilingMm?: number
   /** 区画の部屋の種類 */
   rooms?: string[]
+  /** 描いた線のうち、区画の中の壁の本数と開口の数（意味づけの結果）。無ければ未配線と出す */
+  walls?: number
+  openings?: number
   /** 同じ間口・奥行の住戸の ID。無ければ「同タイプの住戸に反映」は押せない */
   sameTypeIds: string[]
   /** 「同タイプの住戸に反映」を押したとき（この住戸の什器を同タイプへ） */
@@ -20,7 +23,7 @@ export interface UnitDetailPanelProps {
 
 const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join('、') : 'なし')
 
-export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], sameTypeIds, onApplySameType }: UnitDetailPanelProps) {
+export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, sameTypeIds, onApplySameType }: UnitDetailPanelProps) {
   if (!detail) return null
   return (
     <aside
@@ -55,7 +58,7 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
       </ul>
       <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px', fontSize: 12, color: '#a33' }}>
         <li>バルコニー: 未配線</li>
-        <li>壁と開口: 未配線</li>
+        <li>{walls === undefined || openings === undefined ? '壁と開口: 未配線' : `壁 ${walls} 本・開口 ${openings} 箇所（描いた線から）`}</li>
       </ul>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button type="button" onClick={onClose}>

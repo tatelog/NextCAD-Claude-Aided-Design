@@ -68,9 +68,10 @@ describe('住戸の詳細パネル（仕様 1〜6）', () => {
     expect(html(DETAIL)).toContain('配置（階）: 未配線')
   })
 
-  it('仕様 6: バルコニーと壁・開口は未配線と出す', () => {
+  it('仕様 6: バルコニーは未配線と出す。壁と開口は、数が渡されたときは描いた線の数を出し、無いときは未配線', () => {
     const out = html(DETAIL)
     expect(out).toContain('バルコニー: 未配線')
     expect(out).toContain('壁と開口: 未配線')
+    expect(html(DETAIL, { walls: 2, openings: 1 })).toContain('壁 2 本・開口 1 箇所（描いた線から）')
   })
 })

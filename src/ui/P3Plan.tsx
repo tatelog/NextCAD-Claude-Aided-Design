@@ -30,6 +30,7 @@ import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { copyFixturesToSameType, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { roomsOfCells } from '../plan/rooms'
+import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
 export function P3Plan() {
@@ -451,7 +452,7 @@ export function P3Plan() {
           </>
         ) : null}
         <p style={{ color: '#666', fontSize: 12 }}>
-          閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
+          閉合は画面に未接続（意味判定は、ヘッダーの「意味づけを判定」で送る）。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
         </PanelTile>
         )}
@@ -482,12 +483,19 @@ export function P3Plan() {
       {(() => {
         const cells = units.cells ? units.cells.cells : []
         const cell = cells.find((c) => c.id === detailUnitId)
+        // 描いた線の中点と、その意味づけ（種類）から、住戸の中の壁と開口の数を出す（ハブ A-03 G76）
+        const kindPoints: KindPoint[] = drawnEntries
+          .flatMap((e) => e.segments)
+          .map((s) => ({ x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2, kind: assignments[s.id]?.kind ?? null }))
+        const kindCounts = cell ? kindCountsIn(cell, kindPoints) : undefined
         return (
           <UnitDetailPanel
             detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
             onClose={() => setDetailUnitId(null)}
             storeyCount={storeyCount}
             ceilingMm={2400}
+            walls={kindCounts?.walls}
+            openings={kindCounts?.openings}
             rooms={cell ? roomsOfCells([cell]).map((r) => r.kind) : []}
             sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
             onApplySameType={() => {
