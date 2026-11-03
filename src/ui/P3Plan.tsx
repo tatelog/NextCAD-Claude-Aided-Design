@@ -11,8 +11,10 @@ import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
+import { confirmRows } from '../plan/semanticConfirm'
 import { DRAW_OPTIONS, useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
+import { useSemantic } from '../store/semantic'
 import { useSite } from '../store/site'
 import { useUi } from '../store/ui'
 import { FixtureLayer } from './FixtureLayer'
@@ -21,6 +23,7 @@ import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
+import { SemanticConfirm } from './SemanticConfirm'
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -56,6 +59,12 @@ export function P3Plan() {
   const placeSelectedFixture = useFixtures((s) => s.placeSelected)
   const removeFixtureById = useFixtures((s) => s.remove)
   const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
+  // 意味づけの確認（G14）: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
+  const drawnEntries = useDrawing((s) => s.entries)
+  const assignments = useSemantic((s) => s.assignments)
+  const setSemanticKind = useSemantic((s) => s.setKind)
+  const clearSemanticKind = useSemantic((s) => s.clearKind)
+  const semanticRows = useMemo(() => confirmRows(drawnEntries.flatMap((e) => e.segments), assignments), [drawnEntries, assignments])
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
   const runAuto = () => {
@@ -377,6 +386,11 @@ export function P3Plan() {
         <p style={{ color: '#666', fontSize: 12 }}>
           閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
+        <SemanticConfirm
+          rows={semanticRows}
+          onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
+          onConfirm={setSemanticKind}
+        />
       </aside>
     </div>
   )
