@@ -29,6 +29,9 @@ import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
 import { neighborVolumes } from '../volume/neighborLocal'
+import type { ObjectKind } from '../plan/objectMenu'
+import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
+import { ObjectMenu } from './ObjectMenu'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -47,6 +50,8 @@ export function P03Volume() {
   const entries = useDrawing((s) => s.entries)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
   const closure = useMemo(() => findClosedOutline(segments), [segments])
+  // 左メニュー（G55）の入力: 外形（閉じた輪郭）と仮の筆界（ダミー）から。P1 の筆界が入るまでの仮
+  const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, DUMMY_PARCEL), [closure])
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
@@ -56,6 +61,8 @@ export function P03Volume() {
   const placement = useUi((s) => s.toolbarPlacement)
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
+  // 左メニュー（G55）で選んだ種類（1 つだけ。もう一度押すと外れる）。2D 平面のときだけ出す（3D のときに出すかは未決）
+  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const [homeToken, setHomeToken] = useState(0)
   const siteBuildings = useSite((s) => s.buildings)
   const showShadow = useUi((s) => s.showShadow)
@@ -238,6 +245,9 @@ export function P03Volume() {
         )}
       </header>
       <div className="p03-body">
+        {view === 'plan' && (
+          <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（外形と仮の筆界）" />
+        )}
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
