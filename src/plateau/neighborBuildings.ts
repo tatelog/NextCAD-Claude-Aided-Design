@@ -48,8 +48,13 @@ export async function loadNeighborBuildings(
 ): Promise<PlateauBuilding[]> {
   const zip = await openZip(zipUrl, fetchImpl)
   const names = new Set(zip.entries.map((e) => e.name))
+  const codes = neighborMeshCodes(point)
+  // 候補のどれも zip に無いのは、区の範囲外（既定の地点が別の区にあるなど）の可能性が高い。黙って 0 棟にしない
+  if (!codes.some((code) => names.has(`udx/bldg/${code}_bldg_6697_op.gml`))) {
+    throw new Error('この地点の建物ファイルが zip にありません（区の範囲外の可能性）')
+  }
   const found: PlateauBuilding[] = []
-  for (const code of neighborMeshCodes(point)) {
+  for (const code of codes) {
     const name = `udx/bldg/${code}_bldg_6697_op.gml`
     if (!names.has(name)) continue
     const text = new TextDecoder().decode(await zip.read(name))
