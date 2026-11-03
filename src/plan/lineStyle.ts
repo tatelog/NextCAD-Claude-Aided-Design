@@ -33,3 +33,9 @@ export function lineStyleOf(layer: LayerName): LineStyle {
   const s = STYLE_OF[layer]
   return { color: s.color, width: s.width, dash: [...s.dash] }
 }
+
+/** 要確認の線は、橙色で一段太くする（仮置き）。確定の線は層の見え方のまま */
+export function segmentStyle(layer: LayerName, needsReview: boolean): LineStyle {
+  const base = lineStyleOf(layer)
+  return needsReview ? { ...base, color: '#d9822b', width: base.width + 1 } : base
+}

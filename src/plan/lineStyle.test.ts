@@ -5,7 +5,7 @@
 // 仕様 3: 開口は切り欠きの代わりに破線（仮置き）。壁は二重線の代わりに太い線（仮置き）。
 // 仕様 4: 層の見え方は、層が決めた色と太さと破線だけで決まる（同じ層は同じ見え方）。
 import { describe, expect, it } from 'vitest'
-import { lineStyleOf } from './lineStyle'
+import { lineStyleOf, segmentStyle } from './lineStyle'
 
 describe('層ごとの線の見え方（仕様 1〜3）', () => {
   it('通り芯は一点鎖線（破線の並びが 4 つ以上で、実線ではない）', () => {
@@ -23,6 +23,20 @@ describe('層ごとの線の見え方（仕様 1〜3）', () => {
 
   it('開口は破線（切り欠きの代わり）', () => {
     expect(lineStyleOf('開口').dash.length).toBeGreaterThan(0)
+  })
+})
+
+// 仕様 5（要確認の印の見せ方。仮置き）: 要確認の線は、層の見え方のまま、橙色で一段太く描く。確定の線は層の見え方のまま。
+describe('要確認の線の見せ方（仕様 5）', () => {
+  it('要確認の線は、層の見え方と違う色で、太さは同じか太い', () => {
+    const base = lineStyleOf('壁')
+    const review = segmentStyle('壁', true)
+    expect(review.color).not.toBe(base.color)
+    expect(review.width).toBeGreaterThanOrEqual(base.width)
+  })
+
+  it('確定の線は、層の見え方のまま', () => {
+    expect(segmentStyle('壁', false)).toEqual(lineStyleOf('壁'))
   })
 })
 

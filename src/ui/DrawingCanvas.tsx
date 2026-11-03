@@ -8,7 +8,7 @@ import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
 import { useFeatures } from '../store/features'
 import { layerOfSegment, visibleSegments, type LayerName } from '../plan/layers'
-import { lineStyleOf, type LineStyle } from '../plan/lineStyle'
+import { segmentStyle, type LineStyle } from '../plan/lineStyle'
 import { useLayers } from '../store/layers'
 import { useSemantic } from '../store/semantic'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
@@ -72,7 +72,13 @@ export function DrawingCanvas() {
   const shownSegments = useMemo(() => visibleSegments(segments, assignments, layerVisible), [segments, assignments, layerVisible])
   // 線ごとの層（見え方を決める）。意味づけが変われば、層も見え方も変わる
   const layerById = useMemo(
-    () => new Map(shownSegments.map((s) => [s.id, layerOfSegment(s.stage, assignments[s.id]?.kind ?? null)] as const)),
+    () =>
+      new Map(
+        shownSegments.map((s) => {
+          const a = assignments[s.id]
+          return [s.id, { layer: layerOfSegment(s.stage, a?.kind ?? null), needsReview: a?.status === 'needs_review' }] as const
+        }),
+      ),
     [shownSegments, assignments],
   )
   const nodes = useMemo(() => entries.flatMap((e) => e.nodes), [entries])
@@ -370,7 +376,7 @@ function paint(
   showGrid: boolean,
   hoverPx: Point | null,
   handleView: HandleDragView | null,
-  layerById: ReadonlyMap<string, LayerName>,
+  layerById: ReadonlyMap<string, { layer: LayerName; needsReview: boolean }>,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -441,7 +447,8 @@ function paint(
   // 整形後の線分。層ごとの見え方（色・太さ・破線）で、同じ見え方の線をまとめて描く。曲線は制御点を通る折れ線で描く（見た目だけ。正本は制御点）
   const groups = new Map<string, { style: LineStyle; list: Segment[] }>()
   for (const s of shownSegments) {
-    const style = lineStyleOf(layerById.get(s.id) ?? 'その他')
+    const mark = layerById.get(s.id)
+    const style = segmentStyle(mark?.layer ?? 'その他', mark?.needsReview ?? false)
     const key = `${style.color}|${style.width}|${style.dash.join(',')}`
     const group = groups.get(key)
     if (group) group.list.push(s)
