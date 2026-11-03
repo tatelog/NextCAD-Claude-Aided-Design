@@ -4,6 +4,7 @@ import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { useDrawing } from '../store/drawing'
 import { useUi, type ToolbarPlacement } from '../store/ui'
 import { ToolIcon } from './toolIcons'
+import { isToolEnabled } from './toolAvailability'
 import './pen.css'
 
 const PLACEMENTS: { value: ToolbarPlacement; label: string; icon: 'place-top' | 'place-left' | 'place-free' }[] = [
@@ -11,6 +12,9 @@ const PLACEMENTS: { value: ToolbarPlacement; label: string; icon: 'place-top' | 
   { value: 'left', label: '左', icon: 'place-left' },
   { value: 'free', label: '独立', icon: 'place-free' },
 ]
+
+// この道具箱は P2（ボリューム作図）に置く。その画面で使えない道具（什器は P3 で使う）はグレーアウトする（G69）
+const PEN_SCREEN = 'P2' as const
 
 export interface PenToolbarProps {
   /** 独立のときの位置の基準にする要素（この中で動かす） */
@@ -93,6 +97,17 @@ export function PenToolbar({ placement }: PenToolbarProps) {
         <button type="button" aria-label="入力スナップ" title="入力スナップ" className={inputSnapGrid ? 'is-active' : undefined} aria-pressed={inputSnapGrid} onClick={() => setInputSnapGrid(!inputSnapGrid)}>
           <ToolIcon name="snap" />
           <span>入力スナップ</span>
+        </button>
+      </span>
+      <span className="pen-toolbar-group" title="什器は P3 で使う（P2 では使えない）">
+        <button
+          type="button"
+          aria-label="什器"
+          title={isToolEnabled('fixture', PEN_SCREEN) ? '什器' : '什器（P3 で使う）'}
+          disabled={!isToolEnabled('fixture', PEN_SCREEN)}
+        >
+          <ToolIcon name="fixture" />
+          <span>什器</span>
         </button>
       </span>
       <span className="pen-toolbar-group" title="道具の置き場">

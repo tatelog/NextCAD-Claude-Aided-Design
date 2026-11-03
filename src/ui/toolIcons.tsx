@@ -12,6 +12,8 @@ export const TOOL_ICONS = {
   'place-top': ['M3 4 H21', 'M3 8 H21', 'M3 11 H21'],
   'place-left': ['M4 3 V21', 'M8 3 V21', 'M11 3 V21'],
   'place-free': ['M4 4 H20 V20 H4 Z', 'M12 8 V16', 'M8 12 H16'],
+  // 什器（G69）: 洗面台の線画。仮置き（パレットの中身は未決）
+  fixture: ['M3 11 H21', 'M5 11 V17 A3 3 0 0 0 8 20 H16 A3 3 0 0 0 19 17 V11', 'M12 7 V11'],
 } as const
 
 export const TOOL_ICON_NAMES = Object.keys(TOOL_ICONS) as (keyof typeof TOOL_ICONS)[]
