@@ -21,6 +21,7 @@ import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from 
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
+import { workerUrlFor } from './worker/workerUrl'
 import { pendingLogEntry } from './app/pendingJudgments'
 import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
@@ -39,8 +40,8 @@ type ScreenId = (typeof SCREENS)[number]['id']
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
 
-// 判定の Worker の URL（配備先は未決。未設定なら判定は送らない）
-const WORKER_URL: string = import.meta.env.VITE_WORKER_URL ?? ''
+// 判定の Worker の URL（B: 配備したアプリは同じ場所。手元の開発は VITE_WORKER_URL を置いた場合だけ送る）
+const WORKER_URL: string = workerUrlFor({ configured: import.meta.env.VITE_WORKER_URL, origin: window.location.origin, prod: import.meta.env.PROD })
 
 export function App() {
   const [screen, setScreen] = useState<ScreenId>('P2')

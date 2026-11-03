@@ -5,3 +5,8 @@
 name = "claude-aided-design-relay"
 main = "src/worker/index.ts"
 compatibility_date = "2026-10-01"
+
+# アプリ（npm run build の dist）も、同じ Worker から配る（B）。アプリと判定の受け口が同じ場所になる。
+[assets]
+directory = "./dist"
+binding = "ASSETS"
