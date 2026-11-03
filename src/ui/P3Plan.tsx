@@ -7,6 +7,7 @@ import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { useDrawing } from '../store/drawing'
 import { useSite } from '../store/site'
 import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
@@ -26,8 +27,9 @@ export function P3Plan() {
   const [patternText, setPatternText] = useState<RoomPattern>('田の字')
   const [targetText, setTargetText] = useState('')
   const [coreText, setCoreText] = useState<CoreRectText>({ x0: '', y0: '', x1: '', y1: '' })
-  const [storeysText, setStoreysText] = useState('5')
-  const [storeyHeightText, setStoreyHeightText] = useState('3000')
+  // 階数・階高は P2（ボリューム）の値を使う
+  const storeyCount = useDrawing((s) => s.storeyCount)
+  const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const [evCountText, setEvCountText] = useState('2')
   const [auto, setAuto] = useState<AutoPlan | null>(null)
   const showDimensions = useUi((s) => s.showDimensions)
@@ -38,11 +40,10 @@ export function P3Plan() {
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
   const runAuto = () => {
     try {
-      const storeys = Number(storeysText)
       const g = generateAutoPlan({
         targetPerFloor: Number(targetText),
-        storeyCount: storeys,
-        storeyHeightMm: Number(storeyHeightText),
+        storeyCount,
+        storeyHeightMm,
         spanMm: Number(spanText),
         unitDepthMm: Number(unitDepthText),
         corridorMm: Number(corridorText),
@@ -50,7 +51,7 @@ export function P3Plan() {
         unitType: unitTypeText,
         pattern: patternText,
         evCount: Number(evCountText),
-        evStops: Array.from({ length: storeys }, (_, i) => i + 1),
+        evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
       })
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
@@ -231,14 +232,9 @@ export function P3Plan() {
         </fieldset>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
-          <label style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
-            階数
-            <input value={storeysText} onChange={(e) => setStoreysText(e.target.value)} style={{ width: '100%' }} />
-          </label>
-          <label style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
-            階高 (mm)
-            <input value={storeyHeightText} onChange={(e) => setStoreyHeightText(e.target.value)} style={{ width: '100%' }} />
-          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 12 }}>
+            階数・階高は P2 の値を使う（{storeyCount} 階・階高 {storeyHeightMm} mm）
+          </p>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
             EV の基数（全階停止）
             <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
