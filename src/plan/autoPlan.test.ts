@@ -80,3 +80,23 @@ describe('generateAutoPlan（自動作成）', () => {
     expect(g.cores.find((c) => c.id === 'evHall')!.evCount).toBe(2)
   })
 })
+
+describe('住戸タイプと間取りパターン（部屋割り）', () => {
+  it('縦長は区画ごとに 4 室、田の字と同じ数', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下', pattern: '縦長' })
+    expect(g.rooms).toHaveLength(g.cells.length * 4)
+  })
+
+  it('住戸タイプが単独なら、間取りパターンに関わらず区画ごとに 2 室', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下', unitType: '単独', pattern: '縦長' })
+    expect(g.rooms).toHaveLength(g.cells.length * 2)
+  })
+
+  it('角は両端の区画だけ 3 室、中の区画は田の字の 4 室', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下', pattern: '角' })
+    const endIds = g.cells.filter((c) => c.id === 'L0' || c.id === 'L3' || c.id === 'R0' || c.id === 'R3').map((c) => c.id)
+    const roomsOf = (id: string) => g.rooms.filter((r) => r.id.startsWith(`${id}-`)).length
+    for (const id of endIds) expect(roomsOf(id)).toBe(3)
+    expect(roomsOf('L1')).toBe(4)
+  })
+})

@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { candidateCells } from './candidateCells'
 import { countUnits } from './units'
 import { buildEvLevels, type EvLevels } from './evLevels'
-import { roomsOfCells, type Room } from './rooms'
-import type { Rect } from './candidateCells'
+import { splitUnitRooms, type Room, type RoomPattern } from './rooms'
+import type { CorridorLayout, Rect } from './candidateCells'
 
 const TargetSchema = z.number().int().positive()
 // コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
@@ -21,9 +21,13 @@ export interface AutoPlanInput {
   spanMm: number
   unitDepthMm: number
   corridorMm: number
-  layout: '中廊下' | '片廊下'
+  layout: CorridorLayout
   evCount: number
   evStops: number[]
+  /** 住戸タイプ（既定はファミリー）。単独は 2 室の間取りに固定 */
+  unitType?: 'ファミリー' | '単独'
+  /** 間取りパターン（既定は田の字）。角は両端の区画だけに使い、中の区画は田の字 */
+  pattern?: RoomPattern
 }
 
 export interface AutoCore {
@@ -53,12 +57,28 @@ export interface AutoPlan {
   cores: AutoCore[]
 }
 
+// 区画ごとの部屋割り。角は両端の区画（k = 0 と最後）だけ、他は田の字
+function roomsFor(cells: Rect[], pattern: RoomPattern): Room[] {
+  const last = cells.reduce((m, c) => Math.max(m, Number(c.id.slice(1))), 0)
+  return cells.flatMap((c) => {
+    const k = Number(c.id.slice(1))
+    const isEnd = k === 0 || k === last
+    return splitUnitRooms(c, pattern === '角' && !isEnd ? '田の字' : pattern)
+  })
+}
+
 export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const target = TargetSchema.parse(input.targetPerFloor)
-  const perSpan = input.layout === '中廊下' ? 2 : 1
+  // 1 スパンあたりの住戸: 中廊下・階段室は両側の 2 戸、片廊下・ツインは 1 戸
+  const perSpan = input.layout === '中廊下' || input.layout === '階段室' ? 2 : 1
   const spans = Math.ceil(target / perSpan)
   const depthMm = spans * input.spanMm
-  const widthMm = input.layout === '中廊下' ? 2 * input.unitDepthMm + input.corridorMm : input.unitDepthMm + input.corridorMm
+  const widthMm =
+    input.layout === '片廊下'
+      ? input.unitDepthMm + input.corridorMm
+      : input.layout === 'ツイン'
+        ? input.unitDepthMm + 2 * input.corridorMm
+        : 2 * input.unitDepthMm + input.corridorMm
 
   const c = candidateCells({
     width_mm: widthMm,
@@ -83,7 +103,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
       { x: widthMm, y: depthMm },
       { x: 0, y: depthMm },
     ],
-    corridors: [c.corridor],
+    corridors: c.corridors,
     cores: coresInCorridor,
     cells: c.cells,
   })
@@ -98,7 +118,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     shafts: { ps: unitsPerFloor, eps: 1, ds: 1 },
     corridor: c.corridor,
     cells: c.cells,
-    rooms: roomsOfCells(c.cells),
+    rooms: roomsFor(c.cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字')),
     cores: coresInCorridor,
     ev: buildEvLevels({
       storeyCount: input.storeyCount,

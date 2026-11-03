@@ -2,7 +2,8 @@
 // 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決（D-02 C6）。画面では利用者が入れた値だけで計算する。
 import { useMemo, useState } from 'react'
 import { checkSpan, gridLines } from '../plan/grid'
-import { candidateCells } from '../plan/candidateCells'
+import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
+import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
@@ -18,7 +19,9 @@ export function P3Plan() {
   const [spanText, setSpanText] = useState('3000')
   const [minText, setMinText] = useState('')
   const [maxText, setMaxText] = useState('')
-  const [layoutText, setLayoutText] = useState<'中廊下' | '片廊下'>('中廊下')
+  const [layoutText, setLayoutText] = useState<CorridorLayout>('中廊下')
+  const [unitTypeText, setUnitTypeText] = useState<'ファミリー' | '単独'>('ファミリー')
+  const [patternText, setPatternText] = useState<RoomPattern>('田の字')
   const [targetText, setTargetText] = useState('')
   const [coreText, setCoreText] = useState<CoreRectText>({ x0: '', y0: '', x1: '', y1: '' })
   const [storeysText, setStoreysText] = useState('5')
@@ -41,6 +44,8 @@ export function P3Plan() {
         unitDepthMm: Number(unitDepthText),
         corridorMm: Number(corridorText),
         layout: layoutText,
+        unitType: unitTypeText,
+        pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeys }, (_, i) => i + 1),
       })
@@ -130,7 +135,9 @@ export function P3Plan() {
                 <text x={W + 1000} y={D / 2} textAnchor="start">{D} mm</text>
               </g>
             ) : null}
-            <rect x={units.cells.corridor.x0} y={0} width={units.cells.corridor.x1 - units.cells.corridor.x0} height={D} fill="#eee" />
+            {units.cells.corridors.map((k) => (
+              <rect key={k.id} x={k.x0} y={0} width={k.x1 - k.x0} height={D} fill="#eee" />
+            ))}
             {core.rect ? (
               <rect x={core.rect.x0} y={core.rect.y0} width={core.rect.x1 - core.rect.x0} height={core.rect.y1 - core.rect.y0} fill="#e6f2ed" stroke="#1f2a44" strokeWidth={20} />
             ) : null}
@@ -154,9 +161,11 @@ export function P3Plan() {
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
-          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as '中廊下' | '片廊下')} style={{ width: '100%' }}>
+          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
             <option value="中廊下">中廊下</option>
             <option value="片廊下">片廊下</option>
+            <option value="階段室">階段室型</option>
+            <option value="ツイン">ツインコリドー</option>
           </select>
         </label>
         <label style={{ display: 'block', marginBottom: 6 }}>
@@ -214,6 +223,21 @@ export function P3Plan() {
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
             EV の基数（全階停止）
             <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
+            住戸タイプ
+            <select value={unitTypeText} onChange={(e) => setUnitTypeText(e.target.value as 'ファミリー' | '単独')} style={{ width: '100%' }}>
+              <option value="ファミリー">ファミリー</option>
+              <option value="単独">単独（2 室）</option>
+            </select>
+          </label>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
+            間取りパターン（ファミリー）
+            <select value={patternText} disabled={unitTypeText === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
+              <option value="田の字">田の字</option>
+              <option value="縦長">縦長</option>
+              <option value="角">角（両端の住戸だけ）</option>
+            </select>
           </label>
           <button type="button" onClick={runAuto}>
             柱割り・間取り・縦シャフトを作る
