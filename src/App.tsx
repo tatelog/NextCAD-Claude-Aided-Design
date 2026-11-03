@@ -15,6 +15,7 @@ import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
+import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
@@ -358,7 +359,7 @@ export function App() {
         {screen === 'P4' && <P4Estimate />}
         {screen === 'P5' && <P5Output />}
         {panel !== null && (
-          <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 320, background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
+          <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, ...(panel === 'menu' ? { left: 0 } : { width: 320 }), background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'log' && (
               <>
                 <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（同じブラウザに残る）</h2>
@@ -381,7 +382,7 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>表示（機能のオンオフ）</h2>
+                <Fold title="表示（機能のオンオフ）">
                 <label style={{ display: 'block', marginBottom: 8 }}>
                   <input
                     type="checkbox"
@@ -437,8 +438,8 @@ export function App() {
                   />{' '}
                   グリッド（P3 の平面）
                 </label>
-                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
-                  <strong style={{ fontSize: 13 }}>レイヤー（表示とロック。筆界はロック固定）</strong>
+                </Fold>
+                <Fold title="レイヤー（表示とロック。筆界はロック固定）">
                   {LAYER_NAMES.map((name) => (
                     <div key={name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginBottom: 2 }}>
                       <span style={{ width: 90 }}>{name}</span>
@@ -467,9 +468,8 @@ export function App() {
                       </label>
                     </div>
                   ))}
-                </div>
-                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
-                  <strong style={{ fontSize: 13 }}>右パネルの項目（閉じたものを戻す。G73・G74）</strong>
+                </Fold>
+                <Fold title="右パネルの項目（閉じたものを戻す。G73・G74）">
                   {PANEL_TILES.map((t) => (
                     <label key={t.id} style={{ display: 'block', marginBottom: 6 }}>
                       <input
@@ -484,9 +484,8 @@ export function App() {
                       {t.title}
                     </label>
                   ))}
-                </div>
-                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
-                  <strong style={{ fontSize: 13 }}>機能のオンオフ（案。項目の中身は未決）</strong>
+                </Fold>
+                <Fold title="機能のオンオフ（案。項目の中身は未決）">
                   {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
                     <label key={f.key} style={{ display: 'block', marginBottom: 6 }}>
                       <input type="checkbox" checked={f.key === 'inputSnap' ? inputSnapGrid : featureOn[f.key]} onChange={(e) => {
@@ -497,7 +496,7 @@ export function App() {
                       {f.connected ? null : <span style={{ color: '#a86b00', fontSize: 11 }}>（未接続）</span>}
                     </label>
                   ))}
-                </div>
+                </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
                   全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。
                 </p>
