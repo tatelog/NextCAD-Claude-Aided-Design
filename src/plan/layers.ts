@@ -34,6 +34,15 @@ const LAYER_OF_KIND: Record<Kind, LayerName> = {
   other: 'その他',
 }
 
+/** 表示する線だけを残す（非表示のレイヤーに入る線は外す）。入力は書き換えない */
+export function visibleSegments<S extends { id: string; stage: Stage }>(
+  segments: readonly S[],
+  assignments: Readonly<Record<string, { kind: Kind }>>,
+  visible: Record<LayerName, boolean>,
+): S[] {
+  return segments.filter((s) => visible[layerOfSegment(s.stage, assignments[s.id]?.kind ?? null)])
+}
+
 /** 動く線（段階と種類）のうち、ロックしたレイヤーに入るものが一つでもあれば true（その変形は断る） */
 export function movesLockedLayer(moved: readonly { stage: Stage; kind: Kind | null }[], locked: Record<LayerName, boolean>): boolean {
   return moved.some((m) => locked[layerOfSegment(m.stage, m.kind)])

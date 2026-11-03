@@ -7,6 +7,9 @@ import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
 import { useFeatures } from '../store/features'
+import { visibleSegments } from '../plan/layers'
+import { useLayers } from '../store/layers'
+import { useSemantic } from '../store/semantic'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
 import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
@@ -62,6 +65,10 @@ export function DrawingCanvas() {
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
+  // 非表示のレイヤーの線は描かない（当たり判定と寸法は変えない）。表示は店舗、線の種類は意味づけの店舗
+  const layerVisible = useLayers((s) => s.visible)
+  const assignments = useSemantic((s) => s.assignments)
+  const shownSegments = useMemo(() => visibleSegments(segments, assignments, layerVisible), [segments, assignments, layerVisible])
   const nodes = useMemo(() => entries.flatMap((e) => e.nodes), [entries])
   const footprint = useMemo(() => {
     const c = findClosedOutline(segments)
@@ -100,7 +107,7 @@ export function DrawingCanvas() {
     paint(
       canvas,
       viewport,
-      segments,
+      shownSegments,
       nodes,
       footprint,
       drawingRef.current?.points ?? null,
@@ -108,7 +115,7 @@ export function DrawingCanvas() {
       useFeatures.getState().on.endpointRing ? hoverRef.current : null,
       handleDragRef.current?.view ?? null,
     )
-  }, [viewport, segments, nodes, footprint, displayGrid])
+  }, [viewport, shownSegments, nodes, footprint, displayGrid])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -123,7 +130,7 @@ export function DrawingCanvas() {
       paint(
         canvas,
         viewportRef.current,
-        segments,
+        shownSegments,
         nodes,
         footprint,
         drawingRef.current?.points ?? null,
@@ -340,7 +347,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, transform, setViewport, openCircleMenu, entries, segments, nodes, footprint, displayGrid])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, nodes, footprint, displayGrid])
 
   return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
 }

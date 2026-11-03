@@ -5,7 +5,7 @@
 // 仕様 3: 筆界はロック固定（外せない）。ほかのレイヤーは、ロックと表示を切り替えられる。既定は表示・非ロック。
 // 仕様 4: レイヤーは 13 個（筆界・外形・通り芯・柱・梁・壁・開口・部屋・コア・その他・寸法・日影・縦シャフト）。
 import { beforeEach, describe, expect, it } from 'vitest'
-import { LAYER_NAMES, layerOfSegment, type LayerName } from './layers'
+import { LAYER_NAMES, layerOfSegment, visibleSegments, type LayerName } from './layers'
 import { useLayers } from '../store/layers'
 
 describe('線のレイヤーへの入り方（仕様 1・2）', () => {
@@ -36,6 +36,24 @@ describe('レイヤーの一覧（仕様 4）', () => {
     for (const name of ['筆界', '外形', '通り芯', '柱', '梁', '壁', '開口', '部屋', 'コア', 'その他', '寸法', '日影', '縦シャフト'] as LayerName[]) {
       expect(LAYER_NAMES).toContain(name)
     }
+  })
+})
+
+// 仕様 5（非表示）: 表示しないレイヤーの線は、描く線から外す。ほかの線はそのまま。
+describe('非表示のレイヤーの線は描かない（仕様 5）', () => {
+  const seg = (id: string, stage: 'F4' | 'F5' | 'F9') => ({ id, stage }) as { id: string; stage: 'F4' | 'F5' | 'F9' }
+  const allVisible = Object.fromEntries(LAYER_NAMES.map((n) => [n, true])) as Record<LayerName, boolean>
+
+  it('壁を非表示にすると、壁の線だけ外れ、ほかの線はそのまま', () => {
+    const segs = [seg('outline', 'F4'), seg('wall', 'F9'), seg('col', 'F5')]
+    const assign = { wall: { kind: 'wall' as const }, col: { kind: 'column' as const } }
+    const visible = { ...allVisible, 壁: false }
+    expect(visibleSegments(segs, assign, visible).map((s) => s.id)).toEqual(['outline', 'col'])
+  })
+
+  it('すべて表示なら、線は全部残る', () => {
+    const segs = [seg('a', 'F4'), seg('b', 'F9')]
+    expect(visibleSegments(segs, {}, allVisible)).toEqual(segs)
   })
 })
 
