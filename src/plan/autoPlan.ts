@@ -40,6 +40,17 @@ export interface AutoCore {
   evCount?: number
 }
 
+export interface ShaftRect {
+  id: string
+  kind: 'PS' | 'EPS' | 'DS'
+  /** PS の属する住戸の区画 ID */
+  unitId?: string
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
 export interface AutoPlan {
   widthMm: number
   depthMm: number
@@ -55,6 +66,29 @@ export interface AutoPlan {
   rooms: Room[]
   /** コア（廊下の中の階段 A・B と EV ホール）。モックの配置: 階段は廊下の両端、EV は中央 */
   cores: AutoCore[]
+  /** 縦シャフトの位置（PS は住戸の水回りの廊下側の隅、EPS は階段 A の隅、DS は階段 B の隅） */
+  shaftRects: ShaftRect[]
+}
+
+const SHAFT_MM = 600
+
+// 縦シャフトの位置。PS は各住戸の水回りの、廊下側の隅。EPS・DS は階段 A・B の隅
+function shaftsOf(cells: Rect[], rooms: Room[], cores: AutoCore[], corridor: Rect): ShaftRect[] {
+  const out: ShaftRect[] = []
+  const corridorMid = (corridor.x0 + corridor.x1) / 2
+  for (const cell of cells) {
+    const wet = rooms.find((r) => r.kind === '水回り' && r.id.startsWith(cell.id + '-'))
+    if (!wet) continue
+    // 廊下が右にある住戸は、水回りの右の隅に置く
+    const cellMid = (cell.x0 + cell.x1) / 2
+    const x0 = cellMid < corridorMid ? wet.x1 - SHAFT_MM : wet.x0
+    out.push({ id: 'PS-' + cell.id, kind: 'PS', unitId: cell.id, x0, y0: wet.y0, x1: x0 + SHAFT_MM, y1: wet.y0 + SHAFT_MM })
+  }
+  const stairA = cores.find((c) => c.id === 'stairA')!
+  const stairB = cores.find((c) => c.id === 'stairB')!
+  out.push({ id: 'EPS', kind: 'EPS', x0: stairA.x0, y0: stairA.y0, x1: stairA.x0 + SHAFT_MM, y1: stairA.y0 + SHAFT_MM })
+  out.push({ id: 'DS', kind: 'DS', x0: stairB.x1 - SHAFT_MM, y0: stairB.y1 - SHAFT_MM, x1: stairB.x1, y1: stairB.y1 })
+  return out
 }
 
 // 区画ごとの部屋割り。角は両端の区画（k = 0 と最後）だけ、他は田の字
@@ -108,6 +142,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     cells: c.cells,
   })
   const unitsPerFloor = counted.usable_count
+  const rooms = roomsFor(c.cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'))
 
   return {
     widthMm,
@@ -118,8 +153,9 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     shafts: { ps: unitsPerFloor, eps: 1, ds: 1 },
     corridor: c.corridor,
     cells: c.cells,
-    rooms: roomsFor(c.cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字')),
+    rooms,
     cores: coresInCorridor,
+    shaftRects: shaftsOf(c.cells, rooms, coresInCorridor, c.corridor),
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,

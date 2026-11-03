@@ -100,3 +100,35 @@ describe('住戸タイプと間取りパターン（部屋割り）', () => {
     expect(roomsOf('L1')).toBe(4)
   })
 })
+
+describe('縦シャフトの位置', () => {
+  const contains = (outer: { x0: number; y0: number; x1: number; y1: number }, inner: { x0: number; y0: number; x1: number; y1: number }) =>
+    inner.x0 >= outer.x0 && inner.x1 <= outer.x1 && inner.y0 >= outer.y0 && inner.y1 <= outer.y1
+
+  it('PS は住戸ごとに 1 つ。各住戸の水回りの中に入る', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下' })
+    const ps = g.shaftRects.filter((s) => s.id.startsWith('PS'))
+    expect(ps).toHaveLength(g.unitsPerFloor)
+    for (const p of ps) {
+      const wet = g.rooms.find((r) => r.kind === '水回り' && r.id.startsWith(p.unitId!))!
+      expect(contains(wet, p)).toBe(true)
+    }
+  })
+
+  it('EPS は階段 A、DS は階段 B の中に入る', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下' })
+    const stairA = g.cores.find((c) => c.id === 'stairA')!
+    const stairB = g.cores.find((c) => c.id === 'stairB')!
+    expect(contains(stairA, g.shaftRects.find((s) => s.id === 'EPS')!)).toBe(true)
+    expect(contains(stairB, g.shaftRects.find((s) => s.id === 'DS')!)).toBe(true)
+  })
+
+  it('縦シャフトは区画の外（コアの中）に重ならない形で、PS は区画の中だけ', () => {
+    const g = generateAutoPlan({ ...base, layout: '中廊下' })
+    const ps = g.shaftRects.filter((s) => s.id.startsWith('PS'))
+    for (const p of ps) {
+      const inCell = g.cells.some((c) => contains(c, p))
+      expect(inCell).toBe(true)
+    }
+  })
+})
