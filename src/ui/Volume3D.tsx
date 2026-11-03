@@ -1,12 +1,38 @@
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
-import { useMemo, useRef, type ComponentRef } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
+import { cameraForFace, type Face } from './viewFaces'
+
+const FACE_LABELS: { face: Face; label: string }[] = [
+  { face: 'top', label: '上' },
+  { face: 'bottom', label: '下' },
+  { face: 'front', label: '正面' },
+  { face: 'back', label: '背面' },
+  { face: 'left', label: '左' },
+  { face: 'right', label: '右' },
+]
+
+type FaceRequest = { face: Face; token: number }
+
+// ビューキューブで選ばれた面へ視点を向ける（Canvas の中で、カメラを直接動かす）。
+function CameraDirector({ request }: { request: FaceRequest | null }) {
+  const { camera } = useThree()
+  const last = useRef<number | null>(null)
+  useEffect(() => {
+    if (!request || request.token === last.current) return
+    last.current = request.token
+    const p = cameraForFace(request.face, 60)
+    camera.position.set(p.x, p.y, p.z)
+    camera.lookAt(0, 0, 0)
+  }, [request, camera])
+  return null
+}
 
 const MM_TO_M = 1 / 1000
 
@@ -53,6 +79,8 @@ export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: 
   )
   const ground = useMemo(() => groundSize(footprint), [footprint])
 
+  const [faceRequest, setFaceRequest] = useState<FaceRequest | null>(null)
+
   // ホームの押下で視点を既定に戻す（homeToken が変わったときだけ）
   const lastHome = useRef(homeToken)
   if (lastHome.current !== homeToken) {
@@ -61,7 +89,9 @@ export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: 
   }
 
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas camera={{ position: [40, 40, 50], fov: 40 }}>
+      <CameraDirector request={faceRequest} />
       <color attach="background" args={['#f4f4f2']} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[30, 50, 20]} intensity={0.8} />
@@ -75,5 +105,18 @@ export function Volume3D({ footprint, storeyCount, storeyHeightMm, homeToken }: 
       <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
       <OrbitControls ref={controlsRef} makeDefault />
     </Canvas>
+    <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 4 }}>
+      {FACE_LABELS.map(({ face, label }) => (
+        <button
+          key={face}
+          type="button"
+          onClick={() => setFaceRequest((prev) => ({ face, token: (prev?.token ?? 0) + 1 }))}
+          style={{ font: 'inherit', fontSize: 12, padding: '2px 6px', border: '1px solid #b8b2a4', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+    </div>
   )
 }
