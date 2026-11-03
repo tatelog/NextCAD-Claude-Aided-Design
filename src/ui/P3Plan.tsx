@@ -36,7 +36,7 @@ import { firstFloorCountsOf } from '../plan/commonAreas'
 import { outlineArcsOf } from '../volume/outlineArcs'
 import { arcBoundsOf, gridSegmentsToArc, svgArcPath } from '../volume/curvedGrid'
 import { cellsInsideArc } from '../plan/arcCells'
-import { wallPolygonsJoined } from '../plan/wallOutline'
+import { wallOutlineRings } from '../plan/wallUnion'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 
@@ -197,8 +197,8 @@ export function P3Plan() {
   const firstFloorNames = useFirstFloor((s) => s.names)
   // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
   const outlineArcs = outlineArcsOf(useDrawing((s) => s.entries))
-  // 壁の輪郭（ハブ A-03 G4）。壁厚は仮置きで P5 の既定と同じ 200 mm
-  const wallPolys = wallPolygonsJoined(
+  // 壁の輪郭（ハブ A-03 G4）。壁厚は仮置きで P5 の既定と同じ 200 mm。交わるところは和の輪郭にして、重なりを取り除く
+  const wallPolys = wallOutlineRings(
     drawnEntries.flatMap((e) => e.segments).map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 }, kind: assignments[s.id]?.kind ?? null })),
     200,
   )
@@ -304,10 +304,16 @@ export function P3Plan() {
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
             <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
-            {/* 壁（意味づけが wall の線）を、中心線から両側に壁厚の半分ずつ広げた輪郭で描く（ハブ A-03 G4）。角の切り取りは未了 */}
-            {wallPolys.map((poly, i) => (
-              <polygon key={`wall-${i}`} points={poly.map((p) => `${p.x},${p.y}`).join(' ')} fill="#6b6459" fillOpacity={0.85} />
-            ))}
+            {/* 壁（意味づけが wall の線）を、中心線から両側に壁厚の半分ずつ広げた輪郭で描く。交わるところは和の輪郭（ハブ A-03 G4） */}
+            {/* 輪郭（外側と穴）は一つのパスで塗る。穴を別の多角形で塗ると、穴まで埋まる */}
+            {wallPolys.length > 0 && (
+              <path
+                d={wallPolys.map((poly) => poly.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + ' Z').join(' ')}
+                fill="#6b6459"
+                fillOpacity={0.85}
+                fillRule="evenodd"
+              />
+            )}
             {/* 通りは、描いた円弧の外形に当たるところで止める（ハブ A-03 G5）。円弧が無ければ全長のまま */}
             {lines.map((y) => {
               const cut = outlineArcs[0] ? gridSegmentsToArc(outlineArcs[0], 'y', y, { x0: 0, x1: W, y0: 0, y1: D }) : null
