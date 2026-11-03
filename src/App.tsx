@@ -13,6 +13,7 @@ import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
+import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
@@ -74,6 +75,15 @@ export function App() {
   const showMiniMap = useUi((s) => s.showMiniMap)
   // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
   const pendingCount = usePending((s) => s.items.length)
+  // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
+  const featureOn = useFeatures((s) => s.on)
+  // 入力スナップは、ツールバーのボタンと同じ状態を読む（二つの欄が食い違わないように）
+  const inputSnapGrid = useUi((s) => s.inputSnapGrid)
+  const setFeature = (key: FeatureKey, on: boolean) => {
+    useFeatures.getState().setOn(key, on)
+    const patch = featureUiPatch(key, on)
+    if (patch) useUi.setState(patch)
+  }
 
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
@@ -291,7 +301,7 @@ export function App() {
                     type="checkbox"
                     checked={showShadow}
                     onChange={(e) => {
-                      useUi.getState().setShowShadow(e.target.checked)
+                      setFeature('showShadow', e.target.checked)
                       record('表示', `日影 ${e.target.checked ? '入' : '切'}`)
                     }}
                   />{' '}
@@ -302,7 +312,7 @@ export function App() {
                     type="checkbox"
                     checked={showNeighbors}
                     onChange={(e) => {
-                      useUi.getState().setShowNeighbors(e.target.checked)
+                      setFeature('showNeighbors', e.target.checked)
                       record('表示', `周辺建物 ${e.target.checked ? '入' : '切'}`)
                     }}
                   />{' '}
@@ -313,7 +323,7 @@ export function App() {
                     type="checkbox"
                     checked={showDimensions}
                     onChange={(e) => {
-                      useUi.getState().setShowDimensions(e.target.checked)
+                      setFeature('showDimensions', e.target.checked)
                       record('表示', `寸法線 ${e.target.checked ? '入' : '切'}`)
                     }}
                   />{' '}
@@ -324,7 +334,7 @@ export function App() {
                     type="checkbox"
                     checked={showMiniMap}
                     onChange={(e) => {
-                      useUi.getState().setShowMiniMap(e.target.checked)
+                      setFeature('showMiniMap', e.target.checked)
                       record('表示', `全体図 ${e.target.checked ? '入' : '切'}`)
                     }}
                   />{' '}
@@ -335,12 +345,25 @@ export function App() {
                     type="checkbox"
                     checked={showGrid}
                     onChange={(e) => {
-                      useUi.getState().setShowGrid(e.target.checked)
+                      setFeature('showGrid', e.target.checked)
                       record('表示', `グリッド ${e.target.checked ? '入' : '切'}`)
                     }}
                   />{' '}
                   グリッド（P3 の平面）
                 </label>
+                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
+                  <strong style={{ fontSize: 13 }}>機能のオンオフ（案。項目の中身は未決）</strong>
+                  {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
+                    <label key={f.key} style={{ display: 'block', marginBottom: 6 }}>
+                      <input type="checkbox" checked={f.key === 'inputSnap' ? inputSnapGrid : featureOn[f.key]} onChange={(e) => {
+                        setFeature(f.key, e.target.checked)
+                        record('機能', `${f.label} ${e.target.checked ? '入' : '切'}`)
+                      }} />{' '}
+                      {f.label}
+                      {f.connected ? null : <span style={{ color: '#a86b00', fontSize: 11 }}>（未接続）</span>}
+                    </label>
+                  ))}
+                </div>
                 <p style={{ fontSize: 11, color: '#666' }}>
                   全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。
                 </p>
