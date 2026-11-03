@@ -1,6 +1,6 @@
 // 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・作業履歴・メニュー・保留）。
 // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { P03Volume } from './ui/P03Volume'
 import { P1Site } from './ui/P1Site'
 import { P3Plan } from './ui/P3Plan'
@@ -9,7 +9,7 @@ import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
 import { useUi } from './store/ui'
 import { buildSaveData } from './app/saveData'
-import { appendLog, type LogEntry } from './app/workLog'
+import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
 
 const SCREENS = [
   { id: 'P1', name: '敷地' },
@@ -27,17 +27,31 @@ export function App() {
   const [screen, setScreen] = useState<ScreenId>('P2')
   // 案件名（敷地名）。画面の中だけで持つ（保存のときだけ書き出す）
   const [project, setProject] = useState('')
-  const [log, setLog] = useState<LogEntry[]>([])
+  // 作業履歴（SQLite）の準備ができたか。記録のたびに rev を進めて、一覧を読み直す
+  const [logReady, setLogReady] = useState(false)
+  const [rev, setRev] = useState(0)
+  useEffect(() => {
+    openWorkLog().then(
+      () => {
+        setLogReady(true)
+        setRev((r) => r + 1)
+      },
+      () => setLogReady(false),
+    )
+  }, [])
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
   const showShadow = useUi((s) => s.showShadow)
   const showNeighbors = useUi((s) => s.showNeighbors)
 
-  const record = (action: string, target: string) =>
-    setLog((prev) => appendLog(prev, { at: new Date().toISOString(), screen, action, target }))
+  const record = (action: string, target: string) => {
+    recordWorkLog({ at: new Date().toISOString(), screen, action, target })
+    setRev((r) => r + 1)
+  }
 
   const go = (id: ScreenId) => {
     setScreen(id)
-    setLog((prev) => appendLog(prev, { at: new Date().toISOString(), screen: id, action: '切替', target: id }))
+    recordWorkLog({ at: new Date().toISOString(), screen: id, action: '切替', target: id })
+    setRev((r) => r + 1)
   }
 
   const save = () => {
@@ -107,12 +121,13 @@ export function App() {
           <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 320, background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'log' && (
               <>
-                <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（この画面を開いてから）</h2>
-                <p style={{ fontSize: 11, color: '#666' }}>SQLite への保存は未接続。画面を閉じると消える。</p>
-                {log.length === 0 && <p style={{ fontSize: 13 }}>まだ操作がありません。</p>}
-                <ol style={{ paddingLeft: 18, fontSize: 12 }}>
-                  {log.map((l, i) => (
-                    <li key={i}>
+                <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（同じブラウザに残る）</h2>
+                <p style={{ fontSize: 11, color: '#666' }}>SQLite（sql.js）の表から新しい順に読む。この同じブラウザの中に保存する。</p>
+                {!logReady && <p style={{ fontSize: 13 }}>作業履歴を準備しています（SQLite）。</p>}
+                {logReady && recentWorkLog(200).length === 0 && <p style={{ fontSize: 13 }}>まだ操作がありません。</p>}
+                <ol style={{ paddingLeft: 18, fontSize: 12 }} data-rev={rev}>
+                  {recentWorkLog(200).map((l) => (
+                    <li key={l.id}>
                       {l.at.slice(11, 19)} {l.screen} {l.action} {l.target}
                     </li>
                   ))}
