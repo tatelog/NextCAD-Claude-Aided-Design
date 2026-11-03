@@ -2,7 +2,7 @@
 //
 // 回転のつまみ（G71。代表の決定: ボリューム（建物）を回転する機能を付ける。回すと建物の回転角が変わる）。
 // 画面側の案（D-04）: 3D の外形の角に回転のつまみを置く。刻み（自由・15°・90°）は右パネル。カメラの回転とは別。
-// 今回の仮置き（これを 1 項目ずつテストにしている。つまみの置き方・カメラを止める配線は DOM が要るので試験しない）:
+// 今回の仮置き（これを 1 項目ずつテストにしている。つまみの描画・カメラを止める配線は DOM が要るので試験しない）:
 //  1. 回す量は、つまんだ時点の（重心 → つまんだ点）の向きから、今の（重心 → 指の位置）の向きまでの差。
 //     反時計回りが正（mm の +y が画面の上。rotateOutline と同じ向き）
 //  2. 回す量は右パネルの刻み（自由・15°・90°）で丸める。自由は丸めない
@@ -14,6 +14,10 @@
 //  5. つまんで動かすと、建物の高さ（階数 × 階高）が指の高さに追従する。つまんだ時点の高さから、指の動いた分だけ変える
 //  6. 離したときに、高さを階高で割って最も近い整数の階数にし、1 以上・上限 30 に丸める
 //  7. 指の高さは、外形の重心を通る鉛直な軸の上で、視線にいちばん近い点の高さ（真上から見下ろすと決まらない）
+//
+// 回転のつまみを置く角（上の「角」を複数の角と読む。今回の決定・仮置き: 外形のすべての頂点に 1 つずつ）:
+//  8. 外形の頂点の数だけ置く（頂点 0 だけにしない）。並びと番号は外形の頂点の順。空の外形には置かない
+//  9. 位置が同じ頂点には重ねない（先に出たほうだけ。番号は外形のまま詰めない）。位置が 1 mm でも違えば別の頂点
 import { describe, expect, it } from 'vitest'
 import { findClosedOutline } from '../canvas/closure'
 import { rotateOutline } from '../canvas/outlineEdit'
@@ -26,6 +30,7 @@ import {
   knobRotationDeg,
   rayHitPlaneMm,
   rotatedFootprint,
+  rotationKnobSpots,
   scenePosition,
   storeyCountFromHeight,
 } from './knobs3d'
@@ -226,6 +231,99 @@ describe('回転のつまみ: 動かしている間の仮の外形は、離し�
     expect(rotatedFootprint(base, outlineCentroid(base)!, 0)).toEqual(SQUARE)
     rotatedFootprint(base, outlineCentroid(base)!, 33)
     expect(base).toEqual(SQUARE)
+  })
+})
+
+describe('回転のつまみを置く角: 外形のすべての頂点に 1 つずつ（頂点の番号と、平面の位置 mm）', () => {
+  // 頂点が 6 つの L 字（頂点 0 は (0, 0)、頂点 5 は (0, 6000)）
+  const L_SHAPE_6: Pt[] = [
+    { x: 0, y: 0 },
+    { x: 6000, y: 0 },
+    { x: 6000, y: 2000 },
+    { x: 2000, y: 2000 },
+    { x: 2000, y: 6000 },
+    { x: 0, y: 6000 },
+  ]
+  // 頂点 3 が頂点 1 と同じ位置になっている外形（頂点は 5 つ、位置は 4 か所）
+  const REPEATED: Pt[] = [
+    { x: 0, y: 0 },
+    { x: 4000, y: 0 },
+    { x: 4000, y: 4000 },
+    { x: 4000, y: 0 },
+    { x: 0, y: 4000 },
+  ]
+
+  it('頂点の数だけ置く（頂点 0 だけにしない）: 頂点が 4 つの正方形には 4 つ、6 つの L 字には 6 つ', () => {
+    expect(rotationKnobSpots(SQUARE)).toHaveLength(4)
+    expect(rotationKnobSpots(L_SHAPE_6)).toHaveLength(6)
+  })
+
+  it('並びは外形の頂点の順。番号は 0 から、位置はその頂点の平面の位置（mm）', () => {
+    const spots = rotationKnobSpots(L_SHAPE_6)
+    expect(spots.map((s) => s.index)).toEqual([0, 1, 2, 3, 4, 5])
+    expect(spots.map((s) => s.point)).toEqual(L_SHAPE_6)
+  })
+
+  it('頂点が 1 つや 2 つの外形でも、頂点の数だけ置く', () => {
+    expect(rotationKnobSpots([{ x: 1000, y: 2000 }])).toEqual([{ index: 0, point: { x: 1000, y: 2000 } }])
+    expect(rotationKnobSpots([{ x: 0, y: 0 }, { x: 3000, y: 0 }]).map((s) => s.index)).toEqual([0, 1])
+  })
+
+  it('空の外形には置かない', () => {
+    expect(rotationKnobSpots([])).toEqual([])
+  })
+
+  it('位置が同じ頂点には重ねない: 閉じ目（最後の頂点が最初と同じ位置）は 1 つにまとめる', () => {
+    const closed = [...SQUARE, { ...SQUARE[0]! }]
+    const spots = rotationKnobSpots(closed)
+    expect(spots).toHaveLength(4)
+    expect(spots.map((s) => s.index)).toEqual([0, 1, 2, 3])
+    expect(spots.map((s) => s.point)).toEqual(SQUARE)
+  })
+
+  it('途中で同じ位置になる頂点も、先に出たほうだけ置く。番号は外形のまま（詰めない）', () => {
+    const spots = rotationKnobSpots(REPEATED)
+    expect(spots.map((s) => s.index)).toEqual([0, 1, 2, 4])
+    expect(spots.map((s) => s.point)).toEqual([REPEATED[0], REPEATED[1], REPEATED[2], REPEATED[4]])
+  })
+
+  it('位置が 1 mm でも違えば別の頂点として置く（仮置き: 位置が完全に同じものだけをまとめる）', () => {
+    const near: Pt[] = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+    ]
+    expect(rotationKnobSpots(near).map((s) => s.index)).toEqual([0, 1, 2])
+  })
+
+  it('0 と -0 は同じ位置', () => {
+    const pts: Pt[] = [
+      { x: 0, y: 0 },
+      { x: -0, y: -0 },
+      { x: 5000, y: 0 },
+    ]
+    expect(rotationKnobSpots(pts).map((s) => s.index)).toEqual([0, 2])
+  })
+
+  it('入力の外形は書き換えない。返した位置を書き換えても外形は変わらない（位置は写し）', () => {
+    const base = SQUARE.map((p) => ({ ...p }))
+    const spots = rotationKnobSpots(base)
+    expect(base).toEqual(SQUARE)
+    // Point は読み取り専用の型。書き換えられても外形に響かないことを見るため、型を外して書き換える
+    const writable = spots.map((s) => s.point as { x: number; y: number })
+    writable[0]!.x = 99_999
+    writable[1]!.y = -99_999
+    expect(base).toEqual(SQUARE)
+  })
+
+  it('番号は外形の頂点の番号のまま: 回している間の仮の外形の同じ番号の頂点が、そのつまみの動いた先', () => {
+    const pivot = outlineCentroid(REPEATED)!
+    for (const deg of [90, 30, -42.5]) {
+      const preview = rotatedFootprint(REPEATED, pivot, deg)
+      for (const spot of rotationKnobSpots(REPEATED)) {
+        expect(preview[spot.index]).toEqual(rotatedFootprint([spot.point], pivot, deg)[0])
+      }
+    }
   })
 })
 

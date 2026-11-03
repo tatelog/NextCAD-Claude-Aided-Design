@@ -66,6 +66,29 @@ export function rotatedFootprint(base: readonly Point[], pivot: Point, deg: numb
   return roundFootprintMm(rotateFootprint(base, pivot, deg))
 }
 
+/** 回転のつまみを置く角（外形の頂点）1 つ分。index は外形の頂点の番号、point はその頂点の平面の位置（mm）。 */
+export interface RotationKnobSpot {
+  readonly index: number
+  readonly point: Point
+}
+
+/**
+ * 回転のつまみ（G71）を置く角: 外形のすべての頂点に 1 つずつ（D-04 の案の「角」を複数の角と読む。仮置き）。外形と同じ頂点の順。
+ * 位置が同じ頂点には重ねない（閉じ目の重複など。先に出たほうだけ。番号は外形のまま詰めない。0 と -0 は同じ位置）。
+ * 位置が 1 mm でも違えば別の頂点。位置は入力の写し（入力は書き換えない）。空の外形は空。
+ */
+export function rotationKnobSpots(outline: readonly Point[]): RotationKnobSpot[] {
+  const seen = new Set<string>()
+  const spots: RotationKnobSpot[] = []
+  outline.forEach((p, index) => {
+    const key = `${p.x},${p.y}`
+    if (seen.has(key)) return
+    seen.add(key)
+    spots.push({ index, point: { x: p.x, y: p.y } })
+  })
+  return spots
+}
+
 /** 階数の上限（G65 の高さのつまみ。仮置き）。 */
 export const MAX_STOREYS = 30
 
