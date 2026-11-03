@@ -5,9 +5,17 @@
 import { useState } from 'react'
 import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { SHEETS, legalCheckFor } from '../permit/sheetList'
+import { classLabelsOf } from '../law/buildingClass'
+import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
+import { fireStructureItems } from '../law/fireStructure'
+import { COMPONENTS, judgeComponent, requiredMinutes } from '../law/structureFire'
+import { useComponentFire } from '../store/componentFire'
 import { useSite } from '../store/site'
 
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
+
+// 仮の外周（20 m × 30 m）の床面積（㎡）
+const DUMMY_AREA_M2 = 600
 
 const DUMMY_FOOTPRINT = [
   { x: 0, y: 0 },
@@ -21,6 +29,9 @@ export function P5Output() {
   const [wallText, setWallText] = useState('200')
   const [heightText, setHeightText] = useState('3000')
   const [storeysText, setStoreysText] = useState('3')
+  const [fireZone, setFireZone] = useState<FireZone>('なし')
+  const componentRatings = useComponentFire((st) => st.ratings)
+  const setComponentRating = useComponentFire((st) => st.setRating)
   const [tab, setTab] = useState<'bim' | 'pdf'>('bim')
   const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
   const [applicant, setApplicant] = useState('')
@@ -73,8 +84,84 @@ export function P5Output() {
           階数
           <input value={storeysText} onChange={(e) => setStoreysText(e.target.value)} style={{ width: 120, marginLeft: 8 }} />
         </label>
+        <label style={{ display: 'block', marginBottom: 6 }}>
+          防火地域の区分（P1 の地点を人が選ぶ。自動の接続は未了）
+          <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
+            <option value="なし">なし</option>
+            <option value="防火">防火地域</option>
+            <option value="準防火">準防火地域</option>
+          </select>
+        </label>
       </section>
 
+      {valid ? (
+        <p style={{ fontSize: 12, color: '#444', margin: '0 0 12px' }}>
+          号区分（大規模の判定。仮の外周 20 m × 30 m・RC・共同住宅として数える。区域内は仮置き）:{' '}
+          {(() => {
+            const labels = classLabelsOf({
+              structure: 'RC',
+              heightM: (storeys * height) / 1000,
+              aboveGroundStoreys: storeys,
+              totalFloorAreaM2: DUMMY_AREA_M2 * storeys,
+              specialUseAreaM2: DUMMY_AREA_M2 * storeys,
+              inPlanningArea: true,
+            })
+            return `${labels.article6} ／ ${labels.article20}（出典: e-Gov 法令、第 20 条は抜粋の範囲）`
+          })()}
+        </p>
+      ) : null}
+      {valid && fireZone !== 'なし' ? (
+        <div style={{ fontSize: 12, color: '#a86b00', margin: '0 0 12px' }}>
+          {(() => {
+            const cls = fireZoneClass({ zone: fireZone, aboveGroundStoreys: storeys, floorAreaM2: DUMMY_AREA_M2 * storeys, wood: false })
+            return (
+              <>
+                <p style={{ margin: '0 0 4px' }}>防火・準防火（{fireZone}地域）: 令 136 条の 2 {cls}</p>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {fireStructureItems(cls).map((i) => (
+                    <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い。ハブ G28）</li>
+                  ))}
+                </ul>
+              </>
+            )
+          })()}
+        </div>
+      ) : null}
+      {valid ? (
+        <section style={{ marginBottom: 12, fontSize: 12 }}>
+          <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる。G28）</strong>
+          <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
+            <thead>
+              <tr>
+                <th align="left">部材</th>
+                <th align="right">必要（分）</th>
+                <th align="left">入力（分）</th>
+                <th align="left">判定</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPONENTS.map((c) => {
+                const rating = componentRatings[c] ?? null
+                return (
+                  <tr key={c}>
+                    <td>{c}</td>
+                    <td align="right">{requiredMinutes(c, storeys)}</td>
+                    <td>
+                      <select value={rating ?? ''} onChange={(e) => setComponentRating(c, e.target.value === '' ? null : Number(e.target.value))}>
+                        <option value="">未入力</option>
+                        {[30, 60, 90, 120, 150, 180].map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>{judgeComponent(c, storeys, rating)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
       <section style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>IFC の件数</h3>
         {valid ? (

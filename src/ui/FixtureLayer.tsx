@@ -25,9 +25,11 @@ export interface FixtureLayerProps {
   onRemove: (id: string) => void
   /** 読み取りのみ（P4）。true のとき、区画の押せる四角を出さず、印も押せない。省略は false */
   readOnly?: boolean
+  /** 区画をダブルクリック（タップ 2 回）したとき、区画の id を渡す（住戸の詳細。ハブ A-03 G76）。読み取りのみのときは出さない */
+  onDetail?: (unitId: string) => void
 }
 
-export function FixtureLayer({ cells, fixtures, active, onTap, onRemove, readOnly = false }: FixtureLayerProps) {
+export function FixtureLayer({ cells, fixtures, active, onTap, onRemove, readOnly = false, onDetail }: FixtureLayerProps) {
   // 区画の押せる四角を出すのは、品目を選んでいて、読み取りのみでないとき
   const tappable = active && !readOnly
   // 印を押せるのは、品目を選んでいなくて、読み取りのみでないとき（選んでいる間は、印の上を押しても区画に届く）
@@ -40,6 +42,18 @@ export function FixtureLayer({ cells, fixtures, active, onTap, onRemove, readOnl
         const cy = (c.y0 + c.y1) / 2
         return (
           <g key={c.id}>
+            {onDetail && !readOnly ? (
+              <rect
+                data-detail={c.id}
+                x={c.x0}
+                y={c.y0}
+                width={c.x1 - c.x0}
+                height={c.y1 - c.y0}
+                fill="transparent"
+                style={{ cursor: 'pointer' }}
+                onDoubleClick={() => onDetail(c.id)}
+              />
+            ) : null}
             {tappable ? (
               <rect
                 data-unit={c.id}

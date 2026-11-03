@@ -45,7 +45,7 @@ export const FEATURE_ITEMS: readonly FeatureItem[] = [
   { key: 'endpointRing', group: '操作', label: '端点の輪', connected: true },
   { key: 'circleMenu', group: '操作', label: 'サークルメニュー', connected: true },
   { key: 'knobs', group: '操作', label: 'つまみ', connected: true },
-  { key: 'classifyClaude', group: '計算', label: '意味づけ（Claude）', connected: false },
+  { key: 'classifyClaude', group: '計算', label: '意味づけ（Claude）', connected: true },
   { key: 'shadowRecalc', group: '計算', label: '斜線・日影の再計算', connected: true },
   { key: 'autoSave', group: '計算', label: '自動保存（作業履歴に状態を残す）', connected: true },
 ]

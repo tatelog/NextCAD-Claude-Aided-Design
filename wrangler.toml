@@ -5,3 +5,14 @@
 name = "claude-aided-design-relay"
 main = "src/worker/index.ts"
 compatibility_date = "2026-10-01"
+
+# アプリ（npm run build の dist）も、同じ Worker から配る（B）。アプリと判定の受け口が同じ場所になる。
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+# 費用の月上限（D-06 N7）。Cloudflare で KV の名前空間を作り、次の行の id を書き換えて外すと、今月の判定の件数を数える。
+# 作らない間は、月の上限は効かない（線分の上限と接続元の制限は効く）。
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "<利用者の KV 名前空間の id>"

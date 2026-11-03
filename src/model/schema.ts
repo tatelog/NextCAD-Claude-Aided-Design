@@ -29,6 +29,8 @@ export const StrokeSchema = z.object({
   segment_ids: z.array(z.string()).optional(),
   created_at: z.string(),
   pen_input: PenInputSchema,
+  // 3 点で描いた円弧の中心（mm）と向き（反時計回りなら ccw）。円弧でない線には無い（G5・D-02 C6）
+  arc: z.object({ center: PointMmSchema, ccw: z.boolean() }).optional(),
 })
 
 // 端点。線分は端点 ID で参照し合う（D-02 C1「端点の共有」）。

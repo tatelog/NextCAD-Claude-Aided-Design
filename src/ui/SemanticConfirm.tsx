@@ -53,7 +53,7 @@ export function SemanticConfirm({ rows, onSelectKind, onConfirm }: SemanticConfi
   return (
     <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
       <legend style={{ fontSize: 12 }}>意味づけの確認（G14）</legend>
-      <p style={note}>判定（Claude）は未接続。種類は人が選ぶ。</p>
+      <p style={note}>判定（Claude）は、ヘッダーの「意味づけを判定」で送る。結果は要確認の提案として入る。種類は人が選ぶ。</p>
       <ul aria-label="意味づけの件数" style={countList}>
         {STATUS_ORDER.map((s) => (
           <li key={s}>

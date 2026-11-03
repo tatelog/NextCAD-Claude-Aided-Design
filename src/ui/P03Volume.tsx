@@ -20,7 +20,8 @@ import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
-import { shadowRuleFor } from '../law/shadowRule'
+import { shadowRuleFromOrdinance } from '../law/shadowOrdinance'
+import { useOrdinance } from '../store/ordinance'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
@@ -35,6 +36,9 @@ import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
 import { ObjectMenu } from './ObjectMenu'
+import { TileClose } from './PanelTile'
+import { usePanelTiles } from '../store/panelTiles'
+import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -101,6 +105,10 @@ export function P03Volume() {
   const [rotateStep, setRotateStep] = useState<RotationStep>('free')
   // 機能のオンオフ（G70）: 回転の表示と操作、つまみ、斜線と日影の再計算
   const featureOn = useFeatures((s) => s.on)
+  // 右パネルの節を閉じる（ハブ A-03 G73）。閉じた節は display: none で残し、入力の値は保つ
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const { hideTile } = usePanelTiles.getState()
+  const tileStyle = (id: string) => ({ position: 'relative' as const, ...(hiddenTiles[id] ? { display: 'none' as const } : {}) })
   const rotateDeg = snapAngle(Number(rotateText), rotateStep)
   // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
   const knobSnapshotRef = useRef<typeof entries | null>(null)
@@ -196,27 +204,29 @@ export function P03Volume() {
         : null,
     [stackedFloors, sun],
   )
-  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
+  const ordinanceEntries = useOrdinance((s) => s.entries)
+  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す。規制値は確認済みの条例の値だけ（G15）
   const shadowJudge = useMemo(() => {
     // 再計算をオフにしているときは、判定を計算せずに止めていると出す（G70）
     if (!featureOn.shadowRecalc) return { text: '再計算を止めている（機能のオンオフ）', result: null as '適合' | '不適合' | null }
-    const rule = shadowRuleFor(zone, 2)
     if (!volume) {
       return { text: volumeError ? `立体を作れないので判定できない（${volumeError}）` : '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
     }
-    if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
+    // 規制値は、人が確認した条例の値だけで置く（G15）。未確認・未入力なら判定しない
+    const ordinance = shadowRuleFromOrdinance(zone, ordinanceEntries)
+    if (!ordinance.ok) return { text: ordinance.reason, result: null as '適合' | '不適合' | null }
     const judgment = judgeShadow({
       lot: DUMMY_PARCEL,
       buildings: stackedFloors,
-      rule,
+      rule: ordinance.rule,
       lat: 35.67,
       lon: 139.86,
       date: new Date(Date.UTC(2026, 11, 22)),
     })
-    if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
+    if (judgment.result === '適合') return { text: '適合（確認済みの条例の値で判定）', result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -303,7 +313,8 @@ export function P03Volume() {
           </div>
         )}
         <aside className="p03-side">
-          <section>
+          <section style={tileStyle('p2-outline')}>
+            <TileClose title="外形" onHide={() => hideTile('p2-outline')} />
             <h2>外形</h2>
             <dl>
               <dt>線分</dt>
@@ -312,7 +323,8 @@ export function P03Volume() {
               <dd className={closure.closed ? 'ok' : 'ng'}>{closureLabel}</dd>
             </dl>
           </section>
-          <section>
+          <section style={tileStyle('p2-storey')}>
+            <TileClose title="階数・階高" onHide={() => hideTile('p2-storey')} />
             <h2>階数・階高</h2>
             <label>
               階数
@@ -335,7 +347,8 @@ export function P03Volume() {
               />
             </label>
           </section>
-          <section>
+          <section style={tileStyle('p2-volume')}>
+            <TileClose title="ボリューム" onHide={() => hideTile('p2-volume')} />
             <h2>ボリューム</h2>
             {volume && cut ? (
               <dl>
@@ -356,7 +369,14 @@ export function P03Volume() {
                     : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
                 </dd>
                 <dt>日影</dt>
-                <dd>{shadowJudge.text}</dd>
+                <dd>
+                  {shadowJudge.text}
+                  {ORDINANCE_KEYS.map((k) => (
+                    <div key={k}>
+                      <OrdinanceStatusLine itemKey={k} />
+                    </div>
+                  ))}
+                </dd>
                 <dt>容積率</dt>
                 <dd>
                   {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
@@ -438,11 +458,13 @@ export function P03Volume() {
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
           </section>
-          <section>
+          <section style={tileStyle('p2-numeric')}>
+            <TileClose title="数値で線を入れる" onHide={() => hideTile('p2-numeric')} />
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
             <NumericLineForm />
           </section>
-          <section style={featureOn.rotateDisplay ? undefined : { display: 'none' }}>
+          <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay ? {} : { display: 'none' }) }}>
+            <TileClose title="回転" onHide={() => hideTile('p2-rotate')} />
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
             <label>
               回転角 (°、反時計回り)

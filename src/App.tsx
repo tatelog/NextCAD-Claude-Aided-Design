@@ -8,19 +8,24 @@ import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
+import { useFirstFloor } from './store/firstFloor'
+import { workLogToCsv } from './app/workLogCsv'
 import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
+import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
+import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
-import { uploadJsonToDrive } from './drive/driveUpload'
+import { saveProjectToDrive } from './drive/driveSave'
 import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
+import { appWorkerUrl } from './worker/workerUrl'
 import { pendingLogEntry } from './app/pendingJudgments'
 import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
@@ -39,8 +44,8 @@ type ScreenId = (typeof SCREENS)[number]['id']
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
 
-// 判定の Worker の URL（配備先は未決。未設定なら判定は送らない）
-const WORKER_URL: string = import.meta.env.VITE_WORKER_URL ?? ''
+// 判定の Worker の URL（B: 配備したアプリは同じ場所。手元の開発は VITE_WORKER_URL を置いた場合だけ送る）
+const WORKER_URL: string = appWorkerUrl()
 
 export function App() {
   const [screen, setScreen] = useState<ScreenId>('P2')
@@ -90,6 +95,8 @@ export function App() {
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   const featureOn = useFeatures((s) => s.on)
+  // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
+  const panelHidden = usePanelTiles((s) => s.hidden)
   // 入力スナップは、ツールバーのボタンと同じ状態を読む（二つの欄が食い違わないように）
   const inputSnapGrid = useUi((s) => s.inputSnapGrid)
   // レイヤーの表示とロック（G66）。筆界はロック固定
@@ -167,6 +174,8 @@ export function App() {
       storeyCount: d.storeyCount,
       storeyHeightMm: d.storeyHeightMm,
       fixtures: useFixtures.getState().fixtures,
+      unitPriceTexts: useFixtures.getState().unitPriceTexts,
+      firstFloorNames: useFirstFloor.getState().names,
       savedAt: new Date(),
     })
   }
@@ -203,6 +212,8 @@ export function App() {
   const [driveToken, setDriveToken] = useState<string | null>(null)
   const [driveFiles, setDriveFiles] = useState<DriveProjectFile[]>([])
   const [driveFileId, setDriveFileId] = useState('')
+  // いま開いている Drive のファイルと、読んだ版（保存の確認に使う。G32）。新規は null
+  const [openedDrive, setOpenedDrive] = useState<{ id: string; revision: number } | null>(null)
   const listDrive = async () => {
     if (!DRIVE_CLIENT_ID) return
     try {
@@ -222,6 +233,7 @@ export function App() {
       const token = driveToken ?? (await requestDriveToken(DRIVE_CLIENT_ID))
       const p = parseSaveData(await downloadJsonFromDrive({ token, id: driveFileId }))
       applyLoadedProject(p)
+      setOpenedDrive({ id: driveFileId, revision: p.revision })
       setProject(p.projectName)
       setSaved(snapshotNow())
       setLoadMessage(`Drive から「${p.projectName}」を読み込みました`)
@@ -239,8 +251,16 @@ export function App() {
     try {
       const data = projectData()
       const token = await requestDriveToken(DRIVE_CLIENT_ID)
-      const id = await uploadJsonToDrive({ token, name: `${data.projectName}.json`, json: JSON.stringify(data, null, 2) })
-      setDriveMessage(`Drive に保存しました（ファイル ID: ${id}）`)
+      // 開いているファイルがあれば、読んだ版と保存先の版を比べてから上書きする（違えば上書きせず衝突として出す）
+      const out = await saveProjectToDrive({
+        token,
+        name: `${data.projectName}.json`,
+        fileId: openedDrive?.id ?? null,
+        loadedRevision: openedDrive?.revision ?? 0,
+        buildJson: (revision) => JSON.stringify({ ...data, revision }, null, 2),
+      })
+      setOpenedDrive(out)
+      setDriveMessage(`Drive に保存しました（版 ${out.revision}・ファイル ID: ${out.id}）`)
       record('Drive 保存', data.projectName)
       setSaved(snapshotNow())
     } catch (e) {
@@ -354,11 +374,27 @@ export function App() {
         {screen === 'P4' && <P4Estimate />}
         {screen === 'P5' && <P5Output />}
         {panel !== null && (
-          <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 320, background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
+          <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, ...(panel === 'menu' ? { left: 0 } : { width: 320 }), background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'log' && (
               <>
                 <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（同じブラウザに残る）</h2>
                 <p style={{ fontSize: 11, color: '#666' }}>SQLite（sql.js）の表から新しい順に読む。この同じブラウザの中に保存する。</p>
+                <button
+                  type="button"
+                  style={{ ...button, marginBottom: 8 }}
+                  disabled={!logReady}
+                  onClick={() => {
+                    // 作業履歴を CSV で書き出す（ハブ A-03 G68）。画面の一覧と同じ 200 件
+                    const url = URL.createObjectURL(new Blob([workLogToCsv(recentWorkLog(200))], { type: 'text/csv;charset=utf-8' }))
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'work-log.csv'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  CSV で書き出す
+                </button>
                 {!logReady && <p style={{ fontSize: 13 }}>作業履歴を準備しています（SQLite）。</p>}
                 {logReady && recentWorkLog(200).length === 0 && <p style={{ fontSize: 13 }}>まだ操作がありません。</p>}
                 <ol style={{ paddingLeft: 18, fontSize: 12 }} data-rev={rev}>
@@ -377,7 +413,7 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>表示（機能のオンオフ）</h2>
+                <Fold title="表示（機能のオンオフ）">
                 <label style={{ display: 'block', marginBottom: 8 }}>
                   <input
                     type="checkbox"
@@ -433,8 +469,8 @@ export function App() {
                   />{' '}
                   グリッド（P3 の平面）
                 </label>
-                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
-                  <strong style={{ fontSize: 13 }}>レイヤー（表示とロック。筆界はロック固定）</strong>
+                </Fold>
+                <Fold title="レイヤー（表示とロック。筆界はロック固定）">
                   {LAYER_NAMES.map((name) => (
                     <div key={name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginBottom: 2 }}>
                       <span style={{ width: 90 }}>{name}</span>
@@ -463,9 +499,24 @@ export function App() {
                       </label>
                     </div>
                   ))}
-                </div>
-                <div style={{ marginTop: 12, borderTop: '1px solid #ddd8cc', paddingTop: 8 }}>
-                  <strong style={{ fontSize: 13 }}>機能のオンオフ（案。項目の中身は未決）</strong>
+                </Fold>
+                <Fold title="右パネルの項目（閉じたものを戻す。G73・G74）">
+                  {PANEL_TILES.map((t) => (
+                    <label key={t.id} style={{ display: 'block', marginBottom: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={!panelHidden[t.id]}
+                        onChange={(e) => {
+                          if (e.target.checked) usePanelTiles.getState().showTile(t.id)
+                          else usePanelTiles.getState().hideTile(t.id)
+                          record('右パネル', `${t.title} ${e.target.checked ? '入' : '切'}`)
+                        }}
+                      />{' '}
+                      {t.title}
+                    </label>
+                  ))}
+                </Fold>
+                <Fold title="機能のオンオフ（案。項目の中身は未決）">
                   {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
                     <label key={f.key} style={{ display: 'block', marginBottom: 6 }}>
                       <input type="checkbox" checked={f.key === 'inputSnap' ? inputSnapGrid : featureOn[f.key]} onChange={(e) => {
@@ -476,7 +527,7 @@ export function App() {
                       {f.connected ? null : <span style={{ color: '#a86b00', fontSize: 11 }}>（未接続）</span>}
                     </label>
                   ))}
-                </div>
+                </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
                   全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。
                 </p>

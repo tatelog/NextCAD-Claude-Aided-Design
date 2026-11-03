@@ -26,6 +26,19 @@ import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
+import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
+import { PanelTile } from './PanelTile'
+import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
+import { roomsOfCells } from '../plan/rooms'
+import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
+import { balconyOfUnit } from '../plan/balcony'
+import { firstFloorCountsOf } from '../plan/commonAreas'
+import { outlineArcsOf } from '../volume/outlineArcs'
+import { arcBoundsOf, gridSegmentsToArc, svgArcPath } from '../volume/curvedGrid'
+import { cellsInsideArc } from '../plan/arcCells'
+import { wallOutlineRings } from '../plan/wallUnion'
+import { useFirstFloor } from '../store/firstFloor'
+import { UnitDetailPanel } from './UnitDetailPanel'
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -84,6 +97,8 @@ export function P3Plan() {
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
+        // 円弧の外形があるときは、四隅が円の内側の区画だけを作る（ハブ A-03 G5）
+        insideCell: outlineArcs[0] ? (cell) => cellsInsideArc([cell], outlineArcs[0]!).inside.length > 0 : undefined,
       })
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
@@ -106,6 +121,16 @@ export function P3Plan() {
       return
     }
     const dims = outlineDimensions(closure.footprint, DRAW_OPTIONS.axisSnapDeg)
+    // 円弧を含む外形: 円弧の外接する幅・奥行きを取る（ハブ A-03 G5）
+    const arcs = outlineArcsOf(useDrawing.getState().entries)
+    if (!dims && arcs.length > 0) {
+      const b = arcBoundsOf(arcs)
+      setWidthText(String(Math.round(b.maxX - b.minX)))
+      setDepthText(String(Math.round(b.maxY - b.minY)))
+      setOutlineOrigin({ x: b.minX, y: b.minY })
+      setOutlineMessage('円弧を含む外形: 円弧の範囲で外接する幅・奥行きを取った')
+      return
+    }
     if (!dims) {
       setOutlineMessage('P2 の外形は矩形ではないので、幅と奥行きは手で入れてください')
       return
@@ -166,6 +191,21 @@ export function P3Plan() {
   // 節目の要約（D-04 P3 の右側）。敷地・法規適合・階数階高・スパン・住戸数。確認申請に要る情報がここで揃う
   const siteMatches = useSite((s) => s.matches)
   const shadowResult = useSite((s) => s.shadow)
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
+  const firstFloorNames = useFirstFloor((s) => s.names)
+  // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
+  const outlineArcs = outlineArcsOf(useDrawing((s) => s.entries))
+  // 壁の輪郭（ハブ A-03 G4）。壁厚は仮置きで P5 の既定と同じ 200 mm。交わるところは和の輪郭にして、重なりを取り除く
+  const wallPolys = wallOutlineRings(
+    drawnEntries.flatMap((e) => e.segments).map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 }, kind: assignments[s.id]?.kind ?? null })),
+    200,
+  )
+  // 円弧の外形があるとき、区画は四隅が円の内側のものだけを表示する（ハブ A-03 G5。自動作成の数は矩形のまま）
+  const arcCut = outlineArcs[0] && units.cells ? cellsInsideArc(units.cells.cells, outlineArcs[0]) : null
+  const { hideTile, showTile } = usePanelTiles.getState()
+  // ダブルクリックで開く住戸の詳細（ハブ A-03 G76）。閉じると null に戻る
+  const [detailUnitId, setDetailUnitId] = useState<string | null>(null)
   const milestoneRows = useMemo(
     () =>
       milestoneSummary({
@@ -208,7 +248,7 @@ export function P3Plan() {
   const D = Number(depthText)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
-      <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（P3 の自動作成の結果）" />
+      <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（P3 の自動作成の結果）" firstFloorCounts={firstFloorCountsOf(firstFloorNames)} />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
           <div style={{ position: 'relative' }}>
@@ -258,12 +298,29 @@ export function P3Plan() {
             {auto ? auto.shaftRects.map((s) => (
               <rect key={s.id} x={s.x0} y={s.y0} width={s.x1 - s.x0} height={s.y1 - s.y0} fill={s.kind === 'PS' ? '#f3e3b8' : '#d9c48a'} stroke="#7a5a10" strokeWidth={12} />
             )) : null}
-            {units.cells.cells.map((c) => (
+            {(arcCut ? arcCut.inside : units.cells.cells).map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
-            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} />
-            {lines.map((y) => (
-              <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
+            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
+            {/* 壁（意味づけが wall の線）を、中心線から両側に壁厚の半分ずつ広げた輪郭で描く。交わるところは和の輪郭（ハブ A-03 G4） */}
+            {/* 輪郭（外側と穴）は一つのパスで塗る。穴を別の多角形で塗ると、穴まで埋まる */}
+            {wallPolys.length > 0 && (
+              <path
+                d={wallPolys.map((poly) => poly.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + ' Z').join(' ')}
+                fill="#6b6459"
+                fillOpacity={0.85}
+                fillRule="evenodd"
+              />
+            )}
+            {/* 通りは、描いた円弧の外形に当たるところで止める（ハブ A-03 G5）。円弧が無ければ全長のまま */}
+            {lines.map((y) => {
+              const cut = outlineArcs[0] ? gridSegmentsToArc(outlineArcs[0], 'y', y, { x0: 0, x1: W, y0: 0, y1: D }) : null
+              const seg = cut ? cut[0]! : { a: { x: -200, y }, b: { x: W + 200, y } }
+              return <line key={y} x1={seg.a.x} y1={seg.a.y} x2={seg.b.x} y2={seg.b.y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
+            })}
+            {/* 描いた円弧の外形（P2 で 3 点・数値で入れた円弧）。外周の通り芯の円弧として重ねる（ハブ A-03 G5） */}
+            {outlineArcs.map((arc, i) => (
+              <path key={`outline-arc-${i}`} d={svgArcPath(arc)} fill="none" stroke="#1f5f8b" strokeWidth={20} />
             ))}
           </svg>
           {showMiniMap && units.cells ? (() => {
@@ -286,6 +343,18 @@ export function P3Plan() {
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
+        {Object.keys(hiddenTiles).length > 0 ? (
+          <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
+            閉じた項目:{' '}
+            {Object.keys(hiddenTiles).map((id) => (
+              <button key={id} type="button" onClick={() => showTile(id)} style={{ marginRight: 6, fontSize: 12 }}>
+                {PANEL_TILES.find((t) => t.id === id)?.title ?? id} を戻す
+              </button>
+            ))}
+          </p>
+        ) : null}
+        {hiddenTiles['p3-form'] ? null : (
+        <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
           <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
@@ -311,6 +380,8 @@ export function P3Plan() {
           P2 の外形から幅・奥行きを取る（矩形のみ）
         </button>
         {outlineMessage ? <p style={{ color: '#a33', fontSize: 12, margin: '0 0 4px' }}>{outlineMessage}</p> : null}
+        </PanelTile>
+        )}
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下の幅 (mm)
           <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
@@ -341,6 +412,8 @@ export function P3Plan() {
           ))}
           {core.error ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{core.error}</p> : null}
         </fieldset>
+        {hiddenTiles.auto ? null : (
+        <PanelTile title="自動で作る（柱割り・間取り・縦シャフト）" onHide={() => hideTile('auto')}>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
           <p style={{ margin: '0 0 6px', fontSize: 12 }}>
@@ -391,12 +464,21 @@ export function P3Plan() {
             </dl>
           ) : null}
         </fieldset>
-        <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
+        </PanelTile>
+        )}
+        {hiddenTiles.fixtures ? null : (
+          <PanelTile title="什器" onHide={() => hideTile('fixtures')}>
+            <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
+          </PanelTile>
+        )}
+        {hiddenTiles['p3-result'] ? null : (
+        <PanelTile title="住戸数・スパンの判定" onHide={() => hideTile('p3-result')}>
         <p>スパンの判定: {judge}</p>
         {units.result ? (
           <>
             <p>
-              住戸数（仮置きの区画）: <strong>{units.result.usable_count}</strong>
+              住戸数（仮置きの区画）: <strong>{arcCut ? arcCut.inside.length : units.result.usable_count}</strong>
+              {arcCut ? '（円弧の外形の内に入る区画だけ数える。G5）' : ''}
               {units.result.plan_status === '成立' ? '' : '（不成立のため確定しない）'}
             </p>
             <p style={{ color: '#666', fontSize: 12 }}>
@@ -411,24 +493,64 @@ export function P3Plan() {
           </>
         ) : null}
         <p style={{ color: '#666', fontSize: 12 }}>
-          閉合・意味判定（Worker）は画面に未接続。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
+          閉合は画面に未接続（意味判定は、ヘッダーの「意味づけを判定」で送る）。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
-        <section style={{ marginBottom: 10 }}>
-          <strong style={{ fontSize: 13 }}>節目の要約</strong>
-          <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
-            {milestoneRows.map((r) => (
-              <li key={r.label} style={{ fontSize: 12, color: r.status === 'ng' ? '#c8412a' : undefined }}>
-                {r.status === 'ok' ? '済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
-              </li>
-            ))}
-          </ul>
-        </section>
-        <SemanticConfirm
-          rows={semanticRows}
-          onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
-          onConfirm={setSemanticKind}
-        />
+        </PanelTile>
+        )}
+        {hiddenTiles.milestone ? null : (
+          <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
+            <section style={{ marginBottom: 10 }}>
+              <strong style={{ fontSize: 13 }}>節目の要約</strong>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
+                {milestoneRows.map((r) => (
+                  <li key={r.label} style={{ fontSize: 12, color: r.status === 'ng' ? '#c8412a' : undefined }}>
+                    {r.status === 'ok' ? '済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </PanelTile>
+        )}
+        {hiddenTiles.semantic ? null : (
+          <PanelTile title="意味づけの確認（G14）" onHide={() => hideTile('semantic')}>
+            <SemanticConfirm
+              rows={semanticRows}
+              onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
+              onConfirm={setSemanticKind}
+            />
+          </PanelTile>
+        )}
       </aside>
+      {(() => {
+        const cells = units.cells ? units.cells.cells : []
+        const cell = cells.find((c) => c.id === detailUnitId)
+        // 描いた線の中点と、その意味づけ（種類）から、住戸の中の壁と開口の数を出す（ハブ A-03 G76）
+        const kindPoints: KindPoint[] = drawnEntries
+          .flatMap((e) => e.segments)
+          .map((s) => ({ x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2, kind: assignments[s.id]?.kind ?? null }))
+        const kindCounts = cell ? kindCountsIn(cell, kindPoints) : undefined
+        return (
+          <UnitDetailPanel
+            detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
+            onClose={() => setDetailUnitId(null)}
+            storeyCount={storeyCount}
+            ceilingMm={2400}
+            walls={kindCounts?.walls}
+            openings={kindCounts?.openings}
+            balcony={cell ? balconyOfUnit(cell, { outline: { W, D } }) : undefined}
+            shaft={detailUnitId && auto ? psOfUnit(detailUnitId, auto.shaftRects) : undefined}
+            firstFloorName={detailUnitId ? (firstFloorNames[detailUnitId] ?? null) : null}
+            onSetFirstFloorName={(name) => {
+              if (detailUnitId) useFirstFloor.getState().setName(detailUnitId, name)
+            }}
+            rooms={cell ? roomsOfCells([cell]).map((r) => r.kind) : []}
+            sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
+            onApplySameType={() => {
+              if (detailUnitId) useFixtures.setState({ fixtures: copyFixturesToSameType(detailUnitId, cells, fixtures) })
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

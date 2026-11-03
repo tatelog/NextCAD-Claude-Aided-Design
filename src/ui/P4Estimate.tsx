@@ -6,7 +6,13 @@ import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
+import { planExteriorQuantities } from '../estimate/planExterior'
+import { structureQuantities } from '../estimate/structureQuantities'
+import { sashQuantity } from '../estimate/sashQuantity'
+import { useDrawing } from '../store/drawing'
+import { useSemantic } from '../store/semantic'
 import { roomFinishTotals } from '../estimate/roomQuantities'
+import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
 import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import type { RoomKind } from '../plan/rooms'
@@ -63,6 +69,9 @@ export function P4Estimate() {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
+  // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
+  const drawnEntries = useDrawing((s) => s.entries)
+  const assignments = useSemantic((s) => s.assignments)
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
   const fixtureUnitIds = useFixtures((s) => s.unitIds)
@@ -78,13 +87,25 @@ export function P4Estimate() {
     if (volume) {
       const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(q.exterior_wall, q.roof)
+      // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
+      out.push(structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height }).slab)
     }
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
       out.push(t.floor, t.ceiling, t.wall_cloth)
+      // バルコニーと共用廊下（G62）。基準階の区画・廊下・コアから、階数分を拾う（仮置き）
+      const ext = planExteriorQuantities({
+        corridor: plan.corridor,
+        cores: plan.cores,
+        cells: plan.cells,
+        outline: { W: plan.widthMm, D: plan.depthMm },
+        storeyCount: plan.ev.storey_count,
+      })
+      out.push(ext.balcony, ext.corridor)
     }
+    out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
     return out
-  }, [volume, plan])
+  }, [volume, plan, drawnEntries, assignments])
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
@@ -115,6 +136,43 @@ export function P4Estimate() {
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
+        {plan ? (
+          <section style={{ marginBottom: 12, fontSize: 12 }}>
+            <strong>住戸タイプ別の内装（1 戸あたり × 戸数。G61）</strong>
+            {(() => {
+              const cells = plan.cells.map((c) => ({ id: c.id, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }))
+              const rows = breakdownByUnitType(
+                cells.map((c) => ({ id: c.id, type: plan.unitType })),
+                roomsByUnit(plan.rooms, cells),
+                { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM },
+              )
+              return rows.length === 0 ? (
+                <p>住戸がまだありません</p>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
+                  <thead>
+                    <tr>
+                      <th align="left">住戸タイプ</th>
+                      <th align="right">戸数</th>
+                      <th align="right">1 戸あたり 床 ㎡</th>
+                      <th align="right">合計 床 ㎡</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.type}>
+                        <td>{r.type}</td>
+                        <td align="right">{r.count}</td>
+                        <td align="right">{r.perUnit.floorM2.toFixed(2)}</td>
+                        <td align="right">{r.total.floorM2.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+          </section>
+        ) : null}
         {plan ? (
           <figure style={{ margin: '0 0 12px' }}>
             <svg viewBox={`-500 -500 ${plan.widthMm + 1000} ${plan.depthMm + 1000}`} style={{ width: '100%', maxWidth: 480, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>

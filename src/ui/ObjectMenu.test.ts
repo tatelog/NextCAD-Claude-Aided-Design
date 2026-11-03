@@ -340,3 +340,19 @@ describe('ObjectMenu（描ける。仕様 6）', () => {
     expect(OBJECT_MENU_WIDTH).toBe(180)
   })
 })
+
+// 仕様 7（共用部のグループ。ハブ A-03 G75）: 一覧の下に、共用部のグループを出す。基準階は、自動作成の結果から数えた数を付ける（廊下・階段 A／B・EV ホール・EPS・DS）。
+// 1F は名前だけを出す（配置は未配線なので件数は出さない）。
+describe('ObjectMenu（共用部のグループ。仕様 7）', () => {
+  it('基準階は名前と数（SOURCES の結果から）を、1F は名前だけを、一覧の下に 1 行ずつ出す', () => {
+    const lines = findAll(render(), isTag('div')).map(textOf)
+    expect(lines).toContain('基準階：廊下 1、階段 A 1、階段 B 0、EV ホール 0、EPS 0、DS 0')
+    expect(lines).toContain('1F：エントランス 0、風除室 0、ロビー 0、管理室 0、メールコーナー 0、ゴミ置場 0')
+  })
+
+  it('1F の行は、区画に付けた名前の数を出す（渡されたときだけ。種類の行の数は 12 のまま）', () => {
+    expect(buttonsOf(render())).toHaveLength(12)
+    const lines = findAll(render({ firstFloorCounts: [{ name: 'エントランス', count: 2 }] }), isTag('div')).map(textOf)
+    expect(lines).toContain('1F：エントランス 2、風除室 0、ロビー 0、管理室 0、メールコーナー 0、ゴミ置場 0')
+  })
+})

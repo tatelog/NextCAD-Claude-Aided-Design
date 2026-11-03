@@ -81,4 +81,41 @@ describe('Worker の受け口', () => {
     const res = await handleRequest(req('POST', '/classify', { segments: segs }, { origin: 'https://other.example.invalid' }), e, f)
     expect(res.headers.get('access-control-allow-origin')).toBeNull()
   })
+
+  // 仕様 6（接続元・ハブ A-03 G29、D-06 N6）: ALLOWED_ORIGIN が設定されていて、接続元が一致しない（無い場合も）POST /classify は 403。Claude は呼ばない。
+  it('仕様 6（接続元）: 一致しない・無い接続元の POST /classify は 403。Claude は呼ばない', async () => {
+    const { f, calls } = apiFetch(true, good)
+    const e = { ...env, ALLOWED_ORIGIN: 'https://app.example.invalid' }
+    const other = await handleRequest(req('POST', '/classify', { segments: segs }, { origin: 'https://other.example.invalid' }), e, f)
+    const none = await handleRequest(req('POST', '/classify', { segments: segs }), e, f)
+    expect(other.status).toBe(403)
+    expect(none.status).toBe(403)
+    expect(calls).toHaveLength(0)
+  })
+
+  // 仕様 7（上限・ハブ A-03 G29、D-02 C12）: 一度に送る線分は 200 本まで。超えたら 413。Claude は呼ばない。
+  it('仕様 7（上限）: 線分が 201 本なら 413。Claude は呼ばない', async () => {
+    const { f, calls } = apiFetch(true, good)
+    const many = Array.from({ length: 201 }, (_, i) => ({ id: `s${i}`, a: { x: 0, y: 0 }, b: { x: 1, y: i } }))
+    const res = await handleRequest(req('POST', '/classify', { segments: many }), env, f)
+    expect(res.status).toBe(413)
+    expect(calls).toHaveLength(0)
+  })
+
+  // 仕様 8（月の上限・ハブ A-03 G29、D-06 N7）: 置き場（USAGE）の今月の件数が上限に達していれば 429。Claude は呼ばず、件数も増やさない。
+  it('仕様 8（月の上限）: 今月の件数が上限に達していれば 429。Claude は呼ばない', async () => {
+    const { f, calls } = apiFetch(true, good)
+    const data = new Map<string, string>()
+    const kv = {
+      get: async (key: string) => data.get(key) ?? null,
+      put: async (key: string, value: string) => void data.set(key, value),
+    }
+    const month = new Date().toISOString().slice(0, 7)
+    data.set(`classify:${month}`, '2')
+    const e = { ...env, USAGE: kv, MONTHLY_CLASSIFY_LIMIT: '2' }
+    const res = await handleRequest(req('POST', '/classify', { segments: segs }), e, f)
+    expect(res.status).toBe(429)
+    expect(calls).toHaveLength(0)
+    expect(data.get(`classify:${month}`)).toBe('2')
+  })
 })
