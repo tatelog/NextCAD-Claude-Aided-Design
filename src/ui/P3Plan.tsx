@@ -5,7 +5,8 @@ import { checkSpan, gridLines } from '../plan/grid'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
-import { countObjects } from '../plan/objectMenu'
+import { countObjects, type ObjectKind } from '../plan/objectMenu'
+import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { useSite } from '../store/site'
@@ -35,6 +36,8 @@ export function P3Plan() {
   const showGrid = useUi((s) => s.showGrid)
   const showMiniMap = useUi((s) => s.showMiniMap)
   const [autoError, setAutoError] = useState<string | null>(null)
+  // 左メニュー（G55）: 選んだ種類（1 つだけ。もう一度押すと外れる）
+  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
   const runAuto = () => {
@@ -103,20 +106,22 @@ export function P3Plan() {
     }
   }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText, core.rect])
 
-  // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
-  const objectRows = useMemo(
-    () =>
-      countObjects({
-        outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
-        gridLines: lines ?? [],
-        cores: auto ? auto.cores : core.rect ? [core.rect] : [],
-        shafts: auto ? auto.shaftRects : [],
-        corridors: units.cells ? units.cells.corridors : [],
-        units: units.cells ? units.cells.cells : [],
-        rooms: auto ? auto.rooms : [],
-      }),
+  // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数と、選んだ種類の中身を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
+  const objectSources = useMemo<ObjectDetailSources>(
+    () => ({
+      outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
+      gridLines: lines ?? [],
+      cores: auto ? auto.cores : core.rect ? [core.rect] : [],
+      shafts: auto ? auto.shaftRects : [],
+      corridors: units.cells ? units.cells.corridors : [],
+      units: units.cells ? units.cells.cells : [],
+      // 自動作成の前は部屋が無い。空の配列ではなく未指定にして、住戸の部屋の数を「未算定」と出す（件数は 0 のまま）
+      rooms: auto ? auto.rooms : undefined,
+    }),
     [widthText, depthText, lines, auto, core.rect, units.cells],
   )
+  const objectRows = useMemo(() => countObjects(objectSources), [objectSources])
+  const objectDetail = useMemo(() => (selectedKind ? detailOfKind(selectedKind, objectSources) : null), [selectedKind, objectSources])
 
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   let judge: string = '許容範囲は未決（D-02 C6）'
@@ -137,15 +142,55 @@ export function P3Plan() {
         <p style={{ fontSize: 11, color: '#666', margin: '0 0 8px' }}>種類ごとの件数（P3 の自動作成の結果）</p>
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
           {objectRows.map((r) => (
-            <li key={r.kind} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '3px 0', borderBottom: '1px dashed #e6e4dc' }}>
-              <span>{r.label}</span>
-              <span>
-                <strong>{r.count}</strong>
-                {r.note ? <span style={{ color: '#a33', fontSize: 11, marginLeft: 4 }}>（{r.note}）</span> : null}
-              </span>
+            <li key={r.kind} style={{ borderBottom: '1px dashed #e6e4dc' }}>
+              <button
+                type="button"
+                aria-pressed={selectedKind === r.kind}
+                onClick={() => setSelectedKind((s) => toggleKind(s, r.kind))}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  width: '100%',
+                  padding: '3px 4px',
+                  border: 0,
+                  background: selectedKind === r.kind ? '#ece8da' : 'transparent',
+                  color: 'inherit',
+                  font: 'inherit',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>{r.label}</span>
+                <span>
+                  <strong>{r.count}</strong>
+                  {r.note ? <span style={{ color: '#a33', fontSize: 11, marginLeft: 4 }}>（{r.note}）</span> : null}
+                </span>
+              </button>
             </li>
           ))}
         </ul>
+        {objectDetail ? (
+          <section aria-label={`${objectDetail.label}の中身`} style={{ marginTop: 12 }}>
+            <h3 style={{ fontSize: 13, margin: '0 0 4px' }}>{objectDetail.label}の中身</h3>
+            {objectDetail.emptyText ? (
+              <p style={{ fontSize: 12, color: '#666', margin: 0 }}>{objectDetail.emptyText}</p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+                {objectDetail.entries.map((e, i) => (
+                  <li key={i} style={{ padding: '4px 0', borderBottom: '1px dashed #e6e4dc' }}>
+                    <strong>{e.title}</strong>
+                    {e.lines.map((line, j) => (
+                      <div key={j} style={{ color: '#444' }}>
+                        {line}
+                      </div>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
       </aside>
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
