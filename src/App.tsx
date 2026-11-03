@@ -9,6 +9,7 @@ import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
+import { workLogToCsv } from './app/workLogCsv'
 import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
@@ -378,6 +379,22 @@ export function App() {
               <>
                 <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（同じブラウザに残る）</h2>
                 <p style={{ fontSize: 11, color: '#666' }}>SQLite（sql.js）の表から新しい順に読む。この同じブラウザの中に保存する。</p>
+                <button
+                  type="button"
+                  style={{ ...button, marginBottom: 8 }}
+                  disabled={!logReady}
+                  onClick={() => {
+                    // 作業履歴を CSV で書き出す（ハブ A-03 G68）。画面の一覧と同じ 200 件
+                    const url = URL.createObjectURL(new Blob([workLogToCsv(recentWorkLog(200))], { type: 'text/csv;charset=utf-8' }))
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'work-log.csv'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  CSV で書き出す
+                </button>
                 {!logReady && <p style={{ fontSize: 13 }}>作業履歴を準備しています（SQLite）。</p>}
                 {logReady && recentWorkLog(200).length === 0 && <p style={{ fontSize: 13 }}>まだ操作がありません。</p>}
                 <ol style={{ paddingLeft: 18, fontSize: 12 }} data-rev={rev}>
