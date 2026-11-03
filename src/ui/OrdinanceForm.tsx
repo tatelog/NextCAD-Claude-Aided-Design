@@ -1,10 +1,11 @@
 // 条例の値の入力と確認（ハブ A-03 G15）。値と出典を人が入れ、人が確認する。確認済みの値だけが判定に使われる。
 import { useState } from 'react'
 import { ordinanceStatus } from '../law/ordinance'
+import { SHADOW_KEYS } from '../law/shadowOrdinance'
 import { useOrdinance } from '../store/ordinance'
 
 /** 条例の値の項目（日影の条件など）。項目の名前は、判定の側と揃える */
-export const ORDINANCE_KEYS = ['日影時間', '測定面の高さ'] as const
+export const ORDINANCE_KEYS = [SHADOW_KEYS.near, SHADOW_KEYS.far, SHADOW_KEYS.height] as const
 
 /** 項目の状態を 1 行で出す（判定の側に置く） */
 export function OrdinanceStatusLine({ itemKey }: { itemKey: string }) {

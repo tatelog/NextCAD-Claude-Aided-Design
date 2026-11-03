@@ -20,7 +20,8 @@ import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
-import { shadowRuleFor } from '../law/shadowRule'
+import { shadowRuleFromOrdinance } from '../law/shadowOrdinance'
+import { useOrdinance } from '../store/ordinance'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
@@ -37,7 +38,7 @@ import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
 import { ObjectMenu } from './ObjectMenu'
 import { TileClose } from './PanelTile'
 import { usePanelTiles } from '../store/panelTiles'
-import { OrdinanceStatusLine } from './OrdinanceForm'
+import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
@@ -203,27 +204,29 @@ export function P03Volume() {
         : null,
     [stackedFloors, sun],
   )
-  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
+  const ordinanceEntries = useOrdinance((s) => s.entries)
+  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す。規制値は確認済みの条例の値だけ（G15）
   const shadowJudge = useMemo(() => {
     // 再計算をオフにしているときは、判定を計算せずに止めていると出す（G70）
     if (!featureOn.shadowRecalc) return { text: '再計算を止めている（機能のオンオフ）', result: null as '適合' | '不適合' | null }
-    const rule = shadowRuleFor(zone, 2)
     if (!volume) {
       return { text: volumeError ? `立体を作れないので判定できない（${volumeError}）` : '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
     }
-    if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
+    // 規制値は、人が確認した条例の値だけで置く（G15）。未確認・未入力なら判定しない
+    const ordinance = shadowRuleFromOrdinance(zone, ordinanceEntries)
+    if (!ordinance.ok) return { text: ordinance.reason, result: null as '適合' | '不適合' | null }
     const judgment = judgeShadow({
       lot: DUMMY_PARCEL,
       buildings: stackedFloors,
-      rule,
+      rule: ordinance.rule,
       lat: 35.67,
       lon: 139.86,
       date: new Date(Date.UTC(2026, 11, 22)),
     })
-    if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
+    if (judgment.result === '適合') return { text: '適合（確認済みの条例の値で判定）', result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -367,7 +370,12 @@ export function P03Volume() {
                 </dd>
                 <dt>日影</dt>
                 <dd>
-                  {shadowJudge.text}（<OrdinanceStatusLine itemKey="日影時間" />）
+                  {shadowJudge.text}
+                  {ORDINANCE_KEYS.map((k) => (
+                    <div key={k}>
+                      <OrdinanceStatusLine itemKey={k} />
+                    </div>
+                  ))}
                 </dd>
                 <dt>容積率</dt>
                 <dd>
