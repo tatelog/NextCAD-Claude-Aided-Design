@@ -36,7 +36,7 @@ export interface PermitInput {
 type Op = 'eq' | 'ne' | 'gt'
 type Cond =
   | 'always'
-  | { field: keyof PermitInput; op: Op; value: string | number | boolean }
+  | { field: keyof PermitInput; op: Op; value: string | number | boolean; /** 当たらないときの理由の語（例: 高さ10m以下） */ notLabel?: string }
   | { all: Cond[] }
   | { any: Cond[] }
   | { unresolved: string }
@@ -75,6 +75,22 @@ function evaluate(cond: Cond, input: PermitInput): Verdict {
   return unknown ?? NO
 }
 
+// 当たらなかった条件の語（notLabel）を集める。条件式の中で偽になった比較だけを数える
+function missingLabels(cond: Cond, input: PermitInput): (string | undefined)[] {
+  if (cond === 'always' || 'unresolved' in cond) return []
+  if ('field' in cond) return compare(input[cond.field], cond.op, cond.value) ? [] : [cond.notLabel]
+  if ('all' in cond) return cond.all.flatMap((c) => missingLabels(c, input))
+  return cond.any.flatMap((c) => missingLabels(c, input))
+}
+
+// 要らない理由は、当たらなかった条件の語を並べる（例: 日影規制区域の外・高さ10m以下）。
+// 語が無い条件が混じるときは、定義の notApplicableReason を使う。
+function reasonOf(doc: DocDef, input: PermitInput): string {
+  const labels = missingLabels(doc.when, input)
+  if (labels.length > 0 && labels.every((l): l is string => typeof l === 'string')) return labels.join('・')
+  return doc.notApplicableReason ?? '条件に当たらないため'
+}
+
 export interface PermitJudgement {
   /** 要る図書の名称 */
   required: string[]
@@ -110,7 +126,7 @@ export function requiredPermitDocuments(input: PermitInput): PermitJudgement {
     const verdict = evaluate(doc.when, input)
     if (verdict.kind === 'yes') judgement.required.push(doc.name)
     else if (verdict.kind === 'no') {
-      judgement.notRequired.push({ name: doc.name, reason: doc.notApplicableReason ?? '条件に当たらないため' })
+      judgement.notRequired.push({ name: doc.name, reason: reasonOf(doc, input) })
     } else judgement.needsCheck.push({ name: doc.name, reason: verdict.reason })
   }
   return judgement

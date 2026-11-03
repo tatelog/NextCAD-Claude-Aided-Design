@@ -216,8 +216,8 @@
       "name": "建築設備の概要書（別記第八号様式）",
       "kind": "form",
       "basis": "施行規則 第1条の3 第4項（別記第八号様式の『昇降機の概要』『建築設備の概要』に記載すべき事項）",
-      "when": { "any": [{ "field": "hasBuildingEquipment", "op": "eq", "value": true }, { "field": "hasElevator", "op": "eq", "value": true }] },
-      "notApplicableReason": "建築設備・昇降機のどちらも含まないため",
+      "when": { "any": [{ "field": "hasBuildingEquipment", "op": "eq", "value": true }, { "field": "hasElevator", "op": "eq", "value": true }, { "field": "heightM", "op": "gt", "value": 31 }] },
+      "notApplicableReason": "建築設備・昇降機のどちらも含まず、高さ31m以下のため（高さ31m超では非常用の昇降機が要る。法34条2項）",
       "sourceIds": ["S12"],
       "status": "要確認",
       "note": "別記第八号様式の本文は未取得（ハブ A-07 の未取得一覧）。"
@@ -230,13 +230,14 @@
       "when": {
         "any": [
           { "field": "structuralCalc", "op": "eq", "value": true },
-          { "all": [{ "field": "structure", "op": "eq", "value": "RC" }, { "field": "heightM", "op": "gt", "value": 20 }] }
+          { "all": [{ "field": "structure", "op": "eq", "value": "RC" }, { "field": "heightM", "op": "gt", "value": 20 }] },
+          { "field": "heightM", "op": "gt", "value": 31 }
         ]
       },
-      "notApplicableReason": "RC造で高さ20m以下、かつ構造計算を行わないため（法20条1項3号のうち仕様規定による計画）",
+      "notApplicableReason": "RC造で高さ20m以下・31m以下で、構造計算を行わないため（法20条1項3号のうち仕様規定による計画）",
       "sourceIds": ["S03", "S12"],
       "status": "要確認",
-      "note": "表三の種類（令81条の区分）は高さと構造で決まる。高さ31m超の区分は未確認。"
+      "note": "表三の種類（令81条の区分）は高さと構造で決まる。高さ31m超は令81条2項の構造計算（ハブ A-07 E-44 の転記。原文は未照合）。"
     },
     {
       "id": "D24",
@@ -253,11 +254,16 @@
       "name": "日影図",
       "kind": "drawing",
       "basis": "施行規則 第1条の3 表二(二十九)（法56条の2 の日影）。対象は日影規制区域内で高さ10mを超える建築物（自治体の FAQ）",
-      "when": { "all": [{ "field": "inShadowRegulationArea", "op": "eq", "value": true }, { "field": "heightM", "op": "gt", "value": 10 }] },
-      "notApplicableReason": "日影規制区域の外、または高さ10m以下のため",
+      "when": {
+        "all": [
+          { "field": "inShadowRegulationArea", "op": "eq", "value": true, "notLabel": "日影規制区域の外" },
+          { "field": "heightM", "op": "gt", "value": 10, "notLabel": "高さ10m以下" }
+        ]
+      },
+      "notApplicableReason": "日影規制区域の外、または高さ10m以下のため（入力による。両方に当たれば両方を書く）",
       "sourceIds": ["S11", "S12"],
       "status": "要確認",
-      "note": "日影規制区域は自治体ごとの指定で、本システムでは判定しない（人が入力する）。高さ10m超の基準は大阪市の FAQ（二次）で、法56条の2 の本文は未照合。"
+      "note": "日影規制区域は自治体ごとの指定で、本システムでは判定しない（人が入力する）。高さ10m超の基準は大阪市の FAQ（二次）で、法56条の2 の本文は未照合。判定の閾値（判定ロジック judgeShadow は10m以上）との違いは K07。"
     },
     {
       "id": "D26",
@@ -314,6 +320,33 @@
       "sourceIds": ["S12"],
       "status": "要確認",
       "note": "規則の表にある図書を落とさないために残す。行ごとに当てはめるまで、要否は判定しない。"
+    },
+    {
+      "id": "D32",
+      "name": "非常用の昇降機の図書（法34条2項、高さ31m超）",
+      "kind": "drawing",
+      "basis": "建築基準法 第34条第2項（高さ31mをこえる建築物（政令で定めるものを除く）には、非常用の昇降機を設けなければならない）。原文は S14 で確認",
+      "when": { "field": "heightM", "op": "gt", "value": 31 },
+      "notApplicableReason": "高さ31m以下のため（法34条2項の対象外）",
+      "sourceIds": ["S14"],
+      "status": "要確認",
+      "note": "政令で定める建築物の除外（施行令の該当条項と条件）は未確認。昇降機の概要は D22 に含まれる。"
+    },
+    {
+      "id": "D33",
+      "name": "高層建築物に係る消防関係の図書（消防法8条の2）",
+      "kind": "drawing",
+      "basis": "消防法 第8条の2（高さ31mを超える建築物は高層建築物）。消防長の同意（建築基準法 第93条）の審査で、高層建築物として求められる図書",
+      "when": {
+        "all": [
+          { "field": "heightM", "op": "gt", "value": 31, "notLabel": "高さ31m以下" },
+          { "unresolved": "高層建築物として求められる図書の範囲（避難・排煙・非常用進入口など）は、消防法令と建築地の消防署で確認が要る" }
+        ]
+      },
+      "notApplicableReason": "高さ31m以下のため（消防法8条の2 の高層建築物に当たらない）",
+      "sourceIds": ["S15", "S16"],
+      "status": "要確認",
+      "note": "消防同意（法93条）は高さの基準ではなく、専用住宅などの例外を除いて確認申請に掛かる（二次資料）。高層として増える図書の範囲は未確認。"
     }
   ],
   "excluded": [

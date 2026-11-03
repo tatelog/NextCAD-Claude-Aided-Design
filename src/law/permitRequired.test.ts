@@ -147,3 +147,53 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
     expect(requiredPermitDocuments({ ...plateRc, storeys: 20, heightM: 61 }).applicability.article20).toBe('1号')
   })
 })
+
+describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
+  const NON_ELEVATOR = '非常用の昇降機の図書（法34条2項、高さ31m超）'
+  const HIGH_FIRE = '高層建築物に係る消防関係の図書（消防法8条の2）'
+
+  it('高さ31mを超えると、非常用の昇降機の図書と構造計算書が要る', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
+    expect(required).toEqual(expect.arrayContaining([NON_ELEVATOR, '構造計算書（表三）']))
+  })
+
+  it('高さ31m以下なら、非常用の昇降機の図書は要らない', () => {
+    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 31 })
+    expect(required).not.toContain(NON_ELEVATOR)
+    expect(notRequired.map((n) => n.name)).toContain(NON_ELEVATOR)
+  })
+
+  it('高さ31m超の消防関係の図書は、範囲が未確認なので要確認に分ける', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
+    expect(required).not.toContain(HIGH_FIRE)
+    expect(needsCheck.map((n) => n.name)).toContain(HIGH_FIRE)
+  })
+
+  it('高さ31m以下なら、高層建築物の消防関係の図書は要確認にもならない', () => {
+    const { needsCheck, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 14 })
+    expect(needsCheck.map((n) => n.name)).not.toContain(HIGH_FIRE)
+    expect(notRequired.map((n) => n.name)).toContain(HIGH_FIRE)
+  })
+
+  it('日影図を要らない理由は、当たらない条件（区域の外・高さ10m以下）の組み合わせで決まる', () => {
+    const reasonOf = (input: Parameters<typeof requiredPermitDocuments>[0]) =>
+      requiredPermitDocuments(input).notRequired.find((n) => n.name === '日影図')?.reason ?? ''
+
+    const outsideAndLow = reasonOf({ ...plateRc, inShadowRegulationArea: false, heightM: 9 })
+    expect(outsideAndLow).toContain('日影規制区域の外')
+    expect(outsideAndLow).toContain('高さ10m以下')
+
+    const insideAndLow = reasonOf({ ...plateRc, inShadowRegulationArea: true, heightM: 9 })
+    expect(insideAndLow).toContain('高さ10m以下')
+    expect(insideAndLow).not.toContain('区域の外')
+
+    const outsideAndHigh = reasonOf({ ...plateRc, inShadowRegulationArea: false, heightM: 31 })
+    expect(outsideAndHigh).toContain('日影規制区域の外')
+    expect(outsideAndHigh).not.toContain('高さ10m以下')
+  })
+
+  it('日影規制区域内で高さ31mなら、日影図が要る（高さ10m以下の理由は当たらない）', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, inShadowRegulationArea: true, heightM: 31 })
+    expect(required).toContain('日影図')
+  })
+})
