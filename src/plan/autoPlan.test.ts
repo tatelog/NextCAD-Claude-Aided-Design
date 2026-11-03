@@ -132,3 +132,11 @@ describe('縦シャフトの位置', () => {
     }
   })
 })
+
+// 仕様 9（住戸タイプ）: 結果は住戸タイプを持つ。指定が無ければファミリー。単独を指定すれば単独。（P4 の住戸タイプ別の表示に使う。G61）
+describe('generateAutoPlan の住戸タイプ（仕様 9）', () => {
+  it('仕様 9: 指定が無ければファミリー、単独を指定すれば単独を結果に持つ', () => {
+    expect(generateAutoPlan({ ...base, layout: '中廊下' }).unitType).toBe('ファミリー')
+    expect(generateAutoPlan({ ...base, layout: '中廊下', unitType: '単独' }).unitType).toBe('単独')
+  })
+})

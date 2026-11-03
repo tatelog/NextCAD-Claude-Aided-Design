@@ -7,6 +7,7 @@ import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { roomFinishTotals } from '../estimate/roomQuantities'
+import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
 import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import type { RoomKind } from '../plan/rooms'
@@ -115,6 +116,43 @@ export function P4Estimate() {
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
+        {plan ? (
+          <section style={{ marginBottom: 12, fontSize: 12 }}>
+            <strong>住戸タイプ別の内装（1 戸あたり × 戸数。G61）</strong>
+            {(() => {
+              const cells = plan.cells.map((c) => ({ id: c.id, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }))
+              const rows = breakdownByUnitType(
+                cells.map((c) => ({ id: c.id, type: plan.unitType })),
+                roomsByUnit(plan.rooms, cells),
+                { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM },
+              )
+              return rows.length === 0 ? (
+                <p>住戸がまだありません</p>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
+                  <thead>
+                    <tr>
+                      <th align="left">住戸タイプ</th>
+                      <th align="right">戸数</th>
+                      <th align="right">1 戸あたり 床 ㎡</th>
+                      <th align="right">合計 床 ㎡</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.type}>
+                        <td>{r.type}</td>
+                        <td align="right">{r.count}</td>
+                        <td align="right">{r.perUnit.floorM2.toFixed(2)}</td>
+                        <td align="right">{r.total.floorM2.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+          </section>
+        ) : null}
         {plan ? (
           <figure style={{ margin: '0 0 12px' }}>
             <svg viewBox={`-500 -500 ${plan.widthMm + 1000} ${plan.depthMm + 1000}`} style={{ width: '100%', maxWidth: 480, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>

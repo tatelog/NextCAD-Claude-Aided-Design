@@ -57,6 +57,8 @@ export interface AutoPlan {
   spans: number
   unitsPerFloor: number
   shortfall: number
+  /** 住戸タイプ（指定が無ければファミリー）。P4 の住戸タイプ別の表示に使う（G61） */
+  unitType: 'ファミリー' | '単独'
   shafts: { ps: number; eps: number; ds: number }
   ev: EvLevels
   /** 廊下と住戸の区画（1 階） */
@@ -145,6 +147,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const rooms = roomsFor(c.cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'))
 
   return {
+    unitType: input.unitType ?? 'ファミリー',
     widthMm,
     depthMm,
     spans,
