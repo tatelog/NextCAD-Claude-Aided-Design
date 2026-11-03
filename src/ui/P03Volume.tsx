@@ -1,6 +1,6 @@
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
@@ -95,6 +95,18 @@ export function P03Volume() {
   const [rotateText, setRotateText] = useState('0')
   const [rotateStep, setRotateStep] = useState<RotationStep>('free')
   const rotateDeg = snapAngle(Number(rotateText), rotateStep)
+  // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
+  const knobSnapshotRef = useRef<typeof entries | null>(null)
+  const onKnobRotateStart = () => {
+    knobSnapshotRef.current = useDrawing.getState().entries
+  }
+  const onKnobRotate = (deg: number) => {
+    const snapshot = knobSnapshotRef.current ?? useDrawing.getState().entries
+    knobSnapshotRef.current = null
+    // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない（右の「回す」と同じ）
+    setAligned(false)
+    transform(() => rotateOutline(snapshot, deg))
+  }
   const roadDeg = (() => {
     const a = DUMMY_PARCEL[roadEdge]!
     const b = DUMMY_PARCEL[(roadEdge + 1) % DUMMY_PARCEL.length]!
@@ -260,6 +272,9 @@ export function P03Volume() {
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
+                rotationStep={rotateStep}
+                onRotateStart={onKnobRotateStart}
+                onRotate={onKnobRotate}
               />
               {showMiniMap && boundsOf([volume.footprint]) ? (
                 <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
