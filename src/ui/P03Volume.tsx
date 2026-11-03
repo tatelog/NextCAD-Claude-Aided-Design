@@ -9,6 +9,7 @@ import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
 import { judgeSlope } from '../volume/slopeJudge'
+import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
@@ -46,6 +47,12 @@ export function P03Volume() {
   const [homeToken, setHomeToken] = useState(0)
 
   const [farLimit, setFarLimit] = useState('')
+  // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は江東区の点（35.67N, 139.86E）
+  const [solarTime, setSolarTime] = useState('12:00')
+  const sun = useMemo(() => {
+    if (!/^\d{2}:\d{2}$/.test(solarTime)) return null
+    return solarPosition({ lat: 35.67, lon: 139.86, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
+  }, [solarTime])
   const [zone, setZone] = useState<Zone>('住居系')
   const [roadEdge, setRoadEdge] = useState(0)
   const [roadWidth, setRoadWidth] = useState('6000')
@@ -227,6 +234,10 @@ export function P03Volume() {
                 <dd>{m2(cut.building_area_mm2)} m²</dd>
                 <dt>延床面積</dt>
                 <dd>{m2(cut.gross_floor_area_mm2)} m²</dd>
+                <dt>太陽の高さ（冬至）</dt>
+                <dd>{sun ? `${sun.altitudeDeg.toFixed(1)} °` : '時刻を入れる（HH:MM）'}</dd>
+                <dt>太陽の方位</dt>
+                <dd>{sun ? `南から ${sun.azimuthFromSouthDeg.toFixed(1)} °` : '—'}</dd>
                 <dt>斜線（北・隣地・道路）</dt>
                 <dd>
                   {legal.boundaries.length === 0
@@ -246,6 +257,10 @@ export function P03Volume() {
             <label>
               容積率の上限 (%)
               <input type="number" min={1} step={10} value={farLimit} placeholder="未入力（判定不能）" onChange={(e) => setFarLimit(e.target.value)} />
+            </label>
+            <label>
+              日射の時刻（冬至・HH:MM）
+              <input value={solarTime} onChange={(e) => setSolarTime(e.target.value)} />
             </label>
             {siteRule ? (
               <p className="muted">
