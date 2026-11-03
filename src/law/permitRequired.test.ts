@@ -150,7 +150,8 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
 
 describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
   const NON_ELEVATOR = '非常用の昇降機の図書（法34条2項、高さ31m超）'
-  const HIGH_FIRE = '高層建築物に係る消防関係の図書（消防法8条の2）'
+  const HIGH_FIRE = '消防用設備等の図書（高層建築物・消防法令）'
+  const OUTLET = '非常コンセント設備の図（消防法施行令29条の2、地上11階以上）'
 
   it('高さ31mを超えると、非常用の昇降機の図書と構造計算書が要る', () => {
     const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
@@ -163,16 +164,26 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
     expect(notRequired.map((n) => n.name)).toContain(NON_ELEVATOR)
   })
 
-  it('高さ31m超の消防関係の図書は、範囲が未確認なので要確認に分ける', () => {
-    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
-    expect(required).not.toContain(HIGH_FIRE)
-    expect(needsCheck.map((n) => n.name)).toContain(HIGH_FIRE)
+  it('高さ31mを超えると、消防用設備等の図書が要る（消防法8条の2 の高層建築物）', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
+    expect(required).toContain(HIGH_FIRE)
   })
 
-  it('高さ31m以下なら、高層建築物の消防関係の図書は要確認にもならない', () => {
-    const { needsCheck, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 14 })
-    expect(needsCheck.map((n) => n.name)).not.toContain(HIGH_FIRE)
+  it('高さ31m以下なら、高層建築物の消防用設備等の図書は要らない', () => {
+    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 14 })
+    expect(required).not.toContain(HIGH_FIRE)
     expect(notRequired.map((n) => n.name)).toContain(HIGH_FIRE)
+  })
+
+  it('地上11階以上では、非常コンセント設備の図が要る（消防法施行令29条の2）', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 11, heightM: 33 })
+    expect(required).toContain(OUTLET)
+  })
+
+  it('地上10階以下では、非常コンセント設備の図は要らない', () => {
+    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 31 })
+    expect(required).not.toContain(OUTLET)
+    expect(notRequired.map((n) => n.name)).toContain(OUTLET)
   })
 
   it('日影図を要らない理由は、当たらない条件（区域の外・高さ10m以下）の組み合わせで決まる', () => {
