@@ -9,6 +9,7 @@ import { buildingExteriorQuantities } from '../estimate/quantities'
 import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
 import { structureQuantities } from '../estimate/structureQuantities'
 import { sashQuantity } from '../estimate/sashQuantity'
+import { objectTableOf } from '../plan/objectTable'
 import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
 import { roomFinishTotals } from '../estimate/roomQuantities'
@@ -114,6 +115,14 @@ export function P4Estimate() {
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
+  // 住戸をグループとして数える（G58）。自動作成の結果から、オブジェクト表の行を作る
+  const objectRows = useMemo(
+    () =>
+      plan
+        ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
+        : [],
+    [plan, fixtures],
+  )
 
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
@@ -135,6 +144,7 @@ export function P4Estimate() {
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"
         notice={noticeOfPlan(plan)}
+        objectRows={objectRows}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>

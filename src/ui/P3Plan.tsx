@@ -29,6 +29,7 @@ import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
+import { objectTableOf } from '../plan/objectTable'
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
@@ -250,7 +251,14 @@ export function P3Plan() {
   const D = Number(depthText)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
-      <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（P3 の自動作成の結果）" firstFloorCounts={firstFloorCountsOf(firstFloorNames)} />
+      <ObjectMenu
+        sources={objectSources}
+        selectedKind={selectedKind}
+        onSelect={setSelectedKind}
+        caption="種類ごとの件数（P3 の自動作成の結果）"
+        firstFloorCounts={firstFloorCountsOf(firstFloorNames)}
+        objectRows={auto ? objectTableOf({ cells: auto.cells, rooms: auto.rooms, shafts: auto.shaftRects, cores: auto.cores, corridor: auto.corridor, fixtures }) : []}
+      />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
           <div style={{ position: 'relative' }}>
