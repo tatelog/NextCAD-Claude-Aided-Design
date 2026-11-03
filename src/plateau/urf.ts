@@ -17,12 +17,12 @@ export interface UseDistrict {
   ring: { lat: number; lon: number }[]
 }
 
-function tagText(block: string, name: string): string | null {
+export function tagText(block: string, name: string): string | null {
   const m = block.match(new RegExp(`<urf:${name}(?:\\s[^>]*)?>([^<]*)</urf:${name}>`))
   return m ? m[1]!.trim() : null
 }
 
-function tagNumber(block: string, name: string): number | null {
+export function tagNumber(block: string, name: string): number | null {
   const t = tagText(block, name)
   if (t === null || !/^-?\d+(\.\d+)?$/.test(t)) return null
   return Number(t)
@@ -61,7 +61,7 @@ function onEdge(p: { lat: number; lon: number }, a: { lat: number; lon: number }
 }
 
 // 点が環の内側か（境界上は false）
-function insideRing(p: { lat: number; lon: number }, ring: { lat: number; lon: number }[]): boolean {
+export function insideRing(p: { lat: number; lon: number }, ring: { lat: number; lon: number }[]): boolean {
   let inside = false
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const a = ring[i]!
