@@ -56,5 +56,6 @@ export function lineChangeEntry(
 export function restoreSnapshotJson(json: string, projectName: string): void {
   const p = parseSnapshot(json)
   // 単価の入力は作業履歴に入れていないので、いまの入力を残す（戻しても単価は変えない）
-  applyLoadedProject({ ...p, unitPriceTexts: useFixtures.getState().unitPriceTexts, projectName, savedAt: new Date() })
+  // 版（Drive の版）は作業履歴に入れていないので、ここでは使わない（applyLoadedProject は版を持たない）
+  applyLoadedProject({ ...p, unitPriceTexts: useFixtures.getState().unitPriceTexts, revision: 0, projectName, savedAt: new Date() })
 }

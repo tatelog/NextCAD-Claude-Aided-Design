@@ -30,6 +30,8 @@ const SaveSchema = z.object({
   fixtures: z.array(FixtureSchema).optional(),
   // 単価の入力が無い古い保存には無い（利用者が入れた単価。文字だけ）
   unitPriceTexts: z.record(z.string(), z.string()).optional(),
+  // 版番号（G32）。版の無い古い保存は 0 として読む
+  revision: z.number().int().min(0).optional(),
 })
 
 export interface LoadedProject {
@@ -40,6 +42,8 @@ export interface LoadedProject {
   storeyHeightMm: number
   fixtures: Fixture[]
   unitPriceTexts: Record<string, string>
+  /** 版番号（保存のたびに 1 増える。版の無い古い保存は 0） */
+  revision: number
 }
 
 /** 保存の JSON（すでに JSON.parse 済みの値）を読む。形が合わなければ例外。 */
@@ -53,6 +57,7 @@ export function parseSaveData(json: unknown): LoadedProject {
     storeyHeightMm: d.storeyHeightMm,
     fixtures: (d.fixtures ?? []).map((f) => ({ id: f.id, item: f.item as FixtureItem, unitId: f.unitId })),
     unitPriceTexts: d.unitPriceTexts ?? {},
+    revision: d.revision ?? 0,
   }
 }
 

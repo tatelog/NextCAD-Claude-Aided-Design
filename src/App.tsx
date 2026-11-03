@@ -18,7 +18,7 @@ import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
-import { uploadJsonToDrive } from './drive/driveUpload'
+import { saveProjectToDrive } from './drive/driveSave'
 import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
@@ -209,6 +209,8 @@ export function App() {
   const [driveToken, setDriveToken] = useState<string | null>(null)
   const [driveFiles, setDriveFiles] = useState<DriveProjectFile[]>([])
   const [driveFileId, setDriveFileId] = useState('')
+  // いま開いている Drive のファイルと、読んだ版（保存の確認に使う。G32）。新規は null
+  const [openedDrive, setOpenedDrive] = useState<{ id: string; revision: number } | null>(null)
   const listDrive = async () => {
     if (!DRIVE_CLIENT_ID) return
     try {
@@ -228,6 +230,7 @@ export function App() {
       const token = driveToken ?? (await requestDriveToken(DRIVE_CLIENT_ID))
       const p = parseSaveData(await downloadJsonFromDrive({ token, id: driveFileId }))
       applyLoadedProject(p)
+      setOpenedDrive({ id: driveFileId, revision: p.revision })
       setProject(p.projectName)
       setSaved(snapshotNow())
       setLoadMessage(`Drive から「${p.projectName}」を読み込みました`)
@@ -245,8 +248,16 @@ export function App() {
     try {
       const data = projectData()
       const token = await requestDriveToken(DRIVE_CLIENT_ID)
-      const id = await uploadJsonToDrive({ token, name: `${data.projectName}.json`, json: JSON.stringify(data, null, 2) })
-      setDriveMessage(`Drive に保存しました（ファイル ID: ${id}）`)
+      // 開いているファイルがあれば、読んだ版と保存先の版を比べてから上書きする（違えば上書きせず衝突として出す）
+      const out = await saveProjectToDrive({
+        token,
+        name: `${data.projectName}.json`,
+        fileId: openedDrive?.id ?? null,
+        loadedRevision: openedDrive?.revision ?? 0,
+        buildJson: (revision) => JSON.stringify({ ...data, revision }, null, 2),
+      })
+      setOpenedDrive(out)
+      setDriveMessage(`Drive に保存しました（版 ${out.revision}・ファイル ID: ${out.id}）`)
       record('Drive 保存', data.projectName)
       setSaved(snapshotNow())
     } catch (e) {
