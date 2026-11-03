@@ -4,6 +4,9 @@ import { z } from 'zod'
 import { NodeSchema, SegmentSchema, StrokeSchema } from '../model/schema'
 import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from '../plan/fixtures'
 import { MAX_STOREYS } from '../volume/knobs3d'
+import { useDrawing } from '../store/drawing'
+import { useFixtures } from '../store/fixtures'
+import { useSemantic } from '../store/semantic'
 
 const EntrySchema = z.object({
   stroke: StrokeSchema,
@@ -47,4 +50,11 @@ export function parseSaveData(json: unknown): LoadedProject {
     storeyHeightMm: d.storeyHeightMm,
     fixtures: (d.fixtures ?? []).map((f) => ({ id: f.id, item: f.item as FixtureItem, unitId: f.unitId })),
   }
+}
+
+/** 読んだ案件を、画面の状態に入れる。Undo・Redo の履歴と種類（意味づけ）は、保存していないので空に戻す。 */
+export function applyLoadedProject(p: LoadedProject): void {
+  useDrawing.setState({ entries: p.entries, past: [], redoStack: [], storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fitted: false })
+  useFixtures.setState({ fixtures: p.fixtures })
+  useSemantic.getState().clear()
 }

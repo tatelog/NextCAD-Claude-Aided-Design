@@ -4,8 +4,11 @@
 // 仕様 3: 階数は 1〜30、階高は正の整数 mm。線の座標は整数 mm。品目は既知の 5 つ。保存日時は日時の形。
 // 仕様 4: 形が合わないデータは、読まずにエラーにする（画面の状態は変わらない）。
 import { describe, expect, it } from 'vitest'
-import { parseSaveData } from './loadData'
+import { applyLoadedProject, parseSaveData } from './loadData'
 import { buildSaveData } from './saveData'
+import { useDrawing } from '../store/drawing'
+import { useFixtures } from '../store/fixtures'
+import { useSemantic } from '../store/semantic'
 
 // 1 本の線（2 点・2 端点）。保存の中身はこの形の一覧
 const entry = {
@@ -104,5 +107,32 @@ describe('parseSaveData（保存したデータを読む）', () => {
     expect(() => parseSaveData('{}')).toThrow()
     const base = roundTrip({ projectName: 'x', entries: [], storeyCount: 5, storeyHeightMm: 3000, savedAt: new Date('2026-11-01T00:00:00.000Z') })
     expect(() => parseSaveData({ ...(base as object), entries: 'abc' })).toThrow()
+  })
+})
+
+describe('applyLoadedProject（読んだ案件を画面の状態に入れる）', () => {
+  // 仕様 5: 読んだ案件は、一覧・階数・階高・什器が画面の状態に入る。種類（意味づけ）と Undo・Redo の履歴は空に戻る（保存していないため）。
+  it('一覧・階数・階高・什器が入り、種類と Undo・Redo の履歴は空に戻る', () => {
+    useDrawing.setState({ entries: [], past: [[entry]], redoStack: [[entry]], storeyCount: 2, storeyHeightMm: 2800 })
+    useSemantic.getState().setKind('seg-1', 'wall')
+    const p = parseSaveData(
+      roundTrip({
+        projectName: '敷地A',
+        entries: [entry],
+        storeyCount: 6,
+        storeyHeightMm: 3200,
+        fixtures: [{ id: 'fixture-1', item: 'kitchen', unitId: 'U1' }],
+        savedAt: new Date('2026-11-04T01:02:03.000Z'),
+      }),
+    )
+    applyLoadedProject(p)
+    const d = useDrawing.getState()
+    expect(d.entries).toEqual([entry])
+    expect(d.storeyCount).toBe(6)
+    expect(d.storeyHeightMm).toBe(3200)
+    expect(d.past).toEqual([])
+    expect(d.redoStack).toEqual([])
+    expect(useFixtures.getState().fixtures).toEqual([{ id: 'fixture-1', item: 'kitchen', unitId: 'U1' }])
+    expect(useSemantic.getState().assignments).toEqual({})
   })
 })

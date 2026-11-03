@@ -11,8 +11,7 @@ import { useFixtures } from './store/fixtures'
 import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
-import { parseSaveData } from './app/loadData'
-import { useSemantic } from './store/semantic'
+import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
 import { uploadJsonToDrive } from './drive/driveUpload'
 import { openWorkLog, recentWorkLog, recordWorkLog } from './app/workLogStore'
@@ -113,9 +112,7 @@ export function App() {
   const load = async (file: File) => {
     try {
       const p = parseSaveData(JSON.parse(await file.text()))
-      useDrawing.setState({ entries: p.entries, past: [], redoStack: [], storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fitted: false })
-      useFixtures.setState({ fixtures: p.fixtures })
-      useSemantic.getState().clear()
+      applyLoadedProject(p)
       setProject(p.projectName)
       setLoadMessage(`「${p.projectName}」を読み込みました`)
       record('読み込み', p.projectName)
