@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
+import { legalBoundaries } from '../volume/legalSlope'
+import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
 import { useDrawing } from '../store/drawing'
 import { DrawingCanvas } from './DrawingCanvas'
@@ -11,6 +13,14 @@ import { Volume3D } from './Volume3D'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 const DUMMY_PARCEL_MM2 = 20_000 * 30_000
+// 筆界のダミー（反時計回り。辺 0 は下の辺）。P1 の筆界が入るまでの仮の敷地
+const DUMMY_PARCEL = [
+  { x: 0, y: 0 },
+  { x: 20_000, y: 0 },
+  { x: 20_000, y: 30_000 },
+  { x: 0, y: 30_000 },
+]
+const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume() {
   const entries = useDrawing((s) => s.entries)
@@ -29,6 +39,9 @@ export function P03Volume() {
   const [homeToken, setHomeToken] = useState(0)
 
   const [farLimit, setFarLimit] = useState('')
+  const [zone, setZone] = useState<Zone>('住居系')
+  const [roadEdge, setRoadEdge] = useState(0)
+  const [roadWidth, setRoadWidth] = useState('6000')
 
   const volume = useMemo(() => {
     if (!closure.closed) return null
@@ -39,11 +52,29 @@ export function P03Volume() {
     }
   }, [closure, storeyCount, storeyHeightMm])
 
-  // 斜線の値は未決のため切り取りは行わない（境界なし）。敷地面積は筆界のダミー（20 m × 30 m）
+  // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
+  const legal = useMemo(() => {
+    const far = farLimit === '' ? null : Number(farLimit)
+    if (far === null || !Number.isFinite(far) || far <= 0) {
+      return { boundaries: [], pending: ['容積率の限度（上限）が未入力'] }
+    }
+    return legalBoundaries({
+      footprint: DUMMY_PARCEL,
+      roadEdgeIndex: roadEdge,
+      roadWidthMm: Number(roadWidth) || 0,
+      zone,
+      farPercent: far,
+    })
+  }, [farLimit, roadEdge, roadWidth, zone])
+
   const cut = useMemo(() => {
     if (!volume) return null
-    return volumeAfterSlope({ footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height }, [], DUMMY_PARCEL_MM2)
-  }, [volume])
+    return volumeAfterSlope(
+      { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height },
+      legal.boundaries,
+      DUMMY_PARCEL_MM2,
+    )
+  }, [volume, legal])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
@@ -171,7 +202,26 @@ export function P03Volume() {
               容積率の上限 (%)
               <input type="number" min={1} step={10} value={farLimit} placeholder="未入力（判定不能）" onChange={(e) => setFarLimit(e.target.value)} />
             </label>
-            <p className="muted">斜線の切り取りは未適用（北側・道路斜線の値が未決。D-02 C4）。敷地面積は筆界のダミー（20 m × 30 m）。</p>
+            <label>
+              用途地域
+              <select value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
+                {ZONES.map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              前面道路の辺（0〜3）
+              <input type="number" min={0} max={3} value={roadEdge} onChange={(e) => setRoadEdge(Math.min(3, Math.max(0, Math.floor(Number(e.target.value) || 0))))} />
+            </label>
+            <label>
+              前面道路の幅員 (mm)
+              <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
+            </label>
+            {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
+            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は未適用（条例の値の確認が要る）。北側は真北の配線が未実装。</p>
           </section>
           <section>
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
