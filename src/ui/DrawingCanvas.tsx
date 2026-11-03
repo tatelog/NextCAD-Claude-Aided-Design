@@ -3,6 +3,7 @@
 // ホイール = カーソル位置でズーム。中ボタン／Shift + ドラッグ = パン。ダブルタップ・右クリック = サークルメニュー（G52）。
 import { useEffect, useMemo, useRef } from 'react'
 import { findClosedOutline } from '../canvas/closure'
+import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
 import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
@@ -17,6 +18,9 @@ interface PointerTrack {
 
 /** 入力スナップのグリッド（mm）。表示グリッドとは別。仮置き 1000 */
 const INPUT_GRID_MM = 1000
+
+/** 近づいた端点の輪の色。アクセント色の定義がまだ無いので、道具のアクティブ表示（pen.css）と同じ色。仮置き */
+const ENDPOINT_RING_COLOR = '#1f2a44'
 
 const toPenInput = (type: string): Stroke['pen_input'] => (type === 'pen' ? 'pen' : type === 'touch' ? 'touch' : 'mouse')
 
@@ -40,6 +44,8 @@ export function DrawingCanvas() {
   const pointersRef = useRef<Map<number, PointerTrack>>(new Map())
   const panRef = useRef<{ last: Point } | null>(null)
   const lastTapRef = useRef<TapRecord | null>(null)
+  /** ポインタの今の位置（画面 px）。押していなくても持つ。無ければ null（端点の輪を出さない） */
+  const hoverRef = useRef<Point | null>(null)
   const viewportRef = useRef(viewport)
   viewportRef.current = viewport
 
@@ -61,7 +67,7 @@ export function DrawingCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    paint(canvas, viewport, segments, nodes, footprint, drawingRef.current?.points ?? null, displayGrid)
+    paint(canvas, viewport, segments, nodes, footprint, drawingRef.current?.points ?? null, displayGrid, hoverRef.current)
   }, [viewport, segments, nodes, footprint, displayGrid])
 
   useEffect(() => {
@@ -74,7 +80,16 @@ export function DrawingCanvas() {
     }
 
     const repaint = () =>
-      paint(canvas, viewportRef.current, segments, nodes, footprint, drawingRef.current?.points ?? null, displayGrid)
+      paint(
+        canvas,
+        viewportRef.current,
+        segments,
+        nodes,
+        footprint,
+        drawingRef.current?.points ?? null,
+        displayGrid,
+        hoverRef.current,
+      )
 
     const onDown = (e: PointerEvent) => {
       const p = local(e)
@@ -97,11 +112,14 @@ export function DrawingCanvas() {
         // 2 本目が来たら描くのをやめてパン・ズームに切り替える
         drawingRef.current = null
         panRef.current = null
+        hoverRef.current = null
         repaint()
         return
       }
       if (intent === 'pan') {
         panRef.current = { last: p }
+        hoverRef.current = null
+        repaint()
         return
       }
       // ダブルタップは、描かずにサークルメニューを出す（G52）
@@ -109,17 +127,34 @@ export function DrawingCanvas() {
       lastTapRef.current = tap.next
       if (tap.double) {
         drawingRef.current = null
+        hoverRef.current = null
+        repaint()
         openCircleMenu(p)
         return
       }
-      drawingRef.current = { pointerId: e.pointerId, pointerType: e.pointerType, points: [p] }
+      // 既存の端点の近く（24 px 以内）で押したら、その端点から描き始める。近い端点は輪で示す（G37）
+      hoverRef.current = p
+      drawingRef.current = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        points: [strokeStartPx(nodes, p, viewportRef.current)],
+      }
+      repaint()
     }
 
     const onMove = (e: PointerEvent) => {
       const p = local(e)
       const track = pointersRef.current.get(e.pointerId)
-      if (!track) return
+      if (!track) {
+        // 押していないポインタ（マウス・ペンのホバー）。近づいた端点だけ輪で示す（G37）
+        if (pointersRef.current.size === 0) {
+          hoverRef.current = p
+          repaint()
+        }
+        return
+      }
       if (pointersRef.current.size >= 2) {
+        hoverRef.current = null
         const [a, b] = [...pointersRef.current.values()]
         if (!a || !b) return
         // 動いた指の前の位置を使って、2 本の指の前後を作る
@@ -131,6 +166,7 @@ export function DrawingCanvas() {
       }
       track.last = p
       if (panRef.current) {
+        hoverRef.current = null
         const vp = viewportRef.current
         setViewport({
           ...vp,
@@ -145,6 +181,7 @@ export function DrawingCanvas() {
       const d = drawingRef.current
       if (d && d.pointerId === e.pointerId) {
         d.points.push(p)
+        hoverRef.current = p
         repaint()
       }
     }
@@ -177,6 +214,8 @@ export function DrawingCanvas() {
       e.preventDefault()
       // 描いている途中の拡大・縮小は、描きかけの線を捨てる（点の座標と表示の倍率が食い違うため）
       drawingRef.current = null
+      // 倍率が変わると 24 px に入る端点も変わるので、輪の元になる位置を今のカーソル位置にしておく
+      hoverRef.current = local(e)
       setViewport(zoomAt(viewportRef.current, wheelZoomFactor(e.deltaY), local(e)))
     }
 
@@ -185,6 +224,14 @@ export function DrawingCanvas() {
       pointersRef.current.delete(e.pointerId)
       if (drawingRef.current?.pointerId === e.pointerId) drawingRef.current = null
       panRef.current = null
+      hoverRef.current = null
+      repaint()
+    }
+
+    // ポインタがキャンバスから出た（指を離したあとも含む）。端点の輪は消す
+    const onLeave = () => {
+      if (hoverRef.current === null) return
+      hoverRef.current = null
       repaint()
     }
 
@@ -198,6 +245,7 @@ export function DrawingCanvas() {
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup', onUp)
     canvas.addEventListener('pointercancel', onCancel)
+    canvas.addEventListener('pointerleave', onLeave)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('contextmenu', onContextMenu)
     return () => {
@@ -205,6 +253,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointercancel', onCancel)
+      canvas.removeEventListener('pointerleave', onLeave)
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
@@ -217,10 +266,11 @@ function paint(
   canvas: HTMLCanvasElement,
   vp: Viewport,
   segments: Segment[],
-  _nodes: Node[],
+  nodes: Node[],
   footprint: Point[] | null,
   currentPx: Point[] | null,
   showGrid: boolean,
+  hoverPx: Point | null,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -307,8 +357,6 @@ function paint(
   }
   ctx.stroke()
 
-  // 端点は画面に出さない（2026-11-03 代表）。データとしては持ち、吸着と閉合の検査に使う
-
   // 描いている最中の軌跡（px のまま）
   if (currentPx && currentPx.length > 1) {
     ctx.strokeStyle = 'rgba(31, 42, 68, 0.45)'
@@ -319,5 +367,17 @@ function paint(
       else ctx.lineTo(p.x, p.y)
     })
     ctx.stroke()
+  }
+
+  // 端点は普段は画面に出さない（2026-11-03 代表）。ポインタが 24 px 以内に近づいた端点だけ、輪で示す（G37）。
+  // 輪が出た端点が、押したときの描き始めと、描き終わりの吸着の先になる。データとしては持ち、閉合の検査にも使う
+  if (hoverPx) {
+    ctx.strokeStyle = ENDPOINT_RING_COLOR
+    ctx.lineWidth = 2
+    for (const c of ringCentersPx(nodes, hoverPx, vp)) {
+      ctx.beginPath()
+      ctx.arc(c.x, c.y, ENDPOINT_RING_RADIUS_PX, 0, Math.PI * 2)
+      ctx.stroke()
+    }
   }
 }

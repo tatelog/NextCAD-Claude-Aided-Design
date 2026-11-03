@@ -3,9 +3,10 @@
 //         ⑤入力スナップのグリッド交点。どれにも当たらなければ座標は変えない。
 // 表示グリッドとは別の設定。ここは「入力スナップのグリッド」だけを見る（gridMm が null なら無効）。
 import type { Node, Segment, Snap } from '../model/schema'
+import { ENDPOINT_SNAP_RADIUS_PX, pickEndpointWithin } from './endpointPick'
 
-/** 吸着半径（画面 px）。仮置き 24 */
-export const SNAP_RADIUS_PX = 24
+/** 吸着半径（画面 px）。端点の輪（endpointPick）と同じ値にして、輪が出た端点にだけ吸着するようにする。仮置き 24 */
+export const SNAP_RADIUS_PX = ENDPOINT_SNAP_RADIUS_PX
 
 /** 画面 px の吸着半径を、見ている倍率で mm に換算する */
 export const snapRadiusMm = (mmPerPx: number): number => SNAP_RADIUS_PX * mmPerPx
@@ -64,26 +65,12 @@ function chordsOf(segments: readonly Segment[]): Chord[] {
   return out
 }
 
-/** 半径内で最も近い端点。無ければ null */
-function nearestNode(nodes: readonly Node[], p: Pt, radius: number): Node | null {
-  let best: Node | null = null
-  let bestD = radius
-  for (const n of nodes) {
-    const d = dist(n, p)
-    if (d <= bestD) {
-      bestD = d
-      best = n
-    }
-  }
-  return best
-}
-
 /** 実寸 mm の整数に丸める（Segment と Node の座標は整数 mm） */
 const toMmInt = (p: Pt): Pt => ({ x: Math.round(p.x), y: Math.round(p.y) })
 
 export function snapPoint(p: Pt, ctx: SnapContext): SnapResult {
-  // ① 既存の端点（最も近いもの）
-  const node = nearestNode(ctx.nodes, p, ctx.radiusMm)
+  // ① 既存の端点（最も近いもの）。ポインタが近づいたとき輪で示す端点と同じ規則（endpointPick）
+  const node = pickEndpointWithin(ctx.nodes, p, ctx.radiusMm)
   if (node) return { x: node.x, y: node.y, snap: 'node', nodeId: node.id }
 
   // ② 既存の線分どうしの交点（両方の線分の内側・端に当たるもの）
@@ -103,7 +90,7 @@ export function snapPoint(p: Pt, ctx: SnapContext): SnapResult {
     if (dx !== 0 && Math.abs(dy) <= Math.abs(dx) * tan) axisPt = { x: p.x, y: ctx.prev.y }
     else if (dy !== 0 && Math.abs(dx) <= Math.abs(dy) * tan) axisPt = { x: ctx.prev.x, y: p.y }
     if (axisPt) {
-      const again = nearestNode(ctx.nodes, axisPt, ctx.radiusMm)
+      const again = pickEndpointWithin(ctx.nodes, axisPt, ctx.radiusMm)
       if (again) return { x: again.x, y: again.y, snap: 'node', nodeId: again.id }
       return { x: axisPt.x, y: axisPt.y, snap: 'axis', nodeId: null }
     }
