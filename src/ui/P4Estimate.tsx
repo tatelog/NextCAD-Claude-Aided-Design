@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
+import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { roomFinishTotals } from '../estimate/roomQuantities'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -59,9 +60,16 @@ export function P4Estimate() {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
-  // 什器（G69）: P3 で置いたもの。単価が決まるまで、工事原価の合計には入れない（estimateCost には渡さない。欄の注記にも書く）
+  // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
   const fixtureUnitIds = useFixtures((s) => s.unitIds)
+  const fixtureUnitPriceTexts = useFixtures((s) => s.unitPriceTexts)
+  const setFixtureUnitPriceText = useFixtures((s) => s.setUnitPriceText)
+  // 工事原価（概算）に渡す什器の行（単価を入れて、1 台以上置いた品目。区分は内装）
+  const fixtureAmountLines = useMemo(
+    () => fixtureCostLines(estimateFixtureCost(fixtures, parseUnitPrices(fixtureUnitPriceTexts))),
+    [fixtures, fixtureUnitPriceTexts],
+  )
   const autoQuantities = useMemo(() => {
     const out: { item: string; category: string; quantity: number }[] = []
     if (volume) {
@@ -87,11 +95,11 @@ export function P4Estimate() {
       .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
       .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
-      return estimateCost(parsed.rows, lines)
+      return estimateCost(parsed.rows, lines, fixtureAmountLines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities, autoList])
+  }, [parsed, quantities, autoList, fixtureAmountLines])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
@@ -166,7 +174,12 @@ export function P4Estimate() {
             </tbody>
           </table>
         </section>
-        <FixtureSummary fixtures={fixtures} unitIds={fixtureUnitIds ?? undefined} />
+        <FixtureSummary
+          fixtures={fixtures}
+          unitIds={fixtureUnitIds ?? undefined}
+          unitPriceTexts={fixtureUnitPriceTexts}
+          onUnitPriceChange={setFixtureUnitPriceText}
+        />
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={8} style={{ width: '100%', fontFamily: 'monospace' }} />
         {'error' in parsed ? (
           <p style={{ color: '#a33' }}>単価 CSV: {parsed.error}</p>

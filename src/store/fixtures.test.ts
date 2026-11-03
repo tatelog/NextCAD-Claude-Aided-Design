@@ -8,6 +8,8 @@
 // 仕様 4（選んでいないとき）: 品目を選んでいなければ、区画を押しても何も置かない。
 // 仕様 5（外す）: id で 1 つ外す。選んでいる品目は変わらない。
 // 仕様 6（区画）: いま P3 にある区画の id を知らせられる。区画が変わっても、置いた什器は一覧から落とさない。
+// 仕様 7（単価の入力欄・P4。G69 の今回の決定）: 品目ごとの単価（円/台）の入力欄の文字を持つ。空欄は未確定。
+//         初期はどの品目も入力なし。品目ごとに入れられ、ほかの品目・一覧・選びには影響しない。什器を置く・外すでは変わらない。
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FIXTURE_ITEMS, countFixtures } from '../plan/fixtures'
 import type { FixtureItem } from '../plan/fixtures'
@@ -170,5 +172,58 @@ describe('区画（仕様 6）', () => {
     state().setUnitIds(['cell-1'])
     expect(state().fixtures).toHaveLength(1)
     expect(state().selectedItem).toBe(kitchen)
+  })
+})
+
+describe('単価の入力欄（仕様 7）', () => {
+  it('初期は、どの品目も入力なし', () => {
+    expect(state().unitPriceTexts).toEqual({})
+  })
+
+  it('品目ごとに、入力欄の文字を持てる', () => {
+    state().setUnitPriceText(kitchen, '450000')
+    expect(state().unitPriceTexts[kitchen]).toBe('450000')
+  })
+
+  it('別の品目の入力欄の文字は、変わらない', () => {
+    state().setUnitPriceText(kitchen, '450000')
+    state().setUnitPriceText(toilet, '30,000')
+    expect(state().unitPriceTexts[kitchen]).toBe('450000')
+    expect(state().unitPriceTexts[toilet]).toBe('30,000')
+    expect(state().unitPriceTexts[storage]).toBeUndefined()
+  })
+
+  it('入れ直すと、新しい文字に替わる（空文字にも戻せる）', () => {
+    state().setUnitPriceText(kitchen, '450000')
+    state().setUnitPriceText(kitchen, '500000')
+    expect(state().unitPriceTexts[kitchen]).toBe('500000')
+    state().setUnitPriceText(kitchen, '')
+    expect(state().unitPriceTexts[kitchen]).toBe('')
+  })
+
+  it('入れる前に取っていた値は、入れたあとも変わらない（新しいオブジェクトになる）', () => {
+    const before = state().unitPriceTexts
+    state().setUnitPriceText(kitchen, '450000')
+    expect(before).toEqual({})
+    expect(state().unitPriceTexts).not.toBe(before)
+  })
+
+  it('単価を入れても、一覧・選んでいる品目・区画の id は変わらない', () => {
+    state().selectItem(kitchen)
+    state().placeSelected('cell-1')
+    state().setUnitIds(['cell-1'])
+    state().setUnitPriceText(kitchen, '450000')
+    expect(state().fixtures).toHaveLength(1)
+    expect(state().selectedItem).toBe(kitchen)
+    expect(state().unitIds).toEqual(['cell-1'])
+  })
+
+  it('什器を置く・外す・選びを替えるでは、入れた単価は変わらない', () => {
+    state().setUnitPriceText(kitchen, '450000')
+    state().selectItem(kitchen)
+    state().placeSelected('cell-1')
+    state().remove('fixture-1')
+    state().selectItem(null)
+    expect(state().unitPriceTexts).toEqual({ [kitchen]: '450000' })
   })
 })

@@ -7,6 +7,10 @@
 //   合計にも provisional を残す（未確定の印は内訳と合計に残る）。
 // 仕様 5（T-04）: 結果は basis_version（単価表の版）を持つ。
 // 仕様 6: 単価 ID が単価表に無い、数量が 0 以下、単価が整数でない、区分が列挙外なら弾く。
+// 仕様 7（金額の決まった行。ハブ A-03 G69・G22 の今回の決定）: 単価表と数量の行に載らない行（什器の 台数 × 単価 など）を、
+//   id・区分・円・出典なしの印（provisional）で、3 つ目の引数に渡せる。内訳の行（price_id に id が入る）、区分の小計、合計に入る。
+//   出典なしの印は行・小計・合計に残る（仕様 4 と同じ）。渡さなければ今までと同じ。単価表・数量が空でも、この行だけで出せる。
+//   円の整数でない・負・区分が列挙外・id が空なら弾く（仕様 6 と同じ）。
 import { describe, expect, it } from 'vitest'
 import { estimateCost, type PriceRow } from './estimate'
 
@@ -117,5 +121,86 @@ describe('estimateCost', () => {
       const bad = [{ ...prices[0]!, kind }]
       expect(() => estimateCost(bad as unknown as PriceRow[], [{ price_id: 'cross-finish', quantity: 1 }])).toThrow()
     }
+  })
+})
+
+describe('estimateCost（金額の決まった行。仕様 7）', () => {
+  const base = [
+    { price_id: 'cross-finish', quantity: 100 },
+    { price_id: 'exterior-tile', quantity: 50 },
+  ]
+  // 什器の行の例（キッチン 2 台 × 450,000 円。出典なしの仮置き）
+  const kitchenLine = { id: 'fixture:kitchen', category: '内装', yen: 900_000, provisional: true }
+
+  it('渡した行は、内訳の行（price_id に id）として、区分・円・出典なしの印のまま入る', () => {
+    const r = estimateCost(prices, base, [kitchenLine])
+    expect(r.lines.find((l) => l.price_id === 'fixture:kitchen')).toEqual({
+      price_id: 'fixture:kitchen',
+      category: '内装',
+      yen: 900_000,
+      provisional: true,
+    })
+  })
+
+  it('単価表と数量の行は、渡した行があっても変わらない', () => {
+    const r = estimateCost(prices, base, [kitchenLine])
+    expect(r.lines.find((l) => l.price_id === 'cross-finish')!.yen).toBe(120_000)
+    expect(r.lines.find((l) => l.price_id === 'exterior-tile')!.yen).toBe(400_000)
+    expect(r.lines).toHaveLength(3)
+  })
+
+  it('区分の小計と合計に入り、合計は小計の和に一致する', () => {
+    const r = estimateCost(prices, base, [kitchenLine])
+    expect(r.subtotals.内装.yen).toBe(120_000 + 900_000)
+    expect(r.subtotals.外装.yen).toBe(400_000)
+    expect(r.total_yen).toBe(120_000 + 400_000 + 900_000)
+    const sum = r.subtotals.躯体.yen + r.subtotals.外装.yen + r.subtotals.内装.yen + r.subtotals.外構.yen
+    expect(r.total_yen).toBe(sum)
+  })
+
+  it('出典なしの印（provisional）は、行・その区分の小計・合計に残り、ほかの区分には移らない', () => {
+    const r = estimateCost(prices, [{ price_id: 'cross-finish', quantity: 100 }], [kitchenLine])
+    expect(r.lines.find((l) => l.price_id === 'cross-finish')!.provisional).toBe(false)
+    expect(r.lines.find((l) => l.price_id === 'fixture:kitchen')!.provisional).toBe(true)
+    expect(r.subtotals.内装.provisional).toBe(true)
+    expect(r.subtotals.躯体.provisional).toBe(false)
+    expect(r.subtotals.外装.provisional).toBe(false)
+    expect(r.provisional).toBe(true)
+  })
+
+  it('出典ありの行（provisional が false）は、未確定の印を足さない', () => {
+    const r = estimateCost(prices, [{ price_id: 'cross-finish', quantity: 100 }], [{ ...kitchenLine, provisional: false }])
+    expect(r.subtotals.内装.yen).toBe(120_000 + 900_000)
+    expect(r.subtotals.内装.provisional).toBe(false)
+    expect(r.provisional).toBe(false)
+  })
+
+  it('渡さなければ（省略しても、空でも）今までと同じ結果', () => {
+    expect(estimateCost(prices, base, [])).toEqual(estimateCost(prices, base))
+  })
+
+  it('単価表も数量も空でも、金額の決まった行だけで合計が出る', () => {
+    const r = estimateCost([], [], [kitchenLine, { id: 'fixture:toilet', category: '内装', yen: 90_000, provisional: true }])
+    expect(r.total_yen).toBe(990_000)
+    expect(r.subtotals.内装.yen).toBe(990_000)
+    expect(r.lines).toHaveLength(2)
+    expect(r.provisional).toBe(true)
+  })
+
+  it('単価表の版（basis_version）は、金額の決まった行に影響されない', () => {
+    const r = estimateCost(prices, [{ price_id: 'cross-finish', quantity: 1 }], [kitchenLine])
+    expect(r.basis_version).toBe('v1')
+    expect(r.total_yen).toBe(1_200 + 900_000)
+  })
+
+  it('円の整数でない・負・区分が列挙外・id が空・印が無い行は弾く', () => {
+    const bads = [
+      { ...kitchenLine, yen: 100.5 },
+      { ...kitchenLine, yen: -1 },
+      { ...kitchenLine, category: '直接仮設' },
+      { ...kitchenLine, id: '' },
+      { id: 'fixture:kitchen', category: '内装', yen: 100 },
+    ]
+    for (const bad of bads) expect(() => estimateCost(prices, base, [bad])).toThrow()
   })
 })
