@@ -1,0 +1,59 @@
+// 住戸の詳細パネル（ハブ A-03 G76）。P3 の図面で住戸をダブルクリックすると、右から出る。中身は plan/unitDetail の結果。
+// 操作は二つ。「この住戸を直す（P3 に戻る）」は閉じるだけ（描き直しは図面で行う）。「同タイプの住戸に反映」は未配線（住戸タイプの持ち方が未決）。
+import type { UnitDetail } from '../plan/unitDetail'
+
+export interface UnitDetailPanelProps {
+  /** 選んだ住戸の詳細。無ければ何も出さない */
+  detail: UnitDetail | null
+  onClose: () => void
+}
+
+const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join('、') : 'なし')
+
+export function UnitDetailPanel({ detail, onClose }: UnitDetailPanelProps) {
+  if (!detail) return null
+  return (
+    <aside
+      aria-label="住戸の詳細"
+      style={{
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 300,
+        boxSizing: 'border-box',
+        padding: 12,
+        background: '#fff',
+        borderLeft: '1px solid #ddd8cc',
+        boxShadow: '-4px 0 12px rgba(0,0,0,0.12)',
+        overflowY: 'auto',
+        zIndex: 40,
+      }}
+    >
+      <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>{`住戸 ${detail.id}`}</h2>
+      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px', fontSize: 13 }}>
+        <li>{`間口 ${detail.frontageMm} mm`}</li>
+        <li>{`奥行 ${detail.depthMm} mm`}</li>
+        <li>{`専有面積 ${detail.areaM2.toFixed(2)} m²`}</li>
+        <li>{`隣戸 ${listOrNone(detail.neighbors)}`}</li>
+        <li>{`廊下側 ${listOrNone(detail.corridorSides)}`}</li>
+        <li>{`外側 ${listOrNone(detail.outerSides)}`}</li>
+        <li>{`置いた什器 ${listOrNone(detail.fixtures)}`}</li>
+      </ul>
+      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px', fontSize: 12, color: '#a33' }}>
+        <li>配置（階）: 未配線</li>
+        <li>天井高: 未配線</li>
+        <li>バルコニー: 未配線</li>
+        <li>部屋・壁と開口: 未配線</li>
+      </ul>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button type="button" onClick={onClose}>
+          この住戸を直す（P3 に戻る）
+        </button>
+        <button type="button" disabled title="未配線。住戸タイプの持ち方が未決（D-03）">
+          同タイプの住戸に反映
+        </button>
+      </div>
+    </aside>
+  )
+}

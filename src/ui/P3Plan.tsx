@@ -28,6 +28,8 @@ import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
+import { unitDetailOf } from '../plan/unitDetail'
+import { UnitDetailPanel } from './UnitDetailPanel'
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -171,6 +173,8 @@ export function P3Plan() {
   const storeyCount = useDrawing((s) => s.storeyCount)
   const hiddenTiles = usePanelTiles((s) => s.hidden)
   const { hideTile, showTile } = usePanelTiles.getState()
+  // ダブルクリックで開く住戸の詳細（ハブ A-03 G76）。閉じると null に戻る
+  const [detailUnitId, setDetailUnitId] = useState<string | null>(null)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const milestoneRows = useMemo(
     () =>
@@ -267,7 +271,7 @@ export function P3Plan() {
             {units.cells.cells.map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
-            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} />
+            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
             {lines.map((y) => (
               <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
             ))}
@@ -466,6 +470,10 @@ export function P3Plan() {
           </PanelTile>
         )}
       </aside>
+      <UnitDetailPanel
+        detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells: units.cells.cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
+        onClose={() => setDetailUnitId(null)}
+      />
     </div>
   )
 }
