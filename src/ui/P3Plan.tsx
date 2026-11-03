@@ -1,6 +1,6 @@
 // P3 平面（D-04 P3、D-02 C6、A-03 G17）。柱割りの通り芯と、廊下の両側の住戸候補から住戸数を出す。
 // 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決（D-02 C6）。画面では利用者が入れた値だけで計算する。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { checkSpan, gridLines } from '../plan/grid'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import type { RoomPattern } from '../plan/rooms'
@@ -9,8 +9,11 @@ import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
 import { useUi } from '../store/ui'
+import { FixtureLayer } from './FixtureLayer'
+import { FixturePalette } from './FixturePalette'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
@@ -39,6 +42,13 @@ export function P3Plan() {
   const [autoError, setAutoError] = useState<string | null>(null)
   // 左メニュー（G55）: 選んだ種類（1 つだけ。もう一度押すと外れる）
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
+  // 什器（G69）: 置いた什器と、パレットで選んでいる品目は店舗が持つ（P4 の数量に結ぶため）
+  const fixtures = useFixtures((s) => s.fixtures)
+  const selectedFixtureItem = useFixtures((s) => s.selectedItem)
+  const selectFixtureItem = useFixtures((s) => s.selectItem)
+  const placeSelectedFixture = useFixtures((s) => s.placeSelected)
+  const removeFixtureById = useFixtures((s) => s.remove)
+  const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
   const runAuto = () => {
@@ -106,6 +116,12 @@ export function P3Plan() {
       return { cells: null, result: null, error: e instanceof Error ? e.message : String(e) }
     }
   }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText, core.rect])
+
+  // いまの区画（住戸の区画候補）の id を店舗に知らせる。P4 が、区画が無くなった什器を「区画なし」に数えるのに使う
+  const unitIds = useMemo(() => (units.cells ? units.cells.cells.map((c) => c.id) : []), [units.cells])
+  useEffect(() => {
+    setFixtureUnitIds(unitIds)
+  }, [unitIds, setFixtureUnitIds])
 
   // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数と、選んだ種類の中身を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
   const objectSources = useMemo<ObjectDetailSources>(
@@ -175,6 +191,7 @@ export function P3Plan() {
             {units.cells.cells.map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
+            <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} />
             {lines.map((y) => (
               <line key={y} x1={-200} y1={y} x2={W + 200} y2={y} stroke="#c44" strokeWidth={10} strokeDasharray="200 150" />
             ))}
@@ -305,6 +322,7 @@ export function P3Plan() {
             </dl>
           ) : null}
         </fieldset>
+        <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
         <p>スパンの判定: {judge}</p>
         {units.result ? (
           <>
