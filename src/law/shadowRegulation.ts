@@ -32,6 +32,8 @@ export interface ShadowJudgment {
   result: '適合' | '不適合'
   /** 規制時間との差が最も大きい測定点（不適合のとき）。適合なら null */
   worst: { distanceM: number; hours: number; limit: number } | null
+  /** 全測定点のうち、影に入っている時間が最も長い値（時間） */
+  maxHours: number
 }
 
 const STEP_MIN = 10
@@ -96,7 +98,7 @@ export function judgeShadow(input: {
 }): ShadowJudgment {
   const zm = input.rule.measurementHeightM * 1000
   const applicable = input.buildings.filter((b) => b.heightMm >= input.rule.minHeightMm && b.heightMm > zm)
-  if (applicable.length === 0) return { result: '適合', worst: null }
+  if (applicable.length === 0) return { result: '適合', worst: null, maxHours: 0 }
 
   const suns = sunWindow(input.lat, input.lon, input.date)
   // 太陽ごとの影（測定面の高さでの影）
@@ -107,17 +109,20 @@ export function judgeShadow(input: {
   )
 
   let worst: ShadowJudgment['worst'] = null
+  let maxHours = 0
   for (const { p, distanceM } of measurementPoints(input.lot)) {
     let count = 0
     for (const shadows of shadowsBySun) {
       if (shadows.length > 0 && pointInPolygon(p, shadows)) count++
     }
     const hours = (count * STEP_MIN) / 60
+    if (hours > maxHours) maxHours = hours
     const limit = limitFor(input.rule, distanceM)
     const excess = hours - limit
     if (excess > 0 && (worst === null || excess > worst.hours - worst.limit)) {
       worst = { distanceM, hours: Math.round(hours * 10) / 10, limit }
     }
   }
-  return worst === null ? { result: '適合', worst: null } : { result: '不適合', worst }
+  const rounded = Math.round(maxHours * 10) / 10
+  return worst === null ? { result: '適合', worst: null, maxHours: rounded } : { result: '不適合', worst, maxHours: rounded }
 }

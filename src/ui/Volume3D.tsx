@@ -65,10 +65,12 @@ function groundSize(footprint: readonly Point[]): { width: number; depth: number
 }
 
 // 地面に落ちる影（平面の多角形）を、地面のすぐ上の薄い面にする（D-04 P2「地面に日影の影」、G54）
-function shadowGeometry(shadow: readonly Point[]): THREE.BufferGeometry {
+function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeometry {
   const positions: number[] = []
-  for (const [a, b, c] of triangulatePolygon(shadow)) {
-    for (const v of [a, b, c]) positions.push(v.x * MM_TO_M, 0.002, v.y * MM_TO_M)
+  for (const shadow of shadows) {
+    for (const [a, b, c] of triangulatePolygon(shadow)) {
+      for (const v of [a, b, c]) positions.push(v.x * MM_TO_M, 0.002, v.y * MM_TO_M)
+    }
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -79,7 +81,7 @@ function shadowGeometry(shadow: readonly Point[]): THREE.BufferGeometry {
 interface Volume3DProps {
   footprint: Point[]
   /** 地面に落ちる影（任意）。太陽の位置から作る */
-  shadow?: Point[] | null
+  shadow?: Point[][] | null
   /** 周辺建物（任意）。底面と高さ（mm）。敷地の立体とは別の色で置く */
   neighbors?: { footprint: Point[]; heightMm: number }[]
   storeyCount: number
@@ -89,7 +91,7 @@ interface Volume3DProps {
 }
 
 export function Volume3D({ footprint, shadow, neighbors, storeyCount, storeyHeightMm, homeToken }: Volume3DProps) {
-  const shadowGeo = useMemo(() => (shadow && shadow.length >= 3 ? shadowGeometry(shadow) : null), [shadow])
+  const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
   const neighborGeo = useMemo(() => {
     if (!neighbors || neighbors.length === 0) return null

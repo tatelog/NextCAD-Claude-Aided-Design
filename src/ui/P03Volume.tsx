@@ -10,6 +10,7 @@ import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
 import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
+import { cutFloors } from '../volume/slope'
 import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
 import { shadowRuleFor } from '../law/shadowRule'
@@ -143,19 +144,31 @@ export function P03Volume() {
   useEffect(() => {
     useSite.getState().setRoadSlope(roadSlope)
   }, [roadSlope])
-  // 地面に落ちる日影（時刻の太陽の位置から、建物の影の形）。太陽が地平線の上のときだけ
+  // 切り取った階ごとの形（階の天端までの立体）。斜線が無ければ階ごとに外形のまま
+  const stackedFloors = useMemo(() => {
+    if (!volume) return []
+    const floors =
+      legal.boundaries.length > 0
+        ? cutFloors(volume.footprint, legal.boundaries, volume)
+        : Array.from({ length: volume.storey_count }, () => volume.footprint)
+    return floors.map((f, i) => ({ footprint: f, heightMm: (i + 1) * volume.storey_height })).filter((b) => b.footprint.length >= 3)
+  }, [volume, legal])
+  // 地面に落ちる日影（時刻の太陽の位置から、切り取った階ごとの影の形）。太陽が地平線の上のときだけ
   const sunShadow = useMemo(
-    () => (volume && sun && sun.altitudeDeg > 0 ? shadowOf(volume.footprint, volume.total_height, sun.altitudeDeg, sun.azimuthFromSouthDeg) : null),
-    [volume, sun],
+    () =>
+      sun && sun.altitudeDeg > 0 && stackedFloors.length > 0
+        ? stackedFloors.map((b) => shadowOf(b.footprint, b.heightMm, sun.altitudeDeg, sun.azimuthFromSouthDeg))
+        : null,
+    [stackedFloors, sun],
   )
-  // 日影規制（冬至 8:00〜16:00）。切り取り前の形で判定する（安全側）。規制値が無い用途地域は対象外と出す
+  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
   const shadowJudge = useMemo(() => {
     const rule = shadowRuleFor(zone, 2)
     if (!volume) return { text: '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
     if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
     const judgment = judgeShadow({
       lot: DUMMY_PARCEL,
-      buildings: [{ footprint: volume.footprint, heightMm: volume.total_height }],
+      buildings: stackedFloors,
       rule,
       lat: 35.67,
       lon: 139.86,
@@ -164,7 +177,7 @@ export function P03Volume() {
     if (judgment.result === '適合') return { text: '適合（条例の値は要確認）', result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
-  }, [volume, zone])
+  }, [volume, zone, stackedFloors])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
