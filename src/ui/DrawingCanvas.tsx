@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
+import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
@@ -15,9 +16,6 @@ interface PointerTrack {
   id: number
   last: Point
 }
-
-/** 入力スナップのグリッド（mm）。表示グリッドとは別。仮置き 1000 */
-const INPUT_GRID_MM = 1000
 
 /** 近づいた端点の輪の色。アクセント色の定義がまだ無いので、道具のアクティブ表示（pen.css）と同じ色。仮置き */
 const ENDPOINT_RING_COLOR = '#1f2a44'
@@ -207,7 +205,8 @@ export function DrawingCanvas() {
         created_at: new Date().toISOString(),
         pen_input: toPenInput(d.pointerType),
       }
-      addStroke(stroke, ui.inputSnapGrid ? INPUT_GRID_MM : null)
+      // 入力スナップのグリッドは、見ている拡大率の段の入力側（gridSteps）。表示グリッドのオン・オフとは別に切れる
+      addStroke(stroke, ui.inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : null)
     }
 
     const onWheel = (e: WheelEvent) => {
@@ -287,9 +286,9 @@ function paint(
   ctx.fillStyle = '#fafaf7'
   ctx.fillRect(0, 0, w, h)
 
-  // 表示グリッド 1000 mm（入力スナップとは別。表示だけで吸着には使わない）
+  // 表示グリッド（入力スナップとは別。表示だけで吸着には使わない）。1 目盛りは拡大率で変わる段の表示側（gridSteps）
   if (showGrid) {
-    const gridMm = 1000
+    const gridMm = gridStepFor(vp.mmPerPx).displayMm
     const tl = pxToMm(vp, { x: 0, y: 0 })
     const br = pxToMm(vp, { x: w, y: h })
     ctx.strokeStyle = '#e6e4dc'
