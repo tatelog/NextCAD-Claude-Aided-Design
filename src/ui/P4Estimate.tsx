@@ -6,6 +6,7 @@ import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
+import { planExteriorQuantities } from '../estimate/planExterior'
 import { roomFinishTotals } from '../estimate/roomQuantities'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -83,6 +84,15 @@ export function P4Estimate() {
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
       out.push(t.floor, t.ceiling, t.wall_cloth)
+      // バルコニーと共用廊下（G62）。基準階の区画・廊下・コアから、階数分を拾う（仮置き）
+      const ext = planExteriorQuantities({
+        corridor: plan.corridor,
+        cores: plan.cores,
+        cells: plan.cells,
+        outline: { W: plan.widthMm, D: plan.depthMm },
+        storeyCount: plan.ev.storey_count,
+      })
+      out.push(ext.balcony, ext.corridor)
     }
     return out
   }, [volume, plan])
