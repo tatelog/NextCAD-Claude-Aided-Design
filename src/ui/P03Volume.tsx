@@ -3,11 +3,14 @@
 import { useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
+import { volumeAfterSlope } from '../volume/cutVolume'
+import { judgeFar } from '../volume/farCheck'
 import { useDrawing } from '../store/drawing'
 import { DrawingCanvas } from './DrawingCanvas'
 import { Volume3D } from './Volume3D'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
+const DUMMY_PARCEL_MM2 = 20_000 * 30_000
 
 export function P03Volume() {
   const entries = useDrawing((s) => s.entries)
@@ -25,6 +28,8 @@ export function P03Volume() {
   const [view, setView] = useState<'plan' | '3d'>('plan')
   const [homeToken, setHomeToken] = useState(0)
 
+  const [farLimit, setFarLimit] = useState('')
+
   const volume = useMemo(() => {
     if (!closure.closed) return null
     try {
@@ -33,6 +38,14 @@ export function P03Volume() {
       return null
     }
   }, [closure, storeyCount, storeyHeightMm])
+
+  // 斜線の値は未決のため切り取りは行わない（境界なし）。敷地面積は筆界のダミー（20 m × 30 m）
+  const cut = useMemo(() => {
+    if (!volume) return null
+    return volumeAfterSlope({ footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height }, [], DUMMY_PARCEL_MM2)
+  }, [volume])
+
+  const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
   const closureLabel = closure.closed
     ? '閉じている'
@@ -138,19 +151,27 @@ export function P03Volume() {
           </section>
           <section>
             <h2>ボリューム</h2>
-            {volume ? (
+            {volume && cut ? (
               <dl>
                 <dt>高さ</dt>
                 <dd>{volume.total_height.toLocaleString('ja-JP')} mm</dd>
                 <dt>建築面積</dt>
-                <dd>{m2(volume.building_area_mm2)} m²</dd>
+                <dd>{m2(cut.building_area_mm2)} m²</dd>
                 <dt>延床面積</dt>
-                <dd>{m2(volume.gross_floor_area_mm2)} m²</dd>
+                <dd>{m2(cut.gross_floor_area_mm2)} m²</dd>
+                <dt>容積率</dt>
+                <dd>
+                  {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
+                </dd>
               </dl>
             ) : (
               <p className="muted">外形が閉じると出る</p>
             )}
-            <p className="muted">斜線・日影・段状の切り取り（G27）は次の一枚</p>
+            <label>
+              容積率の上限 (%)
+              <input type="number" min={1} step={10} value={farLimit} placeholder="未入力（判定不能）" onChange={(e) => setFarLimit(e.target.value)} />
+            </label>
+            <p className="muted">斜線の切り取りは未適用（北側・道路斜線の値が未決。D-02 C4）。敷地面積は筆界のダミー（20 m × 30 m）。</p>
           </section>
           <section>
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
