@@ -5,6 +5,7 @@ import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
+import { setbackFromRectParcel } from '../volume/placement'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
@@ -37,7 +38,8 @@ export function P03Volume() {
   const clear = useDrawing((s) => s.clear)
   const canUndo = useDrawing((s) => s.entries.length > 0)
   const canRedo = useDrawing((s) => s.redoStack.length > 0)
-  const [view, setView] = useState<'plan' | '3d'>('plan')
+  // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
+  const [view, setView] = useState<'plan' | '3d'>('3d')
   const [homeToken, setHomeToken] = useState(0)
 
   const [farLimit, setFarLimit] = useState('')
@@ -83,6 +85,9 @@ export function P03Volume() {
       DUMMY_PARCEL_MM2,
     )
   }, [volume, legal])
+
+  // 敷地との離れ（敷地が矩形のときだけ。G67）
+  const setback = useMemo(() => (volume ? setbackFromRectParcel(DUMMY_PARCEL, volume.footprint) : null), [volume])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
@@ -235,6 +240,21 @@ export function P03Volume() {
               前面道路の幅員 (mm)
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
+            {setback ? (
+              <dl>
+                <dt>北</dt>
+                <dd>{setback.north.toLocaleString('ja-JP')} mm</dd>
+                <dt>東</dt>
+                <dd>{setback.east.toLocaleString('ja-JP')} mm</dd>
+                <dt>南</dt>
+                <dd>{setback.south.toLocaleString('ja-JP')} mm</dd>
+                <dt>西</dt>
+                <dd>{setback.west.toLocaleString('ja-JP')} mm</dd>
+              </dl>
+            ) : (
+              <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
+            )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は未適用（条例の値の確認が要る）。北側は真北の配線が未実装。</p>
           </section>
