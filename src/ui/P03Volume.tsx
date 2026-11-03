@@ -1,10 +1,11 @@
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { extrudeVolume } from '../volume/extrude'
 import { useDrawing } from '../store/drawing'
 import { DrawingCanvas } from './DrawingCanvas'
+import { Volume3D } from './Volume3D'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 
@@ -21,6 +22,8 @@ export function P03Volume() {
   const clear = useDrawing((s) => s.clear)
   const canUndo = useDrawing((s) => s.entries.length > 0)
   const canRedo = useDrawing((s) => s.redoStack.length > 0)
+  const [view, setView] = useState<'plan' | '3d'>('plan')
+  const [homeToken, setHomeToken] = useState(0)
 
   const volume = useMemo(() => {
     if (!closure.closed) return null
@@ -54,6 +57,20 @@ export function P03Volume() {
             曲線
           </button>
         </span>
+        <span className="p03-mode">
+          表示:
+          <button type="button" className={view === 'plan' ? 'is-active' : undefined} aria-pressed={view === 'plan'} onClick={() => setView('plan')}>
+            平面
+          </button>
+          <button type="button" className={view === '3d' ? 'is-active' : undefined} aria-pressed={view === '3d'} onClick={() => setView('3d')}>
+            3D
+          </button>
+          {view === '3d' && (
+            <button type="button" onClick={() => setHomeToken((n) => n + 1)} title="既定の向きに戻す">
+              ホーム
+            </button>
+          )}
+        </span>
         <span className="p03-actions">
           <button type="button" onClick={undo} disabled={!canUndo}>
             Undo
@@ -68,7 +85,24 @@ export function P03Volume() {
         <span className="p03-note">議論用・未確定。筆界はダミー（20 m × 30 m）。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。</span>
       </header>
       <div className="p03-body">
-        <DrawingCanvas />
+        {view === '3d' ? (
+          volume ? (
+            <div style={{ flex: 1, minWidth: 0, minHeight: 420 }}>
+              <Volume3D
+                footprint={volume.footprint}
+                storeyCount={storeyCount}
+                storeyHeightMm={storeyHeightMm}
+                homeToken={homeToken}
+              />
+            </div>
+          ) : (
+            <div style={{ flex: 1, minWidth: 0, minHeight: 420, display: 'grid', placeItems: 'center' }}>
+              <p className="muted">外形が閉じると 3D が出る</p>
+            </div>
+          )
+        ) : (
+          <DrawingCanvas />
+        )}
         <aside className="p03-side">
           <section>
             <h2>外形</h2>
