@@ -27,6 +27,27 @@ describe('lineEndFromLength（始点・長さ・角度から終点）', () => {
   })
 })
 
+// 仕様 4（円弧。仮置き）: 3 点（始点・通過点・終点）で描いた円弧は、描いた線として入り、始点から終点まで続く。
+describe('addArcStroke（3 点の円弧は、描いた線として入る）', () => {
+  beforeEach(() => {
+    useDrawing.setState({ entries: [], past: [], redoStack: [], fitted: false })
+  })
+
+  it('始点から終点まで、つながった線分として入る', async () => {
+    const { addArcStroke } = await import('./numericLine')
+    addArcStroke({ x: 1000, y: 0 }, { x: 0, y: 1000 }, { x: -1000, y: 0 })
+    const entries = useDrawing.getState().entries
+    expect(entries).toHaveLength(1)
+    const segs = entries[0]!.segments
+    expect(segs.length).toBeGreaterThan(1)
+    const ends = segs.flatMap((s) => [
+      { x: s.x1, y: s.y1 },
+      { x: s.x2, y: s.y2 },
+    ])
+    expect(ends).toEqual(expect.arrayContaining([{ x: 1000, y: 0 }, { x: -1000, y: 0 }]))
+  })
+})
+
 describe('addNumericLine（数値で入れた線は、描いた線として入る）', () => {
   beforeEach(() => {
     useDrawing.setState({ entries: [], past: [], redoStack: [], fitted: false })
