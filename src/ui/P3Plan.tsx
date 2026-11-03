@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { checkSpan, gridLines } from '../plan/grid'
 import { candidateCells } from '../plan/candidateCells'
 import { countUnits } from '../plan/units'
+import { P3Canvas } from './P3Canvas'
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -79,6 +80,8 @@ export function P3Plan() {
         ) : (
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}
+        <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>描く（ドラッグで直線。閉じた輪で部屋の閉合を見る）</h3>
+        <P3Canvas />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
