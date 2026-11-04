@@ -43,10 +43,9 @@ describe('型の室数から、部屋割りを決める', () => {
     }
   })
 
-  it('個室 3 以上（3LDK・4LDK など）は、割り付けが無いので null と理由', () => {
-    expect(patternOfType(byId('T-08-3LDK'))).toMatchObject({ pattern: null })
-    expect(patternOfType(byId('T-08-4LDK-2'))).toMatchObject({ pattern: null })
-    expect(patternOfType(byId('T-08-3LDK')).reason).toContain('未対応')
+  it('個室 3 は三室、個室 4 は四室（仮置き。統括の確認待ち）', () => {
+    expect(patternOfType(byId('T-08-3LDK'))).toEqual({ pattern: '三室' })
+    expect(patternOfType(byId('T-08-4LDK-2'))).toEqual({ pattern: '四室' })
   })
 })
 
@@ -62,10 +61,10 @@ describe('自動作成で、列ごとに型の部屋割りを使う（G89）', (
     expect(g.unsupportedSpans).toEqual([])
   })
 
-  it('室数が合わない型の列は、未対応として印を出し、既定（田の字）で仮置きする', () => {
+  it('個室 3 の型（3LDK）の列は、三室（LDK・水回り・洋室 3 の 5 室）で、未対応の印は出ない', () => {
     const g = generateAutoPlan({ ...base, unitTypes: master, unitTypeIds: ['T-08-3LDK'] })
-    expect(g.unsupportedSpans).toEqual([0, 1, 2, 3, 4])
-    expect(roomsInSpan(g, 0)).toBe(4)
+    expect(g.unsupportedSpans).toEqual([])
+    expect([0, 1, 2, 3, 4].map((k) => roomsInSpan(g, k))).toEqual([5, 5, 5, 5, 5])
   })
 
   it('型を入れなければ、列の型は空（null）で、部屋割りは従来どおり', () => {

@@ -87,7 +87,10 @@ export function unitTypeKind(t: UnitType): 'ファミリー' | '単独' {
 export function patternOfType(t: UnitType): { pattern: RoomPattern | null; reason?: string } {
   if (t.bedrooms === 1) return { pattern: '角' }
   if (t.bedrooms === 2) return { pattern: '田の字' }
-  return { pattern: null, reason: '室数に合う割り付けが無い（個室 3 以上は未対応）' }
+  // 個室 3・4 は仮置きの割り付け（統括の確認待ち）
+  if (t.bedrooms === 3) return { pattern: '三室' }
+  if (t.bedrooms === 4) return { pattern: '四室' }
+  return { pattern: null, reason: '室数に合う割り付けが無い（個室 5 以上は未対応）' }
 }
 
 /** 縦割り（柱割りの列）ごとに型の id を割り付ける。型が少なければ繰り返す。型が無ければ null（G89） */
