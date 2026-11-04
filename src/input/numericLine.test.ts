@@ -34,13 +34,15 @@ describe('円弧（中心方式・二点方式）は、描いた線として入�
     useDrawing.setState({ entries: [], past: [], redoStack: [], fitted: false })
   })
 
-  it('中心方式: 中心・始点・終点で指定した円弧は、始点から終点まで、つながった線分として入る', async () => {
+  it('中心方式: 中心・始点・終点で指定した円弧は、始点から終点まで、一本の曲線として入る', async () => {
     const { addArcCenterStroke } = await import('./numericLine')
     addArcCenterStroke({ x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 0, y: 1000 })
     const entries = useDrawing.getState().entries
     expect(entries).toHaveLength(1)
+    // 円弧は曲線モードで入る（直線の整形を通さない）。一本の曲線で、制御点は弦誤差 10 mm の点列
     const segs = entries[0]!.segments
-    expect(segs.length).toBeGreaterThan(1)
+    expect(segs).toHaveLength(1)
+    expect(segs[0]!.curve).toBe('spline')
     const ends = segs.flatMap((s) => [
       { x: s.x1, y: s.y1 },
       { x: s.x2, y: s.y2 },
@@ -53,8 +55,10 @@ describe('円弧（中心方式・二点方式）は、描いた線として入�
     addArcTwoPointStroke({ x: -1000, y: 0 }, { x: 1000, y: 0 }, 1000)
     const entries = useDrawing.getState().entries
     expect(entries).toHaveLength(1)
+    // 円弧は曲線モードで入る。一本の曲線で、制御点は弦誤差 10 mm の点列
     const segs = entries[0]!.segments
-    expect(segs.length).toBeGreaterThan(1)
+    expect(segs).toHaveLength(1)
+    expect(segs[0]!.curve).toBe('spline')
     const ends = segs.flatMap((s) => [
       { x: s.x1, y: s.y1 },
       { x: s.x2, y: s.y2 },

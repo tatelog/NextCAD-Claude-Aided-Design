@@ -20,6 +20,9 @@ export interface UiState {
   /** サークルメニューを開いている位置（px）。閉じていれば null */
   circleMenu: Point | null
   penMode: PenMode
+  /** 曲線モードの中で、二点の円弧の道具を使うか（t70）。直線モードに替えると外れる */
+  arcTwoPoint: boolean
+  setArcTwoPoint: (on: boolean) => void
   /** 表示グリッド（見せるだけ。吸着には使わない） */
   displayGrid: boolean
   /** 入力スナップのグリッド（吸着に使う。表示とは別設定） */
@@ -55,6 +58,7 @@ export const useUi = create<UiState>((set) => ({
   freePosition: { x: 16, y: 64 },
   circleMenu: null,
   penMode: 'line',
+  arcTwoPoint: false,
   displayGrid: true,
   inputSnapGrid: true,
   setToolbarPlacement: (toolbarPlacement) => {
@@ -64,7 +68,9 @@ export const useUi = create<UiState>((set) => ({
   setFreePosition: (freePosition) => set({ freePosition }),
   openCircleMenu: (p) => set({ circleMenu: { x: p.x, y: p.y } }),
   closeCircleMenu: () => set({ circleMenu: null }),
-  setPenMode: (penMode) => set({ penMode }),
+  // 直線と曲線を切り替えたら、二点の円弧の道具は外す（t70）
+  setPenMode: (penMode) => set({ penMode, arcTwoPoint: false }),
+  setArcTwoPoint: (arcTwoPoint) => set({ arcTwoPoint }),
   setDisplayGrid: (displayGrid) => set({ displayGrid }),
   setInputSnapGrid: (inputSnapGrid) => set({ inputSnapGrid }),
 
