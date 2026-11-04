@@ -11,6 +11,7 @@ import { layerOfSegment, visibleSegments, type LayerName } from '../plan/layers'
 import { segmentStyle, type LineStyle } from '../plan/lineStyle'
 import { useLayers } from '../store/layers'
 import { useSemantic } from '../store/semantic'
+import { changedIds } from '../volume/changedIds'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
 import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
@@ -290,8 +291,13 @@ export function DrawingCanvas() {
       if (hd && hd.pointerId === e.pointerId) {
         handleDragRef.current = null
         const moved = hd.view.valid && hd.view.footprint.some((q, i) => q.x !== hd.from[i]!.x || q.y !== hd.from[i]!.y)
-        if (moved) transform((es) => moveOutlineVertices(es, hd.from, hd.view.footprint))
-        else repaint()
+        if (moved) {
+          const before = useDrawing.getState().entries.flatMap((en) => en.segments)
+          transform((es) => moveOutlineVertices(es, hd.from, hd.view.footprint))
+          // つまみで動かした線は、動かしたあとに Claude が判定し直す（G114）。判定の結果がある線だけ、要確認の印を付ける
+          const after = useDrawing.getState().entries.flatMap((en) => en.segments)
+          useSemantic.getState().markNeedsReview(changedIds(before, after))
+        } else repaint()
         return
       }
       const d = drawingRef.current
