@@ -11,7 +11,7 @@ import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
-import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
 import { confirmRows } from '../plan/semanticConfirm'
 import { DRAW_OPTIONS, useDrawing } from '../store/drawing'
@@ -62,6 +62,8 @@ export function P3Plan() {
   const [minText, setMinText] = useState('')
   const [maxText, setMaxText] = useState('')
   const [layoutText, setLayoutText] = useState<CorridorLayout>('中廊下')
+  // 階段室型のしつらえ（統括の決定 G107）: 屋内シャフト（既定）か外部階段（アルミスリット 2 面）
+  const [stairFinishText, setStairFinishText] = useState<StairFinish>('indoorShaft')
   // 住戸タイプ（G89）: 縦割り（柱割りの列）ごとに、型の id を , で並べる。型が少なければ繰り返す
   const [unitTypeIdsText, setUnitTypeIdsText] = useState('T-08-2LDK')
   const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
@@ -110,6 +112,7 @@ export function P3Plan() {
         unitDepthMm: Number(unitDepthText),
         corridorMm: Number(corridorText),
         layout: layoutText,
+        stairFinish: stairFinishText,
         unitType,
         unitTypes: UNIT_TYPES,
         unitTypeIds,
@@ -425,6 +428,15 @@ export function P3Plan() {
             <option value="ツイン">ツインコリドー</option>
           </select>
         </label>
+        {layoutText === '階段室' ? (
+          <label style={{ display: 'block', marginBottom: 4 }}>
+            階段室のしつらえ
+            <select value={stairFinishText} onChange={(e) => setStairFinishText(e.target.value as StairFinish)} style={{ width: '100%' }}>
+              <option value="indoorShaft">屋内シャフト（全部屋内）</option>
+              <option value="outdoorSlit">外部階段（4 面のうち 2 面がアルミスリット）</option>
+            </select>
+          </label>
+        ) : null}
         <label style={{ display: 'block', marginBottom: 6 }}>
           目標の戸数
           <input value={targetText} onChange={(e) => setTargetText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />

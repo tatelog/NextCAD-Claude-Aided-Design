@@ -36,7 +36,12 @@ export interface AutoPlanInput {
   unitTypes?: readonly UnitType[]
   /** 縦割り（柱割りの列）ごとに割り付ける型の id。型が少なければ繰り返す（G89）。省略は従来の部屋割り */
   unitTypeIds?: readonly string[]
+  /** 階段室型のしつらえ（統括の決定 G107）。既定は屋内シャフト。階段室以外では使わない */
+  stairFinish?: StairFinish
 }
+
+/** 階段室のしつらえ: 屋内シャフト（全部屋内）／外部階段（4 面のうち 2 面がアルミスリット、外壁に接する） */
+export type StairFinish = 'indoorShaft' | 'outdoorSlit'
 
 export interface AutoCore {
   id: 'stairA' | 'stairB' | 'evHall'
@@ -67,6 +72,10 @@ export interface AutoPlan {
   shortfall: number
   /** 住戸タイプ（指定が無ければファミリー）。P4 の住戸タイプ別の表示に使う（G61） */
   unitType: 'ファミリー' | '単独'
+  /** 廊下タイプ（ツインの廊下を取り直すときに使う。P4 の左メニューの入力など） */
+  layout: CorridorLayout
+  /** 階段室のしつらえ（階段室のときだけ。ほかは null）（G107） */
+  stairFinish: StairFinish | null
   shafts: { ps: number; eps: number; ds: number }
   ev: EvLevels
   /** 廊下と住戸の区画（1 階） */
@@ -232,15 +241,15 @@ function roomsFor(cells: Rect[], pattern: RoomPattern, typed: ReadonlyMap<string
 
 export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const target = TargetSchema.parse(input.targetPerFloor)
-  // 1 スパンあたりの住戸: 中廊下・階段室は両側の 2 戸、片廊下・ツインは 1 戸
-  const perSpan = input.layout === '中廊下' || input.layout === '階段室' ? 2 : 1
+  // 1 スパンあたりの住戸: 中廊下・階段室・ツインは両側の 2 戸（ツインは中廊下の変形。G106）、片廊下は 1 戸
+  const perSpan = input.layout === '片廊下' ? 1 : 2
   const spans = Math.ceil(target / perSpan)
   const depthMm = spans * input.spanMm
   const widthMm =
     input.layout === '片廊下'
       ? input.unitDepthMm + input.corridorMm
       : input.layout === 'ツイン'
-        ? input.unitDepthMm + 2 * input.corridorMm
+        ? 2 * input.unitDepthMm + 3 * input.corridorMm
         : 2 * input.unitDepthMm + input.corridorMm
 
   const c = candidateCells({
@@ -297,6 +306,8 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
 
   return {
     unitType: input.unitType ?? 'ファミリー',
+    layout: input.layout,
+    stairFinish: input.layout === '階段室' ? (input.stairFinish ?? 'indoorShaft') : null,
     widthMm,
     depthMm,
     spans,

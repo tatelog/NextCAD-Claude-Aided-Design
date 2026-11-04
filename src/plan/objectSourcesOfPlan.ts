@@ -33,17 +33,17 @@ function gridLinesOf(depthMm: number, spanMm: number): number[] {
 }
 
 // 廊下は candidateCells が作る全廊下。結果（AutoPlan）に残るのは主の廊下 1 本だけなので、2 本あるツインだけ candidateCells から取り直す。
-// 主の廊下が西の縁（x = 0）に接するのはツインだけ（片廊下は東の縁、中廊下・階段室は中央）。
+// ツインは廊下タイプ（plan.layout）で判定する（統括の決定 G106: 廊下 : 吹き抜け : 廊下 = 1 : 1 : 1。住戸の奥行 = (建物の幅 − 廊下幅 × 3) ÷ 2）。
 function corridorsOf(plan: AutoPlan, spanMm: number): readonly Rect[] {
   const main = plan.corridor
-  if (main.x0 !== 0) return [main]
+  if (plan.layout !== 'ツイン') return [main]
   const corridorMm = main.x1 - main.x0
   try {
     return candidateCells({
       width_mm: plan.widthMm,
       depth_mm: plan.depthMm,
       corridor_mm: corridorMm,
-      unit_depth_mm: plan.widthMm - 2 * corridorMm,
+      unit_depth_mm: (plan.widthMm - 3 * corridorMm) / 2,
       span_mm: spanMm,
       layout: 'ツイン',
     }).corridors
