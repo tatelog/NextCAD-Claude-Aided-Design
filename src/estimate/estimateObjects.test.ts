@@ -3,7 +3,8 @@ import { detailLinesOfObjects, resolveUnitPriceRef, slabObjectRow } from './esti
 import type { ObjectRow } from '../plan/objectTable'
 
 // 仕様（ハブ A-03 G86。統括の決定 2026-11-04）から書いたテスト。
-// - 積算はオブジェクト表から集計する。床版（外形から出る躯体）も、オブジェクト表の 1 行（kind は other、属性 part は slab）として持つ。
+// - 積算はオブジェクト表から集計する。床版（外形から出る躯体）も、オブジェクト表の 1 行（kind は slab。ハブ A-03 G92）として持つ。
+// - 床版の数量は kind が slab の行から拾う（属性の part では決めない）。
 // - 躯体の行の明細は、そのオブジェクトの行から出る（objectId を持つ）。
 // - 単価の参照は、品目・単位・分類が一致する単価の行の id。一致しなければ null（未参照。利用者が単価を置くまで）。
 
@@ -16,11 +17,11 @@ const SQUARE = [
 const wallRow: ObjectRow = { id: 'wall-1', kind: 'wall', attr: null, name: '壁', parent_id: null }
 
 describe('床版をオブジェクト表の 1 行にする', () => {
-  it('床版の行は kind が other で、属性に part（slab）と外形と階数を持つ', () => {
+  it('床版の行は kind が slab で、属性に外形と階数を持つ（part では決めない）', () => {
     const row = slabObjectRow(SQUARE, 3, 3000)
-    expect(row.kind).toBe('other')
+    expect(row.kind).toBe('slab')
     expect(row.parent_id).toBeNull()
-    expect(JSON.parse(row.attr!)).toEqual({ part: 'slab', footprint: SQUARE, storey_count: 3, storey_height: 3000 })
+    expect(JSON.parse(row.attr!)).toEqual({ footprint: SQUARE, storey_count: 3, storey_height: 3000 })
   })
 })
 
@@ -38,6 +39,11 @@ describe('オブジェクト表から躯体の明細を出す', () => {
     const b = detailLinesOfObjects(rows, { coverMm: 50, joint: '重ね継手' })
     const changed = a.filter((l, i) => l.quantity !== b[i]!.quantity).map((l) => l.item)
     expect(changed).toEqual(['鉄筋（床版）'])
+  })
+
+  it('kind が slab の行から、床版・型枠・コンクリート・鉄筋の順に 4 行が出る', () => {
+    const lines = detailLinesOfObjects([slabObjectRow(SQUARE, 3, 3000)], { coverMm: 30, joint: '重ね継手' })
+    expect(lines.map((l) => l.item)).toEqual(['床版（スラブ）', '型枠（床版の下面）', 'コンクリート（床版）', '鉄筋（床版）'])
   })
 
   it('床版の行が無ければ、躯体の明細は空', () => {

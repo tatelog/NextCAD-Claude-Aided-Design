@@ -1,5 +1,5 @@
 // 積算のオブジェクト表からの集計（ハブ A-03 G86、統括の決定 2026-11-04）。決定論。
-// 躯体・外装・内装・外構・サッシの数量は、オブジェクト表の行（kind は other、属性 part で部分を決める）から出す。その明細が P4 の正本。
+// 床版の数量は、オブジェクト表の kind が slab の行から出す（ハブ A-03 G92）。ほかの躯体・外装・内装・外構・サッシの数量は、kind が other の行（属性 part で部分を決める）から出す。その明細が P4 の正本。
 // 単価の参照は、品目・単位・分類が一致する単価の行の id（一致しなければ null）。
 import type { ObjectRow } from '../plan/objectTable'
 import type { Point } from '../geom/viewport'
@@ -16,7 +16,6 @@ import { sashQuantity, type SashSegment } from './sashQuantity'
 
 /** 行の属性の part（部分）。躯体・外装・外構・内装・サッシ */
 export const PART = {
-  slab: 'slab',
   exterior: 'exterior',
   site: 'site',
   interior: 'interior',
@@ -34,9 +33,15 @@ function partRow(id: string, part: string, data: Record<string, unknown>, name: 
   return { id, kind: 'other', attr: JSON.stringify({ part, ...data }), name, parent_id: null }
 }
 
-/** 外形と階数から、床版（躯体）の行 */
+/** 外形と階数から、床版（躯体）の行。kind は slab（G92） */
 export function slabObjectRow(footprint: readonly Point[], storeyCount: number, storeyHeight: number): ObjectRow {
-  return partRow('slab-volume', PART.slab, { footprint, storey_count: storeyCount, storey_height: storeyHeight }, '床版（外形から）')
+  return {
+    id: 'slab-volume',
+    kind: 'slab',
+    attr: JSON.stringify({ footprint, storey_count: storeyCount, storey_height: storeyHeight }),
+    name: '床版（外形から）',
+    parent_id: null,
+  }
 }
 
 /** 外形と階数から、外壁と屋根（外装）の行 */
@@ -102,14 +107,15 @@ function partOf(row: ObjectRow): Attr | null {
 export function detailLinesOfObjects(rows: readonly ObjectRow[], rebar: RebarCondition): DetailLine[] {
   const lines: DetailLine[] = []
   for (const row of rows) {
+    if (row.kind === 'slab' && row.attr !== null) {
+      const s = JSON.parse(row.attr) as { footprint: readonly Point[]; storey_count: number; storey_height: number }
+      const q = structureQuantities(s.footprint, { storey_count: s.storey_count, storey_height: s.storey_height }, undefined, rebar)
+      lines.push(...detailLinesOfStructure(row.id, q, rebar))
+      continue
+    }
     const a = partOf(row)
     if (a === null) continue
     switch (a.part) {
-      case PART.slab: {
-        const q = structureQuantities(a.footprint, { storey_count: a.storey_count, storey_height: a.storey_height }, undefined, rebar)
-        lines.push(...detailLinesOfStructure(row.id, q, rebar))
-        break
-      }
       case PART.exterior: {
         const q = buildingExteriorQuantities(a.footprint, { storey_count: a.storey_count, storey_height: a.storey_height })
         lines.push(lineOf(row.id, q.exterior_wall, BASIS.exterior), lineOf(row.id, q.roof, BASIS.exterior))

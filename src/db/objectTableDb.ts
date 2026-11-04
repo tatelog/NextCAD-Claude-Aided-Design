@@ -5,7 +5,7 @@ import type { ObjectRow } from '../plan/objectTable'
 
 const DDL = `CREATE TABLE object (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('group', 'wall', 'column', 'beam', 'opening', 'grid', 'room', 'other')),
+  kind TEXT NOT NULL CHECK (kind IN ('group', 'wall', 'column', 'beam', 'opening', 'grid', 'room', 'other', 'slab')),
   attr TEXT,
   name TEXT NOT NULL,
   parent_id TEXT REFERENCES object(id) ON DELETE CASCADE,

@@ -33,8 +33,8 @@ export interface ObjectTableInput {
 
 export interface ObjectRow {
   id: string
-  /** グループ（住戸・共用部）は 'group'。それ以外は G13 の種類（その他は属性で区別） */
-  kind: 'group' | Kind
+  /** グループ（住戸・共用部）は 'group'。床版は 'slab'（ハブ A-03 G92。線の種類 Kind には入れない）。それ以外は G13 の種類（その他は属性で区別） */
+  kind: 'group' | Kind | 'slab'
   attr: string | null
   name: string
   /** 親の行の ID（グループ・親なしは null）。表の中の行を必ず指す */
