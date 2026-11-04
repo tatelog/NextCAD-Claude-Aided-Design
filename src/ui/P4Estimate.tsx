@@ -14,7 +14,7 @@ import {
   slabObjectRow,
 } from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
-import { laborLinesOf, priceOfLine } from '../estimate/laborConversion'
+import { laborLinesOf } from '../estimate/laborConversion'
 import { estimateDetailsOf } from '../estimate/estimateDetails'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
@@ -97,13 +97,6 @@ export function P4Estimate() {
   // 鉄筋の被り厚と継手（G86。仮の条件。係数は仮置き）
   const rebar = useComponentFire((s) => s.rebar)
   const setRebar = useComponentFire((s) => s.setRebar)
-  // 数量の行の単価の参照（品目・単位・分類が一致する単価の行）と、金額（参照した単価 × 数量、円）。参照が無ければ未参照（G20）
-  const priceFor = (q: { item: string; unit: string; category: string; quantity: number }) => {
-    if (!('rows' in parsed)) return { ref: null as string | null, amount: null as number | null }
-    const p = priceOfLine(q, parsed.rows)
-    return { ref: p ? p.ref : null, amount: p ? p.amount : null }
-  }
-
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
@@ -155,6 +148,8 @@ export function P4Estimate() {
   }, [derivedObjectRows, objectPersisted])
   // 見積の明細（G86）: 数量の明細に単価の参照と金額を付けて、表（SQLite の estimate_line）に書く。単価の表が読めないときは参照を付けない（未参照）
   const estimateLinesPersisted = useEstimateLines((s) => s.persisted)
+  // 数量の内訳（G86）: 見積の明細の表から読む（表が正本。自動で拾った値は、表に書いてから出る）
+  const estimateLines = useEstimateLines((s) => s.lines)
   useEffect(() => {
     void useEstimateLines.getState().init()
   }, [])
@@ -284,7 +279,7 @@ export function P4Estimate() {
             </thead>
             <tbody>
               {CATEGORY_ORDER.map((cat) => {
-                const rows = autoQuantities.filter((q) => q.category === cat)
+                const rows = estimateLines.filter((q) => q.category === cat)
                 return rows.length === 0 ? (
                   <tr key={cat}>
                     <td>{cat}</td>
@@ -294,7 +289,7 @@ export function P4Estimate() {
                   </tr>
                 ) : (
                   rows.map((q) => (
-                    <tr key={q.item}>
+                    <tr key={q.lineId}>
                       <td>{cat}</td>
                       <td>
                         {q.item}
@@ -303,8 +298,8 @@ export function P4Estimate() {
                         <div style={{ fontSize: 11, color: '#666' }}>出典: {q.source}</div>
                       </td>
                       <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
-                      <td>{priceFor(q).ref ?? '未参照'}</td>
-                      <td align="right">{priceFor(q).amount === null ? '—' : priceFor(q).amount!.toLocaleString('ja-JP')}</td>
+                      <td>{q.unitPriceRef ?? '未参照'}</td>
+                      <td align="right">{q.amountYen === null ? '—' : q.amountYen.toLocaleString('ja-JP')}</td>
                     </tr>
                   ))
                 )
