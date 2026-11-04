@@ -90,7 +90,7 @@ export function P4Estimate() {
       out.push(q.exterior_wall, q.roof)
       // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
       const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
-      out.push(structure.slab, structure.formwork, structure.concrete)
+      out.push(structure.slab, structure.formwork, structure.concrete, structure.rebar)
     }
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
@@ -241,7 +241,7 @@ export function P4Estimate() {
                         {' '}
                         <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
                       </td>
-                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : 'm²'}</td>
+                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
                     </tr>
                   ))
                 )
