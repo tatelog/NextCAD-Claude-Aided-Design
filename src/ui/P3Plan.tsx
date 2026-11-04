@@ -30,6 +30,7 @@ import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { objectTableOf } from '../plan/objectTable'
+import { useObjectTable } from '../store/objectTable'
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
@@ -73,6 +74,19 @@ export function P3Plan() {
   const selectedFixtureItem = useFixtures((s) => s.selectedItem)
   const selectFixtureItem = useFixtures((s) => s.selectItem)
   const placeSelectedFixture = useFixtures((s) => s.placeSelected)
+  // オブジェクト表（G58）: 自動作成の結果から作った行を、表（SQLite）に書いて、表から読む
+  const derivedObjectRows = useMemo(
+    () => (auto ? objectTableOf({ cells: auto.cells, rooms: auto.rooms, shafts: auto.shaftRects, cores: auto.cores, corridor: auto.corridor, fixtures }) : []),
+    [auto, fixtures],
+  )
+  const objectRows = useObjectTable((s) => s.rows)
+  const objectPersisted = useObjectTable((s) => s.persisted)
+  useEffect(() => {
+    void useObjectTable.getState().init()
+  }, [])
+  useEffect(() => {
+    useObjectTable.getState().setRows(derivedObjectRows)
+  }, [derivedObjectRows, objectPersisted])
   const removeFixtureById = useFixtures((s) => s.remove)
   const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
   // 意味づけの確認（G14）: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
@@ -257,7 +271,7 @@ export function P3Plan() {
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"
         firstFloorCounts={firstFloorCountsOf(firstFloorNames)}
-        objectRows={auto ? objectTableOf({ cells: auto.cells, rooms: auto.rooms, shafts: auto.shaftRects, cores: auto.cores, corridor: auto.corridor, fixtures }) : []}
+        objectRows={objectRows}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (

@@ -1,6 +1,7 @@
 // P4 積算（D-04 P4、D-02 C8、A-03 G19・G21・G22・G63）。単価は利用者が出典つきの CSV で置く（G20）。
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useObjectTable } from '../store/objectTable'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
@@ -120,14 +121,22 @@ export function P4Estimate() {
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
-  // 住戸をグループとして数える（G58）。自動作成の結果から、オブジェクト表の行を作る
-  const objectRows = useMemo(
+  // 住戸をグループとして数える（G58）。自動作成の結果からオブジェクト表の行を作り、表（SQLite）に書いて、表から読む
+  const derivedObjectRows = useMemo(
     () =>
       plan
         ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
         : [],
     [plan, fixtures],
   )
+  const objectRows = useObjectTable((s) => s.rows)
+  const objectPersisted = useObjectTable((s) => s.persisted)
+  useEffect(() => {
+    void useObjectTable.getState().init()
+  }, [])
+  useEffect(() => {
+    useObjectTable.getState().setRows(derivedObjectRows)
+  }, [derivedObjectRows, objectPersisted])
 
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
