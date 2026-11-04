@@ -6,6 +6,7 @@ import { checkSpan, gridLines } from '../plan/grid'
 import { spanDimensions } from '../plan/spanDimension'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
+import { corridorDefaultOf } from '../plan/corridorDefaults'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -57,7 +58,8 @@ const UNIT_TYPES = masterOf(unitTypeCandidates)
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
   const [depthText, setDepthText] = useState('12000')
-  const [corridorText, setCorridorText] = useState('2000')
+  // 廊下幅の既定は廊下タイプから（G135。中廊下 1,600 mm の仮置き）。既定の無い層は 2,000 mm のまま
+  const [corridorText, setCorridorText] = useState(String(corridorDefaultOf('中廊下')?.mm ?? 2000))
   const [unitDepthText, setUnitDepthText] = useState('6000')
   const [spanText, setSpanText] = useState('3000')
   const [minText, setMinText] = useState('')
@@ -422,7 +424,17 @@ export function P3Plan() {
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
-          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
+          <select
+            value={layoutText}
+            onChange={(e) => {
+              const next = e.target.value as CorridorLayout
+              setLayoutText(next)
+              // 層を変えたら、その層の既定の廊下幅に合わせる（既定の無い層は変えない。G135）
+              const d = corridorDefaultOf(next)
+              if (d) setCorridorText(String(d.mm))
+            }}
+            style={{ width: '100%' }}
+          >
             <option value="中廊下">中廊下</option>
             <option value="片廊下">片廊下</option>
             <option value="階段室">階段室型</option>
@@ -459,6 +471,9 @@ export function P3Plan() {
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下の幅 (mm)
           <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
+          {corridorDefaultOf(layoutText) && corridorText === String(corridorDefaultOf(layoutText)?.mm) ? (
+            <span style={{ display: 'block', fontSize: 11, color: '#a86b00' }}>既定の値は仮置き（出典は A-07 で確認）</span>
+          ) : null}
         </label>
         <label style={{ display: 'block', marginBottom: 4 }}>
           住戸の奥行 (mm)

@@ -87,8 +87,8 @@ function itemOf(label: string): FixtureItem {
 const kitchen = itemOf('キッチン')
 const toilet = itemOf('便器')
 
-// P3 の画面の既定の入力（幅 20000・奥行 12000・廊下 2000・住戸の奥行 6000・スパン 3000・中廊下）での、区画の候補
-const CELLS = candidateCells({ width_mm: 20000, depth_mm: 12000, corridor_mm: 2000, unit_depth_mm: 6000, span_mm: 3000, layout: '中廊下' }).cells
+// P3 の画面の既定の入力（幅 20000・奥行 12000・廊下 1600（中廊下の既定。G135）・住戸の奥行 6000・スパン 3000・中廊下）での、区画の候補
+const CELLS = candidateCells({ width_mm: 20000, depth_mm: 12000, corridor_mm: 1600, unit_depth_mm: 6000, span_mm: 3000, layout: '中廊下' }).cells
 const first = CELLS[0]!
 const second = CELLS[1]!
 const centerOf = (c: { x0: number; y0: number; x1: number; y1: number }) => ({ x: (c.x0 + c.x1) / 2, y: (c.y0 + c.y1) / 2 })
