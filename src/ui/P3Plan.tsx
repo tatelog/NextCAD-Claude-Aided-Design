@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { checkSpan, gridLines } from '../plan/grid'
 import { spanDimensions } from '../plan/spanDimension'
+import { mmLabel } from '../plan/dimensionLabel'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import { corridorDefaultOf } from '../plan/corridorDefaults'
@@ -334,21 +335,21 @@ export function P3Plan() {
             {showDimensions ? (
               <g stroke="#1f5f8b" strokeWidth={12} fontSize={300} fill="#1f5f8b">
                 <line x1={0} y1={D + 700} x2={W} y2={D + 700} />
-                <text x={W / 2} y={D + 1000} textAnchor="middle">{W} mm</text>
+                <text x={W / 2} y={D + 1000} textAnchor="middle">{mmLabel(W)}</text>
                 <line x1={W + 700} y1={0} x2={W + 700} y2={D} />
-                <text x={W + 1000} y={D / 2} textAnchor="start">{D} mm</text>
+                <text x={W + 1000} y={D / 2} textAnchor="start">{mmLabel(D)}</text>
                 {/* 通り芯のスパン（奥行き方向。右側の寸法の列） */}
                 {spanDimensions(lines).map((s) => (
                   <g key={`gs${s.fromMm}`}>
                     <line x1={W + 1700} y1={s.fromMm} x2={W + 1700} y2={s.toMm} />
-                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="start">{s.lengthMm} mm</text>
+                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="start">{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
                 {/* 住戸の幅（幅方向。下側の寸法の行）。住戸の区画の境界で測る */}
                 {spanDimensions(units.cells.cells.flatMap((c) => [c.x0, c.x1])).map((s) => (
                   <g key={`gu${s.fromMm}`}>
                     <line x1={s.fromMm} y1={D + 1700} x2={s.toMm} y2={D + 1700} />
-                    <text x={(s.fromMm + s.toMm) / 2} y={D + 2000} textAnchor="middle">{s.lengthMm} mm</text>
+                    <text x={(s.fromMm + s.toMm) / 2} y={D + 2000} textAnchor="middle">{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
               </g>
