@@ -1,4 +1,4 @@
-// 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・作業履歴・メニュー・保留）。
+// 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・モード・作業履歴・メニュー・保留）。
 // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
 import { useEffect, useRef, useState } from 'react'
 import { P03Volume } from './ui/P03Volume'
@@ -17,9 +17,10 @@ import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureShown, setFeatureOn, useFeatures } from './store/features'
 import { useActiveMode, useMode, type WorkMode } from './store/mode'
-import { modesOfScreen, SCREEN_MODES } from './app/screenModes'
+import { modeName, SCREEN_MODES } from './app/screenModes'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { MenuCheckRows } from './ui/MenuCheckRows'
+import { ModeSwitch } from './ui/ModeSwitch'
 import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
 import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
@@ -343,6 +344,14 @@ export function App() {
           Drive に保存
         </button>
         {driveMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{driveMessage}</span> : null}
+        <ModeSwitch
+          screen={screen}
+          activeMode={activeMode}
+          onPick={(id) => {
+            useMode.getState().setMode(id as WorkMode)
+            record('モード', modeName(SCREEN_MODES, id))
+          }}
+        />
         <button type="button" style={button} onClick={() => setPanel(panel === 'log' ? null : 'log')} aria-pressed={panel === 'log'}>
           作業履歴
         </button>
@@ -414,24 +423,6 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="モード（この画面で使えるもの。G100・G95）">
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {modesOfScreen(SCREEN_MODES, screen).map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        aria-pressed={activeMode === m.id}
-                        onClick={() => {
-                          useMode.getState().setMode(m.id as WorkMode)
-                          record('モード', m.name)
-                        }}
-                        style={{ ...button, background: activeMode === m.id ? '#1f2a44' : '#fff', color: activeMode === m.id ? '#fff' : '#1f2a44' }}
-                      >
-                        {m.name}
-                      </button>
-                    ))}
-                  </div>
-                </Fold>
                 <Fold title="機能一覧（チェックで入・切。G43・G70）">
                   <MenuCheckRows
                     groups={featureMenuGroupsOf(featureShown)}

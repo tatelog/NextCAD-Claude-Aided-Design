@@ -1,7 +1,7 @@
 // 仕様（ハブ A-03 G100・G95・G88。統括の推奨案 2b を写す。代表は未確定。統括の依頼 t57、2026-11-04）:
 // 右のメニューバーの中身は、「今のモード」と「画面（P1〜P5）」の組で決まる。その画面で使えないモードは、切替を出さない。
 // 使えるモードの表は設定（src/config/screenModes.json）に出し、表を変えてもコードを変えずに済むようにする。
-// 仕様 1（切替。代表 2026-11-05 の 2b の改定）: P1 は System・Chat。P2・P3 は System・Chat・Drawing。P4 は System・Chat。P5 は切替なし（出力の指示だけ）。
+// 仕様 1（切替。代表 2026-11-05 の 2b の確定）: P1 は System・Chat。P2・P3 は System・Chat・Drawing。P4 は System・Chat。P5 は System だけ（切替は出さない。出力の指示だけ。Chat は無い）。
 // 仕様 2（Drawing）: モード 3（drawing）は P2・P3 でだけ使える（available は true）。P1・P4・P5 には出ない。Drawing の右メニューは候補の確認欄（drawing-review。G124）。
 // 仕様 3（右メニュー）: 右のメニューバーの中身は、モードと画面で決まる。システムは機能の調整（G43）と、その画面の項目。チャットはチャットの項目と、その画面の項目。
 // 仕様 4（表を変える）: 表を変えると、コードを変えずに、出るモードと右メニューが変わる。
@@ -24,8 +24,8 @@ describe('画面ごとに使えるモード（仕様 1・2）', () => {
     expect(modesOfScreen(SCREEN_MODES, 'P4').map((m) => m.id)).toEqual(['system', 'chat'])
   })
 
-  it('P5 は切替なし（どのモードも出ない）', () => {
-    expect(modesOfScreen(SCREEN_MODES, 'P5')).toEqual([])
+  it('P5 は System だけ（切替は出さない。Chat は無い）', () => {
+    expect(modesOfScreen(SCREEN_MODES, 'P5').map((m) => m.id)).toEqual(['system'])
   })
 
   it('Drawing は P2・P3 だけに出る（使える表示になっている）', () => {
@@ -60,8 +60,8 @@ describe('右のメニューバーの中身（仕様 3）', () => {
     expect(rightBarItems(SCREEN_MODES, 'chat', 'P1')).toEqual(['claude-chat'])
   })
 
-  it('その画面で使えないモードの項目は出ない（P5 は切替なしなので、どのモードの項目も空）', () => {
-    expect(rightBarItems(SCREEN_MODES, 'system', 'P5')).toEqual([])
+  it('P5 は System だけなので、機能の調整が出る。Chat の項目は出ない（使えないモード）', () => {
+    expect(rightBarItems(SCREEN_MODES, 'system', 'P5')).toEqual(['feature-adjust'])
     expect(rightBarItems(SCREEN_MODES, 'chat', 'P5')).toEqual([])
   })
 })

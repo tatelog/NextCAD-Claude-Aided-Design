@@ -1,5 +1,5 @@
 {
-  "作成": "2026-11-04 t57（統括の依頼）。2b の表。2026-11-05 代表の回答で改定: P1 は System・Chat、P2・P3 は System・Chat・Drawing、P4 は System・Chat、P5 は切替なし（出力の指示だけ）。表示名は G101（2026-11-05 決定）: 1 System・2 Chat・3 Drawing。表示名はこの表の name だけに置く（ここを変えれば画面が変わる）。Drawing の右メニューは候補の確認欄（drawing-review。G124）。モードの切替の置き場は右メニューの上端（G125 は未回答の推奨）",
+  "作成": "2026-11-04 t57（統括の依頼）。2b の表。2026-11-05 代表の回答で改定: P1 は System・Chat、P2・P3 は System・Chat・Drawing、P4 は System・Chat、P5 は System だけ（切替は出さない。出力の指示だけ。Chat は無い）。表示名は G101（2026-11-05 決定）: 1 System・2 Chat・3 Drawing。表示名はこの表の name だけに置く（ここを変えれば画面が変わる）。Drawing の右メニューは候補の確認欄（drawing-review。G124）。モードの切替は、ヘッダー右端に三つ並べる（G125。代表「かな」の仮決め。作業履歴の直前）。使えるモードが一つだけの画面（P5）は切替を出さない",
   "modes": [
     { "id": "system", "name": "System", "available": true, "rightTiles": ["feature-adjust"] },
     { "id": "chat", "name": "Chat", "available": true, "rightTiles": ["claude-chat"] },
@@ -18,6 +18,6 @@
       "screenTiles": ["fixtures", "milestone", "semantic", "auto", "p3-form", "p3-result"]
     },
     { "id": "P4", "modes": ["system", "chat"], "screenTiles": [] },
-    { "id": "P5", "modes": [], "screenTiles": [] }
+    { "id": "P5", "modes": ["system"], "screenTiles": [] }
   ]
 }

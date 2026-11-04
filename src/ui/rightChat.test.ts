@@ -1,7 +1,7 @@
 // 仕様（ハブ A-03 G95・G100・G73。統括の依頼 t57、2026-11-04。2026-11-05 の 2b の改定で更新）:
 // 仕様 1（P1・P4）: 右パネルのチャットの項目は、Chat のモードのときに出る（表 screenModes。P1・P4 は System・Chat）。
 // 仕様 2（システム）: 今のモードがシステムのときは、チャットの項目は出ない（機能の調整が出る）。
-// 仕様 3（P5）: P5 は切替なし（表 screenModes。使えるモードが無い）。チャットの項目は出ない。
+// 仕様 3（P5）: P5 は System だけ（表 screenModes。切替は出さない）。Chat は無いので、チャットの項目は出ない。
 // 仕様 4: × で閉じたチャットは出ない（G73）。
 import { type ReactElement, createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -52,7 +52,7 @@ describe.each(['P1', 'P4'] as const)('%s の右パネルのチャット（仕様
 })
 
 describe('P5 の右パネル（仕様 3）', () => {
-  it('P5 は切替なし。システムでもチャットでも、チャットの項目は出ない', () => {
+  it('P5 は System だけ。システムでもチャットでも、チャットの項目は出ない', () => {
     expect(renderToStaticMarkup(createElement(P5Output))).not.toContain(TITLE)
     shell.mode = 'chat'
     expect(renderToStaticMarkup(createElement(P5Output))).not.toContain(TITLE)
