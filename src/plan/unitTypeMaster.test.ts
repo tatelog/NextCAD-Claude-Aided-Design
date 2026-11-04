@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { assignTypesToSpans, masterOf, unitTypeKind, unitTypeOptions } from './unitTypeMaster'
+import { masterOf, unitTypeKind, unitTypeOptions } from './unitTypeMaster'
 
 // 仕様（ハブ A-03 G89・G91。統括の依頼 2026-11-04、A-03 版 52。D-03 T-08 住戸タイプ）から書いたテスト。
 // - 住戸タイプのマスタ（T-08）は、候補（14 型）を D-03 の列（id・name・target・room_count・room_types・min_area）に合わせて持つ。
 // - 出典の無い値は「未確認」。未確認の値を持つ行は provisional（仮置きの印）を立てる。target は候補に無いので未確認。
 // - P3 の住戸タイプの選択肢は、この 14 型から出す（値は id）。
-// - 割付は縦割り（柱割りの列）単位。列ごとに 1 タイプ。列より型が少なければ繰り返す。
+// - 割付は縦割り（柱割りの列）単位。列の幅と間口が同じ型だけを割り付ける（G99。仕様は unitTypeFrontage.test.ts）。
+//   縦割りの割付の旧仕様（型を順に繰り返す）は、G99 で置き換えた。
 
 const CANDIDATES = JSON.parse(readFileSync(new URL('./unitTypeCandidates.json', import.meta.url), 'utf8'))
 const master = masterOf(CANDIDATES)
@@ -66,20 +67,6 @@ describe('P3 の住戸タイプの選択肢', () => {
     expect(unitTypeKind(byId('T-08-1R'))).toBe('単独')
     expect(unitTypeKind(byId('T-08-1K'))).toBe('単独')
     expect(unitTypeKind(byId('T-08-2LDK'))).toBe('ファミリー')
-  })
-})
-
-describe('縦割り（柱割りの列）ごとの割付（G89）', () => {
-  it('列の数だけ、型を順に割り付け、型が少なければ繰り返す', () => {
-    expect(assignTypesToSpans(4, ['T-08-2LDK', 'T-08-3LDK'])).toEqual(['T-08-2LDK', 'T-08-3LDK', 'T-08-2LDK', 'T-08-3LDK'])
-  })
-
-  it('型が一つも無ければ、どの列も割り付けない（null）', () => {
-    expect(assignTypesToSpans(3, [])).toEqual([null, null, null])
-  })
-
-  it('列が無ければ、空の割付', () => {
-    expect(assignTypesToSpans(0, ['T-08-2LDK'])).toEqual([])
   })
 })
 

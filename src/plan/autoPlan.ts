@@ -7,7 +7,7 @@ import { countUnits } from './units'
 import { buildEvLevels, type EvLevels } from './evLevels'
 import { splitUnitRooms, type Room, type RoomPattern } from './rooms'
 import type { CorridorLayout, Rect } from './candidateCells'
-import { assignTypesToSpans, patternOfType, type UnitType } from './unitTypeMaster'
+import { assignByFrontage, patternOfType, type UnitType } from './unitTypeMaster'
 
 const TargetSchema = z.number().int().positive()
 // コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
@@ -104,6 +104,16 @@ function shaftsOf(cells: Rect[], rooms: Room[], cores: AutoCore[], corridor: Rec
   return out
 }
 
+/** その区画の寸法で、部屋割りができるか（割れない寸法は false） */
+function canSplitRooms(cell: Rect, pattern: RoomPattern): boolean {
+  try {
+    splitUnitRooms(cell, pattern)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // 区画ごとの部屋割り。角は両端の区画（k = 0 と最後）だけ、他は田の字
 // 型の割り付けがある列（typed）は、その型の部屋割り（G89）。ほかは従来どおり
 function roomsFor(cells: Rect[], pattern: RoomPattern, typed: ReadonlyMap<number, RoomPattern>): Room[] {
@@ -161,14 +171,23 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   })
   const unitsPerFloor = counted.usable_count
   // 列ごとの型（G89）。型の室数から、その列の部屋割りを決める。室数が合わない列は未対応として印を出す
-  const spanTypes = assignTypesToSpans(spans, input.unitTypeIds ?? [])
+  // 列の型は、列の幅（スパン）と間口が同じ型だけ（G99）。間口が未確認の型や、間口に合わない型は割り付けない（null）
+  const selected = (input.unitTypeIds ?? [])
+    .map((id) => input.unitTypes?.find((x) => x.id === id))
+    .filter((t): t is UnitType => t !== undefined)
+  const spanTypes = assignByFrontage(
+    Array.from({ length: spans }, () => input.spanMm),
+    selected,
+  )
   const typedPatterns = new Map<number, RoomPattern>()
   const unsupportedSpans: number[] = []
   spanTypes.forEach((id, k) => {
     const t = id === null ? undefined : input.unitTypes?.find((x) => x.id === id)
     if (t === undefined) return
     const { pattern } = patternOfType(t)
-    if (pattern === null) unsupportedSpans.push(k)
+    // 室数に合う割り付けが無い、または列の寸法で割り付けられない（三室・四室の割り算）列は、未対応として印を出す（黙って割らない）
+    const sample = cells.find((c) => Number(c.id.slice(1)) === k)
+    if (pattern === null || (sample !== undefined && !canSplitRooms(sample, pattern))) unsupportedSpans.push(k)
     else typedPatterns.set(k, pattern)
   })
   const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), typedPatterns)

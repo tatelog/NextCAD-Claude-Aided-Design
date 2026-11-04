@@ -17,6 +17,10 @@ export interface UnitType {
   room_types: string[]
   /** 最小面積（m²）。面積帯の下限。未確認は null */
   min_area: number | null
+  /** 間口（mm）。自作案の W（仮置き。実在の図面とは未照合）。案が無い型は null（未確認。G99 の割り付けの候補から外す） */
+  frontage_mm: number | null
+  /** 奥行（mm）。自作案の D（仮置き）。案が無い型は null */
+  depth_mm: number | null
   /** 件数（分譲）。出典の無いものは null */
   count_sold: number | null
   /** 自作案の専有面積（m²）。無いものは null */
@@ -53,6 +57,10 @@ export function masterOf(raw: RawCandidates): UnitType[] {
     if (minArea === null || (typeof area === 'string' && area.includes('候補'))) unconfirmed.push('min_area')
     const sold = typeof r['件数_分譲'] === 'number' ? (r['件数_分譲'] as number) : null
     if (sold === null) unconfirmed.push('count_sold')
+    const frontage = typeof r['frontage_mm'] === 'number' ? (r['frontage_mm'] as number) : null
+    const depth = typeof r['depth_mm'] === 'number' ? (r['depth_mm'] as number) : null
+    if (frontage === null) unconfirmed.push('frontage_mm')
+    if (depth === null) unconfirmed.push('depth_mm')
     const sample = typeof r['自作案_専有_m2'] === 'number' ? (r['自作案_専有_m2'] as number) : null
     const status = String(r['status'] ?? '')
     return {
@@ -62,6 +70,8 @@ export function masterOf(raw: RawCandidates): UnitType[] {
       room_count: Number(r['bedrooms']),
       room_types: roomsText ? roomsText.split('・') : [],
       min_area: minArea,
+      frontage_mm: frontage,
+      depth_mm: depth,
       count_sold: sold,
       sample_area_m2: sample,
       ldk: Number(r['ldk']),
@@ -75,7 +85,7 @@ export function masterOf(raw: RawCandidates): UnitType[] {
 
 /** P3 の住戸タイプの選択肢（値は id、表示は型名） */
 export function unitTypeOptions(master: readonly UnitType[]): { value: string; label: string }[] {
-  return master.map((t) => ({ value: t.id, label: t.name }))
+  return master.map((t) => ({ value: t.id, label: t.frontage_mm === null ? `${t.name}（間口が未確認）` : t.name }))
 }
 
 /** 自動作成の部屋割りに渡す区分。1R・1K（LDK なし・個室 1）は単独、それ以外はファミリー（仮定。統括が確認する） */
@@ -93,7 +103,17 @@ export function patternOfType(t: UnitType): { pattern: RoomPattern | null; reaso
   return { pattern: null, reason: '室数に合う割り付けが無い（個室 5 以上は未対応）' }
 }
 
-/** 縦割り（柱割りの列）ごとに型の id を割り付ける。型が少なければ繰り返す。型が無ければ null（G89） */
-export function assignTypesToSpans(spans: number, typeIds: readonly string[]): (string | null)[] {
-  return Array.from({ length: spans }, (_, i) => (typeIds.length === 0 ? null : typeIds[i % typeIds.length]!))
+/**
+ * 柱列（縦割り）ごとに、列の幅と間口が同じ型を割り付ける（G89・G99）。間口が未確認（null）の型と、間口に合わない型は候補にしない。
+ * 合う型が無い列は null（黙って別の型で埋めない）。合う型が複数なら、同じ幅の列ごとに順に繰り返す。
+ */
+export function assignByFrontage(spanWidthsMm: readonly number[], types: readonly UnitType[]): (string | null)[] {
+  const next = new Map<number, number>()
+  return spanWidthsMm.map((w) => {
+    const fit = types.filter((t) => t.frontage_mm !== null && t.frontage_mm === w)
+    if (fit.length === 0) return null
+    const i = next.get(w) ?? 0
+    next.set(w, i + 1)
+    return fit[i % fit.length]!.id
+  })
 }

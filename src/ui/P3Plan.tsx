@@ -45,7 +45,7 @@ import { wallOutlineRings } from '../plan/wallUnion'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 import unitTypeCandidates from '../plan/unitTypeCandidates.json'
-import { assignTypesToSpans, masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
+import { masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
 
 /** 住戸タイプのマスタ（T-08。候補 14 型。未確認の値は仮置き） */
 const UNIT_TYPES = masterOf(unitTypeCandidates)
@@ -484,9 +484,16 @@ export function P3Plan() {
             </datalist>
           </label>
           {auto ? (
-            <p style={{ fontSize: 12, margin: '0 0 6px' }}>
-              縦割りごとの住戸タイプ: {assignTypesToSpans(auto.spans, unitTypeIds).map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '未割付'}`).join('、')}
-            </p>
+            <>
+              <p style={{ fontSize: 12, margin: '0 0 6px' }}>
+                縦割りごとの住戸タイプ（列の幅と間口が同じ型。G99）: {auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '間口に合う型なし'}`).join('、')}
+              </p>
+              {unitTypeIds.some((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null) ? (
+                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+                  間口が未確認のため候補から外した型: {unitTypeIds.filter((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null).map((id) => UNIT_TYPES.find((t) => t.id === id)?.name ?? id).join('、')}
+                </p>
+              ) : null}
+            </>
           ) : null}
           {auto && auto.unsupportedSpans.length > 0 ? (
             <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>

@@ -25,9 +25,9 @@ const base = {
   layout: '片廊下' as const,
 }
 
-/** 列 k（奥行方向の y の範囲）に入る部屋の数 */
-function roomsInSpan(g: ReturnType<typeof generateAutoPlan>, k: number): number {
-  return g.rooms.filter((r) => r.y0 >= k * base.spanMm && r.y1 <= (k + 1) * base.spanMm).length
+/** 列 k（奥行方向の y の範囲）に入る部屋の数（列の幅 span） */
+function roomsInSpan(g: ReturnType<typeof generateAutoPlan>, k: number, span: number = base.spanMm): number {
+  return g.rooms.filter((r) => r.y0 >= k * span && r.y1 <= (k + 1) * span).length
 }
 
 describe('型の室数から、部屋割りを決める', () => {
@@ -49,22 +49,32 @@ describe('型の室数から、部屋割りを決める', () => {
   })
 })
 
-describe('自動作成で、列ごとに型の部屋割りを使う（G89）', () => {
-  it('列の型（2LDK・1LDK・2LDK・1LDK・2LDK）に合わせて、列ごとの部屋数（4・3・4・3・4）になる', () => {
-    const g = generateAutoPlan({
-      ...base,
-      unitTypes: master,
-      unitTypeIds: ['T-08-2LDK', 'T-08-1LDK'],
-    })
-    expect(g.spanTypes).toEqual(['T-08-2LDK', 'T-08-1LDK', 'T-08-2LDK', 'T-08-1LDK', 'T-08-2LDK'])
-    expect([0, 1, 2, 3, 4].map((k) => roomsInSpan(g, k))).toEqual([4, 3, 4, 3, 4])
+// 仕様 G99（統括の依頼 t56 の続き、2026-11-04）: 列の型は、列の幅（スパン）と間口が同じ型だけ。
+// 列の幅は一つの計画で同じ（spanMm）なので、一つの計画に入る型は、間口がスパンと同じ型になる。
+describe('自動作成で、列の幅と間口が同じ型の部屋割りを使う（G89・G99）', () => {
+  it('2LDK（間口 8400）の列では、スパン 8400 の計画に 2LDK が全列に入り、部屋数は 4', () => {
+    const wide = { ...base, spanMm: 8400 }
+    const g = generateAutoPlan({ ...wide, unitTypes: master, unitTypeIds: ['T-08-2LDK'] })
+    expect(g.spanTypes).toEqual(['T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK'])
+    expect([0, 1, 2, 3, 4].map((k) => roomsInSpan({ ...g, rooms: g.rooms }, k, 8400))).toEqual([4, 4, 4, 4, 4])
     expect(g.unsupportedSpans).toEqual([])
   })
 
-  it('個室 3 の型（3LDK）の列は、三室（LDK・水回り・洋室 3 の 5 室）で、未対応の印は出ない', () => {
-    const g = generateAutoPlan({ ...base, unitTypes: master, unitTypeIds: ['T-08-3LDK'] })
-    expect(g.unsupportedSpans).toEqual([])
-    expect([0, 1, 2, 3, 4].map((k) => roomsInSpan(g, k))).toEqual([5, 5, 5, 5, 5])
+  it('個室 3 の型（3LDK、間口 9400）は、スパン 9400 では三室を割れない（奥行 9400 は 3 等分できない）ので、未対応の印を出し、割らない', () => {
+    const wide = { ...base, spanMm: 9400 }
+    const g = generateAutoPlan({ ...wide, unitTypes: master, unitTypeIds: ['T-08-3LDK'] })
+    expect(g.spanTypes).toEqual(['T-08-3LDK', 'T-08-3LDK', 'T-08-3LDK', 'T-08-3LDK', 'T-08-3LDK'])
+    expect(g.unsupportedSpans).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('間口がスパンと違う型（2LDK・間口 8400）は、スパン 6000 の計画に割り付けない（null）', () => {
+    const g = generateAutoPlan({ ...base, unitTypes: master, unitTypeIds: ['T-08-2LDK'] })
+    expect(g.spanTypes).toEqual([null, null, null, null, null])
+  })
+
+  it('間口が未確認の型（4LDK②）は、どのスパンにも割り付けない', () => {
+    const g = generateAutoPlan({ ...base, spanMm: 10400, unitTypes: master, unitTypeIds: ['T-08-4LDK-2'] })
+    expect(g.spanTypes.every((t) => t === null)).toBe(true)
   })
 
   it('型を入れなければ、列の型は空（null）で、部屋割りは従来どおり', () => {
