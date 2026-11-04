@@ -26,6 +26,7 @@ import { FixturePalette } from './FixturePalette'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
+import { PenToolbar } from './PenToolbar'
 import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
 import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { SemanticConfirm } from './SemanticConfirm'
@@ -406,7 +407,9 @@ export function P3Plan() {
         ) : (
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}
-        <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>描く（ドラッグで直線。閉じた輪で部屋の閉合を見る）</h3>
+        <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>描く（ドラッグで線。直線・曲線（円弧は二点）。閉じた輪で部屋の閉合を見る）</h3>
+        {/* ペンの道具は P2 と同じ（直線・曲線・円弧（二点）。G152）。P3 では上に置く */}
+        <PenToolbar placement="top" />
         <P3Canvas />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>

@@ -5,7 +5,7 @@
 // 仕様 3（押せない）: 二点目が一点目と同じ場所なら、押せない（状態は変わらず、理由を出す）。
 // 仕様 4（動きだけ）: 一点目を押す前の動きは何もしない。中心を決める前（二点目の後）の動きも、状態は変えない。
 import { describe, expect, it } from 'vitest'
-import { ARC_TOOL_START, arcToolStep, offsetOnBisector } from './twoPointArcTool'
+import { ARC_TOOL_START, arcPreviewMm, arcToolStep, offsetOnBisector } from './twoPointArcTool'
 
 const p1 = { x: -1000, y: 0 }
 const p2 = { x: 1000, y: 0 }
@@ -15,6 +15,25 @@ describe('中心線上のずらし量（t70 仕様 1）', () => {
     expect(offsetOnBisector(p1, p2, { x: 0, y: 1000 })).toBeCloseTo(1000, 10)
     expect(offsetOnBisector(p1, p2, { x: 0, y: -500 })).toBeCloseTo(-500, 10)
     expect(offsetOnBisector(p1, p2, { x: 300, y: 800 })).toBeCloseTo(800, 10)
+  })
+})
+
+// 仕様 5（プレビュー。t81）: 一点目の前は何もない。二点目の前は、一点目から動かした点までの弦。中心を決める途中は、中心線上の中心でできる円弧の点列。
+describe('二点の円弧の道具のプレビュー（t81 仕様 5）', () => {
+  it('一点目の前は null、二点目の前は一点目から動かした点までの弦', () => {
+    expect(arcPreviewMm(ARC_TOOL_START, { x: 0, y: 500 })).toBeNull()
+    const s = arcToolStep(ARC_TOOL_START, { type: 'click', point: p1 }).state
+    expect(arcPreviewMm(s, { x: 0, y: 500 })).toEqual([p1, { x: 0, y: 500 }])
+  })
+
+  it('中心を決める途中は、今のずらし量の円弧の点列（両端は二点）', () => {
+    const s1 = arcToolStep(ARC_TOOL_START, { type: 'click', point: p1 }).state
+    const s2 = arcToolStep(s1, { type: 'click', point: p2 }).state
+    const s3 = arcToolStep(s2, { type: 'move', point: { x: 0, y: 1000 } }).state
+    const pts = arcPreviewMm(s3, { x: 0, y: 1000 })!
+    expect(pts[0]).toEqual(p1)
+    expect(pts[pts.length - 1]).toEqual(p2)
+    expect(pts.length).toBeGreaterThan(2)
   })
 })
 
