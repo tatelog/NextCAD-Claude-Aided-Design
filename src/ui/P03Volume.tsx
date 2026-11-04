@@ -11,6 +11,7 @@ import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
+import { baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
 import { rotateOutline } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
@@ -106,6 +107,9 @@ export function P03Volume() {
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   const [westText, setWestText] = useState('')
   const [southText, setSouthText] = useState('')
+  // 基準線（ハブ A-03 G59・統括の依頼 t52）: 描いた外形（外壁の中心線）を、内側へ寄せるか、中心線から量（外へ正）だけずらす。既定は中心線・ずらし 0
+  const [baselineSide, setBaselineSide] = useState<BaselineSide>('中心線')
+  const [baselineOffsetText, setBaselineOffsetText] = useState('0')
 
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
   // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
@@ -138,15 +142,25 @@ export function P03Volume() {
     return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
   })()
 
-  const placedFootprint = useMemo(() => {
+  // 基準線（G59・t52）: 描いた外形（中心線）を、内側または中心線からの量で動かした線にする。数でない量は 0
+  const baselineOffset = Number(baselineOffsetText)
+  const baseline = useMemo(() => {
     if (!closure.closed || closure.footprint === null) return null
+    return baselineOutline(closure.footprint, {
+      side: baselineSide,
+      offsetMm: Number.isFinite(baselineOffset) ? baselineOffset : 0,
+      wallThicknessMm: DEFAULT_WALL_THICKNESS_MM,
+    })
+  }, [closure, baselineSide, baselineOffset])
+  const placedFootprint = useMemo(() => {
+    if (baseline === null || !baseline.ok) return null
     // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
-    const base = aligned ? roundFootprintMm(alignToDirection(closure.footprint, roadDeg)) : closure.footprint
+    const base = aligned ? roundFootprintMm(alignToDirection(baseline.footprint, roadDeg)) : baseline.footprint
     const w = Number(westText)
     const s = Number(southText)
     if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
     return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: w, south: s }))
-  }, [closure, westText, southText, aligned, roadDeg])
+  }, [baseline, westText, southText, aligned, roadDeg])
 
   // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
   const extruded = useMemo<ExtrudeResult | null>(() => {
@@ -154,7 +168,9 @@ export function P03Volume() {
     return extrudeOrReason({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
   }, [closure, placedFootprint, storeyCount, storeyHeightMm])
   const volume = extruded?.ok ? extruded.volume : null
-  const volumeError = extruded && !extruded.ok ? extruded.reason : null
+  // 基準線で外形が消えるときは、その理由を出す（黙って 3D を消さない）
+  const baselineError = baseline !== null && !baseline.ok ? baseline.reason : null
+  const volumeError = baselineError ?? (extruded && !extruded.ok ? extruded.reason : null)
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
@@ -351,6 +367,18 @@ export function P03Volume() {
               <dt>閉合</dt>
               <dd className={closure.closed ? 'ok' : 'ng'}>{closureLabel}</dd>
             </dl>
+            <label>
+              基準線
+              <select value={baselineSide} onChange={(e) => setBaselineSide(e.target.value as BaselineSide)}>
+                <option value="中心線">中心線（既定。外壁の中心）</option>
+                <option value="内側">内側（壁厚 200 mm の半分だけ内へ）</option>
+              </select>
+            </label>
+            <label>
+              中心線からずらす (mm・外へ正、内へ負)
+              <input type="number" step={10} value={baselineOffsetText} onChange={(e) => setBaselineOffsetText(e.target.value)} />
+            </label>
+            {baselineError ? <p className="ng">{baselineError}</p> : null}
           </section>
           <section style={tileStyle('p2-storey')}>
             <TileClose title="階数・階高" onHide={() => hideTile('p2-storey')} />

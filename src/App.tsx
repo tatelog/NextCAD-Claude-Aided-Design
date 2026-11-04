@@ -18,6 +18,8 @@ import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
+import { PanelMenuRows } from './ui/PanelMenuRows'
+import { panelMenuGroupsOf } from './ui/panelMenuGroups'
 import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
@@ -351,8 +353,11 @@ export function App() {
         <button type="button" style={button} onClick={() => setPanel(panel === 'log' ? null : 'log')} aria-pressed={panel === 'log'}>
           作業履歴
         </button>
-        <button type="button" style={button} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} aria-pressed={panel === 'menu'}>
-          メニュー
+        <button type="button" style={button} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} aria-pressed={panel === 'menu'} aria-label="メニュー" title="メニュー">
+          {/* ハンバーガー（ハブ A-03 G74）: 三本線 */}
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style={{ display: 'block' }}>
+            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+          </svg>
         </button>
       </header>
       <nav style={{ display: 'flex', gap: 6, padding: '6px 12px', borderBottom: '1px solid #ddd8cc', background: '#fff' }}>
@@ -503,21 +508,15 @@ export function App() {
                     </div>
                   ))}
                 </Fold>
-                <Fold title="右パネルの項目（閉じたものを戻す。G73・G74）">
-                  {PANEL_TILES.map((t) => (
-                    <label key={t.id} style={{ display: 'block', marginBottom: 6 }}>
-                      <input
-                        type="checkbox"
-                        checked={!panelHidden[t.id]}
-                        onChange={(e) => {
-                          if (e.target.checked) usePanelTiles.getState().showTile(t.id)
-                          else usePanelTiles.getState().hideTile(t.id)
-                          record('右パネル', `${t.title} ${e.target.checked ? '入' : '切'}`)
-                        }}
-                      />{' '}
-                      {t.title}
-                    </label>
-                  ))}
+                <Fold title="右パネルの項目（P2 の機能一覧。チェックで右パネルに出す。G43・G73・G74）">
+                  <PanelMenuRows
+                    groups={panelMenuGroupsOf(panelHidden)}
+                    onToggle={(id, shown) => {
+                      if (shown) usePanelTiles.getState().showTile(id)
+                      else usePanelTiles.getState().hideTile(id)
+                      record('右パネル', `${PANEL_TILES.find((t) => t.id === id)?.title ?? id} ${shown ? '入' : '切'}`)
+                    }}
+                  />
                 </Fold>
                 <Fold title="機能のオンオフ（案。項目の中身は未決）">
                   {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
