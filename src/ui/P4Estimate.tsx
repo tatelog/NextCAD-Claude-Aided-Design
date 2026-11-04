@@ -3,21 +3,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useObjectTable } from '../store/objectTable'
 import { useComponentFire } from '../store/componentFire'
-import { detailLinesOfObjects, resolveUnitPriceRef, slabObjectRow } from '../estimate/estimateObjects'
+import {
+  detailLinesOfObjects,
+  exteriorRow,
+  interiorRow,
+  planExteriorRow,
+  resolveUnitPriceRef,
+  sashRow,
+  siteRow,
+  slabObjectRow,
+} from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
-import { buildingExteriorQuantities } from '../estimate/quantities'
-import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
-import { sashQuantity } from '../estimate/sashQuantity'
-import { siteWorksQuantity } from '../estimate/siteWorks'
 import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
-import { objectTableOf } from '../plan/objectTable'
+import { objectTableOf, type ObjectRow } from '../plan/objectTable'
 import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
-import { roomFinishTotals } from '../estimate/roomQuantities'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
 import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
@@ -91,8 +95,6 @@ export function P4Estimate() {
   // 鉄筋の被り厚と継手（G86。仮の条件。係数は仮置き）
   const rebar = useComponentFire((s) => s.rebar)
   const setRebar = useComponentFire((s) => s.setRebar)
-  // 積算はオブジェクト表から集計する（G86）。表の行は下の effect で作って書く
-  const objectRows = useObjectTable((s) => s.rows)
   // 数量の行の単価の参照（品目・単位・分類が一致する単価の行）と、金額（参照した単価 × 数量、円）。参照が無ければ未参照（G20）
   const priceFor = (q: { item: string; unit: string; category: string; quantity: number }) => {
     if (!('rows' in parsed)) return { ref: null as string | null, amount: null as number | null }
@@ -100,37 +102,6 @@ export function P4Estimate() {
     const row = ref === null ? undefined : parsed.rows.find((r) => r.id === ref)
     return { ref, amount: row ? Math.round(row.unit_price * q.quantity) : null }
   }
-  const autoQuantities = useMemo(() => {
-    const out: { item: string; category: string; quantity: number; unit: string }[] = []
-    if (volume) {
-      const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
-      out.push(q.exterior_wall, q.roof)
-      // 躯体（G86）: オブジェクト表の床版の行から明細を出し、その明細を正本にする
-      for (const l of detailLinesOfObjects(objectRows, rebar)) {
-        out.push({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit })
-      }
-      // 外構（建物以外の敷地。敷地は仮置きのダミー。拾い方は仮置き）
-      out.push(siteWorksQuantity(DUMMY_PARCEL_MM2, volume.footprint))
-    }
-    if (plan) {
-      const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
-      out.push(t.floor, t.ceiling, t.wall_cloth)
-      // バルコニーと共用廊下（G62）。基準階の区画・廊下・コアから、階数分を拾う（仮置き）
-      const ext = planExteriorQuantities({
-        corridor: plan.corridor,
-        cores: plan.cores,
-        cells: plan.cells,
-        outline: { W: plan.widthMm, D: plan.depthMm },
-        storeyCount: plan.ev.storey_count,
-      })
-      out.push(ext.balcony, ext.corridor)
-      // 手すり（G62）。バルコニーの付く面の辺の長さ × 高さ（仮置き）
-      out.push(railingQuantity({ cells: plan.cells, outline: { W: plan.widthMm, D: plan.depthMm }, storeyCount: plan.ev.storey_count }))
-    }
-    out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
-    return out
-  }, [volume, plan, drawnEntries, assignments, rebar, objectRows])
-  const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
@@ -138,12 +109,41 @@ export function P4Estimate() {
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
   // 住戸をグループとして数える（G58）。自動作成の結果からオブジェクト表の行を作り、表（SQLite）に書いて、表から読む
   const derivedObjectRows = useMemo(() => {
-    const rows = plan
+    const rows: ObjectRow[] = plan
       ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
       : []
-    // 床版（外形から出る躯体）も表の 1 行にする（G86）。躯体の数量はこの行から出す
-    return volume ? [...rows, slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height)] : rows
-  }, [plan, fixtures, volume])
+    // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
+    if (volume) {
+      rows.push(
+        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height),
+        exteriorRow(volume.footprint, volume.storey_count, volume.storey_height),
+        siteRow(volume.footprint, DUMMY_PARCEL_MM2),
+      )
+    }
+    if (plan) {
+      rows.push(
+        interiorRow(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM }),
+        planExteriorRow({
+          corridor: plan.corridor,
+          cores: plan.cores,
+          cells: plan.cells,
+          outline: { W: plan.widthMm, D: plan.depthMm },
+          storeyCount: plan.ev.storey_count,
+        }),
+      )
+    }
+    const segments = drawnEntries.flatMap((e) => e.segments)
+    const kinds = Object.fromEntries(segments.map((s) => [s.id, assignments[s.id]?.kind ?? null]))
+    rows.push(sashRow(segments, kinds))
+    return rows
+  }, [plan, fixtures, volume, drawnEntries, assignments])
+  const objectRows = useObjectTable((s) => s.rows)
+  // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
+  const autoQuantities = useMemo(
+    () => detailLinesOfObjects(derivedObjectRows, rebar).map((l) => ({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit })),
+    [derivedObjectRows, rebar],
+  )
+  const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
   const objectPersisted = useObjectTable((s) => s.persisted)
   useEffect(() => {
     void useObjectTable.getState().init()
