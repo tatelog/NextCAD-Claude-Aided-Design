@@ -140,7 +140,7 @@ export function P4Estimate() {
   const objectRows = useObjectTable((s) => s.rows)
   // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
   const autoQuantities = useMemo(
-    () => detailLinesOfObjects(derivedObjectRows, rebar).map((l) => ({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit })),
+    () => detailLinesOfObjects(derivedObjectRows, rebar).map((l) => ({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit, source: l.source })),
     [derivedObjectRows, rebar],
   )
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
@@ -288,6 +288,7 @@ export function P4Estimate() {
                         {q.item}
                         {' '}
                         <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
+                        <div style={{ fontSize: 11, color: '#666' }}>出典: {q.source}</div>
                       </td>
                       <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
                       <td>{priceFor(q).ref ?? '未参照'}</td>

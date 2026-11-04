@@ -5,7 +5,7 @@ import type { ObjectRow } from '../plan/objectTable'
 import type { Point } from '../geom/viewport'
 import type { Room } from '../plan/rooms'
 import type { Rect } from '../plan/candidateCells'
-import { detailLinesOfStructure, type DetailLine } from './estimateDetail'
+import { detailLinesOfStructure, sourceOf, type DetailLine } from './estimateDetail'
 import type { RebarCondition } from './rebarCondition'
 import { structureQuantities } from './structureQuantities'
 import { buildingExteriorQuantities, type Quantity } from './quantities'
@@ -83,6 +83,7 @@ function lineOf(objectId: string, q: Quantity, basis: string): DetailLine {
     unitPriceRef: null,
     provisional: q.provisional,
     basis,
+    source: sourceOf(q.item, q.provisional),
   }
 }
 

@@ -20,6 +20,14 @@ export interface DetailLine {
   provisional: boolean
   /** 数量の基礎になった条件（人が読めるように） */
   basis: string
+  /** 出典の欄（G22）。仮置きは出典なし、鉄筋の係数は未確定（G22） */
+  source: string
+}
+
+/** 明細の出典の欄（G22）。鉄筋の係数は、公的な出典が無いので「未確定（G22）」。ほかの仮置きは「出典なし・仮置き」。仮置きでない数量は「計算」 */
+export function sourceOf(item: string, provisional: boolean): string {
+  if (item.startsWith('鉄筋')) return '未確定（G22）: 出典なし・仮置き'
+  return provisional ? '出典なし・仮置き（G22）' : '計算（仮置きなし）'
 }
 
 /** 躯体のオブジェクト 1 件（床版）を、見積の明細の行に分ける */
@@ -46,6 +54,7 @@ export function detailLinesOfStructure(
       unitPriceRef: null,
       provisional: src.provisional,
       basis: basis[key],
+      source: sourceOf(src.item, src.provisional),
     }
   })
 }
