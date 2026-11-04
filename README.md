@@ -64,7 +64,14 @@ Built with Claude: Japan 2026（2026-11-02 12:30 〜 2026-11-08 20:00 JST）の�
   - `roads-koto.json`: 道路。`{ "roads": [{ "w": 幅員区分(1〜5), "c": 道路分類, "s": 状態, "g": [[経度, 緯度], ...] }] }`。元は国土数値情報（道路 N13、1次メッシュ単位）。
   - `koto-parcels.geojson`: 筆。登記所備付地図（江東区）を mojxml で GeoJSON にしたもの。プロパティに `地図名`、`筆ID`、`地番`、`大字名`、`丁目名`、`精度区分` を持つ。位置が付くのは公共座標系のシートだけです。
   - `buildings-koto.geojson.gz`: 建物（LOD1）。ポリゴンと、プロパティ `h`（高さ、m）を持つ GeoJSON。gzip でも、展開済みの JSON でもよい。元は PLATEAU の建物 GML（bldg:lod0RoofEdge と bldg:measuredHeight）。
-- **準備スクリプトは未作成です**（作成予定）。今は、上の形式に合わせて手で作るか、別途変換してください。
+- **準備スクリプト（簡易版）**: `scripts/prepare-local-data.ts` です。Node 24 以上で、次のように実行します。指定しなかった入力は作りません。
+
+  ```bash
+  node scripts/prepare-local-data.ts --roads <国土数値情報 道路の GeoJSON> --buildings <PLATEAU 建物 GML のファイルかフォルダ> --parcels <変換済みの筆 GeoJSON（mojxml の出力）>
+  ```
+
+- 筆の変換（登記所備付地図の XML → GeoJSON）は、mojxml（Python）で行い、その出力を `--parcels` に渡します。位置が付くのは公共座標系のシートだけです。
+- 生データは同梱しません。出力は `public/local-data/` に書き出され、`.gitignore` で除外されます。
 
 ## OSS として使うとき
 
