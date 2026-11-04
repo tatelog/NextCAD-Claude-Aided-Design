@@ -51,6 +51,15 @@ export interface ObjectRow {
   name: string
   /** 親の行の ID（グループ・親なしは null）。表の中の行を必ず指す */
   parent_id: string | null
+  /** 集計列（G129）: 面積（m²）。住戸・部屋・廊下・コア・縦シャフトだけ。それ以外は null。objectTableOf は必ず入れる（外から作る行は省略してよい） */
+  area_m2?: number | null
+  /** 集計列（G129）: 数量。置いた什器は 1。それ以外は null。objectTableOf は必ず入れる（外から作る行は省略してよい） */
+  quantity?: number | null
+}
+
+/** 矩形の面積（m²）。入力は mm */
+function areaM2(r: { x0: number; y0: number; x1: number; y1: number }): number {
+  return ((r.x1 - r.x0) * (r.y1 - r.y0)) / 1_000_000
 }
 
 const COMMON_ID = 'common'
@@ -59,25 +68,25 @@ const CORE_NAMES: Record<string, string> = { stairA: '階段 A', stairB: '階段
 export function objectTableOf(input: ObjectTableInput): ObjectRow[] {
   const unitIds = new Set(input.cells.map((c) => c.id))
   const hasCommon = input.corridors.length > 0 || input.cores.length > 0 || input.shafts.some((s) => s.unitId === undefined)
-  const rows: ObjectRow[] = input.cells.map((c) => ({ id: c.id, kind: 'group', attr: '住戸', name: c.id, parent_id: null }))
-  if (hasCommon) rows.push({ id: COMMON_ID, kind: 'group', attr: '共用部', name: '共用部', parent_id: null })
+  const rows: ObjectRow[] = input.cells.map((c) => ({ id: c.id, kind: 'group', attr: '住戸', name: c.id, parent_id: null, area_m2: areaM2(c), quantity: null }))
+  if (hasCommon) rows.push({ id: COMMON_ID, kind: 'group', attr: '共用部', name: '共用部', parent_id: null, area_m2: null, quantity: null })
   for (const r of input.rooms) {
     const unit = input.cells.find((c) => r.id.startsWith(c.id + '-'))
-    rows.push({ id: r.id, kind: 'room', attr: null, name: r.kind, parent_id: unit ? unit.id : null })
+    rows.push({ id: r.id, kind: 'room', attr: null, name: r.kind, parent_id: unit ? unit.id : null, area_m2: areaM2(r), quantity: null })
   }
   for (const s of input.shafts) {
     const parent = s.unitId !== undefined && unitIds.has(s.unitId) ? s.unitId : s.unitId === undefined ? COMMON_ID : null
-    rows.push({ id: s.id, kind: 'other', attr: s.kind, name: s.kind, parent_id: parent })
+    rows.push({ id: s.id, kind: 'other', attr: s.kind, name: s.kind, parent_id: parent, area_m2: areaM2(s), quantity: null })
   }
-  for (const c of input.corridors) rows.push({ id: c.id, kind: 'other', attr: '廊下', name: '廊下', parent_id: COMMON_ID })
-  for (const c of input.cores) rows.push({ id: c.id, kind: 'other', attr: 'コア', name: CORE_NAMES[c.id] ?? c.id, parent_id: COMMON_ID })
+  for (const c of input.corridors) rows.push({ id: c.id, kind: 'other', attr: '廊下', name: '廊下', parent_id: COMMON_ID, area_m2: areaM2(c), quantity: null })
+  for (const c of input.cores) rows.push({ id: c.id, kind: 'other', attr: 'コア', name: CORE_NAMES[c.id] ?? c.id, parent_id: COMMON_ID, area_m2: areaM2(c), quantity: null })
   // 外形・仮の筆界・通り芯は、左の一覧の件数に使う（G78）。外形は 3 点以上の輪郭だけ
-  if (input.outline && input.outline.length >= 3) rows.push({ id: 'outline', kind: 'other', attr: '外形', name: '外形', parent_id: null })
-  if (input.siteBoundary) rows.push({ id: 'parcel', kind: 'other', attr: '筆界', name: '筆界', parent_id: null })
-  ;(input.gridLines ?? []).forEach((_, i) => rows.push({ id: `grid-${i}`, kind: 'grid', attr: '通り芯', name: `通り芯 ${i + 1}`, parent_id: null }))
+  if (input.outline && input.outline.length >= 3) rows.push({ id: 'outline', kind: 'other', attr: '外形', name: '外形', parent_id: null, area_m2: null, quantity: null })
+  if (input.siteBoundary) rows.push({ id: 'parcel', kind: 'other', attr: '筆界', name: '筆界', parent_id: null, area_m2: null, quantity: null })
+  ;(input.gridLines ?? []).forEach((_, i) => rows.push({ id: `grid-${i}`, kind: 'grid', attr: '通り芯', name: `通り芯 ${i + 1}`, parent_id: null, area_m2: null, quantity: null }))
   for (const f of input.fixtures) {
     const parent = f.unitId !== null && unitIds.has(f.unitId) ? f.unitId : null
-    rows.push({ id: f.id, kind: FIXTURE_KIND, attr: FIXTURE_ATTRIBUTE, name: fixtureLabel(f.item), parent_id: parent })
+    rows.push({ id: f.id, kind: FIXTURE_KIND, attr: FIXTURE_ATTRIBUTE, name: fixtureLabel(f.item), parent_id: parent, area_m2: null, quantity: 1 })
   }
   return rows
 }
