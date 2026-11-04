@@ -26,6 +26,7 @@ import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { useUi } from '../store/ui'
 import { neighborVolumes } from '../volume/neighborLocal'
 import { NeighborScene3D } from './NeighborScene3D'
+import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
 
 // 既定の地点は江東区の木場付近（zip の範囲内。半径 400 m に建物がある）。東京駅付近は千代田区で、この zip の外
 const DEFAULT = { lon: 139.814, lat: 35.67 }
@@ -45,6 +46,11 @@ export function P1Site() {
   const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
   const [neighborLoading, setNeighborLoading] = useState(false)
   const [neighborError, setNeighborError] = useState<string | null>(null)
+  // 住所検索（国土地理院の住所 API）。候補を選ぶと、その経緯度を対象地点にする
+  const [addressText, setAddressText] = useState('')
+  const [candidates, setCandidates] = useState<AddressCandidate[]>([])
+  const [addressLoading, setAddressLoading] = useState(false)
+  const [addressError, setAddressError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
   const showNeighbors = useUi((s) => s.showNeighbors)
   const siteOrigin = useSite((s) => s.sitePoint)
@@ -98,6 +104,26 @@ export function P1Site() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const runAddressSearch = async () => {
+    setAddressLoading(true)
+    setAddressError(null)
+    try {
+      const list = await searchAddress(addressText)
+      setCandidates(list)
+      if (list.length === 0 && addressText.trim() !== '') setAddressError('該当する住所がありません')
+    } catch (e) {
+      setCandidates([])
+      setAddressError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAddressLoading(false)
+    }
+  }
+
+  const pickCandidate = (c: AddressCandidate) => {
+    moveSiteByText(String(c.lon), String(c.lat))
+    setCandidates([])
   }
 
   const fetchNeighbors = async () => {
@@ -242,6 +268,48 @@ export function P1Site() {
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールか ＋ － で拡大縮小します。</p>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            住所
+            <input
+              value={addressText}
+              onChange={(e) => setAddressText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runAddressSearch()
+              }}
+              placeholder="例: 東京都江東区東陽4-11-28"
+              style={{ width: '100%' }}
+            />
+          </label>
+          <button type="button" onClick={() => void runAddressSearch()} disabled={addressLoading}>
+            {addressLoading ? '検索中…' : '住所で探す'}
+          </button>
+          {addressError && <p style={{ color: '#a33' }}>{addressError}</p>}
+          {candidates.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+              {candidates.map((c) => (
+                <li key={`${c.lon},${c.lat},${c.title}`} style={{ marginBottom: 4 }}>
+                  <button type="button" onClick={() => pickCandidate(c)} style={{ textAlign: 'left' }}>
+                    {c.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: 国土地理院 住所検索 API（利用条件は未確認）。</p>
+        </div>
+        <div aria-disabled="true" style={{ marginBottom: 12, opacity: 0.45 }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            郵便番号（今回のハッカソンでは対象外）
+            <input disabled placeholder="例: 135-8383" style={{ width: '100%' }} />
+          </label>
+          <button type="button" disabled>
+            郵便番号で探す
+          </button>
+          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>
+            郵便番号から住所を引くデータの出どころが未決のため、今回は止めています（README の「今回の対応範囲」を参照）。
+          </p>
+        </div>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
           <input value={lonText} onChange={(e) => moveSiteByText(e.target.value, latText)} style={{ width: '100%' }} />
