@@ -14,7 +14,7 @@ function d(function_: number | null, far: number | null): UseDistrict {
     buildingCoverageRatePercent: null,
     heightLimitM: null,
     notificationNumber: null,
-    ring: [],
+    polygons: [],
   }
 }
 

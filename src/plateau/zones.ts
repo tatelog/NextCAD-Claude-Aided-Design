@@ -1,8 +1,9 @@
 // PLATEAU の urf の防火地域（FirePreventionDistrict）と高度地区（HeightControlDistrict）を解析する（D-02 C4・C11、A-03 G28、ハブ E-80・E-82）。
-// 構造は 2026-11-03 に江東区のメッシュ 533946 の GML で確認。値が無い・数字でなければ null。
+// 構造は 2026-11-03 に江東区のメッシュ 533946 の GML で確認。値が無い・数字でなければ null。告示番号の "Null" は未取得。
 // 防火の区分（function）: 24 防火地域、25 準防火地域。用途（usage）: 1 防火地域（地域）、2 防火地域（路線）、3 準防火地域（地域）、4 準防火地域（路線）。
 // 高度地区（function）: 18。最高・最低の高さ（m）は urf:maximumBuildingHeight / urf:minimumBuildingHeight。
-import { insideRing, tagNumber, tagText } from './urf'
+// 範囲は面の集まり（外環から穴を除いた面。穴の中の点は区域外。統括の t68・2026-11-05）。
+import { insideDistrict, polygonsOf, tagNumber, tagText, tagTextOrNull, type Polygon } from './urf'
 
 export interface FireDistrict {
   id: string
@@ -11,7 +12,8 @@ export interface FireDistrict {
   function: number | null
   usage: number | null
   notificationNumber: string | null
-  ring: { lat: number; lon: number }[]
+  /** 範囲（面の集まり） */
+  polygons: Polygon[]
 }
 
 export interface HeightDistrict {
@@ -22,17 +24,8 @@ export interface HeightDistrict {
   maximumBuildingHeightM: number | null
   minimumBuildingHeightM: number | null
   notificationNumber: string | null
-  ring: { lat: number; lon: number }[]
-}
-
-function ringOf(block: string): { lat: number; lon: number }[] {
-  const pos = block.match(/<gml:posList>([^<]*)<\/gml:posList>/)
-  const nums = pos ? pos[1]!.trim().split(/\s+/).map(Number) : []
-  const dimMatch = block.match(/srsDimension="(\d+)"/)
-  const dim = dimMatch ? Number(dimMatch[1]) : 2
-  const ring: { lat: number; lon: number }[] = []
-  for (let k = 0; k + 1 < nums.length; k += dim) ring.push({ lat: nums[k]!, lon: nums[k + 1]! })
-  return ring
+  /** 範囲（面の集まり） */
+  polygons: Polygon[]
 }
 
 function blocksOf(xml: string, tag: string): { id: string; block: string }[] {
@@ -50,8 +43,8 @@ export function parseFirePreventionDistricts(xml: string): FireDistrict[] {
     function: tagNumber(block, 'function'),
     usage: tagNumber(block, 'usage'),
     custodian: tagText(block, 'custodian'),
-    notificationNumber: tagText(block, 'notificationNumber'),
-    ring: ringOf(block),
+    notificationNumber: tagTextOrNull(block, 'notificationNumber'),
+    polygons: polygonsOf(block),
   }))
 }
 
@@ -62,8 +55,8 @@ export function parseHeightControlDistricts(xml: string): HeightDistrict[] {
     maximumBuildingHeightM: tagNumber(block, 'maximumBuildingHeight'),
     minimumBuildingHeightM: tagNumber(block, 'minimumBuildingHeight'),
     custodian: tagText(block, 'custodian'),
-    notificationNumber: tagText(block, 'notificationNumber'),
-    ring: ringOf(block),
+    notificationNumber: tagTextOrNull(block, 'notificationNumber'),
+    polygons: polygonsOf(block),
   }))
 }
 
@@ -83,9 +76,15 @@ export function fireKind(usage: number): { kind: '防火地域' | '準防火地�
   }
 }
 
-export function districtsAtPoint<T extends { ring: { lat: number; lon: number }[] }>(
-  districts: T[],
-  point: { lat: number; lon: number },
-): T[] {
-  return districts.filter((d) => d.ring.length >= 3 && insideRing(point, d.ring))
+// 区分（function。24 防火地域・25 準防火地域）と、用途（usage）が食い違うか。両方そろわないものは食い違いとは言わない（未取得のまま）。
+// 食い違いの印だけを出し、直さない（判定は区分で行う。統括の t68・2026-11-05）。
+export function fireUsageMismatch(d: { function: number | null; usage: number | null }): boolean {
+  if (d.function === null || d.usage === null) return false
+  const areaKind = d.function === 24 ? '防火地域' : d.function === 25 ? '準防火地域' : null
+  if (areaKind === null || ![1, 2, 3, 4].includes(d.usage)) return false
+  return fireKind(d.usage).kind !== areaKind
+}
+
+export function districtsAtPoint<T extends { polygons: readonly Polygon[] }>(districts: T[], point: { lat: number; lon: number }): T[] {
+  return districts.filter((d) => insideDistrict(point, d.polygons))
 }

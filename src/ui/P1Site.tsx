@@ -19,6 +19,8 @@ import {
   type Point,
 } from '../map/viewport'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
+import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
+import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
 import { OrdinanceForm } from './OrdinanceForm'
@@ -295,7 +297,7 @@ export function P1Site() {
           {result && result.matches.map((m) => (
             <dl key={m.id} style={{ margin: '6px 0' }}>
               <dt>区分コード</dt>
-              <dd>{m.function ?? '未取得'}</dd>
+              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
               <dt>容積率</dt>
               <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
               <dt>建蔽率</dt>
@@ -309,9 +311,10 @@ export function P1Site() {
           {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
           {result && result.fireMatches.map((f) => (
             <p key={f.id}>
-              防火: {f.function === 24 ? '防火地域' : f.function === 25 ? '準防火地域' : `区分 ${f.function ?? '未取得'}`}
-              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}）`}
+              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
+              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
               {f.notificationNumber ? `、${f.notificationNumber}` : ''}
+              {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
             </p>
           ))}
           {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
