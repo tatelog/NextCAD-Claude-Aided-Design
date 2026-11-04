@@ -18,8 +18,8 @@ import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
-import { PanelMenuRows } from './ui/PanelMenuRows'
-import { panelMenuGroupsOf } from './ui/panelMenuGroups'
+import { MenuCheckRows } from './ui/MenuCheckRows'
+import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
 import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
@@ -117,6 +117,25 @@ export function App() {
   }
   const [saved, setSaved] = useState<SaveSnapshotState>(snapshotNow)
   const saveStatus = saveStatusOf(saved, { entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
+  // 機能一覧の行のチェック（G43）: 表示の五つは画面の表示の状態、入力スナップは入力の状態、ほかは機能のオンオフの設定
+  const featureShownOf = (key: FeatureKey): boolean => {
+    switch (key) {
+      case 'showShadow':
+        return showShadow
+      case 'showNeighbors':
+        return showNeighbors
+      case 'showDimensions':
+        return showDimensions
+      case 'showMiniMap':
+        return showMiniMap
+      case 'showGrid':
+        return showGrid
+      case 'inputSnap':
+        return inputSnapGrid
+      default:
+        return featureOn[key]
+    }
+  }
   const setFeature = (key: FeatureKey, on: boolean) => {
     useFeatures.getState().setOn(key, on)
     const patch = featureUiPatch(key, on)
@@ -421,62 +440,16 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="表示（機能のオンオフ）">
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showShadow}
-                    onChange={(e) => {
-                      setFeature('showShadow', e.target.checked)
-                      record('表示', `日影 ${e.target.checked ? '入' : '切'}`)
+                <Fold title="機能一覧（チェックで入・切。G43・G70）">
+                  <MenuCheckRows
+                    groups={featureMenuGroupsOf(featureShownOf)}
+                    onToggle={(id, shown) => {
+                      const f = FEATURE_ITEMS.find((i) => i.key === id)
+                      if (!f) return
+                      setFeature(f.key, shown)
+                      record(f.group === '表示' ? '表示' : '機能', `${f.label} ${shown ? '入' : '切'}`)
                     }}
-                  />{' '}
-                  日影（P2 の 3D の地面）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showNeighbors}
-                    onChange={(e) => {
-                      setFeature('showNeighbors', e.target.checked)
-                      record('表示', `周辺建物 ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  周辺建物（P1 の地図と P2 の 3D）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showDimensions}
-                    onChange={(e) => {
-                      setFeature('showDimensions', e.target.checked)
-                      record('表示', `寸法線 ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  寸法線（P3 の平面）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showMiniMap}
-                    onChange={(e) => {
-                      setFeature('showMiniMap', e.target.checked)
-                      record('表示', `全体図 ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  全体図（右下の縮図：P2・P3）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showGrid}
-                    onChange={(e) => {
-                      setFeature('showGrid', e.target.checked)
-                      record('表示', `グリッド ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  グリッド（P3 の平面）
-                </label>
+                  />
                 </Fold>
                 <Fold title="レイヤー（表示とロック。筆界はロック固定）">
                   {LAYER_NAMES.map((name) => (
@@ -509,7 +482,7 @@ export function App() {
                   ))}
                 </Fold>
                 <Fold title="右パネルの項目（P2 の機能一覧。チェックで右パネルに出す。G43・G73・G74）">
-                  <PanelMenuRows
+                  <MenuCheckRows
                     groups={panelMenuGroupsOf(panelHidden)}
                     onToggle={(id, shown) => {
                       if (shown) usePanelTiles.getState().showTile(id)
@@ -517,18 +490,6 @@ export function App() {
                       record('右パネル', `${PANEL_TILES.find((t) => t.id === id)?.title ?? id} ${shown ? '入' : '切'}`)
                     }}
                   />
-                </Fold>
-                <Fold title="機能のオンオフ（案。項目の中身は未決）">
-                  {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
-                    <label key={f.key} style={{ display: 'block', marginBottom: 6 }}>
-                      <input type="checkbox" checked={f.key === 'inputSnap' ? inputSnapGrid : featureOn[f.key]} onChange={(e) => {
-                        setFeature(f.key, e.target.checked)
-                        record('機能', `${f.label} ${e.target.checked ? '入' : '切'}`)
-                      }} />{' '}
-                      {f.label}
-                      {f.connected ? null : <span style={{ color: '#a86b00', fontSize: 11 }}>（未接続）</span>}
-                    </label>
-                  ))}
                 </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
                   全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。

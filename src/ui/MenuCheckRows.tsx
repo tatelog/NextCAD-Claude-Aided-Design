@@ -1,5 +1,5 @@
-// メニューの「右パネルの項目」の行（ハブ A-03 G43・G73・G74、統括の依頼 t51）。行の右側に SVG のチェックを出し、押すと、その項目を右パネルに出す・閉じる（× と同じ状態）。
-import type { PanelMenuGroup } from './panelMenuGroups'
+// メニューのチェック付きの行（ハブ A-03 G43・G73・G74、統括の依頼 t51）。行の右側に SVG のチェックを出し、押すと、その項目を入れる・外す。
+import type { MenuGroup } from './menuGroups'
 
 /** 行の右側のチェック（SVG）。入っているときだけ、チェックの印を描く */
 function CheckIcon({ on }: { on: boolean }) {
@@ -11,13 +11,13 @@ function CheckIcon({ on }: { on: boolean }) {
   )
 }
 
-export interface PanelMenuRowsProps {
-  groups: readonly PanelMenuGroup[]
+export interface MenuCheckRowsProps {
+  groups: readonly MenuGroup[]
   /** 行を押したとき。shown は押した後の状態（入れるなら true） */
   onToggle: (id: string, shown: boolean) => void
 }
 
-export function PanelMenuRows({ groups, onToggle }: PanelMenuRowsProps) {
+export function MenuCheckRows({ groups, onToggle }: MenuCheckRowsProps) {
   return (
     <>
       {groups.map((g) => (

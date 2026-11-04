@@ -11,7 +11,7 @@ import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
-import { baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
+import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
 import { rotateOutline } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
@@ -144,14 +144,14 @@ export function P03Volume() {
 
   // 基準線（G59・t52）: 描いた外形（中心線）を、内側または中心線からの量で動かした線にする。数でない量は 0
   const baselineOffset = Number(baselineOffsetText)
+  const baselineOpts = useMemo(
+    () => ({ side: baselineSide, offsetMm: Number.isFinite(baselineOffset) ? baselineOffset : 0, wallThicknessMm: DEFAULT_WALL_THICKNESS_MM }),
+    [baselineSide, baselineOffset],
+  )
   const baseline = useMemo(() => {
     if (!closure.closed || closure.footprint === null) return null
-    return baselineOutline(closure.footprint, {
-      side: baselineSide,
-      offsetMm: Number.isFinite(baselineOffset) ? baselineOffset : 0,
-      wallThicknessMm: DEFAULT_WALL_THICKNESS_MM,
-    })
-  }, [closure, baselineSide, baselineOffset])
+    return baselineOutline(closure.footprint, baselineOpts)
+  }, [closure, baselineOpts])
   const placedFootprint = useMemo(() => {
     if (baseline === null || !baseline.ok) return null
     // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
@@ -360,7 +360,7 @@ export function P03Volume() {
         <aside className="p03-side">
           <section style={tileStyle('p2-outline')}>
             <TileClose title="外形" onHide={() => hideTile('p2-outline')} />
-            <h2>外形</h2>
+            <h2>外形（基準線: {baselineLabelOf(baselineOpts)}）</h2>
             <dl>
               <dt>線分</dt>
               <dd>{segments.length} 本</dd>
@@ -370,8 +370,8 @@ export function P03Volume() {
             <label>
               基準線
               <select value={baselineSide} onChange={(e) => setBaselineSide(e.target.value as BaselineSide)}>
-                <option value="中心線">中心線（既定。外壁の中心）</option>
-                <option value="内側">内側（壁厚 200 mm の半分だけ内へ）</option>
+                <option value="中心線">外壁の中心線（既定）</option>
+                <option value="内側">内側の面（壁厚 200 mm の半分だけ内へ）</option>
               </select>
             </label>
             <label>

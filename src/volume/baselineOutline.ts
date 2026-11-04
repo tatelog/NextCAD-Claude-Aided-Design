@@ -21,6 +21,13 @@ export function baselineDistanceOf(o: BaselineOptions): number {
   return (o.side === '内側' ? -o.wallThicknessMm / 2 : 0) + o.offsetMm
 }
 
+/** 基準線の言い方（画面の用語。ハブ A-03 G59）: 見出し「外形（基準線: …）」の中身。既定は「外壁の中心線」 */
+export function baselineLabelOf(o: BaselineOptions): string {
+  const base = o.side === '内側' ? '内側の面' : '外壁の中心線'
+  if (o.offsetMm === 0) return base
+  return `${base}から${o.offsetMm > 0 ? '外へ' : '内へ'} ${Math.abs(o.offsetMm)} mm`
+}
+
 /** 符号つきの面積（反時計回りが正） */
 function signedArea(p: readonly Point[]): number {
   let a = 0

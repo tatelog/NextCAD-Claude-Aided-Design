@@ -7,7 +7,7 @@
 // 仕様 6（向き）: 頂点の順（時計回り・反時計回り）によらず、同じ線になる。
 // 仕様 7（整数）: 結果は整数 mm（立体の入力に使えるように）。
 import { describe, expect, it } from 'vitest'
-import { baselineDistanceOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineOptions } from './baselineOutline'
+import { baselineDistanceOf, baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineOptions } from './baselineOutline'
 
 const RECT = [
   { x: 0, y: 0 },
@@ -126,6 +126,16 @@ describe('基準線の外形', () => {
       expect(Number.isInteger(p.x)).toBe(true)
       expect(Number.isInteger(p.y)).toBe(true)
     }
+  })
+
+  it('仕様 8（用語）: 既定は「外壁の中心線」、内側は「内側の面」（画面の見出し「外形（基準線: …）」の中身。G59）', () => {
+    expect(baselineLabelOf(opts('中心線'))).toBe('外壁の中心線')
+    expect(baselineLabelOf(opts('内側'))).toBe('内側の面')
+  })
+
+  it('仕様 8（用語）: ずらすと、その向きと量を付ける（外へ 50 mm・内へ 30 mm）', () => {
+    expect(baselineLabelOf(opts('中心線', 50))).toBe('外壁の中心線から外へ 50 mm')
+    expect(baselineLabelOf(opts('内側', -30))).toBe('内側の面から内へ 30 mm')
   })
 
   it('内へずらして外形が消えるときは、理由を返す（黙って消さない）', () => {
