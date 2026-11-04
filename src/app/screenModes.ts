@@ -12,6 +12,8 @@ const ModeSchema = z.object({
   available: z.boolean(),
   /** このモードのとき、右のメニューバーに出す項目（右パネルの項目の ID） */
   rightTiles: z.array(IdSchema),
+  /** このモードのとき、画面の項目のうち出さないもの（右パネルの項目の ID。G127: Drawing では意味づけの確認を出さない） */
+  hidesTiles: z.array(IdSchema).default([]),
 })
 
 const ScreenSchema = z.object({
@@ -61,12 +63,12 @@ export function modeName(cfg: ScreenModesConfig, id: string): string {
 
 /**
  * 右のメニューバーに出す項目（右パネルの項目の ID）。その画面で使えるモードの項目だけ。
- * 並びは、画面の項目（画面別）→ モードの項目。使えないモードの項目は出ない。
+ * 並びは、画面の項目（画面別。このモードで隠すものを除く）→ モードの項目。使えないモードの項目は出ない。
  */
 export function rightBarItems(cfg: ScreenModesConfig, mode: string, screen: string): string[] {
   const s = cfg.screens.find((x) => x.id === screen)
   if (s === undefined) return []
-  const usable = modesOfScreen(cfg, screen).some((m) => m.id === mode)
-  const modeTiles = usable ? (cfg.modes.find((m) => m.id === mode)?.rightTiles ?? []) : []
-  return [...s.screenTiles, ...modeTiles]
+  const def = modesOfScreen(cfg, screen).find((m) => m.id === mode)
+  const hidden = def?.hidesTiles ?? []
+  return [...s.screenTiles.filter((t) => !hidden.includes(t)), ...(def?.rightTiles ?? [])]
 }

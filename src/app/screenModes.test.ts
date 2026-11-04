@@ -7,6 +7,7 @@
 // 仕様 4（表を変える）: 表を変えると、コードを変えずに、出るモードと右メニューが変わる。
 // 仕様 5（名前）: モード名は表から出す（仮。コードの名前は id のまま）。
 // 仕様 6（検証）: 画面が知らないモードを挙げた表は、読み込みで弾く。
+// 仕様 7（G127。設計グリル 2026-11-05 の決定）: Drawing のときは、P3 の意味づけの確認（G14 の欄）を出さず、候補の確認欄だけを出す（表の hidesTiles）。
 import { describe, expect, it } from 'vitest'
 import { modeName, modesOfScreen, parseScreenModes, rightBarItems, SCREEN_MODES } from './screenModes'
 
@@ -63,6 +64,25 @@ describe('右のメニューバーの中身（仕様 3）', () => {
   it('P5 は System だけなので、機能の調整が出る。Chat の項目は出ない（使えないモード）', () => {
     expect(rightBarItems(SCREEN_MODES, 'system', 'P5')).toEqual(['feature-adjust'])
     expect(rightBarItems(SCREEN_MODES, 'chat', 'P5')).toEqual([])
+  })
+})
+
+describe('Drawing のときに隠す項目（仕様 7・G127）', () => {
+  it('Drawing の P3 は、意味づけの確認（semantic）を出さず、候補の確認欄だけを出す', () => {
+    expect(rightBarItems(SCREEN_MODES, 'drawing', 'P3')).toEqual(['fixtures', 'milestone', 'auto', 'p3-form', 'p3-result', 'drawing-review'])
+  })
+
+  it('System の P3 は、意味づけの確認を出す（G127 は Drawing だけ）', () => {
+    expect(rightBarItems(SCREEN_MODES, 'system', 'P3')).toContain('semantic')
+  })
+
+  it('表で隠す項目を変えると、コードを変えずに、Drawing の右メニューが変わる', () => {
+    const changed = parseScreenModes({
+      ...SCREEN_MODES,
+      modes: SCREEN_MODES.modes.map((m) => (m.id === 'drawing' ? { ...m, hidesTiles: ['milestone'] } : m)),
+    })
+    expect(rightBarItems(changed, 'drawing', 'P3')).not.toContain('milestone')
+    expect(rightBarItems(changed, 'drawing', 'P3')).toContain('semantic')
   })
 })
 
