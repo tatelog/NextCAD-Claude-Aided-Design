@@ -27,7 +27,8 @@ export function MenuCheckRows({ groups, onToggle }: MenuCheckRowsProps) {
             <button
               key={r.id}
               type="button"
-              aria-pressed={r.shown}
+              role="checkbox"
+              aria-checked={r.shown}
               onClick={() => onToggle(r.id, !r.shown)}
               style={{
                 display: 'flex',

@@ -1,7 +1,7 @@
 // 機能のオンオフ（ハブ A-03 G70、D-04 共通部品「機能のオンオフ」）。項目の中身は画面側の案（未決。仮置き）。
 // 表示の 5 つと入力スナップは、既存の画面の状態（ui 店舗）とつながる。残りは設定だけ持ち、振る舞いへの接続は別の作業（未接続と出す）。
 import { create } from 'zustand'
-import type { UiState } from './ui'
+import { useUi, type UiState } from './ui'
 
 export type FeatureGroup = '表示' | '操作' | '計算'
 
@@ -83,3 +83,31 @@ export const useFeatures = create<FeaturesState>((set) => ({
   setOn: (key, on) => set((s) => ({ on: { ...s.on, [key]: on } })),
   reset: () => set({ on: ALL_ON }),
 }))
+
+/** 機能の行のチェック（G43）: 表示の五つは画面の表示の状態、入力スナップは入力の状態、ほかは機能のオンオフの設定 */
+export function featureShown(key: FeatureKey): boolean {
+  const ui = useUi.getState()
+  switch (key) {
+    case 'showShadow':
+      return ui.showShadow
+    case 'showNeighbors':
+      return ui.showNeighbors
+    case 'showDimensions':
+      return ui.showDimensions
+    case 'showMiniMap':
+      return ui.showMiniMap
+    case 'showGrid':
+      return ui.showGrid
+    case 'inputSnap':
+      return ui.inputSnapGrid
+    default:
+      return useFeatures.getState().on[key]
+  }
+}
+
+/** 機能を入れる・外す（G70）: 設定を持ち、つながっている項目は画面の状態にも出す */
+export function setFeatureOn(key: FeatureKey, on: boolean): void {
+  useFeatures.getState().setOn(key, on)
+  const patch = featureUiPatch(key, on)
+  if (patch) useUi.setState(patch)
+}

@@ -4,7 +4,7 @@
 // 仕様 3: showTile で、閉じたタイルを戻す。
 // 仕様 4: 同じタイルを二度閉じても、戻すのは一度でよい（閉じた状態は一つ）。
 // 仕様 5: reset で、全部のタイルを出す。
-// 仕様 6（一覧）: 右パネルのタイルの一覧は、P3 の 4 つと P2 の 5 つ。ID と名前を持ち、ID は重複しない。メニューの「右パネルの項目」はこの一覧から作る（G74）。
+// 仕様 6（一覧）: 右パネルのタイルの一覧は、P3 の 6 つと P2 の 5 つ、モードの 2 つ（チャットと機能の調整。G95）。ID と名前を持ち、ID は重複しない。メニューの「右パネルの項目」はこの一覧から作る（G74）。
 // 仕様 7（P2）: P2 のタイルの ID は p2- で始まる（P2 の右パネルの節に付ける）。
 import { beforeEach, describe, expect, it } from 'vitest'
 import { PANEL_TILES, usePanelTiles } from './panelTiles'
@@ -12,7 +12,7 @@ import { PANEL_TILES, usePanelTiles } from './panelTiles'
 beforeEach(() => usePanelTiles.getState().reset())
 
 describe('右パネルのタイルの一覧（仕様 6）', () => {
-  it('ID と名前を持ち、ID が重複しない（P3 の 6 つと P2 の 5 つ）', () => {
+  it('ID と名前を持ち、ID が重複しない（P3 の 6 つ、P2 の 5 つ、モードの 2 つ）', () => {
     const ids = PANEL_TILES.map((t) => t.id)
     expect(new Set(ids).size).toBe(ids.length)
     expect(PANEL_TILES.every((t) => t.id !== '' && t.title !== '')).toBe(true)
@@ -28,6 +28,8 @@ describe('右パネルのタイルの一覧（仕様 6）', () => {
       'ボリューム',
       '数値で線を入れる',
       '回転',
+      'Claude（チャット）',
+      '機能の調整（G43）',
     ])
   })
 

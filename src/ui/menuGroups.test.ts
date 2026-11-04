@@ -14,15 +14,16 @@ import { MenuCheckRows } from './MenuCheckRows'
 const count = (html: string, pattern: RegExp): number => (html.match(pattern) ?? []).length
 
 describe('右パネルの項目の一覧（仕様 1〜3）', () => {
-  it('見出しは P2 が先、P3 が後', () => {
+  it('見出しは P2、P3、共通（モードの項目。G95）の順', () => {
     const groups = panelMenuGroupsOf({})
-    expect(groups.map((g) => g.heading)).toEqual(['P2（ボリューム）', 'P3（平面）'])
+    expect(groups.map((g) => g.heading)).toEqual(['P2（ボリューム）', 'P3（平面）', '共通'])
   })
 
-  it('P2 の行は P2 のタイルの 5 つ、P3 の行は 6 つ（合わせて右パネルの一覧と同じ 11 行）', () => {
+  it('P2 の行は 5 つ、P3 の行は 6 つ、共通の行は 2 つ（合わせて右パネルの一覧と同じ 13 行）', () => {
     const groups = panelMenuGroupsOf({})
     expect(groups[0]!.rows.map((r) => r.id)).toEqual(['p2-outline', 'p2-storey', 'p2-volume', 'p2-numeric', 'p2-rotate'])
     expect(groups[1]!.rows.map((r) => r.id)).toEqual(['fixtures', 'milestone', 'semantic', 'auto', 'p3-form', 'p3-result'])
+    expect(groups[2]!.rows.map((r) => r.id)).toEqual(['claude-chat', 'feature-adjust'])
     expect(groups.flatMap((g) => g.rows)).toHaveLength(PANEL_TILES.length)
   })
 

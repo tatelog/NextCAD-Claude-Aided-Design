@@ -11,12 +11,12 @@ import { useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
 import { workLogToCsv } from './app/workLogCsv'
-import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
-import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
+import { FEATURE_ITEMS, featureShown, setFeatureOn, useFeatures } from './store/features'
+import { MODE_NAMES, useMode } from './store/mode'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { MenuCheckRows } from './ui/MenuCheckRows'
 import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
@@ -90,19 +90,14 @@ export function App() {
   // 線が変わるたびに、作業履歴の行を状態つきで書く（G68。戻せるように）
   useEffect(() => startLineLog(), [])
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
-  const showShadow = useUi((s) => s.showShadow)
-  const showNeighbors = useUi((s) => s.showNeighbors)
-  const showDimensions = useUi((s) => s.showDimensions)
-  const showGrid = useUi((s) => s.showGrid)
-  const showMiniMap = useUi((s) => s.showMiniMap)
   // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   const featureOn = useFeatures((s) => s.on)
+  // 作業のモード（G95）: 描画か Claude。メニューの「モード」で切り替える
+  const mode = useMode((s) => s.mode)
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
   const panelHidden = usePanelTiles((s) => s.hidden)
-  // 入力スナップは、ツールバーのボタンと同じ状態を読む（二つの欄が食い違わないように）
-  const inputSnapGrid = useUi((s) => s.inputSnapGrid)
   // レイヤーの表示とロック（G66）。筆界はロック固定
   const layerVisible = useLayers((s) => s.visible)
   const layerLocked = useLayers((s) => s.locked)
@@ -117,31 +112,6 @@ export function App() {
   }
   const [saved, setSaved] = useState<SaveSnapshotState>(snapshotNow)
   const saveStatus = saveStatusOf(saved, { entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
-  // 機能一覧の行のチェック（G43）: 表示の五つは画面の表示の状態、入力スナップは入力の状態、ほかは機能のオンオフの設定
-  const featureShownOf = (key: FeatureKey): boolean => {
-    switch (key) {
-      case 'showShadow':
-        return showShadow
-      case 'showNeighbors':
-        return showNeighbors
-      case 'showDimensions':
-        return showDimensions
-      case 'showMiniMap':
-        return showMiniMap
-      case 'showGrid':
-        return showGrid
-      case 'inputSnap':
-        return inputSnapGrid
-      default:
-        return featureOn[key]
-    }
-  }
-  const setFeature = (key: FeatureKey, on: boolean) => {
-    useFeatures.getState().setOn(key, on)
-    const patch = featureUiPatch(key, on)
-    if (patch) useUi.setState(patch)
-  }
-
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
     setRev((r) => r + 1)
@@ -440,13 +410,31 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
+                <Fold title="モード（描画・Claude。G95）">
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {(['draw', 'claude'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={mode === m}
+                        onClick={() => {
+                          useMode.getState().setMode(m)
+                          record('モード', MODE_NAMES[m])
+                        }}
+                        style={{ ...button, background: mode === m ? '#1f2a44' : '#fff', color: mode === m ? '#fff' : '#1f2a44' }}
+                      >
+                        {MODE_NAMES[m]}
+                      </button>
+                    ))}
+                  </div>
+                </Fold>
                 <Fold title="機能一覧（チェックで入・切。G43・G70）">
                   <MenuCheckRows
-                    groups={featureMenuGroupsOf(featureShownOf)}
+                    groups={featureMenuGroupsOf(featureShown)}
                     onToggle={(id, shown) => {
                       const f = FEATURE_ITEMS.find((i) => i.key === id)
                       if (!f) return
-                      setFeature(f.key, shown)
+                      setFeatureOn(f.key, shown)
                       record(f.group === '表示' ? '表示' : '機能', `${f.label} ${shown ? '入' : '切'}`)
                     }}
                   />

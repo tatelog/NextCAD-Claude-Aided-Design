@@ -56,6 +56,8 @@ import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import { emptyObjectTableInput, objectTableOf } from '../plan/objectTable'
 import { ObjectMenu } from './ObjectMenu'
 import { TileClose } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { usePanelTiles } from '../store/panelTiles'
 import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
@@ -589,6 +591,16 @@ export function P03Volume() {
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
               確定して P04 へ
             </button>
+          </section>
+          <section style={tileStyle('claude-chat')}>
+            <TileClose title="Claude（チャット）" onHide={() => hideTile('claude-chat')} />
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P2" />
+          </section>
+          <section style={tileStyle('feature-adjust')}>
+            <TileClose title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')} />
+            <h2>機能の調整（G43）</h2>
+            <FeatureAdjustTile screen="P2" />
           </section>
         </aside>
       </div>

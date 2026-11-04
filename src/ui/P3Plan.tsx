@@ -28,6 +28,8 @@ import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
 import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { objectTableOf, type ObjectTableInput } from '../plan/objectTable'
 import { sourcesOfTable } from '../plan/objectCountsOfTable'
@@ -579,6 +581,18 @@ export function P3Plan() {
               onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
               onConfirm={setSemanticKind}
             />
+          </PanelTile>
+        )}
+        {hiddenTiles['claude-chat'] ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P3" />
+          </PanelTile>
+        )}
+        {hiddenTiles['feature-adjust'] ? null : (
+          <PanelTile title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')}>
+            <h2>機能の調整（G43）</h2>
+            <FeatureAdjustTile screen="P3" />
           </PanelTile>
         )}
       </aside>
