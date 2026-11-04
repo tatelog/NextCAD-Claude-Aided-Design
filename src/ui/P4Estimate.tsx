@@ -2,6 +2,7 @@
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
 import { useEffect, useMemo, useState } from 'react'
 import { useObjectTable } from '../store/objectTable'
+import { useEstimateLines } from '../store/estimateLines'
 import { useComponentFire } from '../store/componentFire'
 import {
   detailLinesOfObjects,
@@ -14,6 +15,7 @@ import {
 } from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
 import { laborLinesOf, priceOfLine } from '../estimate/laborConversion'
+import { estimateDetailsOf } from '../estimate/estimateDetails'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
@@ -138,9 +140,10 @@ export function P4Estimate() {
   }, [plan, fixtures, volume, drawnEntries, assignments])
   const objectRows = useObjectTable((s) => s.rows)
   // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
+  const detailLines = useMemo(() => detailLinesOfObjects(derivedObjectRows, rebar), [derivedObjectRows, rebar])
   const autoQuantities = useMemo(
-    () => detailLinesOfObjects(derivedObjectRows, rebar).map((l) => ({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit, source: l.source })),
-    [derivedObjectRows, rebar],
+    () => detailLines.map((l) => ({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit, source: l.source })),
+    [detailLines],
   )
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
   const objectPersisted = useObjectTable((s) => s.persisted)
@@ -150,6 +153,14 @@ export function P4Estimate() {
   useEffect(() => {
     useObjectTable.getState().setRows(derivedObjectRows)
   }, [derivedObjectRows, objectPersisted])
+  // 見積の明細（G86）: 数量の明細に単価の参照と金額を付けて、表（SQLite の estimate_line）に書く。単価の表が読めないときは参照を付けない（未参照）
+  const estimateLinesPersisted = useEstimateLines((s) => s.persisted)
+  useEffect(() => {
+    void useEstimateLines.getState().init()
+  }, [])
+  useEffect(() => {
+    useEstimateLines.getState().setLines(estimateDetailsOf(detailLines, 'rows' in parsed ? parsed.rows : []))
+  }, [detailLines, parsed, estimateLinesPersisted])
 
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
