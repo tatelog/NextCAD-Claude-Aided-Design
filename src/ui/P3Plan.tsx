@@ -24,12 +24,15 @@ import { FixturePalette } from './FixturePalette'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
-import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
+import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
+import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { objectTableOf, type ObjectTableInput } from '../plan/objectTable'
 import { sourcesOfTable } from '../plan/objectCountsOfTable'
@@ -208,6 +211,11 @@ export function P3Plan() {
   const siteMatches = useSite((s) => s.matches)
   const shadowResult = useSite((s) => s.shadow)
   const hiddenTiles = usePanelTiles((s) => s.hidden)
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。× で閉じた項目も出さない（G73）
+  const activeMode = useActiveMode('P3')
+  const tileShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P3', hiddenTiles, id)
+  // 左のオブジェクト一覧の開閉（G55）。描画（システム）のモードは折りたたんで始める。モードが変わると既定に戻る
+  const menuFold = useObjectMenuFold(`P3-${activeMode}`, objectMenuFoldedByDefault(activeMode, 'plan'))
   // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
   const firstFloorNames = useFirstFloor((s) => s.names)
   // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
@@ -290,7 +298,7 @@ export function P3Plan() {
   const W = Number(widthText)
   const D = Number(depthText)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 320px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
         countSources={countSources}
@@ -299,6 +307,8 @@ export function P3Plan() {
         caption="種類ごとの件数（P3 の自動作成の結果）"
         firstFloorCounts={firstFloorCountsOf(firstFloorNames)}
         objectRows={objectRows}
+        folded={menuFold.folded}
+        onToggleFold={menuFold.toggle}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
@@ -404,7 +414,7 @@ export function P3Plan() {
             ))}
           </p>
         ) : null}
-        {hiddenTiles['p3-form'] ? null : (
+        {!tileShown('p3-form') ? null : (
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
@@ -463,7 +473,7 @@ export function P3Plan() {
           ))}
           {core.error ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{core.error}</p> : null}
         </fieldset>
-        {hiddenTiles.auto ? null : (
+        {!tileShown('auto') ? null : (
         <PanelTile title="自動で作る（柱割り・間取り・縦シャフト）" onHide={() => hideTile('auto')}>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
@@ -536,12 +546,12 @@ export function P3Plan() {
         </fieldset>
         </PanelTile>
         )}
-        {hiddenTiles.fixtures ? null : (
+        {!tileShown('fixtures') ? null : (
           <PanelTile title="什器" onHide={() => hideTile('fixtures')}>
             <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
           </PanelTile>
         )}
-        {hiddenTiles['p3-result'] ? null : (
+        {!tileShown('p3-result') ? null : (
         <PanelTile title="住戸数・スパンの判定" onHide={() => hideTile('p3-result')}>
         <p>スパンの判定: {judge}</p>
         {units.result ? (
@@ -567,7 +577,7 @@ export function P3Plan() {
         </p>
         </PanelTile>
         )}
-        {hiddenTiles.milestone ? null : (
+        {!tileShown('milestone') ? null : (
           <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
             <section style={{ marginBottom: 10 }}>
               <strong style={{ fontSize: 13 }}>節目の要約</strong>
@@ -581,7 +591,7 @@ export function P3Plan() {
             </section>
           </PanelTile>
         )}
-        {hiddenTiles.semantic ? null : (
+        {!tileShown('semantic') ? null : (
           <PanelTile title="意味づけの確認（G14）" onHide={() => hideTile('semantic')}>
             <SemanticConfirm
               rows={semanticRows}
@@ -590,13 +600,13 @@ export function P3Plan() {
             />
           </PanelTile>
         )}
-        {hiddenTiles['claude-chat'] ? null : (
+        {!tileShown('claude-chat') ? null : (
           <PanelTile title="Claude（チャット）" onHide={() => hideTile('claude-chat')}>
             <h2>Claude（チャット）</h2>
             <ChatTile screen="P3" />
           </PanelTile>
         )}
-        {hiddenTiles['feature-adjust'] ? null : (
+        {!tileShown('feature-adjust') ? null : (
           <PanelTile title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')}>
             <h2>機能の調整（G43）</h2>
             <FeatureAdjustTile screen="P3" />

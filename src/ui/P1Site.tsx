@@ -26,6 +26,11 @@ import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { useUi } from '../store/ui'
 import { neighborVolumes } from '../volume/neighborLocal'
 import { NeighborScene3D } from './NeighborScene3D'
+import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { usePanelTiles } from '../store/panelTiles'
 
 // 既定の地点は江東区の木場付近（zip の範囲内。半径 400 m に建物がある）。東京駅付近は千代田区で、この zip の外
 const DEFAULT = { lon: 139.814, lat: 35.67 }
@@ -190,6 +195,11 @@ export function P1Site() {
     followPointer(d, end)
   }
 
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P1 はチャットだけ
+  const activeMode = useActiveMode('P1')
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P1', hiddenTiles, id)
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
       <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
@@ -341,6 +351,12 @@ export function P1Site() {
           )}
           <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（建物データ。利用条件は未確認）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
+        {!rightShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P1" />
+          </PanelTile>
+        )}
       </aside>
     </div>
   )

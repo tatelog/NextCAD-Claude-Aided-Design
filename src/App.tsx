@@ -16,7 +16,8 @@ import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureShown, setFeatureOn, useFeatures } from './store/features'
-import { MODE_NAMES, useMode } from './store/mode'
+import { useActiveMode, useMode, type WorkMode } from './store/mode'
+import { modesOfScreen, SCREEN_MODES } from './app/screenModes'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { MenuCheckRows } from './ui/MenuCheckRows'
 import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
@@ -94,8 +95,8 @@ export function App() {
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   const featureOn = useFeatures((s) => s.on)
-  // 作業のモード（G95）: 描画か Claude。メニューの「モード」で切り替える
-  const mode = useMode((s) => s.mode)
+  // 作業のモード（G95・G100）: システム・チャット・ドロー。切替は、この画面で使えるものだけ出す
+  const activeMode = useActiveMode(screen)
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
   const panelHidden = usePanelTiles((s) => s.hidden)
   // レイヤーの表示とロック（G66）。筆界はロック固定
@@ -410,20 +411,20 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="モード（描画・Claude。G95）">
+                <Fold title="モード（この画面で使えるもの。G100・G95）">
                   <div style={{ display: 'flex', gap: 6 }}>
-                    {(['draw', 'claude'] as const).map((m) => (
+                    {modesOfScreen(SCREEN_MODES, screen).map((m) => (
                       <button
-                        key={m}
+                        key={m.id}
                         type="button"
-                        aria-pressed={mode === m}
+                        aria-pressed={activeMode === m.id}
                         onClick={() => {
-                          useMode.getState().setMode(m)
-                          record('モード', MODE_NAMES[m])
+                          useMode.getState().setMode(m.id as WorkMode)
+                          record('モード', m.name)
                         }}
-                        style={{ ...button, background: mode === m ? '#1f2a44' : '#fff', color: mode === m ? '#fff' : '#1f2a44' }}
+                        style={{ ...button, background: activeMode === m.id ? '#1f2a44' : '#fff', color: activeMode === m.id ? '#fff' : '#1f2a44' }}
                       >
-                        {MODE_NAMES[m]}
+                        {m.name}
                       </button>
                     ))}
                   </div>

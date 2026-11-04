@@ -55,10 +55,13 @@ import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
 import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import { emptyObjectTableInput, objectTableOf } from '../plan/objectTable'
 import { ObjectMenu } from './ObjectMenu'
+import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { TileClose } from './PanelTile'
 import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { usePanelTiles } from '../store/panelTiles'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
 import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
@@ -131,7 +134,14 @@ export function P03Volume() {
   // 右パネルの節を閉じる（ハブ A-03 G73）。閉じた節は display: none で残し、入力の値は保つ
   const hiddenTiles = usePanelTiles((s) => s.hidden)
   const { hideTile } = usePanelTiles.getState()
-  const tileStyle = (id: string) => ({ position: 'relative' as const, ...(hiddenTiles[id] ? { display: 'none' as const } : {}) })
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。表に無い・使えないモードの項目は出さない
+  const activeMode = useActiveMode('P2')
+  const tileStyle = (id: string) => ({
+    position: 'relative' as const,
+    ...(isRightItemShown(SCREEN_MODES, activeMode, 'P2', hiddenTiles, id) ? {} : { display: 'none' as const }),
+  })
+  // 左のオブジェクト一覧の開閉（G55）。描画（システム）と 3D は折りたたんで始める。画面・モード・表示が変わると既定に戻る
+  const menuFold = useObjectMenuFold(`P2-${activeMode}-${view}`, objectMenuFoldedByDefault(activeMode, view))
   const rotateDeg = snapAngle(Number(rotateText), rotateStep)
   // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
   const knobSnapshotRef = useRef<typeof entries | null>(null)
@@ -331,9 +341,15 @@ export function P03Volume() {
         )}
       </header>
       <div className="p03-body">
-        {view === 'plan' && (
-          <ObjectMenu sources={objectSources} countSources={countSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（外形と仮の筆界）" />
-        )}
+        <ObjectMenu
+          sources={objectSources}
+          countSources={countSources}
+          selectedKind={selectedKind}
+          onSelect={setSelectedKind}
+          caption="種類ごとの件数（外形と仮の筆界）"
+          folded={menuFold.folded}
+          onToggleFold={menuFold.toggle}
+        />
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (

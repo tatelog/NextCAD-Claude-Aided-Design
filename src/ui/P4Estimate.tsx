@@ -39,7 +39,13 @@ import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
 import { FixtureLayer } from './FixtureLayer'
 import { FixtureSummary } from './FixtureSummary'
-import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
+import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
+import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { usePanelTiles } from '../store/panelTiles'
+import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
 
 const SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
@@ -172,8 +178,15 @@ export function P4Estimate() {
     }
   }, [parsed, estimateLines, fixtureAmountLines])
 
+  // 左のオブジェクト一覧の開閉（G55）。描画（システム）のモードは折りたたんで始める。モードが変わると既定に戻る
+  const activeMode = useActiveMode('P4')
+  const menuFold = useObjectMenuFold(`P4-${activeMode}`, objectMenuFoldedByDefault(activeMode, 'plan'))
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P4 はチャットだけ
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P4', hiddenTiles, id)
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 360px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
         countSources={countSources}
@@ -182,6 +195,8 @@ export function P4Estimate() {
         caption="種類ごとの件数（P3 の自動作成の結果）"
         notice={noticeOfPlan(plan)}
         objectRows={objectRows}
+        folded={menuFold.folded}
+        onToggleFold={menuFold.toggle}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
@@ -394,6 +409,12 @@ export function P4Estimate() {
           <li>ユニットバス・什器の歩掛（出典なし。G22）</li>
           <li>数量の拾い方は仮置き（D-02 C8）</li>
         </ul>
+        {!rightShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P4" />
+          </PanelTile>
+        )}
       </aside>
     </div>
   )

@@ -16,7 +16,7 @@
 //   useEffect はサーバー側の描画では動かないので、呼ばれた場所でその場で動かす（店舗への知らせを確かめるため）。
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { candidateCells } from '../plan/candidateCells'
 import { FIXTURE_ITEMS } from '../plan/fixtures'
 import type { Fixture, FixtureItem } from '../plan/fixtures'
@@ -58,6 +58,13 @@ vi.mock('./FixturePalette', async (importOriginal) => {
       return actual.FixturePalette(props)
     },
   }
+})
+// 描画では店舗が初期の状態を返すので、今のモードだけここで渡す（左メニューの開閉の既定と、右パネルの項目に効く）
+const modeShell = vi.hoisted(() => ({ mode: 'system' }))
+vi.mock('../store/mode', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../store/mode')>()
+  const screenModes = await import('../app/screenModes')
+  return { ...actual, useActiveMode: (screen: string) => actual.activeModeOf(screenModes.SCREEN_MODES, modeShell.mode, screen) }
 })
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>()
@@ -237,6 +244,14 @@ describe('平面の印を押すと外す（仕様 7）', () => {
 })
 
 describe('P3 の左メニューに什器の件数が出る（仕様 6）', () => {
+  // 左メニューは、描画（システム）のモードでは既定で折りたたむ（G55）。件数を見るので、一覧が開いているチャットのモードにそろえる
+  beforeEach(() => {
+    modeShell.mode = 'chat'
+  })
+  afterEach(() => {
+    modeShell.mode = 'system'
+  })
+
   it('置いた什器の数が、廊下の次・住戸の前の「什器」の行に出る（区画なしの什器も数える）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id), fixture('fixture-3', kitchen, null)]
     expect(textOf(htmlOf())).toContain(`廊下1什器3住戸${CELLS.length}`)

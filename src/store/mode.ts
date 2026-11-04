@@ -1,33 +1,47 @@
-// 作業のモード（ハブ A-03 G95・G43、統括の依頼 t55）。描画（今作っているシステム）と Claude の二つ。
-// モードを切り替えると、そのモードの右パネルの項目を開き、もう一方の項目を閉じる。描画では機能の調整（G43）、Claude ではチャット（G95）。
-// モード 3（デジタイザ、G98）は、t54 の仕様が出るまで入れない。
+// 作業のモード（ハブ A-03 G100・G95・G43、統括の依頼 t57）。システム（1）・チャット（2）・ドロー（3）。モード名は仮。コードの id は変えない。
+// 切り替えると、そのモードの右メニューの項目を開く。右メニューに何が出るかは、モードと画面の組で決まる（表 screenModes）。
+// ドロー（3）は表で使えない（t54 の仕様が出るまで）。
 import { create } from 'zustand'
+import { modesOfScreen, rightBarItems, SCREEN_MODES, type ScreenModesConfig } from '../app/screenModes'
 import { usePanelTiles } from './panelTiles'
 
-export type WorkMode = 'draw' | 'claude'
-
-export const MODE_NAMES: Record<WorkMode, string> = { draw: '描画', claude: 'Claude' }
-
-/** モードごとに開く項目と閉じる項目（右パネルの項目の ID） */
-export const TILE_OF_MODE: Record<WorkMode, { open: string; close: string }> = {
-  draw: { open: 'feature-adjust', close: 'claude-chat' },
-  claude: { open: 'claude-chat', close: 'feature-adjust' },
-}
+export type WorkMode = 'system' | 'chat' | 'draw'
 
 export interface ModeState {
   mode: WorkMode
-  /** モードを切り替える。同じモードでも、そのモードの項目は開く（閉じていても） */
+  /** モードを切り替える。そのモードの右メニューの項目は、閉じていても開く */
   setMode: (mode: WorkMode) => void
 }
 
 export const useMode = create<ModeState>((set) => ({
-  mode: 'draw',
+  mode: 'system',
   setMode: (mode) => {
     set({ mode })
-    usePanelTiles.getState().showTile(TILE_OF_MODE[mode].open)
-    usePanelTiles.getState().hideTile(TILE_OF_MODE[mode].close)
+    const tiles = SCREEN_MODES.modes.find((m) => m.id === mode)?.rightTiles ?? []
+    for (const id of tiles) usePanelTiles.getState().showTile(id)
   },
 }))
 
-// 既定は描画なので、チャットは最初は閉じておく（G95）
-usePanelTiles.getState().hideTile(TILE_OF_MODE.draw.close)
+/** 画面で扱う今のモード。画面で使えないモードのときは、その画面で使える最初のモード（仕様 5） */
+export function activeModeOf(cfg: ScreenModesConfig, mode: string, screen: string): string {
+  const usable = modesOfScreen(cfg, screen)
+  if (usable.some((m) => m.id === mode)) return mode
+  return usable[0]?.id ?? mode
+}
+
+/** 画面で扱う今のモード（画面ごとに、使えるモードへ寄せる） */
+export function useActiveMode(screen: string): string {
+  const mode = useMode((s) => s.mode)
+  return activeModeOf(SCREEN_MODES, mode, screen)
+}
+
+/** 右メニューに、この項目が出るか（モードと画面の組で決まる。× で閉じた項目は出ない） */
+export function isRightItemShown(
+  cfg: ScreenModesConfig,
+  mode: string,
+  screen: string,
+  hidden: Readonly<Record<string, true>>,
+  id: string,
+): boolean {
+  return !hidden[id] && rightBarItems(cfg, mode, screen).includes(id)
+}

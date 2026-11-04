@@ -21,7 +21,7 @@ import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from '../plan/fixtures'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import type { ObjectKind } from '../plan/objectMenu'
 import { roomsOfCells } from '../plan/rooms'
-import { OBJECT_MENU_WIDTH, ObjectMenu, type ObjectMenuProps } from './ObjectMenu'
+import { OBJECT_MENU_WIDTH, ObjectMenu, objectMenuWidthOf, type ObjectMenuProps } from './ObjectMenu'
 
 // 左メニューの並び（12 種類。什器は廊下の後、住戸の前）
 const KINDS: readonly ObjectKind[] = [
@@ -354,5 +354,47 @@ describe('ObjectMenu（共用部のグループ。仕様 7）', () => {
     expect(buttonsOf(render())).toHaveLength(12)
     const lines = findAll(render({ firstFloorCounts: [{ name: 'エントランス', count: 2 }] }), isTag('div')).map(textOf)
     expect(lines).toContain('1F：エントランス 2、風除室 0、ロビー 0、管理室 0、メールコーナー 0、ゴミ置場 0')
+  })
+})
+
+// 仕様 8（折りたたみ。G55）: 開閉のボタンを渡したときだけ、開閉のボタンを出す。折りたたむと、ボタンだけを出し、一覧・説明・中身・共用部を出さない。
+// 折りたたんだ帯は、開いているときより細い（objectMenuWidthOf）。状態は呼び出し側が持つ（folded と onToggleFold を渡す）。
+describe('ObjectMenu（折りたたみ。仕様 8）', () => {
+  const noop = () => undefined
+
+  it('開閉のボタンは、onToggleFold を渡したときだけ出る（渡さなければ、ボタンは行の 12 個だけ）', () => {
+    expect(buttonsOf(render())).toHaveLength(12)
+    expect(buttonsOf(render({ onToggleFold: noop }))).toHaveLength(13)
+  })
+
+  it('開閉のボタンは、開いているとき aria-expanded="true"、折りたたむと "false"', () => {
+    const open = buttonsOf(render({ folded: false, onToggleFold: noop }))[0]
+    const closed = buttonsOf(render({ folded: true, onToggleFold: noop }))[0]
+    expect(open?.props['aria-expanded']).toBe(true)
+    expect(closed?.props['aria-expanded']).toBe(false)
+  })
+
+  it('開閉のボタンを押すと、onToggleFold が 1 回呼ばれる', () => {
+    const onToggleFold = vi.fn()
+    const toggle = buttonsOf(render({ folded: true, onToggleFold }))[0]
+    ;(toggle?.props.onClick as () => void)()
+    expect(onToggleFold).toHaveBeenCalledTimes(1)
+  })
+
+  it('折りたたむと、ボタンだけを出す（一覧・説明・注記・中身・共用部は出さない）', () => {
+    const tree = render({ folded: true, onToggleFold: noop, selectedKind: 'unit', notice: '自動作成の後に出ます' })
+    expect(buttonsOf(tree)).toHaveLength(1)
+    expect(findAll(tree, isTag('li'))).toHaveLength(0)
+    expect(findAll(tree, isTag('p'))).toHaveLength(0)
+    expect(sectionOf(tree)).toHaveLength(0)
+    expect(textOf(tree)).not.toContain('共用部（グループ）')
+  })
+
+  it('折りたたんだ帯は、開いているときより細い（objectMenuWidthOf。開いているときは OBJECT_MENU_WIDTH）', () => {
+    const widthOf = (folded: boolean) => (findAll(render({ folded, onToggleFold: noop }), isTag('aside'))[0]?.props.style as { width: number }).width
+    expect(widthOf(true)).toBe(objectMenuWidthOf(true))
+    expect(widthOf(false)).toBe(objectMenuWidthOf(false))
+    expect(objectMenuWidthOf(true)).toBeLessThan(objectMenuWidthOf(false))
+    expect(objectMenuWidthOf(false)).toBe(OBJECT_MENU_WIDTH)
   })
 })

@@ -1,43 +1,64 @@
-// 仕様（ハブ A-03 G95・G43。統括の依頼 t55、2026-11-04）: 作業のモードは、描画（今作っているシステム）と Claude の二つ。
-// 仕様 1（切り替え・G95）: Claude に切り替えると、右パネルのチャットを開き、機能の調整を閉じる。
-// 仕様 2（描画へ・G43）: 描画に戻すと、右パネルに機能の調整（G43）を出し、チャットを閉じる。
-// 仕様 3（閉じた後）: × で閉じたあとでも、モードを切り替えれば、そのモードの項目を開く。
-// 仕様 4（項目）: モードの項目は、右パネルの項目の一覧に入る二つ（MODE_TILE_IDS）。
+// 仕様（ハブ A-03 G100・G95・G43。統括の依頼 t57、2026-11-04）: 作業のモードは、システム（1）・チャット（2）・ドロー（3）。
+// 仕様 1（切替）: モードを切り替えると、そのモードの右メニューの項目を開く（閉じていても）。
+// 仕様 2（出る項目）: 右メニューの項目は、モードと画面の組で決まる（表 screenModes）。使えないモードの項目は出ない。
+// 仕様 3（閉じた項目）: × で閉じた項目は、出ない。切り替えで開き直す。
+// 仕様 4（既定）: 最初はシステム。
+// 仕様 5（画面で使えない今のモード）: 画面で使えないモードのとき、その画面で使える最初のモードとして扱う。
 import { beforeEach, describe, expect, it } from 'vitest'
-import { TILE_OF_MODE, useMode } from './mode'
-import { MODE_TILE_IDS, usePanelTiles } from './panelTiles'
+import { activeModeOf, isRightItemShown, useMode } from './mode'
+import { usePanelTiles } from './panelTiles'
+import { SCREEN_MODES } from '../app/screenModes'
 
 beforeEach(() => {
   usePanelTiles.getState().reset()
-  useMode.setState({ mode: 'draw' })
+  useMode.setState({ mode: 'system' })
 })
 
-describe('モードの切り替え（仕様 1・2）', () => {
-  it('Claude に切り替えると、チャットを開き、機能の調整を閉じる', () => {
-    useMode.getState().setMode('claude')
-    expect(useMode.getState().mode).toBe('claude')
-    expect(usePanelTiles.getState().hidden).toEqual({ 'feature-adjust': true })
+describe('切替（仕様 1・3）', () => {
+  it('最初はシステム（仕様 4）', () => {
+    expect(useMode.getState().mode).toBe('system')
   })
 
-  it('描画に戻すと、機能の調整を出し、チャットを閉じる', () => {
-    useMode.getState().setMode('claude')
-    useMode.getState().setMode('draw')
-    expect(useMode.getState().mode).toBe('draw')
-    expect(usePanelTiles.getState().hidden).toEqual({ 'claude-chat': true })
-  })
-})
-
-describe('閉じた後（仕様 3）', () => {
-  it('× で閉じたチャットも、モードを切り替えれば開く', () => {
-    useMode.getState().setMode('claude')
+  it('チャットに切り替えると、チャットの項目を開く（閉じていても）', () => {
     usePanelTiles.getState().hideTile('claude-chat')
-    useMode.getState().setMode('claude')
+    useMode.getState().setMode('chat')
+    expect(useMode.getState().mode).toBe('chat')
     expect(usePanelTiles.getState().hidden['claude-chat']).toBeUndefined()
   })
+
+  it('システムに切り替えると、機能の調整を開く', () => {
+    usePanelTiles.getState().hideTile('feature-adjust')
+    useMode.getState().setMode('system')
+    expect(usePanelTiles.getState().hidden['feature-adjust']).toBeUndefined()
+  })
 })
 
-describe('モードの項目（仕様 4）', () => {
-  it('対応する項目は、右パネルの項目の一覧に入る二つ', () => {
-    expect([TILE_OF_MODE.draw.open, TILE_OF_MODE.claude.open].sort()).toEqual([...MODE_TILE_IDS].sort())
+describe('今のモードの扱い（仕様 5）', () => {
+  it('使えるモードは、そのまま今のモード', () => {
+    expect(activeModeOf(SCREEN_MODES, 'chat', 'P2')).toBe('chat')
+    expect(activeModeOf(SCREEN_MODES, 'system', 'P3')).toBe('system')
+  })
+
+  it('P1 でシステムは使えないので、チャットとして扱う', () => {
+    expect(activeModeOf(SCREEN_MODES, 'system', 'P1')).toBe('chat')
+  })
+
+  it('ドロー（使えない）は、その画面で使える最初のモード（P2 はシステム）', () => {
+    expect(activeModeOf(SCREEN_MODES, 'draw', 'P2')).toBe('system')
+  })
+})
+
+describe('右メニューに出る項目（仕様 2・3）', () => {
+  it('P2 のシステムには機能の調整が出て、チャットは出ない', () => {
+    expect(isRightItemShown(SCREEN_MODES, 'system', 'P2', {}, 'feature-adjust')).toBe(true)
+    expect(isRightItemShown(SCREEN_MODES, 'system', 'P2', {}, 'claude-chat')).toBe(false)
+  })
+
+  it('P4 のシステムは、どの項目も出ない（P4 はチャットだけ）', () => {
+    expect(isRightItemShown(SCREEN_MODES, 'system', 'P4', {}, 'feature-adjust')).toBe(false)
+  })
+
+  it('閉じた項目（×）は出ない', () => {
+    expect(isRightItemShown(SCREEN_MODES, 'chat', 'P1', { 'claude-chat': true }, 'claude-chat')).toBe(false)
   })
 })
