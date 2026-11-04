@@ -51,13 +51,28 @@ describe('ボリュームから作る判定の入力', () => {
       expect.arrayContaining([
         '消防用設備等の図書（高層建築物・消防法令）',
         '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）',
-        '非常用の昇降機の図書（法34条2項、高さ31m超）',
+        // 非常用の昇降機は 31m 超の部分の床面積で決まる（下のテスト）
       ]),
     )
 
     const low = requiredPermitDocuments(permitInputFromVolume(block(5, 3_000), project)).required
     expect(low).not.toContain('消防用設備等の図書（高層建築物・消防法令）')
     expect(low).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+  })
+
+  it('31m超の部分の床面積は、高さ31mを超える階の床面積の合計（11階・3m は1階分の400㎡）', () => {
+    expect(permitInputFromVolume(block(11, 3_000), project).areaAbove31M2).toBe(400)
+    expect(permitInputFromVolume(block(5), project).areaAbove31M2).toBe(0)
+  })
+
+  it('11階・3m（31m超の部分は1階分の400㎡）は政令の除外で、非常用の昇降機の図書は要らない', () => {
+    const r = requiredPermitDocuments(permitInputFromVolume(block(11, 3_000), project))
+    expect(r.required).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+  })
+
+  it('15階・3.2m（31m超の部分は6階分の2400㎡）は、非常用の昇降機の図書が要る', () => {
+    const r = requiredPermitDocuments(permitInputFromVolume(block(15, 3_200), project))
+    expect(r.required).toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
   })
 
   it('敷地の日影規制区域は、ボリュームの高さと合わせて日影図の要否を決める', () => {

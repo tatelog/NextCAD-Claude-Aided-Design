@@ -9,6 +9,7 @@ const plateRc: PermitInput = {
   storeys: 4,
   heightM: 14,
   totalFloorAreaM2: 800,
+  areaAbove31M2: 0,
   usage: '共同住宅',
   inShadowRegulationArea: false,
   structuralCalc: false,
@@ -154,8 +155,19 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
   const OUTLET = '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）'
 
   it('高さ31mを超えると、非常用の昇降機の図書と構造計算書が要る', () => {
-    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32, areaAbove31M2: 1_200 })
     expect(required).toEqual(expect.arrayContaining([NON_ELEVATOR, '構造計算書（表三）']))
+  })
+
+  it('31m超の部分の床面積が500㎡以下なら、政令の除外で非常用の昇降機の図書は要らない（施行令129条の13の2 第1項第2号）', () => {
+    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, storeys: 11, heightM: 33, areaAbove31M2: 400 })
+    expect(required).not.toContain(NON_ELEVATOR)
+    expect(notRequired.map((n) => n.name)).toContain(NON_ELEVATOR)
+  })
+
+  it('31m超の部分の床面積が500㎡を超えれば、非常用の昇降機の図書は要る', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 15, heightM: 48, areaAbove31M2: 2_400 })
+    expect(required).toContain(NON_ELEVATOR)
   })
 
   it('高さ31m以下なら、非常用の昇降機の図書は要らない', () => {
