@@ -7,12 +7,15 @@
 // 仕様 4（本体はそのまま）: 左メニューを足しても、P4 の本体（見出し「P4 積算」、右パネルの「工事原価（概算）」）は今までどおり出る。
 // 仕様 5（什器・仮置き。ハブ A-03 G69）: P3 で置いた什器（店舗の一覧）の数が、左メニューの「什器」の行（廊下の次・住戸の前）に出る。
 //   区画なしの什器も数える。什器は自動作成の結果ではなく店舗のものなので、自動作成の前（plan が無い）でも出る（P4 の什器の欄と同じ値）。
+// 仕様 6（数量の内訳は表から読む。ハブ A-03 G86「見積は明細の DB」。表が正本）:
+//   数量の内訳の表は、見積の明細の表（store の lines）から出す。表に無い区分は「未拾い」と出し、自動で拾える数量があっても表に無ければ出さない。
 // 描画は実物（react-dom/server の静的描画）。モックするのは、store の読み出しだけ（zustand はサーバー側の描画で初期値を返すため）。
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateAutoPlan } from '../plan/autoPlan'
 import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from '../plan/fixtures'
+import type { EstimateDetail } from '../estimate/estimateDetails'
 
 // store の中身（試験ごとに差し替える）
 const site = vi.hoisted(() => ({ state: { volume: null as unknown, plan: null as unknown } }))
@@ -23,6 +26,11 @@ vi.mock('../store/site', () => ({
 const fixtureStore = vi.hoisted(() => ({ state: { fixtures: [] as unknown[], unitIds: null as unknown } }))
 vi.mock('../store/fixtures', () => ({
   useFixtures: (selector: (s: typeof fixtureStore.state) => unknown) => selector(fixtureStore.state),
+}))
+// 見積の明細の表（store の読み出し。仕様 6）
+const estimateStore = vi.hoisted(() => ({ state: { lines: [] as EstimateDetail[], persisted: false } }))
+vi.mock('../store/estimateLines', () => ({
+  useEstimateLines: (selector: (s: typeof estimateStore.state) => unknown) => selector(estimateStore.state),
 }))
 
 import { P4Estimate } from './P4Estimate'
@@ -63,6 +71,7 @@ const fixture = (id: string, label: string, unitId: string | null): Fixture => (
 beforeEach(() => {
   site.state = { volume: null, plan: null }
   fixtureStore.state = { fixtures: [], unitIds: null }
+  estimateStore.state = { lines: [], persisted: false }
 })
 
 describe('P4 の左メニュー（共通部品。仕様 1）', () => {
@@ -146,5 +155,70 @@ describe('P4 の本体（仕様 4）', () => {
       expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('P4 積算 — 単価と数量')
       expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('工事原価（概算）')
     }
+  })
+})
+
+describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86）', () => {
+  // 床版の型枠（躯体）。金額は表に入っている値（単価 25,000 円 × 歩掛 0.3 人/m² × 90 m² = 675,000 円）
+  const formwork: EstimateDetail = {
+    lineId: 'slab-1/formwork',
+    objectId: 'slab-1',
+    category: '躯体',
+    item: '型枠（床版の下面）',
+    quantity: 90,
+    unit: 'm2',
+    unitPriceRef: 'carpenter',
+    amountYen: 675000,
+    provisional: true,
+    source: '出典なし・仮置き（G22）',
+    basis: '床版と同じ面積（支保工は含めない）',
+    origin: '自動',
+  }
+  // 壁クロスの手入力（18 m²。オブジェクトは無い）
+  const manualCross: EstimateDetail = {
+    lineId: 'manual/cross',
+    objectId: null,
+    category: '内装',
+    item: '壁クロス',
+    quantity: 18,
+    unit: 'm2',
+    unitPriceRef: 'cross',
+    amountYen: 21600,
+    provisional: false,
+    source: '利用者入力（出典を書く）',
+    basis: '手入力（利用者が数量を入れた）',
+    origin: '手入力',
+  }
+
+  it('表（ストア）に明細があれば、数量の内訳に、品目・数量・出典・金額を出す', () => {
+    estimateStore.state = { lines: [formwork], persisted: true }
+    const text = textOf(htmlOf())
+    expect(text).toContain('型枠（床版の下面）')
+    expect(text).toContain('出典: 出典なし・仮置き（G22）')
+    expect(text).toContain('90 m²')
+    expect(text).toContain('675,000')
+  })
+
+  it('表が空なら、自動で拾える数量があっても、区分ごとに「未拾い」と出す（表が正本）', () => {
+    site.state = { volume: null, plan: PLAN }
+    estimateStore.state = { lines: [], persisted: true }
+    expect(textOf(htmlOf())).toContain('内装未拾い（この区分の数量は、対応するオブジェクトを作ってから）')
+  })
+
+  it('工事原価（概算）は、表の行から出る（型枠 90 m² × 25,000 × 0.3 = 675,000 円）', () => {
+    estimateStore.state = { lines: [formwork], persisted: true }
+    expect(textOf(htmlOf())).toContain('675,000 円')
+  })
+
+  it('手入力の数量は、表の値を単価の行の入力欄に出し、数量の内訳に「手入力」と出す', () => {
+    estimateStore.state = { lines: [manualCross], persisted: true }
+    const html = htmlOf()
+    expect(html).toContain('value="18"')
+    expect(textOf(html)).toContain('手入力')
+  })
+
+  it('自動の数量は、表の値から「自動 N m²」と出す（型枠大工の行）', () => {
+    estimateStore.state = { lines: [formwork], persisted: true }
+    expect(textOf(htmlOf())).toContain('自動 90 m²')
   })
 })

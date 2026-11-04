@@ -1,13 +1,21 @@
 // 左メニューの部品（ハブ A-03 G55、D-04 共通部品「左メニュー」）。P2 の 2D 平面・P3・P4 で共通に使う。
-// 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びは呼び出し側が持つ。
+// 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びと開閉は呼び出し側が持つ。
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
 import { commonAreaCountsOf, commonAreaGroups } from '../plan/commonAreas'
-import { countObjects, type ObjectKind } from '../plan/objectMenu'
+import { countObjects, type ObjectKind, type ObjectSources } from '../plan/objectMenu'
 import type { ObjectRow } from '../plan/objectTable'
 import { unitGroupSummary } from '../plan/unitGroupSummary'
 
 /** 帯の幅（枠線と余白を含む）。呼び出し側の列の幅に使う。 */
 export const OBJECT_MENU_WIDTH = 180
+
+/** 折りたたんだときの帯の幅（開閉のボタンだけを出す。G55）。 */
+export const OBJECT_MENU_FOLDED_WIDTH = 28
+
+/** 帯の幅（開いているか、折りたたんでいるか）。呼び出し側の列の幅に使う。 */
+export function objectMenuWidthOf(folded: boolean): number {
+  return folded ? OBJECT_MENU_FOLDED_WIDTH : OBJECT_MENU_WIDTH
+}
 
 export interface ObjectMenuProps {
   /** 種類ごとの結果（件数と中身の入力）。作り方は objectSourcesOfPlan・objectSourcesOfFootprint（plan/objectSourcesOfPlan.ts） */
@@ -24,25 +32,59 @@ export interface ObjectMenuProps {
   firstFloorCounts?: { name: string; count: number }[]
   /** オブジェクト表の行（plan/objectTable）。あれば住戸をグループとして数える（G58）。省略すると出さない */
   objectRows?: readonly ObjectRow[]
+  /** 左の一覧の件数の入力（オブジェクト表の行から作る。G78）。省略すると sources から数える */
+  countSources?: ObjectSources
+  /** 折りたたんでいるか（G55）。省略すると開いている */
+  folded?: boolean
+  /** 開閉のボタンを押したとき。渡したときだけ開閉のボタンを出す（呼び出し側が folded を切り替える） */
+  onToggleFold?: () => void
 }
 
-export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice, firstFloorCounts, objectRows }: ObjectMenuProps) {
-  const rows = countObjects(sources)
+export function ObjectMenu({
+  sources,
+  selectedKind,
+  onSelect,
+  caption = '種類ごとの件数',
+  notice,
+  firstFloorCounts,
+  objectRows,
+  countSources,
+  folded = false,
+  onToggleFold,
+}: ObjectMenuProps) {
+  const rows = countObjects(countSources ?? sources)
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
   const groupSummary = objectRows ? unitGroupSummary(objectRows) : null
-  return (
-    <aside
-      style={{
-        width: OBJECT_MENU_WIDTH,
-        boxSizing: 'border-box',
-        flex: 'none',
-        padding: 12,
-        borderRight: '1px solid #ddd8cc',
-        background: '#fff',
-        overflowY: 'auto',
-      }}
+  const frame = {
+    width: objectMenuWidthOf(folded),
+    boxSizing: 'border-box' as const,
+    flex: 'none',
+    padding: folded ? 4 : 12,
+    borderRight: '1px solid #ddd8cc',
+    background: '#fff',
+    overflowY: 'auto' as const,
+  }
+  // 開閉のボタン（G55）。どのモードでも押せる。渡されていなければ出さない
+  const toggle = onToggleFold ? (
+    <button
+      type="button"
+      aria-expanded={!folded}
+      aria-label={folded ? 'オブジェクトを開く' : 'オブジェクトを閉じる'}
+      onClick={onToggleFold}
+      style={{ font: 'inherit', padding: '0 2px', border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
     >
-      <h2 style={{ fontSize: 14, margin: '0 0 4px' }}>オブジェクト</h2>
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+        <path d={folded ? 'M4 2 L8 6 L4 10' : 'M2 4 L6 8 L10 4'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  ) : null
+  if (folded) return <aside style={frame}>{toggle}</aside>
+  return (
+    <aside style={frame}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <h2 style={{ fontSize: 14, margin: '0 0 4px' }}>オブジェクト</h2>
+        {toggle}
+      </div>
       <p style={{ fontSize: 11, color: '#666', margin: '0 0 8px' }}>{caption}</p>
       {notice ? <p style={{ fontSize: 11, color: '#a33', margin: '0 0 8px' }}>{notice}</p> : null}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>

@@ -5,6 +5,8 @@ import { MAX_ZOOM, VIEW_PX, clampZoom, parseSitePoint, type LonLat } from '../ma
 import { DEMO_INITIAL_VIEW } from '../map/initialView'
 import { P1Map } from './P1Map'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
+import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
+import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
 import { OrdinanceForm } from './OrdinanceForm'
@@ -13,6 +15,11 @@ import { useUi } from '../store/ui'
 import { neighborVolumes } from '../volume/neighborLocal'
 import { NeighborScene3D } from './NeighborScene3D'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
+import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { usePanelTiles } from '../store/panelTiles'
 
 // 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の重心。江東区の zip の範囲内
 const DEFAULT = { lon: 139.829826, lat: 35.667401 }
@@ -131,6 +138,11 @@ export function P1Site() {
     return siteBuildings.flatMap((b) => b.footprints.map((ring) => ring.map((p) => [p.lon, p.lat] as [number, number])))
   }, [siteBuildings, showNeighbors])
 
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P1 はチャットだけ
+  const activeMode = useActiveMode('P1')
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P1', hiddenTiles, id)
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
       <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
@@ -244,7 +256,7 @@ export function P1Site() {
           {result && result.matches.map((m) => (
             <dl key={m.id} style={{ margin: '6px 0' }}>
               <dt>区分コード</dt>
-              <dd>{m.function ?? '未取得'}</dd>
+              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
               <dt>容積率</dt>
               <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
               <dt>建蔽率</dt>
@@ -258,9 +270,10 @@ export function P1Site() {
           {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
           {result && result.fireMatches.map((f) => (
             <p key={f.id}>
-              防火: {f.function === 24 ? '防火地域' : f.function === 25 ? '準防火地域' : `区分 ${f.function ?? '未取得'}`}
-              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}）`}
+              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
+              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
               {f.notificationNumber ? `、${f.notificationNumber}` : ''}
+              {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
             </p>
           ))}
           {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
@@ -300,6 +313,12 @@ export function P1Site() {
           )}
           <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（建物データ。利用条件は未確認）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
+        {!rightShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P1" />
+          </PanelTile>
+        )}
       </aside>
     </div>
   )

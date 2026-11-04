@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { checkSpan, gridLines } from '../plan/grid'
 import { spanDimensions } from '../plan/spanDimension'
+import { mmLabel } from '../plan/dimensionLabel'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
+import { corridorDefaultOf } from '../plan/corridorDefaults'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
-import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
+import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
 import { confirmRows } from '../plan/semanticConfirm'
 import { DRAW_OPTIONS, useDrawing } from '../store/drawing'
@@ -24,12 +26,19 @@ import { FixturePalette } from './FixturePalette'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
-import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
+import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
+import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { SemanticConfirm } from './SemanticConfirm'
+import { DrawingReviewTile } from './DrawingReviewTile'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
-import { objectTableOf } from '../plan/objectTable'
+import { objectTableOf, type ObjectTableInput } from '../plan/objectTable'
+import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import { useObjectTable } from '../store/objectTable'
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
@@ -41,17 +50,29 @@ import { cellsInsideArc } from '../plan/arcCells'
 import { wallOutlineRings } from '../plan/wallUnion'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
+import unitTypeCandidates from '../plan/unitTypeCandidates.json'
+import { masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
+
+/** 住戸タイプのマスタ（T-08。候補 14 型。未確認の値は仮置き） */
+const UNIT_TYPES = masterOf(unitTypeCandidates)
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
   const [depthText, setDepthText] = useState('12000')
-  const [corridorText, setCorridorText] = useState('2000')
+  // 廊下幅の既定は廊下タイプから（G135。中廊下 1,600 mm の仮置き）。既定の無い層は 2,000 mm のまま
+  const [corridorText, setCorridorText] = useState(String(corridorDefaultOf('中廊下')?.mm ?? 2000))
   const [unitDepthText, setUnitDepthText] = useState('6000')
   const [spanText, setSpanText] = useState('3000')
   const [minText, setMinText] = useState('')
   const [maxText, setMaxText] = useState('')
   const [layoutText, setLayoutText] = useState<CorridorLayout>('中廊下')
-  const [unitTypeText, setUnitTypeText] = useState<'ファミリー' | '単独'>('ファミリー')
+  // 階段室型のしつらえ（統括の決定 G107）: 屋内シャフト（既定）か外部階段（アルミスリット 2 面）
+  const [stairFinishText, setStairFinishText] = useState<StairFinish>('indoorShaft')
+  // 住戸タイプ（G89）: 縦割り（柱割りの列）ごとに、型の id を , で並べる。型が少なければ繰り返す
+  const [unitTypeIdsText, setUnitTypeIdsText] = useState('T-08-2LDK')
+  const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
+  const firstUnitType = UNIT_TYPES.find((t) => t.id === unitTypeIds[0])
+  const unitType = firstUnitType ? unitTypeKind(firstUnitType) : 'ファミリー'
   const [patternText, setPatternText] = useState<RoomPattern>('田の字')
   const [targetText, setTargetText] = useState('')
   const [coreText, setCoreText] = useState<CoreRectText>({ x0: '', y0: '', x1: '', y1: '' })
@@ -75,19 +96,6 @@ export function P3Plan() {
   const selectedFixtureItem = useFixtures((s) => s.selectedItem)
   const selectFixtureItem = useFixtures((s) => s.selectItem)
   const placeSelectedFixture = useFixtures((s) => s.placeSelected)
-  // オブジェクト表（G58）: 自動作成の結果から作った行を、表（SQLite）に書いて、表から読む
-  const derivedObjectRows = useMemo(
-    () => (auto ? objectTableOf({ cells: auto.cells, rooms: auto.rooms, shafts: auto.shaftRects, cores: auto.cores, corridor: auto.corridor, fixtures }) : []),
-    [auto, fixtures],
-  )
-  const objectRows = useObjectTable((s) => s.rows)
-  const objectPersisted = useObjectTable((s) => s.persisted)
-  useEffect(() => {
-    void useObjectTable.getState().init()
-  }, [])
-  useEffect(() => {
-    useObjectTable.getState().setRows(derivedObjectRows)
-  }, [derivedObjectRows, objectPersisted])
   const removeFixtureById = useFixtures((s) => s.remove)
   const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
   // 意味づけの確認（G14）: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
@@ -108,7 +116,10 @@ export function P3Plan() {
         unitDepthMm: Number(unitDepthText),
         corridorMm: Number(corridorText),
         layout: layoutText,
-        unitType: unitTypeText,
+        stairFinish: stairFinishText,
+        unitType,
+        unitTypes: UNIT_TYPES,
+        unitTypeIds,
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
@@ -207,6 +218,11 @@ export function P3Plan() {
   const siteMatches = useSite((s) => s.matches)
   const shadowResult = useSite((s) => s.shadow)
   const hiddenTiles = usePanelTiles((s) => s.hidden)
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。× で閉じた項目も出さない（G73）
+  const activeMode = useActiveMode('P3')
+  const tileShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P3', hiddenTiles, id)
+  // 左のオブジェクト一覧の開閉（G55）。描画（システム）のモードは折りたたんで始める。モードが変わると既定に戻る
+  const menuFold = useObjectMenuFold(`P3-${activeMode}`, objectMenuFoldedByDefault(activeMode, 'plan'))
   // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
   const firstFloorNames = useFirstFloor((s) => s.names)
   // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
@@ -234,6 +250,33 @@ export function P3Plan() {
     [siteMatches, shadowResult, storeyCount, storeyHeightMm, auto, units.cells],
   )
 
+  // オブジェクト表（G58・G78）: 画面の状態（区画・外形・通り芯・コア枠・什器。自動作成の結果があれば、その住戸・部屋・縦シャフト・コア）から作った行。
+  // 左の一覧の件数は、この表の行から数える。表（SQLite）には自動作成の行を書いて、表から読む
+  const objectTableInput = useMemo<ObjectTableInput>(() => {
+    const W = Number(widthText)
+    const D = Number(depthText)
+    return {
+      cells: units.cells ? units.cells.cells : [],
+      rooms: auto ? auto.rooms : [],
+      shafts: auto ? auto.shaftRects : [],
+      cores: auto ? auto.cores : core.rect ? [core.rect] : [],
+      corridors: units.cells ? units.cells.corridors : [],
+      outline: units.cells ? [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: D }, { x: 0, y: D }] : null,
+      siteBoundary: false,
+      gridLines: lines ?? [],
+      fixtures,
+    }
+  }, [widthText, depthText, lines, auto, core.rect, units.cells, fixtures])
+  const derivedObjectRows = useMemo(() => objectTableOf(objectTableInput), [objectTableInput])
+  const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
+  const objectRows = useObjectTable((s) => s.rows)
+  const objectPersisted = useObjectTable((s) => s.persisted)
+  useEffect(() => {
+    void useObjectTable.getState().init()
+  }, [])
+  useEffect(() => {
+    useObjectTable.getState().setRows(derivedObjectRows)
+  }, [derivedObjectRows, objectPersisted])
   const objectSources = useMemo<ObjectDetailSources>(
     () => ({
       outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
@@ -262,14 +305,17 @@ export function P3Plan() {
   const W = Number(widthText)
   const D = Number(depthText)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 320px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
+        countSources={countSources}
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"
         firstFloorCounts={firstFloorCountsOf(firstFloorNames)}
         objectRows={objectRows}
+        folded={menuFold.folded}
+        onToggleFold={menuFold.toggle}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         {lines && units.cells ? (
@@ -289,21 +335,21 @@ export function P3Plan() {
             {showDimensions ? (
               <g stroke="#1f5f8b" strokeWidth={12} fontSize={300} fill="#1f5f8b">
                 <line x1={0} y1={D + 700} x2={W} y2={D + 700} />
-                <text x={W / 2} y={D + 1000} textAnchor="middle">{W} mm</text>
+                <text x={W / 2} y={D + 1000} textAnchor="middle">{mmLabel(W)}</text>
                 <line x1={W + 700} y1={0} x2={W + 700} y2={D} />
-                <text x={W + 1000} y={D / 2} textAnchor="start">{D} mm</text>
+                <text x={W + 1000} y={D / 2} textAnchor="start">{mmLabel(D)}</text>
                 {/* 通り芯のスパン（奥行き方向。右側の寸法の列） */}
                 {spanDimensions(lines).map((s) => (
                   <g key={`gs${s.fromMm}`}>
                     <line x1={W + 1700} y1={s.fromMm} x2={W + 1700} y2={s.toMm} />
-                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="start">{s.lengthMm} mm</text>
+                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="start">{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
                 {/* 住戸の幅（幅方向。下側の寸法の行）。住戸の区画の境界で測る */}
                 {spanDimensions(units.cells.cells.flatMap((c) => [c.x0, c.x1])).map((s) => (
                   <g key={`gu${s.fromMm}`}>
                     <line x1={s.fromMm} y1={D + 1700} x2={s.toMm} y2={D + 1700} />
-                    <text x={(s.fromMm + s.toMm) / 2} y={D + 2000} textAnchor="middle">{s.lengthMm} mm</text>
+                    <text x={(s.fromMm + s.toMm) / 2} y={D + 2000} textAnchor="middle">{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
               </g>
@@ -375,17 +421,36 @@ export function P3Plan() {
             ))}
           </p>
         ) : null}
-        {hiddenTiles['p3-form'] ? null : (
+        {!tileShown('p3-form') ? null : (
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下タイプ
-          <select value={layoutText} onChange={(e) => setLayoutText(e.target.value as CorridorLayout)} style={{ width: '100%' }}>
+          <select
+            value={layoutText}
+            onChange={(e) => {
+              const next = e.target.value as CorridorLayout
+              setLayoutText(next)
+              // 層を変えたら、その層の既定の廊下幅に合わせる（既定の無い層は変えない。G135）
+              const d = corridorDefaultOf(next)
+              if (d) setCorridorText(String(d.mm))
+            }}
+            style={{ width: '100%' }}
+          >
             <option value="中廊下">中廊下</option>
             <option value="片廊下">片廊下</option>
             <option value="階段室">階段室型</option>
             <option value="ツイン">ツインコリドー</option>
           </select>
         </label>
+        {layoutText === '階段室' ? (
+          <label style={{ display: 'block', marginBottom: 4 }}>
+            階段室のしつらえ
+            <select value={stairFinishText} onChange={(e) => setStairFinishText(e.target.value as StairFinish)} style={{ width: '100%' }}>
+              <option value="indoorShaft">屋内シャフト（全部屋内）</option>
+              <option value="outdoorSlit">外部階段（4 面のうち 2 面がアルミスリット）</option>
+            </select>
+          </label>
+        ) : null}
         <label style={{ display: 'block', marginBottom: 6 }}>
           目標の戸数
           <input value={targetText} onChange={(e) => setTargetText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
@@ -407,6 +472,9 @@ export function P3Plan() {
         <label style={{ display: 'block', marginBottom: 4 }}>
           廊下の幅 (mm)
           <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
+          {corridorDefaultOf(layoutText) && corridorText === String(corridorDefaultOf(layoutText)?.mm) ? (
+            <span style={{ display: 'block', fontSize: 11, color: '#a86b00' }}>既定の値は仮置き（出典は A-07 で確認）</span>
+          ) : null}
         </label>
         <label style={{ display: 'block', marginBottom: 4 }}>
           住戸の奥行 (mm)
@@ -434,7 +502,7 @@ export function P3Plan() {
           ))}
           {core.error ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{core.error}</p> : null}
         </fieldset>
-        {hiddenTiles.auto ? null : (
+        {!tileShown('auto') ? null : (
         <PanelTile title="自動で作る（柱割り・間取り・縦シャフト）" onHide={() => hideTile('auto')}>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
@@ -446,15 +514,45 @@ export function P3Plan() {
             <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
           </label>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
-            住戸タイプ
-            <select value={unitTypeText} onChange={(e) => setUnitTypeText(e.target.value as 'ファミリー' | '単独')} style={{ width: '100%' }}>
-              <option value="ファミリー">ファミリー</option>
-              <option value="単独">単独（2 室）</option>
-            </select>
+            住戸タイプ（縦割りごと。ID を , で区切る。型が少なければ繰り返す）
+            <input list="unit-type-options" value={unitTypeIdsText} onChange={(e) => setUnitTypeIdsText(e.target.value)} style={{ width: '100%' }} />
+            <datalist id="unit-type-options">
+              {unitTypeOptions(UNIT_TYPES).map((o) => (
+                <option key={o.value} value={o.value} label={o.label} />
+              ))}
+            </datalist>
           </label>
+          {auto ? (
+            <>
+              <p style={{ fontSize: 12, margin: '0 0 6px' }}>
+                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲。G99）: {unitTypeIds.length === 0 ? '未指定（列ごとの区画）' : auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '—'}`).join('、')}
+              </p>
+              <p style={{ fontSize: 12, margin: '0 0 6px' }}>住戸数は間口 × 列幅から決まる。</p>
+              {auto.provisionalSpans.length > 0 ? (
+                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+                  要確認（仮の間口。間口が未確認の型、または範囲に入らない列）: {auto.provisionalSpans.map((k) => `${k + 1} 列目`).join('、')}
+                </p>
+              ) : null}
+              {auto.absorbedSpans.length > 0 ? (
+                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+                  要確認（余りの列を前の住戸に含めて幅を広げた）: {auto.absorbedSpans.map((k) => `${k + 1} 列目`).join('、')}
+                </p>
+              ) : null}
+              {unitTypeIds.some((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null) ? (
+                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+                  間口が未確認の型（候補からは外さず、仮の間口で置く）: {unitTypeIds.filter((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null).map((id) => UNIT_TYPES.find((t) => t.id === id)?.name ?? id).join('、')}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          {auto && auto.unsupportedSpans.length > 0 ? (
+            <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+              室数に合う割り付けが無い列（個室 3 以上は未対応）は、田の字で仮置き: {auto.unsupportedSpans.map((k) => `${k + 1} 列目`).join('、')}
+            </p>
+          ) : null}
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
             間取りパターン（ファミリー）
-            <select value={patternText} disabled={unitTypeText === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
+            <select value={patternText} disabled={unitType === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
               <option value="田の字">田の字</option>
               <option value="縦長">縦長</option>
               <option value="角">角（両端の住戸だけ）</option>
@@ -488,12 +586,12 @@ export function P3Plan() {
         </fieldset>
         </PanelTile>
         )}
-        {hiddenTiles.fixtures ? null : (
+        {!tileShown('fixtures') ? null : (
           <PanelTile title="什器" onHide={() => hideTile('fixtures')}>
             <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
           </PanelTile>
         )}
-        {hiddenTiles['p3-result'] ? null : (
+        {!tileShown('p3-result') ? null : (
         <PanelTile title="住戸数・スパンの判定" onHide={() => hideTile('p3-result')}>
         <p>スパンの判定: {judge}</p>
         {units.result ? (
@@ -519,7 +617,7 @@ export function P3Plan() {
         </p>
         </PanelTile>
         )}
-        {hiddenTiles.milestone ? null : (
+        {!tileShown('milestone') ? null : (
           <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
             <section style={{ marginBottom: 10 }}>
               <strong style={{ fontSize: 13 }}>節目の要約</strong>
@@ -533,13 +631,30 @@ export function P3Plan() {
             </section>
           </PanelTile>
         )}
-        {hiddenTiles.semantic ? null : (
+        {!tileShown('semantic') ? null : (
           <PanelTile title="意味づけの確認（G14）" onHide={() => hideTile('semantic')}>
             <SemanticConfirm
               rows={semanticRows}
               onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
               onConfirm={setSemanticKind}
             />
+          </PanelTile>
+        )}
+        {!tileShown('drawing-review') ? null : (
+          <PanelTile title="候補の確認（Drawing）" onHide={() => hideTile('drawing-review')}>
+            <DrawingReviewTile />
+          </PanelTile>
+        )}
+        {!tileShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P3" />
+          </PanelTile>
+        )}
+        {!tileShown('feature-adjust') ? null : (
+          <PanelTile title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')}>
+            <h2>機能の調整（G43）</h2>
+            <FeatureAdjustTile screen="P3" />
           </PanelTile>
         )}
       </aside>

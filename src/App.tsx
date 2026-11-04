@@ -1,4 +1,4 @@
-// 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・作業履歴・メニュー・保留）。
+// 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・モード・作業履歴・メニュー・保留）。
 // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
 import { useEffect, useRef, useState } from 'react'
 import { P03Volume } from './ui/P03Volume'
@@ -11,13 +11,17 @@ import { useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
 import { workLogToCsv } from './app/workLogCsv'
-import { useUi } from './store/ui'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
-import { FEATURE_ITEMS, featureUiPatch, useFeatures, type FeatureKey } from './store/features'
+import { FEATURE_ITEMS, featureShown, setFeatureOn, useFeatures } from './store/features'
+import { useActiveMode, useMode, type WorkMode } from './store/mode'
+import { hidesTilesOf, modeName, SCREEN_MODES } from './app/screenModes'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
+import { MenuCheckRows } from './ui/MenuCheckRows'
+import { ModeSwitch } from './ui/ModeSwitch'
+import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
 import { Fold } from './ui/Fold'
 import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
 import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
@@ -32,6 +36,7 @@ import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
 import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
+import { useUndoKeys } from './ui/useUndoKeys'
 
 const SCREENS = [
   { id: 'P1', name: '敷地' },
@@ -50,6 +55,8 @@ const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a
 const WORKER_URL: string = appWorkerUrl()
 
 export function App() {
+  // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
+  useUndoKeys()
   const [screen, setScreen] = useState<ScreenId>('P2')
   // 案件名（敷地名）。画面の中だけで持つ（保存のときだけ書き出す）
   const [project, setProject] = useState('')
@@ -88,19 +95,16 @@ export function App() {
   // 線が変わるたびに、作業履歴の行を状態つきで書く（G68。戻せるように）
   useEffect(() => startLineLog(), [])
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
-  const showShadow = useUi((s) => s.showShadow)
-  const showNeighbors = useUi((s) => s.showNeighbors)
-  const showDimensions = useUi((s) => s.showDimensions)
-  const showGrid = useUi((s) => s.showGrid)
-  const showMiniMap = useUi((s) => s.showMiniMap)
   // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   const featureOn = useFeatures((s) => s.on)
+  // 作業のモード（G95・G100・G101）: System・Chat・Drawing。切替は、この画面で使えるものだけ出す
+  const activeMode = useActiveMode(screen)
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
   const panelHidden = usePanelTiles((s) => s.hidden)
-  // 入力スナップは、ツールバーのボタンと同じ状態を読む（二つの欄が食い違わないように）
-  const inputSnapGrid = useUi((s) => s.inputSnapGrid)
+  // 今のモードで隠す画面の項目（G127。Drawing の意味づけの確認）。一覧の印を閉じた印にする
+  const modeHiddenTiles = hidesTilesOf(SCREEN_MODES, activeMode)
   // レイヤーの表示とロック（G66）。筆界はロック固定
   const layerVisible = useLayers((s) => s.visible)
   const layerLocked = useLayers((s) => s.locked)
@@ -115,12 +119,6 @@ export function App() {
   }
   const [saved, setSaved] = useState<SaveSnapshotState>(snapshotNow)
   const saveStatus = saveStatusOf(saved, { entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
-  const setFeature = (key: FeatureKey, on: boolean) => {
-    useFeatures.getState().setOn(key, on)
-    const patch = featureUiPatch(key, on)
-    if (patch) useUi.setState(patch)
-  }
-
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
     setRev((r) => r + 1)
@@ -348,11 +346,22 @@ export function App() {
           Drive に保存
         </button>
         {driveMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{driveMessage}</span> : null}
+        <ModeSwitch
+          screen={screen}
+          activeMode={activeMode}
+          onPick={(id) => {
+            useMode.getState().setMode(id as WorkMode)
+            record('モード', modeName(SCREEN_MODES, id))
+          }}
+        />
         <button type="button" style={button} onClick={() => setPanel(panel === 'log' ? null : 'log')} aria-pressed={panel === 'log'}>
           作業履歴
         </button>
-        <button type="button" style={button} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} aria-pressed={panel === 'menu'}>
-          メニュー
+        <button type="button" style={button} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} aria-pressed={panel === 'menu'} aria-label="メニュー" title="メニュー">
+          {/* ハンバーガー（ハブ A-03 G74）: 三本線 */}
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style={{ display: 'block' }}>
+            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+          </svg>
         </button>
       </header>
       <nav style={{ display: 'flex', gap: 6, padding: '6px 12px', borderBottom: '1px solid #ddd8cc', background: '#fff' }}>
@@ -416,62 +425,16 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="表示（機能のオンオフ）">
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showShadow}
-                    onChange={(e) => {
-                      setFeature('showShadow', e.target.checked)
-                      record('表示', `日影 ${e.target.checked ? '入' : '切'}`)
+                <Fold title="機能一覧（チェックで入・切。G43・G70）">
+                  <MenuCheckRows
+                    groups={featureMenuGroupsOf(featureShown)}
+                    onToggle={(id, shown) => {
+                      const f = FEATURE_ITEMS.find((i) => i.key === id)
+                      if (!f) return
+                      setFeatureOn(f.key, shown)
+                      record(f.group === '表示' ? '表示' : '機能', `${f.label} ${shown ? '入' : '切'}`)
                     }}
-                  />{' '}
-                  日影（P2 の 3D の地面）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showNeighbors}
-                    onChange={(e) => {
-                      setFeature('showNeighbors', e.target.checked)
-                      record('表示', `周辺建物 ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  周辺建物（P1 の地図と P2 の 3D）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showDimensions}
-                    onChange={(e) => {
-                      setFeature('showDimensions', e.target.checked)
-                      record('表示', `寸法線 ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  寸法線（P3 の平面）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showMiniMap}
-                    onChange={(e) => {
-                      setFeature('showMiniMap', e.target.checked)
-                      record('表示', `全体図 ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  全体図（右下の縮図：P2・P3）
-                </label>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={showGrid}
-                    onChange={(e) => {
-                      setFeature('showGrid', e.target.checked)
-                      record('表示', `グリッド ${e.target.checked ? '入' : '切'}`)
-                    }}
-                  />{' '}
-                  グリッド（P3 の平面）
-                </label>
+                  />
                 </Fold>
                 <Fold title="レイヤー（表示とロック。筆界はロック固定）">
                   {LAYER_NAMES.map((name) => (
@@ -503,33 +466,17 @@ export function App() {
                     </div>
                   ))}
                 </Fold>
-                <Fold title="右パネルの項目（閉じたものを戻す。G73・G74）">
-                  {PANEL_TILES.map((t) => (
-                    <label key={t.id} style={{ display: 'block', marginBottom: 6 }}>
-                      <input
-                        type="checkbox"
-                        checked={!panelHidden[t.id]}
-                        onChange={(e) => {
-                          if (e.target.checked) usePanelTiles.getState().showTile(t.id)
-                          else usePanelTiles.getState().hideTile(t.id)
-                          record('右パネル', `${t.title} ${e.target.checked ? '入' : '切'}`)
-                        }}
-                      />{' '}
-                      {t.title}
-                    </label>
-                  ))}
-                </Fold>
-                <Fold title="機能のオンオフ（案。項目の中身は未決）">
-                  {FEATURE_ITEMS.filter((f) => f.group !== '表示').map((f) => (
-                    <label key={f.key} style={{ display: 'block', marginBottom: 6 }}>
-                      <input type="checkbox" checked={f.key === 'inputSnap' ? inputSnapGrid : featureOn[f.key]} onChange={(e) => {
-                        setFeature(f.key, e.target.checked)
-                        record('機能', `${f.label} ${e.target.checked ? '入' : '切'}`)
-                      }} />{' '}
-                      {f.label}
-                      {f.connected ? null : <span style={{ color: '#a86b00', fontSize: 11 }}>（未接続）</span>}
-                    </label>
-                  ))}
+                <Fold title="右パネルの項目（P2 の機能一覧。チェックで右パネルに出す。G43・G73・G74）">
+                  <MenuCheckRows
+                    groups={panelMenuGroupsOf(panelHidden, PANEL_TILES, modeHiddenTiles)}
+                    onToggle={(id, shown) => {
+                      // 今のモードで隠す項目は、押しても変えない（押すと、モードを替えたときに閉じた状態が残るため。G127）
+                      if (modeHiddenTiles.includes(id)) return
+                      if (shown) usePanelTiles.getState().showTile(id)
+                      else usePanelTiles.getState().hideTile(id)
+                      record('右パネル', `${PANEL_TILES.find((t) => t.id === id)?.title ?? id} ${shown ? '入' : '切'}`)
+                    }}
+                  />
                 </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
                   全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。

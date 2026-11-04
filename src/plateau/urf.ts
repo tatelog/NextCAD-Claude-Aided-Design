@@ -13,13 +13,28 @@ export interface UseDistrict {
   /** 高さの上限（m） */
   heightLimitM: number | null
   notificationNumber: string | null
-  /** 範囲の外環（緯度・経度） */
-  ring: { lat: number; lon: number }[]
+  /** 範囲（面の集まり。面どうしは重なってよく、どれかに入れば区域内） */
+  polygons: Polygon[]
+}
+
+/** 環（緯度・経度）。閉じた輪でも、閉じていない輪でもよい */
+export type Ring = { lat: number; lon: number }[]
+
+/** 一つの面（gml:Polygon）。外環の中から、穴（gml:interior）を除いたものが面 */
+export interface Polygon {
+  exterior: Ring
+  holes: Ring[]
 }
 
 export function tagText(block: string, name: string): string | null {
   const m = block.match(new RegExp(`<urf:${name}(?:\\s[^>]*)?>([^<]*)</urf:${name}>`))
   return m ? m[1]!.trim() : null
+}
+
+/** タグの文字。無い、または "Null"（元データで値が無いことを表す）は null（未取得） */
+export function tagTextOrNull(block: string, name: string): string | null {
+  const t = tagText(block, name)
+  return t === null || t === 'Null' ? null : t
 }
 
 export function tagNumber(block: string, name: string): number | null {
@@ -34,21 +49,14 @@ export function parseUseDistricts(xml: string): UseDistrict[] {
     const from = m.index!
     const to = xml.indexOf('</urf:UseDistrict>', from)
     const block = xml.slice(from, to < 0 ? undefined : to)
-    const pos = block.match(/<gml:posList>([^<]*)<\/gml:posList>/)
-    const nums = pos ? pos[1]!.trim().split(/\s+/).map(Number) : []
-    // 次元は srsDimension（実データは 3: 緯度 経度 高さ）。無ければ 2
-    const dimMatch = block.match(/srsDimension="(\d+)"/)
-    const dim = dimMatch ? Number(dimMatch[1]) : 2
-    const ring: { lat: number; lon: number }[] = []
-    for (let k = 0; k + 1 < nums.length; k += dim) ring.push({ lat: nums[k]!, lon: nums[k + 1]! })
     return {
       id: m[1]!,
       function: tagNumber(block, 'function'),
       floorAreaRatePercent: tagNumber(block, 'floorAreaRate'),
       buildingCoverageRatePercent: tagNumber(block, 'buildingCoverageRate'),
       heightLimitM: tagNumber(block, 'buildingHeightLimits'),
-      notificationNumber: tagText(block, 'notificationNumber'),
-      ring,
+      notificationNumber: tagTextOrNull(block, 'notificationNumber'),
+      polygons: polygonsOf(block),
     }
   })
 }
@@ -72,6 +80,48 @@ export function insideRing(p: { lat: number; lon: number }, ring: { lat: number;
   return inside
 }
 
+// 環の文字（posList）から、緯度・経度の環を作る。次元（srsDimension）ごとに、緯度と経度だけを読む（実データは 3）
+function ringOfPosList(text: string, dim: number): Ring {
+  const nums = text.trim().split(/\s+/).map(Number)
+  const ring: Ring = []
+  for (let k = 0; k + 1 < nums.length; k += dim) ring.push({ lat: nums[k]!, lon: nums[k + 1]! })
+  return ring
+}
+
+/** 区域の面（gml:Polygon）を、外環と穴の組で読む。外環が無い面は捨てる */
+export function polygonsOf(block: string): Polygon[] {
+  const dimMatch = block.match(/srsDimension="(\d+)"/)
+  const dim = dimMatch ? Number(dimMatch[1]) : 2
+  const out: Polygon[] = []
+  for (const m of block.matchAll(/<gml:Polygon[\s>][\s\S]*?<\/gml:Polygon>/g)) {
+    const poly = m[0]
+    const ext = poly.match(/<gml:exterior>[\s\S]*?<gml:posList>([^<]*)<\/gml:posList>/)
+    if (!ext) continue
+    const holes = [...poly.matchAll(/<gml:interior>[\s\S]*?<gml:posList>([^<]*)<\/gml:posList>/g)].map((h) => ringOfPosList(h[1]!, dim))
+    out.push({ exterior: ringOfPosList(ext[1]!, dim), holes })
+  }
+  return out
+}
+
+// 点が環の上にあるか（端点を含む）
+function onRing(p: { lat: number; lon: number }, ring: Ring): boolean {
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    if (onEdge(p, ring[i]!, ring[j]!)) return true
+  }
+  return false
+}
+
+// 点が一つの面の中か。外環の内側で、穴の中にも穴の上にもない（境界上は含めない）
+function insidePolygon(p: { lat: number; lon: number }, poly: Polygon): boolean {
+  if (!insideRing(p, poly.exterior)) return false
+  return poly.holes.every((h) => !insideRing(p, h) && !onRing(p, h))
+}
+
+/** 点が区域の中か。面のどれかに入れば区域内（穴の中・穴の上は区域外） */
+export function insideDistrict(p: { lat: number; lon: number }, polygons: readonly Polygon[]): boolean {
+  return polygons.some((poly) => insidePolygon(p, poly))
+}
+
 export function districtsAt(districts: UseDistrict[], point: { lat: number; lon: number }): UseDistrict[] {
-  return districts.filter((d) => d.ring.length >= 3 && insideRing(point, d.ring))
+  return districts.filter((d) => insideDistrict(point, d.polygons))
 }

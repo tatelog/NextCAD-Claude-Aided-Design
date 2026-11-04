@@ -1,5 +1,5 @@
 // 仕様（ハブ A-03 G48・G49・G58、D-03「オブジェクト」表）: 図面のオブジェクト表を、SQLite（sql.js）の 1 表に保存する。
-// 仕様 1: 表 object を作る。id は主キー、kind は group・wall・column・beam・opening・grid・room・other のどれか、name は必須、attr は任意、parent_id は object.id を参照する。
+// 仕様 1: 表 object を作る。id は主キー、kind は group・wall・column・beam・opening・grid・room・other・slab（床版。G92）のどれか、name は必須、attr は任意、parent_id は object.id を参照する。
 // 仕様 2: 行を入れて読み出すと、同じ値が入れた順に戻る。
 // 仕様 3: 親が表に無い子は入らない（外部キーで拒否）。親は子より先に入る（入れる順は問わない）。
 // 仕様 4: replace は、表の中身を入れ替える。前の行は残らない。
@@ -31,6 +31,15 @@ describe('表の作成と読み出し（仕様 1〜2）', () => {
     const db = await openDb()
     replaceObjectRows(db, rows)
     expect(readObjectRows(db)).toEqual(rows)
+  })
+})
+
+describe('床版の種類（G92）', () => {
+  it('kind が slab の行は入り、同じ値で戻る', async () => {
+    const db = await openDb()
+    const slab: ObjectRow[] = [{ id: 'slab-volume', kind: 'slab', attr: '{"storey_count":3,"storey_height":3000}', name: '床版（外形から）', parent_id: null }]
+    replaceObjectRows(db, slab)
+    expect(readObjectRows(db)).toEqual(slab)
   })
 })
 
