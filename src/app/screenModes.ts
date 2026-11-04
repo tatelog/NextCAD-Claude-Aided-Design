@@ -61,6 +61,11 @@ export function modeName(cfg: ScreenModesConfig, id: string): string {
   return cfg.modes.find((m) => m.id === id)?.name ?? id
 }
 
+/** このモードで出さない画面の項目（G127。表の hidesTiles）。モードが無ければ空 */
+export function hidesTilesOf(cfg: ScreenModesConfig, mode: string): string[] {
+  return cfg.modes.find((m) => m.id === mode)?.hidesTiles ?? []
+}
+
 /**
  * 右のメニューバーに出す項目（右パネルの項目の ID）。その画面で使えるモードの項目だけ。
  * 並びは、画面の項目（画面別。このモードで隠すものを除く）→ モードの項目。使えないモードの項目は出ない。

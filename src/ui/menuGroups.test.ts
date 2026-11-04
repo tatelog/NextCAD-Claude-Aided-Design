@@ -42,6 +42,21 @@ describe('右パネルの項目の一覧（仕様 1〜3）', () => {
   })
 })
 
+// 仕様 9（G127。設計グリル 2026-11-05 の依頼）: モードで隠している項目（Drawing の意味づけの確認）は、一覧でも閉じた印。閉じていない項目の印は変わらない。
+describe('モードで隠す項目の印（仕様 9・G127）', () => {
+  it('Drawing で隠す意味づけの確認は、閉じた印（shown=false）。閉じていない P3 の項目はチェックのまま', () => {
+    const groups = panelMenuGroupsOf({}, PANEL_TILES, ['semantic'])
+    expect(groups[1]!.rows.find((r) => r.id === 'semantic')!.shown).toBe(false)
+    expect(groups[1]!.rows.find((r) => r.id === 'fixtures')!.shown).toBe(true)
+  })
+
+  it('モードで隠す項目が無ければ、印は閉じたタイルだけで決まる（仕様 2 と同じ）', () => {
+    const groups = panelMenuGroupsOf({ 'p2-outline': true }, PANEL_TILES, [])
+    expect(groups[0]!.rows.find((r) => r.id === 'p2-outline')!.shown).toBe(false)
+    expect(groups[1]!.rows.find((r) => r.id === 'semantic')!.shown).toBe(true)
+  })
+})
+
 describe('右パネルの項目の描画（仕様 4）', () => {
   it('行ごとに SVG のチェックを出し、チェックのある行だけ data-check="on" を持つ', () => {
     const groups = panelMenuGroupsOf({ 'p2-outline': true, 'auto': true })

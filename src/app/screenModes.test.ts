@@ -9,7 +9,7 @@
 // 仕様 6（検証）: 画面が知らないモードを挙げた表は、読み込みで弾く。
 // 仕様 7（G127。設計グリル 2026-11-05 の決定）: Drawing のときは、P3 の意味づけの確認（G14 の欄）を出さず、候補の確認欄だけを出す（表の hidesTiles）。
 import { describe, expect, it } from 'vitest'
-import { modeName, modesOfScreen, parseScreenModes, rightBarItems, SCREEN_MODES } from './screenModes'
+import { hidesTilesOf, modeName, modesOfScreen, parseScreenModes, rightBarItems, SCREEN_MODES } from './screenModes'
 
 describe('画面ごとに使えるモード（仕様 1・2）', () => {
   it('P1 は System と Chat', () => {
@@ -83,6 +83,13 @@ describe('Drawing のときに隠す項目（仕様 7・G127）', () => {
     })
     expect(rightBarItems(changed, 'drawing', 'P3')).not.toContain('milestone')
     expect(rightBarItems(changed, 'drawing', 'P3')).toContain('semantic')
+  })
+})
+
+describe('モードで隠す項目の一覧（仕様 7・G127）', () => {
+  it('hidesTilesOf は、モードで隠す項目を表から返す（Drawing は意味づけの確認。System は無し）', () => {
+    expect(hidesTilesOf(SCREEN_MODES, 'drawing')).toEqual(['semantic'])
+    expect(hidesTilesOf(SCREEN_MODES, 'system')).toEqual([])
   })
 })
 

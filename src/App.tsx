@@ -17,7 +17,7 @@ import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
 import { FEATURE_ITEMS, featureShown, setFeatureOn, useFeatures } from './store/features'
 import { useActiveMode, useMode, type WorkMode } from './store/mode'
-import { modeName, SCREEN_MODES } from './app/screenModes'
+import { hidesTilesOf, modeName, SCREEN_MODES } from './app/screenModes'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { MenuCheckRows } from './ui/MenuCheckRows'
 import { ModeSwitch } from './ui/ModeSwitch'
@@ -103,6 +103,8 @@ export function App() {
   const activeMode = useActiveMode(screen)
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
   const panelHidden = usePanelTiles((s) => s.hidden)
+  // 今のモードで隠す画面の項目（G127。Drawing の意味づけの確認）。一覧の印を閉じた印にする
+  const modeHiddenTiles = hidesTilesOf(SCREEN_MODES, activeMode)
   // レイヤーの表示とロック（G66）。筆界はロック固定
   const layerVisible = useLayers((s) => s.visible)
   const layerLocked = useLayers((s) => s.locked)
@@ -466,8 +468,10 @@ export function App() {
                 </Fold>
                 <Fold title="右パネルの項目（P2 の機能一覧。チェックで右パネルに出す。G43・G73・G74）">
                   <MenuCheckRows
-                    groups={panelMenuGroupsOf(panelHidden)}
+                    groups={panelMenuGroupsOf(panelHidden, PANEL_TILES, modeHiddenTiles)}
                     onToggle={(id, shown) => {
+                      // 今のモードで隠す項目は、押しても変えない（押すと、モードを替えたときに閉じた状態が残るため。G127）
+                      if (modeHiddenTiles.includes(id)) return
                       if (shown) usePanelTiles.getState().showTile(id)
                       else usePanelTiles.getState().hideTile(id)
                       record('右パネル', `${PANEL_TILES.find((t) => t.id === id)?.title ?? id} ${shown ? '入' : '切'}`)

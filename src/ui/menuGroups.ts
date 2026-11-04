@@ -15,12 +15,16 @@ export interface MenuGroup {
   rows: MenuRow[]
 }
 
-/** 右パネルの項目を、P2（ボリューム）・P3（平面）・共通（モードの項目。G95）の三つのグループにする。行の順は右パネルの一覧の順。チェックは閉じていないタイル */
+/**
+ * 右パネルの項目を、P2（ボリューム）・P3（平面）・共通（モードの項目。G95）の三つのグループにする。行の順は右パネルの一覧の順。
+ * チェックは閉じていないタイル。今のモードで隠す項目（hiddenByMode。G127）は、閉じた印にする
+ */
 export function panelMenuGroupsOf(
   hidden: Readonly<Record<string, true>>,
   tiles: readonly { id: string; title: string }[] = PANEL_TILES,
+  hiddenByMode: readonly string[] = [],
 ): MenuGroup[] {
-  const rowOf = (t: { id: string; title: string }): MenuRow => ({ id: t.id, title: t.title, shown: !hidden[t.id] })
+  const rowOf = (t: { id: string; title: string }): MenuRow => ({ id: t.id, title: t.title, shown: !hidden[t.id] && !hiddenByMode.includes(t.id) })
   const isMode = (id: string) => MODE_TILE_IDS.includes(id)
   return [
     { heading: 'P2（ボリューム）', rows: tiles.filter((t) => t.id.startsWith('p2-')).map(rowOf) },
