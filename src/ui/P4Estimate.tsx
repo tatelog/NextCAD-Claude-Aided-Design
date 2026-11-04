@@ -15,6 +15,7 @@ import {
 } from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
 import { estimateDetailsOf } from '../estimate/estimateDetails'
+import { isLaborItem } from '../estimate/laborConversion'
 import {
   autoQuantityOfPrice,
   manualQuantityOfPrice,
@@ -316,7 +317,8 @@ export function P4Estimate() {
                         <div style={{ fontSize: 11, color: '#666' }}>出典: {q.source}</div>
                       </td>
                       <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
-                      <td>{q.unitPriceRef ?? '未参照'}</td>
+                      {/* 対応のある労務で単価の参照が無い行は「単価未設定」（単価は利用者が置く。G20・G136）。isLaborUnset と同じ判定 */}
+                      <td>{q.unitPriceRef ?? (isLaborItem(q.item) ? '単価未設定' : '未参照')}</td>
                       <td align="right">{q.amountYen === null ? '—' : q.amountYen.toLocaleString('ja-JP')}</td>
                     </tr>
                   ))

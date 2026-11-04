@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
+import { polylineOfSegment } from '../canvas/arcSegment'
 import { arcFromTwoPoints } from '../input/arc'
 import { addArcResultStroke } from '../input/numericLine'
 import { arcToolStep, ARC_TOOL_START, type ArcToolState } from '../input/twoPointArcTool'
@@ -505,19 +506,12 @@ function paint(
     ctx.setLineDash(style.dash)
     ctx.beginPath()
     for (const s of list) {
-      const pts = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as Point[]) : null
-      if (pts && pts.length > 1) {
-        pts.forEach((p, i) => {
-          const q = mmToPx(vp, p)
-          if (i === 0) ctx.moveTo(q.x, q.y)
-          else ctx.lineTo(q.x, q.y)
-        })
-        continue
-      }
-      const a = mmToPx(vp, { x: s.x1, y: s.y1 })
-      const b = mmToPx(vp, { x: s.x2, y: s.y2 })
-      ctx.moveTo(a.x, a.y)
-      ctx.lineTo(b.x, b.y)
+      // 曲線（spline）は制御点、円弧（arc）は弦誤差で折った点列を通す。直線は両端を結ぶ（t82）
+      polylineOfSegment(s).forEach((p, i) => {
+        const q = mmToPx(vp, p)
+        if (i === 0) ctx.moveTo(q.x, q.y)
+        else ctx.lineTo(q.x, q.y)
+      })
     }
     ctx.stroke()
   }
