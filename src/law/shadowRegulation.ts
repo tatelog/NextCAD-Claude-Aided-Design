@@ -1,9 +1,9 @@
 // 日影規制の判定（建築基準法 第56条の2・別表第四、D-04 P2「日影」、A-03 G54）。決定論。
-// 冬至日の日本時間 8:00〜16:00 を 10 分刻みで見て、敷地境界線の外側の測定点ごとに、建物の影に入っている時間を数える。
+// 冬至日の真太陽時 8:00〜16:00 を 10 分刻みで見て（法56条の2、t26）、敷地境界線の外側の測定点ごとに、建物の影に入っている時間を数える。
 // 規制の値（測定面の高さ・距離の区分・時間）は呼び出し側が渡す（条例の値は未確認のため、ここには数値を置かない）。
 // 敷地は凸の多角形（反時計回り）として扱う。影の形は shadowOf（底面と上面の影の凸包）。
 import type { Point } from '../geom/viewport'
-import { solarPosition } from './solarPosition'
+import { sunAtApparentHours } from './solarPosition'
 import { outwardNormal } from './frontRoad'
 import { shadowOf } from '../volume/shadow'
 
@@ -21,11 +21,26 @@ export interface ShadowRule {
   minHeightMm: number
   /** 距離の区分（小さい順） */
   bands: ShadowBand[]
+  /** 対象の高さの測り方。低層は軒高（別表第四 一項・四項イ）、それ以外は高さ（既定） */
+  minHeightBasis?: 'height' | 'eave'
+  /** 地階を除く階数がこれ以上なら対象（低層のみ。3 階以上） */
+  minStoreys?: number
 }
 
 export interface ShadowBuilding {
   footprint: Point[]
   heightMm: number
+  /** 地階を除く階数（低層の対象の判定に使う） */
+  storeys?: number
+  /** 軒の高さ（mm）。低層の対象の判定に使う。無ければ高さで代用する */
+  eaveHeightMm?: number
+}
+
+/** 日影規制の対象か（別表第四）。低層は軒高 7m 超か 3 階以上、それ以外は高さ 10m 超（K07 で「超える」に揃えた） */
+export function isShadowTarget(b: { heightMm: number; storeys?: number; eaveHeightMm?: number }, rule: ShadowRule): boolean {
+  const measured = rule.minHeightBasis === 'eave' ? (b.eaveHeightMm ?? b.heightMm) : b.heightMm
+  if (measured > rule.minHeightMm) return true
+  return rule.minStoreys !== undefined && (b.storeys ?? 0) >= rule.minStoreys
 }
 
 export interface ShadowJudgment {
@@ -53,13 +68,13 @@ export function pointInPolygon(p: Point, poly: readonly Point[]): boolean {
 }
 
 // 冬至日（日本時間の日付）の 8:00〜16:00 の太陽の位置
-export function sunWindow(lat: number, lon: number, date: Date): { altitudeDeg: number; azimuthFromSouthDeg: number }[] {
-  // 日本時間 8:00 は前日の 23:00 UTC
-  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - 1, 23, 0)
+// 冬至日の真太陽時 8:00〜16:00 の太陽の位置（法56条の2、一次資料 E-47、t26）。
+// 真太陽時の窓は経度に依らない（呼び出し側の互換のため _lon を受ける）。
+export function sunWindow(lat: number, _lon: number, date: Date): { altitudeDeg: number; azimuthFromSouthDeg: number }[] {
   const out: { altitudeDeg: number; azimuthFromSouthDeg: number }[] = []
   // 8:00〜16:00 の 8 時間を 10 分刻みで 48 点（16:00 の点は窓の外。含めると 8 時間 10 分になる）
   for (let m = 0; m < WINDOW_END_MIN - WINDOW_MIN; m += STEP_MIN) {
-    out.push(solarPosition({ lat, lon, date: new Date(start + m * 60_000) }))
+    out.push(sunAtApparentHours({ lat, date, apparentHours: (WINDOW_MIN + m) / 60 }))
   }
   return out
 }
@@ -98,8 +113,8 @@ export function judgeShadow(input: {
   date: Date
 }): ShadowJudgment {
   const zm = input.rule.measurementHeightM * 1000
-  // 別表第四は「超える」建築物が対象（10 m ちょうどは対象外。K07）
-  const applicable = input.buildings.filter((b) => b.heightMm > input.rule.minHeightMm && b.heightMm > zm)
+  // 別表第四は「超える」建築物が対象（10 m ちょうどは対象外。cfedb4f で解決）
+  const applicable = input.buildings.filter((b) => isShadowTarget(b, input.rule) && b.heightMm > zm)
   if (applicable.length === 0) return { result: '適合', worst: null, maxHours: 0 }
 
   const suns = sunWindow(input.lat, input.lon, input.date)
@@ -107,7 +122,7 @@ export function judgeShadow(input: {
   const shadowsBySun = suns.map((sun) =>
     sun.altitudeDeg <= 0
       ? []
-      : applicable.flatMap((b) => shadowOf(b.footprint, b.heightMm - zm, sun.altitudeDeg, sun.azimuthFromSouthDeg)),
+      : applicable.map((b) => shadowOf(b.footprint, b.heightMm - zm, sun.altitudeDeg, sun.azimuthFromSouthDeg)),
   )
 
   let worst: ShadowJudgment['worst'] = null
@@ -115,7 +130,7 @@ export function judgeShadow(input: {
   for (const { p, distanceM } of measurementPoints(input.lot)) {
     let count = 0
     for (const shadows of shadowsBySun) {
-      if (shadows.length > 0 && pointInPolygon(p, shadows)) count++
+      if (shadows.some((poly) => poly.length > 0 && pointInPolygon(p, poly))) count++
     }
     const hours = (count * STEP_MIN) / 60
     if (hours > maxHours) maxHours = hours

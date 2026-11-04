@@ -15,6 +15,8 @@ export interface PermitInput {
   heightM: number
   /** 延べ面積（㎡）。共同住宅は用途部分と同じとして扱う（仮置き） */
   totalFloorAreaM2: number
+  /** 高さ 31m を超える部分の各階の床面積の合計（㎡）。政令の除外（施行令129条の13の2 第1項第2号、500㎡以下）に使う */
+  areaAbove31M2: number
   /** 用途（例: 共同住宅、事務所、戸建住宅） */
   usage: string
   /** 日影規制区域内か（自治体の指定。人が入力する） */

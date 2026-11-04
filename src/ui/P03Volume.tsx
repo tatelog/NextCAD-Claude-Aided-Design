@@ -15,6 +15,7 @@ import { rotateOutline } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
+import { shadowDrawing, shadowDrawingSummary } from '../law/shadowDrawing'
 import { cutFloors } from '../volume/slope'
 import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
@@ -216,9 +217,21 @@ export function P03Volume() {
       lon: 139.86,
       date: new Date(Date.UTC(2026, 11, 22)),
     })
-    if (judgment.result === '適合') return { text: '適合（確認済みの条例の値で判定）', result: '適合' as const }
+    // 日影図（RC 造。切り取った階ごとの影を格子で数える）の一行を判定文に添える（t28）
+    const drawingText = shadowDrawingSummary(
+      shadowDrawing({
+        structure: 'RC',
+        lot: DUMMY_PARCEL,
+        buildings: stackedFloors,
+        rule: ordinance.rule,
+        lat: 35.67,
+        lon: 139.86,
+        date: new Date(Date.UTC(2026, 11, 22)),
+      }),
+    )
+    if (judgment.result === '適合') return { text: `適合（確認済みの条例の値で判定）／${drawingText}`, result: '適合' as const }
     const w = judgment.worst!
-    return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）`, result: '不適合' as const }
+    return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）／${drawingText}`, result: '不適合' as const }
   }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)

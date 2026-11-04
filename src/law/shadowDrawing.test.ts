@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { shadowDrawing } from './shadowDrawing'
+import { shadowDrawing, shadowDrawingSummary } from './shadowDrawing'
 import { shadowRuleFor } from './shadowRule'
 
 // 仕様（ユーザー指示「日影図の作成もボリューム模型作成時に。RC限定で今回はやっていい」、法56条の2、
 // 既存の日影規制の判定 judgeShadow と同じ前提）から書いたテスト。
 // - RC 造だけ日影図を作る。RC 造以外は作らず、理由を返す。
-// - 高さ10m以下の建物は対象外（D25: 高さ10m超）。
-// - 冬至日の 8:00〜16:00（日本時間）を10分刻みで見る（49 点）。
+// - 規制の対象（別表第四）に当たらない建物は作らない（対象外の理由を返す）。
+// - 冬至日の真太陽時 8:00〜16:00 を 10分刻み（48 点）で見る。
+// - 切り取った階（複数の建物）も、判定と同じく全部を影にする。
 // - 同じ入力からは同じ図が出る（決定論）。
 
 const WINTER_SOLSTICE = new Date(Date.UTC(2026, 11, 22))
 const LAT = 35.67
-const LON = 139.8
+const LON = 139.86
 const rule = shadowRuleFor('住居系', 2)!
 
 // 敷地・建物の外形は反時計回りの正方形（mm）
@@ -31,7 +32,7 @@ function input(overrides: Partial<Parameters<typeof shadowDrawing>[0]> = {}) {
   return {
     structure: 'RC' as const,
     lot: lot40,
-    building: building14,
+    buildings: [building14],
     rule,
     lat: LAT,
     lon: LON,
@@ -42,8 +43,7 @@ function input(overrides: Partial<Parameters<typeof shadowDrawing>[0]> = {}) {
 
 describe('日影図（RC 造に限る）', () => {
   it('RC 造で高さ14mの建物は日影図を作る', () => {
-    const result = shadowDrawing(input())
-    expect(result.status).toBe('ok')
+    expect(shadowDrawing(input()).status).toBe('ok')
   })
 
   it('RC 造以外は日影図を作らず、理由（RC 造に限る）を返す', () => {
@@ -54,28 +54,37 @@ describe('日影図（RC 造に限る）', () => {
     }
   })
 
-  it('高さ10m以下の建物は日影規制の対象外として、図を作らない', () => {
-    const atTen = shadowDrawing(input({ building: { footprint: building14.footprint, heightMm: 10_000 } }))
+  it('規制の対象（住居系は高さ10m超）に当たらない建物は、日影図を作らない', () => {
+    const atTen = shadowDrawing(input({ buildings: [{ footprint: building14.footprint, heightMm: 10_000 }] }))
     expect(atTen.status).toBe('not_required')
-    const underTen = shadowDrawing(input({ building: { footprint: building14.footprint, heightMm: 9_500 } }))
+    const underTen = shadowDrawing(input({ buildings: [{ footprint: building14.footprint, heightMm: 9_500 }] }))
     expect(underTen.status).toBe('not_required')
   })
 
-  it('冬至日の 8:00〜16:00（日本時間）を10分刻みで見る（8時間＝48点。16:00 の点は含めない）', () => {
+  it('冬至日の真太陽時 8:00〜16:00 を 10分刻みで見る（8時間＝48点）', () => {
     const result = shadowDrawing(input())
     expect(result.status).toBe('ok')
     if (result.status === 'ok') expect(result.sunSamples).toBe(48)
   })
 
   it('敷地境界から十分離れた低い建物は、規制に適合する（敷地外の測定点で日影時間は0）', () => {
-    // 朝の低い太陽では建物の影が格子の外れまで伸びるが、測定点（敷地境界の外側）には届かない
     const farLot = square(0, 0, 100_000)
     const low = { footprint: square(0, 0, 10_000), heightMm: 10_500 }
-    const result = shadowDrawing(input({ lot: farLot, building: low }))
+    const result = shadowDrawing(input({ lot: farLot, buildings: [low] }))
     expect(result.status).toBe('ok')
     if (result.status === 'ok') {
       expect(result.judgment.result).toBe('適合')
       expect(result.judgment.maxHours).toBe(0)
+    }
+  })
+
+  it('切り取った階（複数の建物）も影にする。階を足すと影が増える', () => {
+    const one = shadowDrawing(input())
+    const two = shadowDrawing(input({ buildings: [building14, { footprint: square(0, 0, 10_000), heightMm: 4_000 }] }))
+    expect(one.status).toBe('ok')
+    expect(two.status).toBe('ok')
+    if (one.status === 'ok' && two.status === 'ok') {
+      expect(two.cells.length).toBeGreaterThanOrEqual(one.cells.length)
     }
   })
 
@@ -93,5 +102,24 @@ describe('日影図（RC 造に限る）', () => {
 
   it('同じ入力からは同じ図が出る（決定論）', () => {
     expect(shadowDrawing(input())).toEqual(shadowDrawing(input()))
+  })
+})
+
+describe('日影図の要約（P2 の判定文に出す）', () => {
+  it('影が落ちる格子の点数と最大時間を一行で書く', () => {
+    const text = shadowDrawingSummary(shadowDrawing(input()))
+    expect(text).toContain('日影図')
+    expect(text).toMatch(/格子 \d+ 点/)
+    expect(text).toMatch(/最大 \d+\.\d h/)
+  })
+
+  it('RC 造以外は、理由をそのまま出す', () => {
+    const text = shadowDrawingSummary(shadowDrawing(input({ structure: 'W' })))
+    expect(text).toContain('RC')
+  })
+
+  it('対象外は、対象外の理由を出す', () => {
+    const text = shadowDrawingSummary(shadowDrawing(input({ buildings: [{ footprint: building14.footprint, heightMm: 9_000 }] })))
+    expect(text).toContain('対象外')
   })
 })

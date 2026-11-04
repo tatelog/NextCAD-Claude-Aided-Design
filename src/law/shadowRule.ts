@@ -23,6 +23,8 @@ export function shadowRuleFor(zone: Zone, level: ShadowLevel): ShadowRule | null
   return {
     measurementHeightM: group === 'low' ? 1.5 : 4,
     minHeightMm: group === 'low' ? 7_000 : 10_000,
+    minHeightBasis: group === 'low' ? 'eave' : 'height',
+    minStoreys: group === 'low' ? 3 : undefined,
     bands: [
       { maxDistanceM: 10, hours: hours[0] },
       { maxDistanceM: Infinity, hours: hours[1] },
