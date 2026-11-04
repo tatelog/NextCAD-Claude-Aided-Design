@@ -20,6 +20,7 @@ const lines: EstimateDetail[] = [
     provisional: true,
     source: '出典なし・仮置き（G22）',
     basis: '床版と同じ面積（支保工は含めない）',
+    origin: '自動',
   },
   {
     lineId: 'roof-1/roof',
@@ -33,6 +34,7 @@ const lines: EstimateDetail[] = [
     provisional: false,
     source: '計算（仮置きなし）',
     basis: '外形から',
+    origin: '自動',
   },
 ]
 

@@ -4,15 +4,21 @@ import type { PriceRow } from './estimate'
 import type { DetailLine } from './estimateDetail'
 import { priceOfLine } from './laborConversion'
 
+/** 出どころ（G86）。自動はオブジェクトから拾った数量、手入力は利用者が単価ごとに入れた数量（オブジェクトは無い） */
+export type EstimateOrigin = '自動' | '手入力'
+
 /** 見積の明細（DB の 1 行）。金額は円の整数。参照が無い行は null */
-export interface EstimateDetail extends DetailLine {
+export interface EstimateDetail extends Omit<DetailLine, 'objectId'> {
+  /** 元になったオブジェクトの id。手入力の行は無い（null） */
+  objectId: string | null
   amountYen: number | null
+  origin: EstimateOrigin
 }
 
-/** 数量の明細に、単価の参照と金額を付ける。行の数と順は入力と同じ */
+/** 数量の明細に、単価の参照と金額を付ける。行の数と順は入力と同じ。出どころは自動 */
 export function estimateDetailsOf(lines: readonly DetailLine[], prices: readonly PriceRow[]): EstimateDetail[] {
-  return lines.map((line) => {
+  return lines.map((line): EstimateDetail => {
     const price = priceOfLine(line, prices)
-    return { ...line, unitPriceRef: price?.ref ?? null, amountYen: price?.amount ?? null }
+    return { ...line, unitPriceRef: price?.ref ?? null, amountYen: price?.amount ?? null, origin: '自動' }
   })
 }

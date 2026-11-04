@@ -14,11 +14,17 @@ import {
   slabObjectRow,
 } from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
-import { laborLinesOf } from '../estimate/laborConversion'
 import { estimateDetailsOf } from '../estimate/estimateDetails'
+import {
+  autoQuantityOfPrice,
+  manualQuantityOfPrice,
+  quantityLinesOfTable,
+  refreshManualLines,
+  withManualQuantity,
+  withOriginLines,
+} from '../estimate/estimateTable'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
-import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 import { objectTableOf, type ObjectRow } from '../plan/objectTable'
@@ -134,11 +140,6 @@ export function P4Estimate() {
   const objectRows = useObjectTable((s) => s.rows)
   // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
   const detailLines = useMemo(() => detailLinesOfObjects(derivedObjectRows, rebar), [derivedObjectRows, rebar])
-  const autoQuantities = useMemo(
-    () => detailLines.map((l) => ({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit, source: l.source })),
-    [detailLines],
-  )
-  const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
   const objectPersisted = useObjectTable((s) => s.persisted)
   useEffect(() => {
     void useObjectTable.getState().init()
@@ -154,22 +155,21 @@ export function P4Estimate() {
     void useEstimateLines.getState().init()
   }, [])
   useEffect(() => {
-    useEstimateLines.getState().setLines(estimateDetailsOf(detailLines, 'rows' in parsed ? parsed.rows : []))
+    const store = useEstimateLines.getState()
+    const prices = 'rows' in parsed ? parsed.rows : []
+    // 自動の行は入れ替える。手入力の行は、単価の表に合わせて金額を取り直して残す（G86）
+    store.setLines(withOriginLines(refreshManualLines(store.lines, prices), '自動', estimateDetailsOf(detailLines, prices)))
   }, [detailLines, parsed, estimateLinesPersisted])
 
+  // 工事原価（G86）: 見積の明細の表の行から数量を出し、単価を当てて合計する。手入力は自動より優先し、歩掛の労務も表の行に入っている
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
-    const lines = parsed.rows
-      .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
-      .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
-      // 歩掛の換算（G19・G86）: 自動作成の数量から、労務の行を一度だけ加える（手入力の行がある労務は加えない）
-      const labor = laborLinesOf(autoList, parsed.rows).filter((l) => !lines.some((x) => x.price_id === l.price_id))
-      return estimateCost(parsed.rows, [...lines, ...labor], fixtureAmountLines)
+      return estimateCost(parsed.rows, quantityLinesOfTable(estimateLines, parsed.rows), fixtureAmountLines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities, autoList, fixtureAmountLines])
+  }, [parsed, estimateLines, fixtureAmountLines])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
@@ -295,6 +295,7 @@ export function P4Estimate() {
                         {q.item}
                         {' '}
                         <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
+                        {q.origin === '手入力' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>手入力</span> : null}
                         <div style={{ fontSize: 11, color: '#666' }}>出典: {q.source}</div>
                       </td>
                       <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
@@ -336,13 +337,21 @@ export function P4Estimate() {
                   <td>{r.source_ref.trim() === '' || r.provisional ? '未確定（出典なし）' : r.source_ref}</td>
                   <td align="right">
                     <input
-                      value={quantities[r.id] ?? ''}
-                      onChange={(e) => setQuantities({ ...quantities, [r.id]: e.target.value })}
+                      value={quantities[r.id] ?? String(manualQuantityOfPrice(estimateLines, r.id) ?? '')}
+                      onChange={(e) => {
+                        const text = e.target.value
+                        setQuantities({ ...quantities, [r.id]: text })
+                        // 手入力の数量は表に書く（工事原価と数量の内訳は表から読む）。空・数でない文字は、その単価の手入力を外す
+                        const store = useEstimateLines.getState()
+                        store.setLines(withManualQuantity(store.lines, r, text))
+                      }}
                       style={{ width: 90, textAlign: 'right' }}
                     />
                     {(() => {
-                      const eq = effectiveQuantity(r, quantities[r.id] ?? '', autoList)
-                      return eq && eq.source === '自動' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(eq.quantity).toLocaleString('ja-JP')} m²</span> : null
+                      const auto = autoQuantityOfPrice(estimateLines, r.id)
+                      return manualQuantityOfPrice(estimateLines, r.id) === null && auto !== null ? (
+                        <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(auto).toLocaleString('ja-JP')} m²</span>
+                      ) : null
                     })()}
                   </td>
                 </tr>

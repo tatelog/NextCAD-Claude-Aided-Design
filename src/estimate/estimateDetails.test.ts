@@ -60,4 +60,9 @@ describe('見積の明細（DB に入れる形）', () => {
     const out = estimateDetailsOf([formwork, roof], [carpenter])
     expect(out.map((d) => d.lineId)).toEqual(['slab-1/formwork', 'roof-1/roof'])
   })
+
+  it('オブジェクトから拾った行の出どころは「自動」で、オブジェクトの id を持つ', () => {
+    const [d] = estimateDetailsOf([formwork], [carpenter])
+    expect(d).toMatchObject({ origin: '自動', objectId: 'slab-1' })
+  })
 })

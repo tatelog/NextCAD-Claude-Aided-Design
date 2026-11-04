@@ -8,6 +8,7 @@ import type { EstimateDetail } from '../estimate/estimateDetails'
 // - 列は明細の行と同じ（line_id・object_id・category・item・quantity・unit・unit_price_ref・amount_yen・provisional・source・basis）。
 // - 区分は躯体・外装・内装・外構のどれか（それ以外は入らない）。provisional は 0/1 で持つ。
 // - 読むときは入れた順（seq）に返す。
+// - 出どころ（origin）は 自動・手入力。手入力の行はオブジェクトの id を持たない（object_id は空。G86 の追加仕様）。
 
 const LINES: EstimateDetail[] = [
   {
@@ -22,6 +23,7 @@ const LINES: EstimateDetail[] = [
     provisional: true,
     source: '出典なし・仮置き（G22）',
     basis: '床版と同じ面積（支保工は含めない）',
+    origin: '自動',
   },
   {
     lineId: 'roof-1/roof',
@@ -35,6 +37,7 @@ const LINES: EstimateDetail[] = [
     provisional: false,
     source: '計算（仮置きなし）',
     basis: '外形から',
+    origin: '自動',
   },
 ]
 
@@ -70,5 +73,31 @@ describe('見積の明細の表（estimate_line）', () => {
     replaceEstimateLines(db, LINES)
     replaceEstimateLines(db, [])
     expect(readEstimateLines(db)).toEqual([])
+  })
+
+  it('手入力の行は、オブジェクトの id が無いまま入り、同じ内容で読める', async () => {
+    const db = await openDb()
+    const manual: EstimateDetail = {
+      lineId: 'manual/cross',
+      objectId: null,
+      category: '内装',
+      item: '壁クロス',
+      quantity: 18,
+      unit: 'm2',
+      unitPriceRef: 'cross',
+      amountYen: 21600,
+      provisional: false,
+      source: '利用者入力（出典を書く）',
+      basis: '手入力（利用者が数量を入れた）',
+      origin: '手入力',
+    }
+    replaceEstimateLines(db, [manual])
+    expect(readEstimateLines(db)).toEqual([manual])
+  })
+
+  it('出どころが 自動・手入力 以外の行は入らない（エラー）', async () => {
+    const db = await openDb()
+    const bad = { ...LINES[0]!, origin: 'その他' as unknown as EstimateDetail['origin'] }
+    expect(() => replaceEstimateLines(db, [bad])).toThrow()
   })
 })

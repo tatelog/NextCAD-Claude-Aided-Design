@@ -172,6 +172,22 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     provisional: true,
     source: '出典なし・仮置き（G22）',
     basis: '床版と同じ面積（支保工は含めない）',
+    origin: '自動',
+  }
+  // 壁クロスの手入力（18 m²。オブジェクトは無い）
+  const manualCross: EstimateDetail = {
+    lineId: 'manual/cross',
+    objectId: null,
+    category: '内装',
+    item: '壁クロス',
+    quantity: 18,
+    unit: 'm2',
+    unitPriceRef: 'cross',
+    amountYen: 21600,
+    provisional: false,
+    source: '利用者入力（出典を書く）',
+    basis: '手入力（利用者が数量を入れた）',
+    origin: '手入力',
   }
 
   it('表（ストア）に明細があれば、数量の内訳に、品目・数量・出典・金額を出す', () => {
@@ -187,5 +203,22 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     site.state = { volume: null, plan: PLAN }
     estimateStore.state = { lines: [], persisted: true }
     expect(textOf(htmlOf())).toContain('内装未拾い（この区分の数量は、対応するオブジェクトを作ってから）')
+  })
+
+  it('工事原価（概算）は、表の行から出る（型枠 90 m² × 25,000 × 0.3 = 675,000 円）', () => {
+    estimateStore.state = { lines: [formwork], persisted: true }
+    expect(textOf(htmlOf())).toContain('675,000 円')
+  })
+
+  it('手入力の数量は、表の値を単価の行の入力欄に出し、数量の内訳に「手入力」と出す', () => {
+    estimateStore.state = { lines: [manualCross], persisted: true }
+    const html = htmlOf()
+    expect(html).toContain('value="18"')
+    expect(textOf(html)).toContain('手入力')
+  })
+
+  it('自動の数量は、表の値から「自動 N m²」と出す（型枠大工の行）', () => {
+    estimateStore.state = { lines: [formwork], persisted: true }
+    expect(textOf(htmlOf())).toContain('自動 90 m²')
   })
 })

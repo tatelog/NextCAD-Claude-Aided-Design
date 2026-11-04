@@ -7,7 +7,8 @@ import type { EstimateDetail } from '../estimate/estimateDetails'
 const DDL = `CREATE TABLE estimate_line (
   seq INTEGER NOT NULL,
   line_id TEXT PRIMARY KEY,
-  object_id TEXT NOT NULL,
+  object_id TEXT,
+  origin TEXT NOT NULL CHECK (origin IN ('自動', '手入力')),
   category TEXT NOT NULL CHECK (category IN (${CATEGORIES.map((c) => `'${c}'`).join(', ')})),
   item TEXT NOT NULL,
   quantity REAL NOT NULL,
@@ -30,8 +31,8 @@ export function replaceEstimateLines(db: Database, lines: readonly EstimateDetai
     db.run('DELETE FROM estimate_line')
     lines.forEach((l, seq) => {
       db.run(
-        'INSERT INTO estimate_line (seq, line_id, object_id, category, item, quantity, unit, unit_price_ref, amount_yen, provisional, source, basis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [seq, l.lineId, l.objectId, l.category, l.item, l.quantity, l.unit, l.unitPriceRef, l.amountYen, l.provisional ? 1 : 0, l.source, l.basis],
+        'INSERT INTO estimate_line (seq, line_id, object_id, origin, category, item, quantity, unit, unit_price_ref, amount_yen, provisional, source, basis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [seq, l.lineId, l.objectId, l.origin, l.category, l.item, l.quantity, l.unit, l.unitPriceRef, l.amountYen, l.provisional ? 1 : 0, l.source, l.basis],
       )
     })
     db.run('COMMIT')
@@ -44,12 +45,13 @@ export function replaceEstimateLines(db: Database, lines: readonly EstimateDetai
 /** 表の中身を、入れた順（seq）に読み出す */
 export function readEstimateLines(db: Database): EstimateDetail[] {
   const res = db.exec(
-    'SELECT line_id, object_id, category, item, quantity, unit, unit_price_ref, amount_yen, provisional, source, basis FROM estimate_line ORDER BY seq',
+    'SELECT line_id, object_id, origin, category, item, quantity, unit, unit_price_ref, amount_yen, provisional, source, basis FROM estimate_line ORDER BY seq',
   )
   const values = res[0]?.values ?? []
-  return values.map(([lineId, objectId, category, item, quantity, unit, unitPriceRef, amountYen, provisional, source, basis]) => ({
+  return values.map(([lineId, objectId, origin, category, item, quantity, unit, unitPriceRef, amountYen, provisional, source, basis]) => ({
     lineId: lineId as string,
-    objectId: objectId as string,
+    objectId: objectId as string | null,
+    origin: origin as EstimateDetail['origin'],
     category: category as EstimateDetail['category'],
     item: item as string,
     quantity: quantity as number,

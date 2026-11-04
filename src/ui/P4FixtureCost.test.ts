@@ -28,6 +28,11 @@ const fx = vi.hoisted(() => ({
 vi.mock('../store/fixtures', () => ({
   useFixtures: (selector: (s: typeof fx.state) => unknown) => selector(fx.state),
 }))
+// 見積の明細の表（store の読み出し）。工事原価は表の行から出る（G86）。SSR はエフェクトを走らせないので、自動の行は試験で直に置く
+const est = vi.hoisted(() => ({ state: { lines: [] as unknown[], persisted: false } }))
+vi.mock('../store/estimateLines', () => ({
+  useEstimateLines: (selector: (s: typeof est.state) => unknown) => selector(est.state),
+}))
 // 什器の欄は実物のまま描き、受け取った props だけ控える
 const summary = vi.hoisted(() => ({ props: null as unknown }))
 vi.mock('./FixtureSummary', async (importOriginal) => {
@@ -69,6 +74,22 @@ const PLAN = generateAutoPlan({
   layout: '中廊下',
 })
 
+// P3 の自動作成の結果の内装（壁クロス 100 m²）を、表の自動の行として入れたもの（単価は P4 の既定の単価表の壁クロス）
+const AUTO_WALL = {
+  lineId: 'room-1/cross',
+  objectId: 'room-1',
+  category: '内装',
+  item: '壁クロス',
+  quantity: 100,
+  unit: 'm2',
+  unitPriceRef: 'cross',
+  amountYen: 120000,
+  provisional: false,
+  source: '計算（仮置きなし）',
+  basis: '部屋の壁の面積',
+  origin: '自動',
+}
+
 const UNPRICED_NOTE = '単価が未入力の什器は合計に入れていない（未確定）'
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
@@ -93,12 +114,14 @@ function setStore(fixtures: Fixture[], unitPriceTexts: Partial<Record<FixtureIte
 beforeEach(() => {
   site.state = { volume: null, plan: null }
   fx.state = { fixtures: [], unitIds: null, unitPriceTexts: {}, setUnitPriceText: () => undefined }
+  est.state = { lines: [], persisted: false }
   summary.props = null
 })
 
 describe('P4 の工事原価（単価を入れると合計に入る。仕様 1）', () => {
   it('P3 の自動作成の結果があるとき、合計が、単価を入れた品目の 台数 × 単価 だけ増える', () => {
     site.state = { volume: null, plan: PLAN }
+    est.state = { lines: [AUTO_WALL], persisted: true }
     const before = totalOf(panelOf(htmlOf()))
     expect(before).toBeGreaterThan(0)
     setStore([fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', kitchen, 'L0')], { [kitchen]: '450000' })
