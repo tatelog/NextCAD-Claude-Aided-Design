@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { MAX_ZOOM, VIEW_PX, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { DEMO_INITIAL_VIEW } from '../map/initialView'
+import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
 import { P1Map } from './P1Map'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
@@ -170,7 +171,8 @@ export function P1Site() {
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
-        <p style={{ fontSize: 13, margin: '0 0 8px' }}>{mapInfo}</p>
+        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             住所
@@ -199,7 +201,7 @@ export function P1Site() {
               ))}
             </ul>
           )}
-          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: 国土地理院 住所検索 API（利用条件は未確認）。</p>
+          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: {sourceLabel('gsiAddress')}</p>
         </div>
         <div aria-disabled="true" style={{ marginBottom: 12, opacity: 0.45 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
@@ -289,7 +291,7 @@ export function P1Site() {
               管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}。斜線・日影は urf に無い（条例で補う）。</p>
         </section>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
@@ -311,7 +313,7 @@ export function P1Site() {
               周辺建物 {siteBuildings.length} 棟（基準点から半径 400 m 以内）。高さ不明 {siteBuildings.filter((b) => b.heightM === null).length} 棟は 3D に出ません。
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（建物データ。利用条件は未確認）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}（建物データ）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
         {!rightShown('claude-chat') ? null : (
           <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
