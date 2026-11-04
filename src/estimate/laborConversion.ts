@@ -35,3 +35,17 @@ export function priceOfLine(
   if (labor && labor.factor !== undefined) return { ref: labor.id, amount: Math.round(labor.unit_price * labor.factor * line.quantity) }
   return null
 }
+
+/**
+ * 対応のある労務の品目で、単価の行（歩掛つき）も造作の参照も無い明細。単価は利用者が置くので（G20・G136）、
+ * 置かれていなければ「単価未設定」と出し、金額には入れない（t49 の残り）。対応の無い品目は、未設定とは言わない。
+ */
+export function isLaborUnset(line: { item: string; unit: string; category: string; quantity: number }, prices: readonly PriceRow[]): boolean {
+  if (!isLaborItem(line.item)) return false
+  return priceOfLine(line, prices) === null
+}
+
+/** 品目が、労務の対応を持つか（LABOR_OF_ITEM にあるか） */
+export function isLaborItem(item: string): boolean {
+  return LABOR_OF_ITEM[item] !== undefined
+}
