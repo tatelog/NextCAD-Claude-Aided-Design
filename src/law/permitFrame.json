@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "asOf": "2026-11-04",
+    "status": "用紙寸法は出典つき。余白・タイトル欄の寸法・縮尺候補は仮置き（provisional）。",
+    "unit": "mm",
+    "origin": "用紙の左上を原点とし、x は右、y は下に増える。タイトル欄の各欄は、タイトル欄の左上を原点にした相対座標。",
+    "note": "JIS の製図規格の本文は転載していない。寸法は仮置きで、PDF 生成（別セッション）が読めるように値だけを持つ。線の太さ・文字の大きさは未決（D-02 C10）。"
+  },
+  "sheets": [
+    {
+      "size": "A1",
+      "orientation": "landscape",
+      "widthMm": 841,
+      "heightMm": 594,
+      "sourceIds": ["S10"],
+      "note": "ISO 216 / JIS P 0138 の A 列の仕上がり寸法（二次資料 3 件で一致）。規格本文は未確認。"
+    },
+    {
+      "size": "A3",
+      "orientation": "landscape",
+      "widthMm": 420,
+      "heightMm": 297,
+      "sourceIds": ["S10"],
+      "note": "同上。"
+    }
+  ],
+  "marginMm": {
+    "top": 10,
+    "right": 10,
+    "bottom": 10,
+    "left": 20,
+    "provisional": true,
+    "note": "仮置き。左の 20 mm は綴じ代として置いた（綴じ代の要否は未決）。"
+  },
+  "titleBlock": {
+    "anchor": "bottomRight",
+    "widthMm": 180,
+    "heightMm": 50,
+    "provisional": true,
+    "note": "仮置き。用紙の余白の内側に右下寄せで置く。A1・A3 とも同じ寸法を使う。",
+    "fields": [
+      { "id": "projectName", "label": "案件名", "x": 0, "y": 0, "w": 180, "h": 12, "blank": false, "dataSource": "T-01 案件.name" },
+      { "id": "drawingName", "label": "図面名", "x": 0, "y": 12, "w": 120, "h": 14, "blank": false, "dataSource": "図面の種別（D06〜D31）" },
+      { "id": "scale", "label": "縮尺", "x": 120, "y": 12, "w": 60, "h": 14, "blank": false, "dataSource": "図面ごとに利用者が選ぶ（縮尺候補）" },
+      { "id": "designer", "label": "設計者", "x": 0, "y": 26, "w": 120, "h": 12, "blank": false, "dataSource": "T-01 案件.designer（未定義・要追加）" },
+      { "id": "date", "label": "日付", "x": 120, "y": 26, "w": 60, "h": 12, "blank": false, "dataSource": "作成日（出力の日付）" },
+      { "id": "drawingNo", "label": "図面番号", "x": 0, "y": 38, "w": 120, "h": 12, "blank": false, "dataSource": "図書の並び順（D01〜）。未決（番号の付け方）" },
+      { "id": "confirmationNo", "label": "確認番号", "x": 120, "y": 38, "w": 60, "h": 12, "blank": true, "dataSource": "なし（行政が記入する空欄）" }
+    ]
+  },
+  "scaleCandidates": [
+    { "label": "1/50", "denominator": 50, "provisional": true, "use": "断面・詳細" },
+    { "label": "1/100", "denominator": 100, "provisional": true, "use": "各階平面図・立面図・断面図" },
+    { "label": "1/200", "denominator": 200, "provisional": true, "use": "各階平面図（住棟全体）" },
+    { "label": "1/300", "denominator": 300, "provisional": true, "use": "配置図" },
+    { "label": "1/500", "denominator": 500, "provisional": true, "use": "付近見取図・配置図（敷地全体）" }
+  ],
+  "scaleRule": {
+    "source": "S01（施行規則 第1条の3 表一: 各図書に縮尺を明示する。数値は規定されていない）",
+    "provisional": true,
+    "note": "縮尺の数値と用途の対応は仮置き。都・区の数値基準は未確認（ハブ A-07 の未取得一覧）。"
+  }
+}

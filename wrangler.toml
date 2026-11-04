@@ -1,0 +1,24 @@
+# Worker（Claude の中継。D-02 C12、A-03 G29）。配備先は利用者の Cloudflare アカウント。
+# 秘密情報はここに書かない。次の二つは Cloudflare 側で設定する（wrangler secret put / ダッシュボード）:
+#   ANTHROPIC_API_KEY  ... Claude の API キー（Secrets）
+#   ALLOWED_ORIGIN     ... ブラウザの接続元（例: アプリの URL）。平文の変数でもよい
+name = "claude-aided-design-relay"
+main = "src/worker/index.ts"
+compatibility_date = "2026-10-01"
+
+# アプリ（npm run build の dist）も、同じ Worker から配る（B）。アプリと判定の受け口が同じ場所になる。
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+# マスタ（G49）の D1。利用者の Cloudflare に作った空のデータベース（cad-masters）。表の中身はまだ入れていない。
+[[d1_databases]]
+binding = "cad_masters"
+database_name = "cad-masters"
+database_id = "4229d9cf-52c5-4ced-8ca1-f33be92e4fe5"
+
+# 費用の月上限（D-06 N7）。Cloudflare で KV の名前空間を作り、次の行の id を書き換えて外すと、今月の判定の件数を数える。
+# 作らない間は、月の上限は効かない（線分の上限と接続元の制限は効く）。
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "<利用者の KV 名前空間の id>"

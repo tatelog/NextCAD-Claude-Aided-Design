@@ -1,4 +1,7 @@
 *.local
+.claude/hooks/
+.claude/settings.json
+.claude/settings.local.json
 .env
 .env.*
 !.env.example
@@ -9,6 +12,9 @@ credentials.json
 node_modules/
 dist/
 build/
+*.tsbuildinfo
+# 作業用。労務単価の CSV など、公開リポジトリに置けないものが入る
+_workspace/
 .wrangler/
 __pycache__/
 .venv/

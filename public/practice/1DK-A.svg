@@ -1,0 +1,214 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 6000 6000" width="600" height="600" font-family="Yu Gothic, MS Gothic, sans-serif">
+<rect x="-1400" y="-2300" width="8800" height="11250" fill="#ffffff"/>
+<g id="corridor">
+<rect x="0" y="-1200" width="6000" height="1200" fill="#ececec" stroke="none" stroke-width="0"/>
+<text x="3000" y="-600" font-size="260" fill="#555555" text-anchor="middle" dominant-baseline="middle">共用廊下</text>
+</g>
+<g id="balcony">
+<rect x="0" y="6000" width="6000" height="1500" fill="#eef5e6" stroke="none" stroke-width="0"/>
+<text x="3000" y="6750" font-size="260" fill="#4a6b3a" text-anchor="middle" dominant-baseline="middle">バルコニー</text>
+</g>
+<g id="room-ENT">
+<rect x="0" y="0" width="1800" height="1800" fill="#fdf1e0" stroke="#333333" stroke-width="60"/>
+</g>
+<g id="room-DK">
+<rect x="1800" y="0" width="4200" height="3200" fill="#eaf1fb" stroke="#333333" stroke-width="60"/>
+</g>
+<g id="room-WASH">
+<rect x="0" y="1800" width="1800" height="1400" fill="#e4f2e8" stroke="#333333" stroke-width="60"/>
+</g>
+<g id="room-WC">
+<rect x="0" y="3200" width="1800" height="1600" fill="#e4f2e8" stroke="#333333" stroke-width="60"/>
+</g>
+<g id="room-BR1">
+<rect x="1800" y="3200" width="4200" height="2800" fill="#eaf1fb" stroke="#333333" stroke-width="60"/>
+</g>
+<g id="room-BATH">
+<rect x="0" y="4800" width="1800" height="1200" fill="#e4f2e8" stroke="#333333" stroke-width="60"/>
+</g>
+<g id="envelope">
+<rect x="0" y="0" width="6000" height="6000" fill="none" stroke="#111111" stroke-width="150"/>
+</g>
+<g id="window-W01">
+<line x1="2100" y1="-70" x2="5700" y2="-70" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="2100" y1="0" x2="5700" y2="0" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="2100" y1="70" x2="5700" y2="70" stroke="#2f7fd0" stroke-width="50"/>
+</g>
+<g id="window-W02">
+<line x1="5930" y1="300" x2="5930" y2="2900" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="6000" y1="300" x2="6000" y2="2900" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="6070" y1="300" x2="6070" y2="2900" stroke="#2f7fd0" stroke-width="50"/>
+</g>
+<g id="window-W03">
+<line x1="-70" y1="2100" x2="-70" y2="2900" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="0" y1="2100" x2="0" y2="2900" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="70" y1="2100" x2="70" y2="2900" stroke="#2f7fd0" stroke-width="50"/>
+</g>
+<g id="window-W04">
+<line x1="-70" y1="3500" x2="-70" y2="4500" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="0" y1="3500" x2="0" y2="4500" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="70" y1="3500" x2="70" y2="4500" stroke="#2f7fd0" stroke-width="50"/>
+</g>
+<g id="window-W05">
+<line x1="5930" y1="3500" x2="5930" y2="5700" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="6000" y1="3500" x2="6000" y2="5700" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="6070" y1="3500" x2="6070" y2="5700" stroke="#2f7fd0" stroke-width="50"/>
+</g>
+<g id="window-W06">
+<line x1="-70" y1="5100" x2="-70" y2="5700" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="0" y1="5100" x2="0" y2="5700" stroke="#2f7fd0" stroke-width="50"/>
+<line x1="70" y1="5100" x2="70" y2="5700" stroke="#2f7fd0" stroke-width="50"/>
+</g>
+<g id="door-D01">
+<line x1="450" y1="0" x2="1350" y2="0" stroke="#ffffff" stroke-width="200"/>
+<polyline points="1350,0 1347,78 1336,156 1319,233 1296,308 1266,380 1229,450 1187,516 1139,579 1086,636 1029,689 966,737 900,779 830,816 758,846 683,869 606,886 528,897 450,900" fill="none" stroke="#c0392b" stroke-width="35" stroke-dasharray="120 90"/>
+<line x1="450" y1="0" x2="450" y2="900" stroke="#333333" stroke-width="60"/>
+<text x="900" y="-320" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">玄関ドア</text>
+</g>
+<g id="door-D02">
+<line x1="1800" y1="450" x2="1800" y2="1350" stroke="#ffffff" stroke-width="200"/>
+<line x1="1800" y1="450" x2="1800" y2="1350" stroke="#999999" stroke-width="30" stroke-dasharray="60 60"/>
+<text x="2120" y="900" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">開口</text>
+</g>
+<g id="door-D03">
+<line x1="0" y1="1800" x2="700" y2="1800" stroke="#ffffff" stroke-width="200"/>
+<line x1="0" y1="1740" x2="700" y2="1740" stroke="#333333" stroke-width="40"/>
+<line x1="0" y1="1860" x2="700" y2="1860" stroke="#333333" stroke-width="40"/>
+<text x="350" y="1480" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">引戸</text>
+</g>
+<g id="door-D04">
+<line x1="0" y1="3200" x2="600" y2="3200" stroke="#ffffff" stroke-width="200"/>
+<line x1="0" y1="3140" x2="600" y2="3140" stroke="#333333" stroke-width="40"/>
+<line x1="0" y1="3260" x2="600" y2="3260" stroke="#333333" stroke-width="40"/>
+<text x="300" y="2880" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">引戸</text>
+</g>
+<g id="door-D05">
+<line x1="0" y1="4800" x2="600" y2="4800" stroke="#ffffff" stroke-width="200"/>
+<line x1="0" y1="4740" x2="600" y2="4740" stroke="#333333" stroke-width="40"/>
+<line x1="0" y1="4860" x2="600" y2="4860" stroke="#333333" stroke-width="40"/>
+<text x="300" y="4480" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">引戸</text>
+</g>
+<g id="door-D06">
+<line x1="3500" y1="3200" x2="4300" y2="3200" stroke="#ffffff" stroke-width="200"/>
+<polyline points="4300,3200 4297,3270 4288,3339 4273,3407 4252,3474 4225,3538 4193,3600 4155,3659 4113,3714 4066,3766 4014,3813 3959,3855 3900,3893 3838,3925 3774,3952 3707,3973 3639,3988 3570,3997 3500,4000" fill="none" stroke="#c0392b" stroke-width="35" stroke-dasharray="120 90"/>
+<line x1="3500" y1="3200" x2="3500" y2="4000" stroke="#333333" stroke-width="60"/>
+<text x="3900" y="2880" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">開き戸</text>
+</g>
+<g id="door-D07">
+<line x1="3000" y1="6000" x2="4800" y2="6000" stroke="#ffffff" stroke-width="200"/>
+<line x1="3000" y1="5940" x2="4800" y2="5940" stroke="#333333" stroke-width="40"/>
+<line x1="3000" y1="6060" x2="4800" y2="6060" stroke="#333333" stroke-width="40"/>
+<text x="3900" y="5680" font-size="150" fill="#c0392b" text-anchor="middle" dominant-baseline="middle">引戸</text>
+</g>
+<g id="fixture-F01">
+<rect x="890" y="840" width="600" height="900" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="1190" y="1290" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">PS</text>
+</g>
+<g id="fixture-F02">
+<rect x="40" y="40" width="300" height="400" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="190" y="240" font-size="90" fill="#333333" text-anchor="middle" dominant-baseline="middle">MB</text>
+</g>
+<g id="fixture-F03">
+<rect x="1990" y="40" width="2400" height="600" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="3190" y="340" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">キッチン</text>
+</g>
+<g id="fixture-F04">
+<rect x="4440" y="40" width="600" height="700" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="4740" y="390" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">冷蔵庫</text>
+</g>
+<g id="fixture-F05">
+<rect x="1840" y="1440" width="1800" height="900" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="2740" y="1890" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">ダイニングテーブル</text>
+</g>
+<g id="fixture-F06">
+<rect x="790" y="1840" width="640" height="640" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="1110" y="2160" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">洗濯機</text>
+</g>
+<g id="fixture-F07">
+<rect x="40" y="1990" width="600" height="500" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="340" y="2240" font-size="114" fill="#333333" text-anchor="middle" dominant-baseline="middle">洗面化粧台</text>
+</g>
+<g id="fixture-F08">
+<rect x="690" y="3240" width="400" height="650" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="890" y="3565" font-size="100" fill="#333333" text-anchor="middle" dominant-baseline="middle">便器</text>
+</g>
+<g id="fixture-F09">
+<rect x="1840" y="3240" width="1400" height="2000" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="2540" y="4240" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">ベッド</text>
+</g>
+<g id="fixture-F10">
+<rect x="4390" y="3240" width="900" height="900" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="4840" y="3690" font-size="142" fill="#333333" text-anchor="middle" dominant-baseline="middle">クローゼット</text>
+</g>
+<g id="fixture-F11">
+<rect x="690" y="4840" width="980" height="980" fill="#ffffff" stroke="#555555" stroke-width="30"/>
+<text x="1180" y="5330" font-size="150" fill="#333333" text-anchor="middle" dominant-baseline="middle">浴槽</text>
+</g>
+<g id="label-ENT">
+<text x="536" y="1069" font-size="238" fill="#222222" text-anchor="middle" dominant-baseline="middle">玄関</text>
+<text x="536" y="1283" font-size="178" fill="#555555" text-anchor="middle" dominant-baseline="middle">3.2㎡</text>
+</g>
+<g id="label-DK">
+<text x="4070" y="1490" font-size="280" fill="#222222" text-anchor="middle" dominant-baseline="middle">DK</text>
+<text x="4070" y="1742" font-size="210" fill="#555555" text-anchor="middle" dominant-baseline="middle">13.4㎡</text>
+</g>
+<g id="label-WASH">
+<text x="982" y="2690" font-size="280" fill="#222222" text-anchor="middle" dominant-baseline="middle">洗面脱衣</text>
+<text x="982" y="2942" font-size="210" fill="#555555" text-anchor="middle" dominant-baseline="middle">2.5㎡</text>
+</g>
+<g id="label-WC">
+<text x="886" y="4090" font-size="280" fill="#222222" text-anchor="middle" dominant-baseline="middle">WC</text>
+<text x="886" y="4342" font-size="210" fill="#555555" text-anchor="middle" dominant-baseline="middle">2.9㎡</text>
+</g>
+<g id="label-BR1">
+<text x="3870" y="4490" font-size="280" fill="#222222" text-anchor="middle" dominant-baseline="middle">洋室1</text>
+<text x="3870" y="4742" font-size="210" fill="#555555" text-anchor="middle" dominant-baseline="middle">11.8㎡</text>
+</g>
+<g id="label-BATH">
+<text x="336" y="5269" font-size="238" fill="#222222" text-anchor="middle" dominant-baseline="middle">浴室</text>
+<text x="336" y="5483" font-size="178" fill="#555555" text-anchor="middle" dominant-baseline="middle">2.2㎡</text>
+</g>
+<g id="column-C01">
+<rect x="-200" y="-200" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C02">
+<rect x="-200" y="2800" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C03">
+<rect x="-200" y="5800" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C04">
+<rect x="2800" y="-200" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C05">
+<rect x="2800" y="5800" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C06">
+<rect x="5800" y="-200" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C07">
+<rect x="5800" y="2800" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="column-C08">
+<rect x="5800" y="5800" width="400" height="400" fill="#333333" stroke="none" stroke-width="0"/>
+</g>
+<g id="dimension">
+<line x1="0" y1="7700" x2="6000" y2="7700" stroke="#555555" stroke-width="25"/>
+<line x1="0" y1="7620" x2="0" y2="7780" stroke="#555555" stroke-width="25"/>
+<line x1="6000" y1="7620" x2="6000" y2="7780" stroke="#555555" stroke-width="25"/>
+<text x="3000" y="7900" font-size="200" fill="#555555" text-anchor="middle" dominant-baseline="middle">間口 6000 mm</text>
+<line x1="6250" y1="0" x2="6250" y2="6000" stroke="#555555" stroke-width="25"/>
+<line x1="6170" y1="0" x2="6330" y2="0" stroke="#555555" stroke-width="25"/>
+<line x1="6170" y1="6000" x2="6330" y2="6000" stroke="#555555" stroke-width="25"/>
+<text x="6862" y="3000" font-size="160" fill="#555555" text-anchor="middle" dominant-baseline="middle">奥行 6000 mm</text>
+</g>
+<g id="title">
+<text x="3000" y="-1900" font-size="380" fill="#111111" text-anchor="middle" dominant-baseline="middle">1DK-A　上段のDK・下段の居室</text>
+<text x="3000" y="-1500" font-size="230" fill="#333333" text-anchor="middle" dominant-baseline="middle">間口 6000 × 奥行 6000 mm ・専有 36.0 ㎡（計画値）</text>
+</g>
+<g id="notice">
+<text x="3000" y="8200" font-size="170" fill="#444444" text-anchor="middle" dominant-baseline="middle">本企画用に新規作成した架空の住戸計画案</text>
+<text x="3000" y="8460" font-size="170" fill="#444444" text-anchor="middle" dominant-baseline="middle">実在物件の図面ではありません</text>
+<text x="3000" y="8720" font-size="170" fill="#444444" text-anchor="middle" dominant-baseline="middle">寸法・構造・設備は計画上の仮定であり、実施設計・法規適合確認前です</text>
+</g>
+</svg>
