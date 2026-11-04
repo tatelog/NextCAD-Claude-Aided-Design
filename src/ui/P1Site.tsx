@@ -1,7 +1,8 @@
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
 import { useMemo, useState } from 'react'
-import { MAX_ZOOM, VIEW_PX, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
+import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
+import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW } from '../map/initialView'
 import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
 import { P1Map } from './P1Map'
@@ -13,8 +14,6 @@ import { fireDecisionLine } from '../law/fireZone'
 import { OrdinanceForm } from './OrdinanceForm'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { useUi } from '../store/ui'
-import { neighborVolumes } from '../volume/neighborLocal'
-import { NeighborScene3D } from './NeighborScene3D'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
 import { PanelTile } from './PanelTile'
 import { ChatTile } from './ChatTile'
@@ -47,14 +46,6 @@ export function P1Site() {
   const [addressError, setAddressError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
   const showNeighbors = useUi((s) => s.showNeighbors)
-  const siteOrigin = useSite((s) => s.sitePoint)
-  // 3D の周辺建物（基準点を原点にした mm。P1 は敷地の外形を持たないので、周辺建物だけを置く）
-  const [view3d, setView3d] = useState(false)
-  const neighbors3d = useMemo(
-    () => (siteBuildings && siteOrigin ? neighborVolumes(siteBuildings, siteOrigin, { x: 0, y: 0 }) : []),
-    [siteBuildings, siteOrigin],
-  )
-  const show3d = view3d && neighbors3d.length > 0
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
@@ -133,11 +124,8 @@ export function P1Site() {
     }
   }
 
-  // 周辺建物の輪郭（経度・緯度）。地図に重ねる
-  const neighborRings = useMemo<[number, number][][]>(() => {
-    if (!siteBuildings || !showNeighbors) return []
-    return siteBuildings.flatMap((b) => b.footprints.map((ring) => ring.map((p) => [p.lon, p.lat] as [number, number])))
-  }, [siteBuildings, showNeighbors])
+  // 周辺建物の輪郭（経度・緯度）。地図に重ねる。3D は地図の傾きで見る（LOD1）ので、別の 3D 画面は持たない
+  const neighborRings = useMemo(() => toNeighborRings(siteBuildings, showNeighbors), [siteBuildings, showNeighbors])
 
   // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P1 はチャットだけ
   const activeMode = useActiveMode('P1')
@@ -147,25 +135,19 @@ export function P1Site() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
       <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
-        {show3d ? (
-          <div style={{ width: VIEW_PX, height: VIEW_PX }}>
-            <NeighborScene3D neighbors={neighbors3d} />
-          </div>
-        ) : (
-          <P1Map
-            center={center}
-            zoom={zoom}
-            site={site}
-            neighborRings={neighborRings}
-            onSiteClick={moveSiteByMap}
-            onInfo={setMapInfo}
-            onStatus={setMapStatus}
-            onView={(c, z) => {
-              setCenter(c)
-              setZoom(z)
-            }}
-          />
-        )}
+        <P1Map
+          center={center}
+          zoom={zoom}
+          site={site}
+          neighborRings={neighborRings}
+          onSiteClick={moveSiteByMap}
+          onInfo={setMapInfo}
+          onStatus={setMapStatus}
+          onView={(c, z) => {
+            setCenter(c)
+            setZoom(z)
+          }}
+        />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
@@ -302,11 +284,6 @@ export function P1Site() {
           <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
             {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
           </button>
-          {siteBuildings && neighbors3d.length > 0 && (
-            <button type="button" onClick={() => setView3d((v) => !v)} style={{ marginLeft: 8 }}>
-              {view3d ? '地図で見る' : '3D で見る'}
-            </button>
-          )}
           {neighborError && <p style={{ color: '#a33' }}>{neighborError}</p>}
           {siteBuildings && (
             <p>
