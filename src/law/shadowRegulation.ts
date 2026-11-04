@@ -103,6 +103,13 @@ function limitFor(rule: ShadowRule, distanceM: number): number {
   return band.hours
 }
 
+/** 影を作る建物（判定と日影図で同じ）。規制の対象に当たり、測定面の高さより高いもの（t38） */
+export function shadowTargetsOf(buildings: readonly ShadowBuilding[], rule: ShadowRule): ShadowBuilding[] {
+  const zm = rule.measurementHeightM * 1000
+  // 別表第四は「超える」建築物が対象（10 m ちょうどは対象外。cfedb4f で解決）
+  return buildings.filter((b) => isShadowTarget(b, rule) && b.heightMm > zm)
+}
+
 export function judgeShadow(input: {
   lot: readonly Point[]
   buildings: readonly ShadowBuilding[]
@@ -113,8 +120,7 @@ export function judgeShadow(input: {
   date: Date
 }): ShadowJudgment {
   const zm = input.rule.measurementHeightM * 1000
-  // 別表第四は「超える」建築物が対象（10 m ちょうどは対象外。cfedb4f で解決）
-  const applicable = input.buildings.filter((b) => isShadowTarget(b, input.rule) && b.heightMm > zm)
+  const applicable = shadowTargetsOf(input.buildings, input.rule)
   if (applicable.length === 0) return { result: '適合', worst: null, maxHours: 0 }
 
   const suns = sunWindow(input.lat, input.lon, input.date)
