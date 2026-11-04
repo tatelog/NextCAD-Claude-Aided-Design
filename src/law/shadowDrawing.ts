@@ -9,7 +9,7 @@ import { judgeShadow, pointInPolygon, sunWindow, type ShadowJudgment, type Shado
 const STEP_MIN = 10
 const CELL_MM = 2_000
 const MARGIN_MM = 20_000
-/** 日影規制の対象にする高さ（別表第四(ろ)欄の中高層・住居系: 10m を超える）。judgeShadow と同じ境界（K07 で揃えた） */
+/** 日影規制の対象にする高さ（別表第四(ろ)欄の中高層・住居系: 10m を超える）。judgeShadow と同じ境界（cfedb4f で揃えた） */
 const TARGET_HEIGHT_MM = 10_000
 
 export interface ShadowDrawingInput {

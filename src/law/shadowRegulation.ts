@@ -98,7 +98,7 @@ export function judgeShadow(input: {
   date: Date
 }): ShadowJudgment {
   const zm = input.rule.measurementHeightM * 1000
-  // 別表第四は「超える」建築物が対象（10 m ちょうどは対象外。K07）
+  // 別表第四は「超える」建築物が対象（10 m ちょうどは対象外。cfedb4f で解決）
   const applicable = input.buildings.filter((b) => b.heightMm > input.rule.minHeightMm && b.heightMm > zm)
   if (applicable.length === 0) return { result: '適合', worst: null, maxHours: 0 }
 
