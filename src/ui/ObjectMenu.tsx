@@ -3,6 +3,8 @@
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
 import { commonAreaCountsOf, commonAreaGroups } from '../plan/commonAreas'
 import { countObjects, type ObjectKind } from '../plan/objectMenu'
+import type { ObjectRow } from '../plan/objectTable'
+import { unitGroupSummary } from '../plan/unitGroupSummary'
 
 /** 帯の幅（枠線と余白を含む）。呼び出し側の列の幅に使う。 */
 export const OBJECT_MENU_WIDTH = 180
@@ -20,11 +22,14 @@ export interface ObjectMenuProps {
   notice?: string
   /** 1F の共用部の名前ごとの数（区画に付けた数）。省略すると、どれも 0 */
   firstFloorCounts?: { name: string; count: number }[]
+  /** オブジェクト表の行（plan/objectTable）。あれば住戸をグループとして数える（G58）。省略すると出さない */
+  objectRows?: readonly ObjectRow[]
 }
 
-export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice, firstFloorCounts }: ObjectMenuProps) {
+export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice, firstFloorCounts, objectRows }: ObjectMenuProps) {
   const rows = countObjects(sources)
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
+  const groupSummary = objectRows ? unitGroupSummary(objectRows) : null
   return (
     <aside
       style={{
@@ -70,6 +75,12 @@ export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類�
           </li>
         ))}
       </ul>
+      {groupSummary ? (
+        <div aria-label="住戸（グループ）" style={{ marginTop: 12, fontSize: 12, color: '#444' }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>住戸（グループ）</div>
+          <div>{`${groupSummary.units} 戸。中身: 部屋 ${groupSummary.rooms}・PS ${groupSummary.shafts}・置いた什器 ${groupSummary.fixtures}`}</div>
+        </div>
+      ) : null}
       <div aria-label="共用部（グループ）" style={{ marginTop: 12, fontSize: 12, color: '#444' }}>
         <div style={{ fontWeight: 700, marginBottom: 2 }}>共用部（グループ）</div>
         {commonAreaGroups().map((g) => (

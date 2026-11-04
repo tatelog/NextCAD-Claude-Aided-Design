@@ -6,9 +6,10 @@ import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
-import { planExteriorQuantities } from '../estimate/planExterior'
+import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
 import { structureQuantities } from '../estimate/structureQuantities'
 import { sashQuantity } from '../estimate/sashQuantity'
+import { objectTableOf } from '../plan/objectTable'
 import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
 import { roomFinishTotals } from '../estimate/roomQuantities'
@@ -83,12 +84,13 @@ export function P4Estimate() {
     [fixtures, fixtureUnitPriceTexts],
   )
   const autoQuantities = useMemo(() => {
-    const out: { item: string; category: string; quantity: number }[] = []
+    const out: { item: string; category: string; quantity: number; unit: string }[] = []
     if (volume) {
       const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(q.exterior_wall, q.roof)
       // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
-      out.push(structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height }).slab)
+      const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+      out.push(structure.slab, structure.formwork, structure.concrete, structure.rebar)
     }
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
@@ -102,6 +104,8 @@ export function P4Estimate() {
         storeyCount: plan.ev.storey_count,
       })
       out.push(ext.balcony, ext.corridor)
+      // 手すり（G62）。バルコニーの付く面の辺の長さ × 高さ（仮置き）
+      out.push(railingQuantity({ cells: plan.cells, outline: { W: plan.widthMm, D: plan.depthMm }, storeyCount: plan.ev.storey_count }))
     }
     out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
     return out
@@ -112,6 +116,14 @@ export function P4Estimate() {
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
+  // 住戸をグループとして数える（G58）。自動作成の結果から、オブジェクト表の行を作る
+  const objectRows = useMemo(
+    () =>
+      plan
+        ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
+        : [],
+    [plan, fixtures],
+  )
 
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
@@ -133,6 +145,7 @@ export function P4Estimate() {
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"
         notice={noticeOfPlan(plan)}
+        objectRows={objectRows}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
@@ -228,7 +241,7 @@ export function P4Estimate() {
                         {' '}
                         <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
                       </td>
-                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} m²</td>
+                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
                     </tr>
                   ))
                 )
