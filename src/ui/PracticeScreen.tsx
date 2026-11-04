@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { pickPracticeCase } from '../practice/caseSelect'
 import type { PracticeCase } from '../practice/caseTruth'
+import { practiceCaseOfPlan, type PlanJson } from '../practice/planCase'
 import { scoreDrawing, type PxStroke } from '../practice/practiceFlow'
 import { recordsToJson, type PracticeRecord } from '../practice/resultRecord'
 
@@ -44,7 +45,9 @@ export function PracticeScreen() {
     if (!entries || entries.length === 0) return
     const entry = pickPracticeCase(entries, Math.random)
     try {
-      const data = (await fetch(`/practice/${entry.json}`).then((r) => r.json())) as PracticeCase
+      // 素材の JSON は収集セッションの形（envelope・rooms）。練習の案に直してから使う（planCase）
+      const plan = (await fetch(`/practice/${entry.json}`).then((r) => r.json())) as PlanJson
+      const data: PracticeCase = practiceCaseOfPlan(plan)
       setCurrent({ entry, data })
       setStrokes([])
       setScore(null)

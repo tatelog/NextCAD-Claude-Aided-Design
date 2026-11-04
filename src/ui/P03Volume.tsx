@@ -25,6 +25,18 @@ import { shadowRuleFromOrdinance } from '../law/shadowOrdinance'
 import { useOrdinance } from '../store/ordinance'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
+import { suggestMeasurement } from '../law/shadowSuggest'
+import type { HeightDistrict } from '../law/shadowMeasure'
+
+/** 高度地区の区分（人が入れる。測定面の候補に使う） */
+const HEIGHT_DISTRICTS: readonly HeightDistrict[] = ['第一種', '第二種', '第三種', '指定なし']
+
+/** 測定面の候補の一行（都条例の別表第一。提案で、判定には使わない） */
+function measurementHintOf(site: { zone: string; farPercent: number | null } | null, height: HeightDistrict | ''): string {
+  if (!site) return '用途地域が決まっていない（P1 で取得する）'
+  const r = suggestMeasurement({ zone: site.zone, farPercent: site.farPercent, heightDistrict: height === '' ? null : height })
+  return r.ok ? `${r.measurement.measurementM} m（別表第一 ${r.measurement.band}）` : `決められない（${r.reason}）`
+}
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
@@ -76,6 +88,7 @@ export function P03Volume() {
   )
 
   const [farLimit, setFarLimit] = useState('')
+  const [heightDistrict, setHeightDistrict] = useState<HeightDistrict | ''>('')
   // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は江東区の点（35.67N, 139.86E）
   const [solarTime, setSolarTime] = useState('12:00')
   const sun = useMemo(() => {
@@ -406,6 +419,18 @@ export function P03Volume() {
             ) : (
               <p className="muted">PLATEAU の用途地域が一つに決まらない（P1 で取得していない、または複数）。下の入力を使う。</p>
             )}
+            <label>
+              高度地区の区分（人が入れる。測定面の候補に使う）
+              <select value={heightDistrict} onChange={(e) => setHeightDistrict(e.target.value as HeightDistrict | '')}>
+                <option value="">未入力</option>
+                {HEIGHT_DISTRICTS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">測定面の候補（都条例の別表第一。提案で、判定には使わない）: {measurementHintOf(siteRule, heightDistrict)}</p>
             <label>
               用途地域
               <select value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
