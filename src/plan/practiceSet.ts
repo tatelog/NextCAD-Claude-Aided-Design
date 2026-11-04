@@ -35,7 +35,11 @@ function mergeSegs(segs: Seg[]): Seg[] {
 
 /** 区画の間取りの、部屋どうしの境目の線（正解）。外周は含まない */
 export function practiceLinesOf(cell: Rect, pattern: RoomPattern): PracticeLine[] {
-  const rooms = splitUnitRooms(cell, pattern)
+  return practiceLinesOfRooms(splitUnitRooms(cell, pattern))
+}
+
+/** 部屋の枠どうしの境目の線（正解）。外周は含まない。部屋の並び順は結果に影響しない（G11 の練習の案の JSON からも使う） */
+export function practiceLinesOfRooms(rooms: readonly { x0: number; y0: number; x1: number; y1: number }[]): PracticeLine[] {
   const segs: Seg[] = []
   for (let i = 0; i < rooms.length; i++) {
     for (let j = i + 1; j < rooms.length; j++) {

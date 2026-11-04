@@ -6,6 +6,7 @@ import { P1Site } from './ui/P1Site'
 import { P3Plan } from './ui/P3Plan'
 import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
+import { PracticeScreen } from './ui/PracticeScreen'
 import { useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
@@ -38,6 +39,7 @@ const SCREENS = [
   { id: 'P3', name: '平面' },
   { id: 'P4', name: '積算' },
   { id: 'P5', name: '出力' },
+  { id: 'K', name: '練習' },
 ] as const
 
 type ScreenId = (typeof SCREENS)[number]['id']
@@ -373,6 +375,7 @@ export function App() {
         {screen === 'P3' && <P3Plan />}
         {screen === 'P4' && <P4Estimate />}
         {screen === 'P5' && <P5Output />}
+        {screen === 'K' && <PracticeScreen />}
         {panel !== null && (
           <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, ...(panel === 'menu' ? { left: 0 } : { width: 320 }), background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'log' && (
