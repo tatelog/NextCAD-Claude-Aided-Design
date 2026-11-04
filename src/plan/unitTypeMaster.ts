@@ -1,4 +1,5 @@
 // 住戸タイプのマスタ（ハブ A-03 G89・G91、D-03 T-08）。候補（unitTypeCandidates.json）を D-03 の列に合わせて持つ。決定論。
+import type { RoomPattern } from './rooms'
 // 出典の無い値は null（未確認）にし、未確認の値を持つ行は provisional（仮置きの印）を立てる。
 // 割付は縦割り（柱割りの列）単位。列ごとに 1 タイプ（G89）。
 
@@ -80,6 +81,13 @@ export function unitTypeOptions(master: readonly UnitType[]): { value: string; l
 /** 自動作成の部屋割りに渡す区分。1R・1K（LDK なし・個室 1）は単独、それ以外はファミリー（仮定。統括が確認する） */
 export function unitTypeKind(t: UnitType): 'ファミリー' | '単独' {
   return t.ldk === 0 && t.bedrooms === 1 ? '単独' : 'ファミリー'
+}
+
+/** 型の室数から、部屋割り（rooms.ts の割り付け）を決める（仮定。統括が確認する）。個室 1 は角、個室 2 は田の字。個室 3 以上は割り付けが無いので null（未対応） */
+export function patternOfType(t: UnitType): { pattern: RoomPattern | null; reason?: string } {
+  if (t.bedrooms === 1) return { pattern: '角' }
+  if (t.bedrooms === 2) return { pattern: '田の字' }
+  return { pattern: null, reason: '室数に合う割り付けが無い（個室 3 以上は未対応）' }
 }
 
 /** 縦割り（柱割りの列）ごとに型の id を割り付ける。型が少なければ繰り返す。型が無ければ null（G89） */

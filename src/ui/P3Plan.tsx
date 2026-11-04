@@ -118,6 +118,8 @@ export function P3Plan() {
         corridorMm: Number(corridorText),
         layout: layoutText,
         unitType,
+        unitTypes: UNIT_TYPES,
+        unitTypeIds,
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
@@ -466,6 +468,11 @@ export function P3Plan() {
           {auto ? (
             <p style={{ fontSize: 12, margin: '0 0 6px' }}>
               縦割りごとの住戸タイプ: {assignTypesToSpans(auto.spans, unitTypeIds).map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '未割付'}`).join('、')}
+            </p>
+          ) : null}
+          {auto && auto.unsupportedSpans.length > 0 ? (
+            <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+              室数に合う割り付けが無い列（個室 3 以上は未対応）は、田の字で仮置き: {auto.unsupportedSpans.map((k) => `${k + 1} 列目`).join('、')}
             </p>
           ) : null}
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>

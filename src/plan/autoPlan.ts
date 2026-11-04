@@ -7,6 +7,7 @@ import { countUnits } from './units'
 import { buildEvLevels, type EvLevels } from './evLevels'
 import { splitUnitRooms, type Room, type RoomPattern } from './rooms'
 import type { CorridorLayout, Rect } from './candidateCells'
+import { assignTypesToSpans, patternOfType, type UnitType } from './unitTypeMaster'
 
 const TargetSchema = z.number().int().positive()
 // コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
@@ -30,6 +31,10 @@ export interface AutoPlanInput {
   pattern?: RoomPattern
   /** 区画を残すか（曲線の外形の内側など。ハブ A-03 G5）。省略は全部の区画。外の区画は、作らず数えない */
   insideCell?: (cell: Rect) => boolean
+  /** 住戸タイプのマスタ（T-08）。unitTypeIds の型を引く */
+  unitTypes?: readonly UnitType[]
+  /** 縦割り（柱割りの列）ごとに割り付ける型の id。型が少なければ繰り返す（G89）。省略は従来の部屋割り */
+  unitTypeIds?: readonly string[]
 }
 
 export interface AutoCore {
@@ -72,6 +77,10 @@ export interface AutoPlan {
   cores: AutoCore[]
   /** 縦シャフトの位置（PS は住戸の水回りの廊下側の隅、EPS は階段 A の隅、DS は階段 B の隅） */
   shaftRects: ShaftRect[]
+  /** 列ごとの住戸タイプ（id。割り付けが無い列は null）（G89） */
+  spanTypes: (string | null)[]
+  /** 室数が合う割り付けが無く、既定の割り付けで仮置きした列（列の番号。0 始まり） */
+  unsupportedSpans: number[]
 }
 
 const SHAFT_MM = 600
@@ -96,11 +105,14 @@ function shaftsOf(cells: Rect[], rooms: Room[], cores: AutoCore[], corridor: Rec
 }
 
 // 区画ごとの部屋割り。角は両端の区画（k = 0 と最後）だけ、他は田の字
-function roomsFor(cells: Rect[], pattern: RoomPattern): Room[] {
+// 型の割り付けがある列（typed）は、その型の部屋割り（G89）。ほかは従来どおり
+function roomsFor(cells: Rect[], pattern: RoomPattern, typed: ReadonlyMap<number, RoomPattern>): Room[] {
   const last = cells.reduce((m, c) => Math.max(m, Number(c.id.slice(1))), 0)
   return cells.flatMap((c) => {
     const k = Number(c.id.slice(1))
     const isEnd = k === 0 || k === last
+    const typedPattern = typed.get(k)
+    if (typedPattern !== undefined) return splitUnitRooms(c, typedPattern)
     return splitUnitRooms(c, pattern === '角' && !isEnd ? '田の字' : pattern)
   })
 }
@@ -148,7 +160,18 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     cells,
   })
   const unitsPerFloor = counted.usable_count
-  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'))
+  // 列ごとの型（G89）。型の室数から、その列の部屋割りを決める。室数が合わない列は未対応として印を出す
+  const spanTypes = assignTypesToSpans(spans, input.unitTypeIds ?? [])
+  const typedPatterns = new Map<number, RoomPattern>()
+  const unsupportedSpans: number[] = []
+  spanTypes.forEach((id, k) => {
+    const t = id === null ? undefined : input.unitTypes?.find((x) => x.id === id)
+    if (t === undefined) return
+    const { pattern } = patternOfType(t)
+    if (pattern === null) unsupportedSpans.push(k)
+    else typedPatterns.set(k, pattern)
+  })
+  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), typedPatterns)
 
   return {
     unitType: input.unitType ?? 'ファミリー',
@@ -163,6 +186,8 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     rooms,
     cores: coresInCorridor,
     shaftRects: shaftsOf(cells, rooms, coresInCorridor, c.corridor),
+    spanTypes,
+    unsupportedSpans,
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,
