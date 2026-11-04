@@ -4,7 +4,7 @@
 // 規制の値（測定面・時間）は呼び出し側が渡す（shadowRuleFor）。判定は judgeShadow と同じ結果になる。
 import type { Point } from '../geom/viewport'
 import { shadowOf } from '../volume/shadow'
-import { isShadowTarget, judgeShadow, pointInPolygon, sunWindow, type ShadowJudgment, type ShadowRule } from './shadowRegulation'
+import { isShadowTarget, judgeShadow, pointInPolygon, sunWindow, type ShadowBuilding, type ShadowJudgment, type ShadowRule } from './shadowRegulation'
 
 const STEP_MIN = 10
 const CELL_MM = 2_000
@@ -15,8 +15,8 @@ export interface ShadowDrawingInput {
   structure: 'RC' | 'SRC' | 'S' | 'W' | 'other'
   /** 敷地の外形（反時計回り、mm） */
   lot: Point[]
-  /** 建物の底面・高さ（mm）・地階を除く階数・軒高（mm）。低層の対象の判定に使う */
-  building: { footprint: Point[]; heightMm: number; storeys?: number; eaveHeightMm?: number }
+  /** 建物（切り取った階を含む）。判定（judgeShadow）と同じ入力 */
+  buildings: ShadowBuilding[]
   /** 規制の値（shadowRuleFor で引く） */
   rule: ShadowRule
   lat: number
@@ -51,7 +51,7 @@ export function shadowDrawing(input: ShadowDrawingInput): ShadowDrawingResult {
   if (input.structure !== 'RC') {
     return { status: 'unsupported', reason: '日影図は RC 造に限って作る（ほかの構造は未対応）' }
   }
-  if (!isShadowTarget(input.building, input.rule)) {
+  if (!input.buildings.some((b) => isShadowTarget(b, input.rule))) {
     return { status: 'not_required', reason: '日影規制の対象外（規制の対象の高さ・階数に当たらない）' }
   }
 
@@ -60,7 +60,7 @@ export function shadowDrawing(input: ShadowDrawingInput): ShadowDrawingResult {
   const shadowsBySun = suns.map((sun) =>
     sun.altitudeDeg <= 0
       ? []
-      : shadowOf(input.building.footprint, input.building.heightMm - zm, sun.altitudeDeg, sun.azimuthFromSouthDeg),
+      : input.buildings.map((b) => shadowOf(b.footprint, b.heightMm - zm, sun.altitudeDeg, sun.azimuthFromSouthDeg)),
   )
 
   const xs = input.lot.map((p) => p.x)
@@ -77,7 +77,7 @@ export function shadowDrawing(input: ShadowDrawingInput): ShadowDrawingResult {
     for (let y = bounds.minY + CELL_MM / 2; y < bounds.maxY; y += CELL_MM) {
       let count = 0
       for (const shadows of shadowsBySun) {
-        if (shadows.length > 0 && pointInPolygon({ x, y }, shadows)) count++
+        if (shadows.some((poly) => poly.length > 0 && pointInPolygon({ x, y }, poly))) count++
       }
       if (count > 0) cells.push({ x, y, hours: (count * STEP_MIN) / 60 })
     }
@@ -85,7 +85,7 @@ export function shadowDrawing(input: ShadowDrawingInput): ShadowDrawingResult {
 
   const judgment = judgeShadow({
     lot: input.lot,
-    buildings: [{ ...input.building }],
+    buildings: input.buildings,
     rule: input.rule,
     lat: input.lat,
     lon: input.lon,
@@ -93,4 +93,11 @@ export function shadowDrawing(input: ShadowDrawingInput): ShadowDrawingResult {
   })
 
   return { status: 'ok', sunSamples: suns.length, cellMm: CELL_MM, bounds, cells, judgment }
+}
+
+/** 判定文に添える一行（P2 の日影の欄） */
+export function shadowDrawingSummary(result: ShadowDrawingResult): string {
+  if (result.status !== 'ok') return `日影図: ${result.reason}`
+  const max = result.cells.reduce((m, c) => Math.max(m, c.hours), 0)
+  return `日影図: 影が落ちる格子 ${result.cells.length} 点、最大 ${max.toFixed(1)} h（格子 ${result.cellMm / 1000} m）`
 }

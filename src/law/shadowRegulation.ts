@@ -122,7 +122,7 @@ export function judgeShadow(input: {
   const shadowsBySun = suns.map((sun) =>
     sun.altitudeDeg <= 0
       ? []
-      : applicable.flatMap((b) => shadowOf(b.footprint, b.heightMm - zm, sun.altitudeDeg, sun.azimuthFromSouthDeg)),
+      : applicable.map((b) => shadowOf(b.footprint, b.heightMm - zm, sun.altitudeDeg, sun.azimuthFromSouthDeg)),
   )
 
   let worst: ShadowJudgment['worst'] = null
@@ -130,7 +130,7 @@ export function judgeShadow(input: {
   for (const { p, distanceM } of measurementPoints(input.lot)) {
     let count = 0
     for (const shadows of shadowsBySun) {
-      if (shadows.length > 0 && pointInPolygon(p, shadows)) count++
+      if (shadows.some((poly) => poly.length > 0 && pointInPolygon(p, poly))) count++
     }
     const hours = (count * STEP_MIN) / 60
     if (hours > maxHours) maxHours = hours
