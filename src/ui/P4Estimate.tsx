@@ -32,7 +32,8 @@ import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
-import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
+import { noticeOfPlan, objectSourcesOfPlan, tableInputOfPlan } from '../plan/objectSourcesOfPlan'
+import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import type { RoomKind } from '../plan/rooms'
 import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
@@ -109,9 +110,7 @@ export function P4Estimate() {
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
   // 住戸をグループとして数える（G58）。自動作成の結果からオブジェクト表の行を作り、表（SQLite）に書いて、表から読む
   const derivedObjectRows = useMemo(() => {
-    const rows: ObjectRow[] = plan
-      ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
-      : []
+    const rows: ObjectRow[] = objectTableOf(tableInputOfPlan(plan, fixtures))
     // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
     if (volume) {
       rows.push(
@@ -137,6 +136,8 @@ export function P4Estimate() {
     rows.push(sashRow(segments, kinds))
     return rows
   }, [plan, fixtures, volume, drawnEntries, assignments])
+  // 左の一覧の件数（G78）は、この表の行から数える（別の集計表は作らない）
+  const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
   const objectRows = useObjectTable((s) => s.rows)
   // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
   const detailLines = useMemo(() => detailLinesOfObjects(derivedObjectRows, rebar), [derivedObjectRows, rebar])
@@ -175,6 +176,7 @@ export function P4Estimate() {
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
+        countSources={countSources}
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"

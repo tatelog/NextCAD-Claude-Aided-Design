@@ -29,7 +29,8 @@ import { SemanticConfirm } from './SemanticConfirm'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
-import { objectTableOf } from '../plan/objectTable'
+import { objectTableOf, type ObjectTableInput } from '../plan/objectTable'
+import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import { useObjectTable } from '../store/objectTable'
 import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
@@ -84,19 +85,6 @@ export function P3Plan() {
   const selectedFixtureItem = useFixtures((s) => s.selectedItem)
   const selectFixtureItem = useFixtures((s) => s.selectItem)
   const placeSelectedFixture = useFixtures((s) => s.placeSelected)
-  // オブジェクト表（G58）: 自動作成の結果から作った行を、表（SQLite）に書いて、表から読む
-  const derivedObjectRows = useMemo(
-    () => (auto ? objectTableOf({ cells: auto.cells, rooms: auto.rooms, shafts: auto.shaftRects, cores: auto.cores, corridor: auto.corridor, fixtures }) : []),
-    [auto, fixtures],
-  )
-  const objectRows = useObjectTable((s) => s.rows)
-  const objectPersisted = useObjectTable((s) => s.persisted)
-  useEffect(() => {
-    void useObjectTable.getState().init()
-  }, [])
-  useEffect(() => {
-    useObjectTable.getState().setRows(derivedObjectRows)
-  }, [derivedObjectRows, objectPersisted])
   const removeFixtureById = useFixtures((s) => s.remove)
   const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
   // 意味づけの確認（G14）: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
@@ -245,6 +233,33 @@ export function P3Plan() {
     [siteMatches, shadowResult, storeyCount, storeyHeightMm, auto, units.cells],
   )
 
+  // オブジェクト表（G58・G78）: 画面の状態（区画・外形・通り芯・コア枠・什器。自動作成の結果があれば、その住戸・部屋・縦シャフト・コア）から作った行。
+  // 左の一覧の件数は、この表の行から数える。表（SQLite）には自動作成の行を書いて、表から読む
+  const objectTableInput = useMemo<ObjectTableInput>(() => {
+    const W = Number(widthText)
+    const D = Number(depthText)
+    return {
+      cells: units.cells ? units.cells.cells : [],
+      rooms: auto ? auto.rooms : [],
+      shafts: auto ? auto.shaftRects : [],
+      cores: auto ? auto.cores : core.rect ? [core.rect] : [],
+      corridors: units.cells ? units.cells.corridors : [],
+      outline: units.cells ? [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: D }, { x: 0, y: D }] : null,
+      siteBoundary: false,
+      gridLines: lines ?? [],
+      fixtures,
+    }
+  }, [widthText, depthText, lines, auto, core.rect, units.cells, fixtures])
+  const derivedObjectRows = useMemo(() => objectTableOf(objectTableInput), [objectTableInput])
+  const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
+  const objectRows = useObjectTable((s) => s.rows)
+  const objectPersisted = useObjectTable((s) => s.persisted)
+  useEffect(() => {
+    void useObjectTable.getState().init()
+  }, [])
+  useEffect(() => {
+    useObjectTable.getState().setRows(derivedObjectRows)
+  }, [derivedObjectRows, objectPersisted])
   const objectSources = useMemo<ObjectDetailSources>(
     () => ({
       outlines: units.cells ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
@@ -276,6 +291,7 @@ export function P3Plan() {
     <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 320px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
+        countSources={countSources}
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"

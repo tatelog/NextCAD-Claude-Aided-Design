@@ -2,7 +2,7 @@
 // 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びは呼び出し側が持つ。
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
 import { commonAreaCountsOf, commonAreaGroups } from '../plan/commonAreas'
-import { countObjects, type ObjectKind } from '../plan/objectMenu'
+import { countObjects, type ObjectKind, type ObjectSources } from '../plan/objectMenu'
 import type { ObjectRow } from '../plan/objectTable'
 import { unitGroupSummary } from '../plan/unitGroupSummary'
 
@@ -24,10 +24,12 @@ export interface ObjectMenuProps {
   firstFloorCounts?: { name: string; count: number }[]
   /** オブジェクト表の行（plan/objectTable）。あれば住戸をグループとして数える（G58）。省略すると出さない */
   objectRows?: readonly ObjectRow[]
+  /** 左の一覧の件数の入力（オブジェクト表の行から作る。G78）。省略すると sources から数える */
+  countSources?: ObjectSources
 }
 
-export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice, firstFloorCounts, objectRows }: ObjectMenuProps) {
-  const rows = countObjects(sources)
+export function ObjectMenu({ sources, selectedKind, onSelect, caption = '種類ごとの件数', notice, firstFloorCounts, objectRows, countSources }: ObjectMenuProps) {
+  const rows = countObjects(countSources ?? sources)
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
   const groupSummary = objectRows ? unitGroupSummary(objectRows) : null
   return (

@@ -1,6 +1,7 @@
 // 図面のオブジェクトの表（ハブ A-03 G48・G58・G75、D-03「オブジェクト」）。住戸と共用部はグループ（kind を持たない入れ物）。
 // 中身は親（parent_id）で持つ。住戸の中身（部屋・PS・置いた什器）は住戸の子、共用部の中身（廊下・コア・EPS・DS）は共用部の子。
 // 自動作成の結果と什器から作る。決定論。画面の表示は変えない（表の形だけ）。
+import type { Point } from '../geom/viewport'
 import type { Rect } from './candidateCells'
 import type { ShaftRect } from './autoPlan'
 import type { Room } from './rooms'
@@ -25,10 +26,21 @@ export interface ObjectTableInput {
   shafts: readonly ShaftRect[]
   /** コア（階段・EV ホール）。共用部の子 */
   cores: readonly ObjectCore[]
-  /** 廊下（共用部の子）。無ければ null */
-  corridor: Rect | null
+  /** 廊下（共用部の子）。ツインは 2 本。無ければ空 */
+  corridors: readonly Rect[]
+  /** 外形（閉じた輪郭の頂点列）。3 点未満・閉じていないときは null。外形の行は 1 つ */
+  outline?: readonly Point[] | null
+  /** 仮の筆界（敷地）の行を持つか（P2 の仮の筆界）。G78 の左の一覧の件数に使う */
+  siteBoundary?: boolean
+  /** 通り芯の位置（mm）。位置ごとに一行（kind は通り芯） */
+  gridLines?: readonly number[]
   /** 置いた什器。住戸に置いたものは住戸の子、区画の無いものは親なし */
   fixtures: readonly Fixture[]
+}
+
+/** 何も入っていない入力（P2 のように一部だけ使う画面で、足りない種類を空にする） */
+export function emptyObjectTableInput(): ObjectTableInput {
+  return { cells: [], rooms: [], shafts: [], cores: [], corridors: [], outline: null, siteBoundary: false, gridLines: [], fixtures: [] }
 }
 
 export interface ObjectRow {
@@ -46,7 +58,7 @@ const CORE_NAMES: Record<string, string> = { stairA: '階段 A', stairB: '階段
 
 export function objectTableOf(input: ObjectTableInput): ObjectRow[] {
   const unitIds = new Set(input.cells.map((c) => c.id))
-  const hasCommon = input.corridor !== null || input.cores.length > 0 || input.shafts.some((s) => s.unitId === undefined)
+  const hasCommon = input.corridors.length > 0 || input.cores.length > 0 || input.shafts.some((s) => s.unitId === undefined)
   const rows: ObjectRow[] = input.cells.map((c) => ({ id: c.id, kind: 'group', attr: '住戸', name: c.id, parent_id: null }))
   if (hasCommon) rows.push({ id: COMMON_ID, kind: 'group', attr: '共用部', name: '共用部', parent_id: null })
   for (const r of input.rooms) {
@@ -57,8 +69,12 @@ export function objectTableOf(input: ObjectTableInput): ObjectRow[] {
     const parent = s.unitId !== undefined && unitIds.has(s.unitId) ? s.unitId : s.unitId === undefined ? COMMON_ID : null
     rows.push({ id: s.id, kind: 'other', attr: s.kind, name: s.kind, parent_id: parent })
   }
-  if (input.corridor) rows.push({ id: input.corridor.id, kind: 'other', attr: '廊下', name: '廊下', parent_id: COMMON_ID })
+  for (const c of input.corridors) rows.push({ id: c.id, kind: 'other', attr: '廊下', name: '廊下', parent_id: COMMON_ID })
   for (const c of input.cores) rows.push({ id: c.id, kind: 'other', attr: 'コア', name: CORE_NAMES[c.id] ?? c.id, parent_id: COMMON_ID })
+  // 外形・仮の筆界・通り芯は、左の一覧の件数に使う（G78）。外形は 3 点以上の輪郭だけ
+  if (input.outline && input.outline.length >= 3) rows.push({ id: 'outline', kind: 'other', attr: '外形', name: '外形', parent_id: null })
+  if (input.siteBoundary) rows.push({ id: 'parcel', kind: 'other', attr: '筆界', name: '筆界', parent_id: null })
+  ;(input.gridLines ?? []).forEach((_, i) => rows.push({ id: `grid-${i}`, kind: 'grid', attr: '通り芯', name: `通り芯 ${i + 1}`, parent_id: null }))
   for (const f of input.fixtures) {
     const parent = f.unitId !== null && unitIds.has(f.unitId) ? f.unitId : null
     rows.push({ id: f.id, kind: FIXTURE_KIND, attr: FIXTURE_ATTRIBUTE, name: fixtureLabel(f.item), parent_id: parent })

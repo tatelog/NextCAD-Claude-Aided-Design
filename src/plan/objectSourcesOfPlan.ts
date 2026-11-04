@@ -6,6 +6,7 @@ import { candidateCells, type Rect } from './candidateCells'
 import type { Fixture } from './fixtures'
 import { gridLines } from './grid'
 import type { ObjectDetailSources } from './objectDetail'
+import { emptyObjectTableInput, type ObjectTableInput } from './objectTable'
 
 const NOTICE_BEFORE_AUTO_PLAN = '自動作成の後に出ます'
 
@@ -87,6 +88,32 @@ export function objectSourcesOfFootprint(footprint?: readonly Point[] | null, pa
     ...emptySources(),
     siteBoundaries: parcel === null || parcel === undefined ? [] : [parcel],
     outlines: footprint !== null && footprint !== undefined && footprint.length >= 3 ? [footprint] : [],
+  }
+}
+
+/**
+ * P3 の自動作成の結果から、オブジェクト表の入力を作る（G78。左の一覧の件数も、積算の表も、この入力から出す）。
+ * 外形・通り芯・廊下（ツインは 2 本）・コア・縦シャフト・住戸・部屋は結果のまま。什器は渡されたものをそのまま（結果が無くても入る）。
+ * 結果が無い（null・未指定）ときは、什器だけが入る。
+ */
+export function tableInputOfPlan(plan: AutoPlan | null | undefined, fixtures: readonly Fixture[] = []): ObjectTableInput {
+  if (!plan) return { ...emptyObjectTableInput(), fixtures }
+  const spanMm = plan.depthMm / plan.spans
+  return {
+    cells: plan.cells,
+    rooms: plan.rooms,
+    shafts: plan.shaftRects,
+    cores: plan.cores,
+    corridors: corridorsOf(plan, spanMm),
+    outline: [
+      { x: 0, y: 0 },
+      { x: plan.widthMm, y: 0 },
+      { x: plan.widthMm, y: plan.depthMm },
+      { x: 0, y: plan.depthMm },
+    ],
+    siteBoundary: false,
+    gridLines: gridLinesOf(plan.depthMm, spanMm),
+    fixtures,
   }
 }
 

@@ -52,6 +52,8 @@ import { Volume3D } from './Volume3D'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
+import { sourcesOfTable } from '../plan/objectCountsOfTable'
+import { emptyObjectTableInput, objectTableOf } from '../plan/objectTable'
 import { ObjectMenu } from './ObjectMenu'
 import { TileClose } from './PanelTile'
 import { usePanelTiles } from '../store/panelTiles'
@@ -69,6 +71,11 @@ export function P03Volume() {
   const closure = useMemo(() => findClosedOutline(segments), [segments])
   // 左メニュー（G55）の入力: 外形（閉じた輪郭）と仮の筆界（ダミー）から。P1 の筆界が入るまでの仮
   const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, DUMMY_PARCEL), [closure])
+  // 左の一覧の件数（G78）: 閉じた外形と仮の筆界の行から数える（別の集計表は作らない）
+  const countSources = useMemo(
+    () => sourcesOfTable(objectTableOf({ ...emptyObjectTableInput(), outline: closure.footprint, siteBoundary: true })),
+    [closure],
+  )
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
@@ -323,7 +330,7 @@ export function P03Volume() {
       </header>
       <div className="p03-body">
         {view === 'plan' && (
-          <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（外形と仮の筆界）" />
+          <ObjectMenu sources={objectSources} countSources={countSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（外形と仮の筆界）" />
         )}
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
