@@ -10,7 +10,8 @@ export interface Quantity {
   item: string
   category: Category
   quantity: number
-  unit: 'm2'
+  /** 面積（m²）か体積（m³） */
+  unit: 'm2' | 'm3'
   provisional: boolean
 }
 
