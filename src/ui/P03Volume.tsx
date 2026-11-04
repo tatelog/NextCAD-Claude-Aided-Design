@@ -9,6 +9,7 @@ import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type Road
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
+import { setbackLabel } from '../plan/dimensionLabel'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
 import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
@@ -552,13 +553,13 @@ export function P03Volume() {
             {setback ? (
               <dl>
                 <dt>北</dt>
-                <dd>{setback.north.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.north)}</dd>
                 <dt>東</dt>
-                <dd>{setback.east.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.east)}</dd>
                 <dt>南</dt>
-                <dd>{setback.south.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.south)}</dd>
                 <dt>西</dt>
-                <dd>{setback.west.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.west)}</dd>
               </dl>
             ) : (
               <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
