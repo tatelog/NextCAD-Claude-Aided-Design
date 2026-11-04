@@ -21,7 +21,10 @@ import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
-import { shadowRuleFromOrdinance } from '../law/shadowOrdinance'
+import { SHADOW_KEYS, shadowRuleFromOrdinance } from '../law/shadowOrdinance'
+import { ordinanceStatus } from '../law/ordinance'
+import { confirmMeasurement } from '../law/measurementConfirm'
+import { ICHI_NOTE } from '../law/fireIchi'
 import { useOrdinance } from '../store/ordinance'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
@@ -212,6 +215,13 @@ export function P03Volume() {
     [stackedFloors, sun],
   )
   const ordinanceEntries = useOrdinance((s) => s.entries)
+  const setOrdinanceEntry = useOrdinance((s) => s.setEntry)
+  const confirmOrdinance = useOrdinance((s) => s.confirm)
+  const heightStatus = ordinanceStatus(ordinanceEntries, SHADOW_KEYS.height)
+  // 測定面の候補（G87）。表から出す提案。確定するまで判定には使わない
+  const candidate = siteRule
+    ? suggestMeasurement({ zone: siteRule.zone, farPercent: siteRule.farPercent, heightDistrict: heightDistrict === '' ? null : heightDistrict })
+    : { ok: false as const, reason: '用途地域が決まっていない' }
   // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す。規制値は確認済みの条例の値だけ（G15）
   const shadowJudge = useMemo(() => {
     // 再計算をオフにしているときは、判定を計算せずに止めていると出す（G70）
@@ -430,7 +440,20 @@ export function P03Volume() {
                 ))}
               </select>
             </label>
-            <p className="muted">測定面の候補（都条例の別表第一。提案で、判定には使わない）: {measurementHintOf(siteRule, heightDistrict)}</p>
+            <p className="muted">測定面の候補（都条例の別表第一。表から出す提案）: {measurementHintOf(siteRule, heightDistrict)}</p>
+            <p className="muted">
+              <button
+                type="button"
+                disabled={!candidate.ok}
+                onClick={() => confirmMeasurement(candidate, { setEntry: setOrdinanceEntry, confirm: confirmOrdinance })}
+              >
+                候補を測定面に確定
+              </button>{' '}
+              {heightStatus.status === '確認済み'
+                ? `測定面は確定済み（${heightStatus.value} m）。判定に使っている`
+                : '測定面が未確定のため、日影は判定しない（候補を確定するか、人が値を入れて確認する）'}
+            </p>
+            <p className="muted">防火（令 136 条の 2）: {ICHI_NOTE}</p>
             <label>
               用途地域
               <select value={zone} onChange={(e) => setZone(e.target.value as Zone)}>

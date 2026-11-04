@@ -9,6 +9,7 @@ import { classLabelsOf } from '../law/buildingClass'
 import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
 import { fireStructureItems } from '../law/fireStructure'
 import { COMPONENTS, judgeComponent, requiredMinutes } from '../law/structureFire'
+import { ICHI_NOTE, judgeIchi } from '../law/fireIchi'
 import { useComponentFire } from '../store/componentFire'
 import { useSite } from '../store/site'
 
@@ -32,6 +33,8 @@ export function P5Output() {
   const [fireZone, setFireZone] = useState<FireZone>('なし')
   const componentRatings = useComponentFire((st) => st.ratings)
   const setComponentRating = useComponentFire((st) => st.setRating)
+  const fireDoor = useComponentFire((st) => st.fireDoor)
+  const setFireDoor = useComponentFire((st) => st.setFireDoor)
   const [tab, setTab] = useState<'bim' | 'pdf'>('bim')
   const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
   const [applicant, setApplicant] = useState('')
@@ -118,9 +121,20 @@ export function P5Output() {
               <>
                 <p style={{ margin: '0 0 4px' }}>防火・準防火（{fireZone}地域）: 令 136 条の 2 {cls}</p>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {fireStructureItems(cls).map((i) => (
-                    <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い。ハブ G28）</li>
-                  ))}
+                  {fireStructureItems(cls).map((i) => {
+                    // イ（G85）: 主要構造部の耐火構造と、外壁開口部設備の防火設備で判定する。ロは計算せず対象外と出す
+                    if (i.label.startsWith('イ')) {
+                      const ichi = judgeIchi(storeys, { ratings: componentRatings, fireDoor })
+                      return (
+                        <li key={i.label}>
+                          イ（主要構造部の耐火構造・外壁開口部設備の防火設備）: {ichi.result}
+                          {ichi.reasons.length > 0 ? `（${ichi.reasons.join('、')}）` : ''}
+                        </li>
+                      )
+                    }
+                    if (i.label.startsWith('ロ')) return <li key={i.label}>{ICHI_NOTE}</li>
+                    return <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い。ハブ G28）</li>
+                  })}
                 </ul>
               </>
             )
@@ -130,6 +144,14 @@ export function P5Output() {
       {valid ? (
         <section style={{ marginBottom: 12, fontSize: 12 }}>
           <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる。G28）</strong>
+          <label style={{ display: 'block', margin: '6px 0' }}>
+            外壁開口部設備（防火設備か。イの入力）{' '}
+            <select value={fireDoor === null ? '' : fireDoor ? 'yes' : 'no'} onChange={(e) => setFireDoor(e.target.value === '' ? null : e.target.value === 'yes')}>
+              <option value="">未入力</option>
+              <option value="yes">防火設備</option>
+              <option value="no">防火設備ではない</option>
+            </select>
+          </label>
           <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
             <thead>
               <tr>
