@@ -1,8 +1,10 @@
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
 import { useMemo, useState } from 'react'
-import { MAX_ZOOM, VIEW_PX, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
+import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
+import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW } from '../map/initialView'
+import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
 import { P1Map } from './P1Map'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
@@ -12,8 +14,6 @@ import { fireDecisionLine } from '../law/fireZone'
 import { OrdinanceForm } from './OrdinanceForm'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { useUi } from '../store/ui'
-import { neighborVolumes } from '../volume/neighborLocal'
-import { NeighborScene3D } from './NeighborScene3D'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
 import { PanelTile } from './PanelTile'
 import { ChatTile } from './ChatTile'
@@ -46,14 +46,6 @@ export function P1Site() {
   const [addressError, setAddressError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
   const showNeighbors = useUi((s) => s.showNeighbors)
-  const siteOrigin = useSite((s) => s.sitePoint)
-  // 3D の周辺建物（基準点を原点にした mm。P1 は敷地の外形を持たないので、周辺建物だけを置く）
-  const [view3d, setView3d] = useState(false)
-  const neighbors3d = useMemo(
-    () => (siteBuildings && siteOrigin ? neighborVolumes(siteBuildings, siteOrigin, { x: 0, y: 0 }) : []),
-    [siteBuildings, siteOrigin],
-  )
-  const show3d = view3d && neighbors3d.length > 0
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
@@ -132,11 +124,8 @@ export function P1Site() {
     }
   }
 
-  // 周辺建物の輪郭（経度・緯度）。地図に重ねる
-  const neighborRings = useMemo<[number, number][][]>(() => {
-    if (!siteBuildings || !showNeighbors) return []
-    return siteBuildings.flatMap((b) => b.footprints.map((ring) => ring.map((p) => [p.lon, p.lat] as [number, number])))
-  }, [siteBuildings, showNeighbors])
+  // 周辺建物の輪郭（経度・緯度）。地図に重ねる。3D は地図の傾きで見る（LOD1）ので、別の 3D 画面は持たない
+  const neighborRings = useMemo(() => toNeighborRings(siteBuildings, showNeighbors), [siteBuildings, showNeighbors])
 
   // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P1 はチャットだけ
   const activeMode = useActiveMode('P1')
@@ -146,31 +135,26 @@ export function P1Site() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
       <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
-        {show3d ? (
-          <div style={{ width: VIEW_PX, height: VIEW_PX }}>
-            <NeighborScene3D neighbors={neighbors3d} />
-          </div>
-        ) : (
-          <P1Map
-            center={center}
-            zoom={zoom}
-            site={site}
-            neighborRings={neighborRings}
-            onSiteClick={moveSiteByMap}
-            onInfo={setMapInfo}
-            onStatus={setMapStatus}
-            onView={(c, z) => {
-              setCenter(c)
-              setZoom(z)
-            }}
-          />
-        )}
+        <P1Map
+          center={center}
+          zoom={zoom}
+          site={site}
+          neighborRings={neighborRings}
+          onSiteClick={moveSiteByMap}
+          onInfo={setMapInfo}
+          onStatus={setMapStatus}
+          onView={(c, z) => {
+            setCenter(c)
+            setZoom(z)
+          }}
+        />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
-        <p style={{ fontSize: 13, margin: '0 0 8px' }}>{mapInfo}</p>
+        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             住所
@@ -199,7 +183,7 @@ export function P1Site() {
               ))}
             </ul>
           )}
-          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: 国土地理院 住所検索 API（利用条件は未確認）。</p>
+          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: {sourceLabel('gsiAddress')}</p>
         </div>
         <div aria-disabled="true" style={{ marginBottom: 12, opacity: 0.45 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
@@ -289,7 +273,7 @@ export function P1Site() {
               管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}。斜線・日影は urf に無い（条例で補う）。</p>
         </section>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
@@ -300,18 +284,13 @@ export function P1Site() {
           <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
             {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
           </button>
-          {siteBuildings && neighbors3d.length > 0 && (
-            <button type="button" onClick={() => setView3d((v) => !v)} style={{ marginLeft: 8 }}>
-              {view3d ? '地図で見る' : '3D で見る'}
-            </button>
-          )}
           {neighborError && <p style={{ color: '#a33' }}>{neighborError}</p>}
           {siteBuildings && (
             <p>
               周辺建物 {siteBuildings.length} 棟（基準点から半径 400 m 以内）。高さ不明 {siteBuildings.filter((b) => b.heightM === null).length} 棟は 3D に出ません。
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（建物データ。利用条件は未確認）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}（建物データ）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
         {!rightShown('claude-chat') ? null : (
           <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
