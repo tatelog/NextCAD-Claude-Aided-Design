@@ -35,6 +35,8 @@ import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { checkShaftAlignment } from '../plan/shaftAlignment'
+import { shaftFloorsOf, shaftNoteOf } from '../plan/shaftCheck'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
@@ -296,6 +298,8 @@ export function P3Plan() {
   )
 
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
+  // 縦シャフトの上下階の一致（G119）。今は各階が基準階の複製（G30）なので、個別の階を持つときだけ食い違いが出る
+  const shaftCheck = auto ? checkShaftAlignment(shaftFloorsOf(auto.shaftRects, storeyCount)) : null
   let judge: string = '許容範囲は未決（D-02 C6）'
   if (range && Number.isFinite(range.minMm) && Number.isFinite(range.maxMm)) {
     try {
@@ -606,6 +610,7 @@ export function P3Plan() {
         {!tileShown('p3-result') ? null : (
         <PanelTile title="住戸数・スパンの判定" onHide={() => hideTile('p3-result')}>
         <p>スパンの判定: {judge}</p>
+        {shaftCheck ? <p style={{ color: shaftCheck.aligned ? '#666' : '#a86b00', fontSize: 12 }}>{shaftNoteOf(shaftCheck)}</p> : null}
         {units.result ? (
           <>
             <p>
