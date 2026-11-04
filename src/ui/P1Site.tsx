@@ -1,23 +1,9 @@
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { ATTRIBUTION, tileUrl } from '../map/tiles'
-import {
-  MAX_ZOOM,
-  TILE_PX,
-  VIEW_PX,
-  clampZoom,
-  isClick,
-  panCenter,
-  parseSitePoint,
-  screenToLonLat,
-  tileOnMap,
-  tilesInView,
-  wheelZoomSteps,
-  worldToScreen,
-  type LonLat,
-  type Point,
-} from '../map/viewport'
+import { useMemo, useState } from 'react'
+import { MAX_ZOOM, VIEW_PX, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
+import { DEMO_INITIAL_VIEW } from '../map/initialView'
+import { P1Map } from './P1Map'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
@@ -28,17 +14,17 @@ import { neighborVolumes } from '../volume/neighborLocal'
 import { NeighborScene3D } from './NeighborScene3D'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
 
-// 既定の地点は江東区の木場付近（zip の範囲内。半径 400 m に建物がある）。東京駅付近は千代田区で、この zip の外
-const DEFAULT = { lon: 139.814, lat: 35.67 }
+// 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の重心。江東区の zip の範囲内
+const DEFAULT = { lon: 139.829826, lat: 35.667401 }
 // 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
 export function P1Site() {
   const [lonText, setLonText] = useState(String(DEFAULT.lon))
   const [latText, setLatText] = useState(String(DEFAULT.lat))
-  const [zoom, setZoom] = useState(15)
+  const [zoom, setZoom] = useState(DEMO_INITIAL_VIEW.zoom)
   // 地図の中心（表示の中央）。対象地点とは別で、ドラッグで動く。経緯度を入れたときは、その地点へ寄る
-  const [center, setCenter] = useState<LonLat>(DEFAULT)
+  const [center, setCenter] = useState<LonLat>({ lon: DEMO_INITIAL_VIEW.center[0], lat: DEMO_INITIAL_VIEW.center[1] })
   const [cityCode, setCityCode] = useState('13108')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<DistrictLoad | null>(null)
@@ -61,17 +47,15 @@ export function P1Site() {
     [siteBuildings, siteOrigin],
   )
   const show3d = view3d && neighbors3d.length > 0
-  const mapRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ start: Point; last: Point; moved: boolean } | null>(null)
-  // ホイールの、まだ段になっていない分（トラックパッドの細かい動きをためる）
-  const wheelRef = useRef(0)
+  // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
+  const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
+  const [mapStatus, setMapStatus] = useState('読み込み中…')
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
 
   // 対象地点（経緯度の入力が正しいとき）
   const site = useMemo(() => parseSitePoint(lonText, latText), [lonText, latText])
-  const siteScreen = site ? worldToScreen(site, center, zoom) : null
 
   // 経緯度の入力で対象地点を決める。入力が正しければ、地図の中心もそこへ寄せる
   const moveSiteByText = (lonValue: string, latValue: string) => {
@@ -141,80 +125,11 @@ export function P1Site() {
     }
   }
 
-  // 周辺建物の footprint を、表示の左上を原点にしたピクセルの多角形にする
-  const buildingPolygons = useMemo(() => {
+  // 周辺建物の輪郭（経度・緯度）。地図に重ねる
+  const neighborRings = useMemo<[number, number][][]>(() => {
     if (!siteBuildings || !showNeighbors) return []
-    return siteBuildings.flatMap((b) =>
-      b.footprints.map((ring) =>
-        ring
-          .map((p) => {
-            const s = worldToScreen(p, center, zoom)
-            return `${s.x.toFixed(1)},${s.y.toFixed(1)}`
-          })
-          .join(' '),
-      ),
-    )
-  }, [siteBuildings, center, zoom, showNeighbors])
-
-  // 表示を覆うタイル（地図の範囲の外は描かない）
-  const tiles = useMemo(() => {
-    const out: { key: string; url: string; left: number; top: number }[] = []
-    for (const t of tilesInView(center, zoom)) {
-      const m = tileOnMap(t, zoom)
-      if (m) out.push({ key: `${t.x}-${t.y}`, url: tileUrl(m, zoom), left: t.dx, top: t.dy })
-    }
-    return out
-  }, [center, zoom])
-
-  // ホイールで拡大縮小。3D の表示のときは地図を動かさない
-  useEffect(() => {
-    const el = mapRef.current
-    if (!el || show3d) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const { steps, rest } = wheelZoomSteps(wheelRef.current, e.deltaY)
-      wheelRef.current = rest
-      if (steps !== 0) setZoom((z) => clampZoom(z - steps))
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [show3d])
-
-  // ドラッグで地図を動かす。動かさずに離したら、その点を対象地点にする
-  const onMapPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const p = { x: e.clientX, y: e.clientY }
-    dragRef.current = { start: p, last: p, moved: false }
-  }
-  // 指の動いた分（前回の位置から now まで）だけ地図を動かす
-  const followPointer = (d: { last: Point; moved: boolean }, now: Point) => {
-    d.moved = true
-    // 差分は今の値で固定する（更新関数は後で走るので、d.last を読むと差分が 0 になる）
-    const dx = now.x - d.last.x
-    const dy = now.y - d.last.y
-    d.last = now
-    setCenter((c) => panCenter(c, zoom, dx, dy))
-  }
-  const onMapPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    const d = dragRef.current
-    if (!d) return
-    const now = { x: e.clientX, y: e.clientY }
-    if (!d.moved && isClick(d.start, now)) return
-    followPointer(d, now)
-  }
-  // 離したときも、離した位置までの分を動かす（途中の動きが届かない速さの操作にも合わせる）
-  const onMapPointerUp = (e: PointerEvent<HTMLDivElement>) => {
-    const d = dragRef.current
-    dragRef.current = null
-    if (!d) return
-    const end = { x: e.clientX, y: e.clientY }
-    if (!d.moved && isClick(d.start, end)) {
-      const rect = e.currentTarget.getBoundingClientRect()
-      moveSiteByMap(screenToLonLat(e.clientX - rect.left, e.clientY - rect.top, center, zoom))
-      return
-    }
-    followPointer(d, end)
-  }
+    return siteBuildings.flatMap((b) => b.footprints.map((ring) => ring.map((p) => [p.lon, p.lat] as [number, number])))
+  }, [siteBuildings, showNeighbors])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
@@ -224,50 +139,26 @@ export function P1Site() {
             <NeighborScene3D neighbors={neighbors3d} />
           </div>
         ) : (
-          <div
-            ref={mapRef}
-            onPointerDown={onMapPointerDown}
-            onPointerMove={onMapPointerMove}
-            onPointerUp={onMapPointerUp}
-            onPointerCancel={() => {
-              dragRef.current = null
+          <P1Map
+            center={center}
+            zoom={zoom}
+            site={site}
+            neighborRings={neighborRings}
+            onSiteClick={moveSiteByMap}
+            onInfo={setMapInfo}
+            onStatus={setMapStatus}
+            onView={(c, z) => {
+              setCenter(c)
+              setZoom(z)
             }}
-            style={{ position: 'relative', width: VIEW_PX, height: VIEW_PX, cursor: 'crosshair', touchAction: 'none' }}
-          >
-            {tiles.map((t) => (
-              <img
-                key={t.key}
-                src={t.url}
-                alt=""
-                width={TILE_PX}
-                height={TILE_PX}
-                draggable={false}
-                style={{ position: 'absolute', left: t.left, top: t.top, userSelect: 'none' }}
-              />
-            ))}
-            <svg width={VIEW_PX} height={VIEW_PX} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
-              {buildingPolygons.map((pts, i) => (
-                <polygon key={i} points={pts} fill="rgba(70,80,92,0.45)" stroke="#2b3138" strokeWidth={0.8} />
-              ))}
-              {siteScreen && <circle cx={siteScreen.x} cy={siteScreen.y} r={7} fill="rgba(211,51,51,0.25)" stroke="#d33" strokeWidth={2} />}
-            </svg>
-          </div>
+          />
         )}
-        {!show3d && (
-          <div style={{ position: 'absolute', left: 8, top: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <button type="button" aria-label="拡大" onClick={() => setZoom((z) => clampZoom(z + 1))} disabled={zoom >= MAX_ZOOM}>
-              ＋
-            </button>
-            <button type="button" aria-label="縮小" onClick={() => setZoom((z) => clampZoom(z - 1))} disabled={zoom <= 0}>
-              −
-            </button>
-          </div>
-        )}
-        <div style={{ position: 'absolute', right: 6, bottom: 4, background: 'rgba(255,255,255,0.85)', padding: '2px 6px', fontSize: 12 }}>{ATTRIBUTION}</div>
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
-        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールか ＋ － で拡大縮小します。</p>
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
+        <p style={{ fontSize: 13, margin: '0 0 8px' }}>{mapInfo}</p>
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             住所

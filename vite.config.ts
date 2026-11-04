@@ -4,6 +4,8 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [react()],
+  // maplibre-gl は内部の Worker を読むため、事前バンドル（最適化）から外す（開発時に Worker が読めない問題を避ける）
+  optimizeDeps: { exclude: ['maplibre-gl'] },
   server: {
     host: true,
     // PLATEAU の zip の範囲取得を同じ接続元で中継する（開発時。配備時は Worker の /plateau-assets/ が同じ役）
