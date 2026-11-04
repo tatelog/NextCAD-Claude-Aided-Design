@@ -45,18 +45,20 @@ describe('ボリュームから作る判定の入力', () => {
     expect(permitInputFromVolume(block(5), project).storeys).toBe(5)
   })
 
-  it('ボリュームを変えると、要る図書が変わる（11階・33m で消防と昇降機の図書が加わる）', () => {
+  it('ボリュームを変えると、要る図書が変わる（11階・33m で非常コンセントの図が加わる。消防用設備等は高さでなく延べ面積で決まる）', () => {
     const tall = requiredPermitDocuments(permitInputFromVolume(block(11, 3_000), project)).required
     expect(tall).toEqual(
       expect.arrayContaining([
-        '消防用設備等の図書（高層建築物・消防法令）',
+        '消防用設備等の図書（消防法17条・表二(六十七)）',
         '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）',
         // 非常用の昇降機は 31m 超の部分の床面積で決まる（下のテスト）
       ]),
     )
 
+    // 5階・延べ面積2000㎡でも消防用設備等の図書は要る（施行令10条1項2号イ）。非常コンセントは11階以上なので要らない
     const low = requiredPermitDocuments(permitInputFromVolume(block(5, 3_000), project)).required
-    expect(low).not.toContain('消防用設備等の図書（高層建築物・消防法令）')
+    expect(low).toContain('消防用設備等の図書（消防法17条・表二(六十七)）')
+    expect(low).not.toContain('非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）')
     expect(low).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
   })
 
