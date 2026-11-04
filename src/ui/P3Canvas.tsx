@@ -4,6 +4,7 @@
 // 描画の入力は setPointerCapture を使わない（合成イベントでも確かめられるように）。描画の共通部品（DrawingCanvas）には触れない。
 import { useEffect, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
+import { polylineOfSegment } from '../canvas/arcSegment'
 import { strokeToSegments } from '../canvas/strokeToSegments'
 import { strokeStartPx } from '../input/endpointPick'
 import { arcPreviewMm, arcToolStep, ARC_TOOL_START, type ArcToolState } from '../input/twoPointArcTool'
@@ -45,9 +46,8 @@ export function P3Canvas() {
     g.strokeStyle = '#1f2a44'
     g.lineWidth = 2
     for (const s of segments) {
-      // 曲線（spline）は制御点を通す。直線は両端を結ぶ
-      const cps = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as { x: number; y: number }[] | undefined) : undefined
-      const pts = cps && cps.length > 1 ? cps : [{ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 }]
+      // 曲線（spline）は制御点、円弧（arc）は弦誤差で折った点列を通す。直線は両端を結ぶ（t82）
+      const pts = polylineOfSegment(s)
       g.beginPath()
       pts.forEach((p, i) => {
         const x = p.x / P3_MM_PER_PX + OX

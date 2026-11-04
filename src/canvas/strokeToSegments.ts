@@ -5,6 +5,7 @@
 import { simplifyRdp } from '../geom/rdp'
 import { snapPoint, type SnapResult } from '../input/snap'
 import type { Node, Segment, Snap, Stroke } from '../model/schema'
+import { arcParamsFromNodes } from './arcSegment'
 
 export interface StrokeToSegmentsOptions {
   /** RDP の許容誤差（画面 px）。仮置き 8 */
@@ -98,7 +99,7 @@ function lineToSegments(
   return { segments, nodes: created }
 }
 
-/** 曲線モード: 両端だけスナップし、間の点は描いたまま 1 本の spline にする */
+/** 曲線モード: 両端だけスナップし、間の点は描いたまま 1 本の spline にする。円弧（中心と向きを持つ線）は curve: arc にする（t82） */
 function curveToSegment(
   stroke: Stroke,
   existingNodes: readonly Node[],
@@ -131,6 +132,8 @@ function curveToSegment(
     return { x: p.x, y: p.y }
   })
 
+  // 中心と向きを持つ線（円弧の入力）は、中心・半径・始終角で持つ（t82）。両端が同じ閉じた円弧は円弧にできないので spline のまま
+  const arc = stroke.arc && start.node.id !== end.node.id ? stroke.arc : null
   const segment: Segment = {
     id: newId(),
     x1: start.node.x,
@@ -143,8 +146,9 @@ function curveToSegment(
     stroke_id: stroke.id,
     stage: stroke.stage,
     revision: 1,
-    curve: 'spline',
-    curve_params: { control_points: controlPoints },
+    ...(arc
+      ? { curve: 'arc' as const, curve_params: arcParamsFromNodes(arc.center, start.node, end.node, arc.ccw) }
+      : { curve: 'spline' as const, curve_params: { control_points: controlPoints } }),
   }
   return { segments: [segment], nodes: created }
 }
