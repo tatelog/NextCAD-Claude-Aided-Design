@@ -1,6 +1,6 @@
 // 作業のモード（ハブ A-03 G100・G95・G43・G101）。System（1）・Chat（2）・Drawing（3）。id は system・chat・drawing（表示名は表 screenModes の name。1 か所）。
 // 切り替えると、そのモードの右メニューの項目を開く。右メニューに何が出るかは、モードと画面の組で決まる（表 screenModes）。
-// Drawing（3）は表で使えない（D-04 の 2b の表の確認待ち。代表）。
+// Drawing（3）は P2・P3 で使える（2b の改定。代表 2026-11-05）。
 import { create } from 'zustand'
 import { modesOfScreen, rightBarItems, SCREEN_MODES, type ScreenModesConfig } from '../app/screenModes'
 import { usePanelTiles } from './panelTiles'

@@ -59,6 +59,7 @@ import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { TileClose } from './PanelTile'
 import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { DrawingReviewTile } from './DrawingReviewTile'
 import { usePanelTiles } from '../store/panelTiles'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
@@ -617,6 +618,10 @@ export function P03Volume() {
             <TileClose title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')} />
             <h2>機能の調整（G43）</h2>
             <FeatureAdjustTile screen="P2" />
+          </section>
+          <section style={tileStyle('drawing-review')}>
+            <TileClose title="候補の確認（Drawing）" onHide={() => hideTile('drawing-review')} />
+            <DrawingReviewTile />
           </section>
         </aside>
       </div>

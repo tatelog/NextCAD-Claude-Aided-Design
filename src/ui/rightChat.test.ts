@@ -1,7 +1,8 @@
-// 仕様（ハブ A-03 G95・G100・G73。統括の依頼 t57、2026-11-04）:
-// 仕様 1: P1・P4・P5 の右パネルに、チャットの項目が出る（表 screenModes。この画面はチャットだけ）。
-// 仕様 2: 今のモードがシステムでも、この画面はチャットとして扱うので、チャットの項目が出る（activeModeOf）。
-// 仕様 3: × で閉じたチャットは出ない（G73。閉じた項目は、メニューの「右パネルの項目」で戻す）。
+// 仕様（ハブ A-03 G95・G100・G73。統括の依頼 t57、2026-11-04。2026-11-05 の 2b の改定で更新）:
+// 仕様 1（P1・P4）: 右パネルのチャットの項目は、Chat のモードのときに出る（表 screenModes。P1・P4 は System・Chat）。
+// 仕様 2（システム）: 今のモードがシステムのときは、チャットの項目は出ない（機能の調整が出る）。
+// 仕様 3（P5）: P5 は切替なし（表 screenModes。使えるモードが無い）。チャットの項目は出ない。
+// 仕様 4: × で閉じたチャットは出ない（G73）。
 import { type ReactElement, createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,25 +27,34 @@ vi.mock('./NeighborScene3D', () => ({ NeighborScene3D: () => null }))
 vi.mock('./OrdinanceForm', () => ({ OrdinanceForm: () => null }))
 
 const TITLE = 'Claude（チャット）'
-const SCREENS: Record<'P1' | 'P4' | 'P5', () => ReactElement> = { P1: P1Site, P4: P4Estimate, P5: P5Output }
+const SCREENS: Record<'P1' | 'P4', () => ReactElement> = { P1: P1Site, P4: P4Estimate }
 
 beforeEach(() => {
   shell.mode = 'system'
   shell.hidden = {}
 })
 
-describe.each(['P1', 'P4', 'P5'] as const)('%s の右パネルのチャット（仕様 1・2）', (screen) => {
-  it('今のモードがシステムでも、チャットの項目が出る', () => {
-    expect(renderToStaticMarkup(createElement(SCREENS[screen]))).toContain(TITLE)
+describe.each(['P1', 'P4'] as const)('%s の右パネルのチャット（仕様 1・2・4）', (screen) => {
+  it('今のモードがシステムのときは、チャットの項目は出ない（仕様 2）', () => {
+    expect(renderToStaticMarkup(createElement(SCREENS[screen]))).not.toContain(TITLE)
   })
 
-  it('チャットのモードでも、チャットの項目が出る', () => {
+  it('チャットのモードのときは、チャットの項目が出る（仕様 1）', () => {
     shell.mode = 'chat'
     expect(renderToStaticMarkup(createElement(SCREENS[screen]))).toContain(TITLE)
   })
 
-  it('× で閉じたチャットは出ない（仕様 3）', () => {
+  it('× で閉じたチャットは出ない（仕様 4）', () => {
+    shell.mode = 'chat'
     shell.hidden = { 'claude-chat': true }
     expect(renderToStaticMarkup(createElement(SCREENS[screen]))).not.toContain(TITLE)
+  })
+})
+
+describe('P5 の右パネル（仕様 3）', () => {
+  it('P5 は切替なし。システムでもチャットでも、チャットの項目は出ない', () => {
+    expect(renderToStaticMarkup(createElement(P5Output))).not.toContain(TITLE)
+    shell.mode = 'chat'
+    expect(renderToStaticMarkup(createElement(P5Output))).not.toContain(TITLE)
   })
 })

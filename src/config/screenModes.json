@@ -1,23 +1,23 @@
 {
-  "作成": "2026-11-04 t57（統括の依頼）。D-04 の 2b の草案（G100。統括の推奨案。代表は未確定）を写した。表示名は G101（2026-11-05 決定）: 1 System・2 Chat・3 Drawing。表示名はこの表の name だけに置く（ここを変えれば画面が変わる）。モード 3（Drawing）は、D-04 の 2b の表の確認待ち（代表）。available は false のまま",
+  "作成": "2026-11-04 t57（統括の依頼）。2b の表。2026-11-05 代表の回答で改定: P1 は System・Chat、P2・P3 は System・Chat・Drawing、P4 は System・Chat、P5 は切替なし（出力の指示だけ）。表示名は G101（2026-11-05 決定）: 1 System・2 Chat・3 Drawing。表示名はこの表の name だけに置く（ここを変えれば画面が変わる）。Drawing の右メニューは候補の確認欄（drawing-review。G124）。モードの切替の置き場は右メニューの上端（G125 は未回答の推奨）",
   "modes": [
     { "id": "system", "name": "System", "available": true, "rightTiles": ["feature-adjust"] },
     { "id": "chat", "name": "Chat", "available": true, "rightTiles": ["claude-chat"] },
-    { "id": "drawing", "name": "Drawing", "available": false, "rightTiles": [] }
+    { "id": "drawing", "name": "Drawing", "available": true, "rightTiles": ["drawing-review"] }
   ],
   "screens": [
-    { "id": "P1", "modes": ["chat"], "screenTiles": [] },
+    { "id": "P1", "modes": ["system", "chat"], "screenTiles": [] },
     {
       "id": "P2",
-      "modes": ["system", "chat"],
+      "modes": ["system", "chat", "drawing"],
       "screenTiles": ["p2-outline", "p2-storey", "p2-volume", "p2-numeric", "p2-rotate"]
     },
     {
       "id": "P3",
-      "modes": ["system", "chat"],
+      "modes": ["system", "chat", "drawing"],
       "screenTiles": ["fixtures", "milestone", "semantic", "auto", "p3-form", "p3-result"]
     },
-    { "id": "P4", "modes": ["chat"], "screenTiles": [] },
-    { "id": "P5", "modes": ["chat"], "screenTiles": [] }
+    { "id": "P4", "modes": ["system", "chat"], "screenTiles": [] },
+    { "id": "P5", "modes": [], "screenTiles": [] }
   ]
 }

@@ -37,14 +37,15 @@ describe('今のモードの扱い（仕様 5）', () => {
   it('使えるモードは、そのまま今のモード', () => {
     expect(activeModeOf(SCREEN_MODES, 'chat', 'P2')).toBe('chat')
     expect(activeModeOf(SCREEN_MODES, 'system', 'P3')).toBe('system')
+    expect(activeModeOf(SCREEN_MODES, 'drawing', 'P2')).toBe('drawing')
   })
 
-  it('P1 でシステムは使えないので、チャットとして扱う', () => {
-    expect(activeModeOf(SCREEN_MODES, 'system', 'P1')).toBe('chat')
+  it('P1 のシステムは使えるので、そのまま今のモード（2b の改定）', () => {
+    expect(activeModeOf(SCREEN_MODES, 'system', 'P1')).toBe('system')
   })
 
-  it('Drawing（使えない）は、その画面で使える最初のモード（P2 はシステム）', () => {
-    expect(activeModeOf(SCREEN_MODES, 'drawing', 'P2')).toBe('system')
+  it('Drawing は P1 では使えないので、P1 で使える最初のモード（システム）', () => {
+    expect(activeModeOf(SCREEN_MODES, 'drawing', 'P1')).toBe('system')
   })
 })
 
@@ -54,8 +55,9 @@ describe('右メニューに出る項目（仕様 2・3）', () => {
     expect(isRightItemShown(SCREEN_MODES, 'system', 'P2', {}, 'claude-chat')).toBe(false)
   })
 
-  it('P4 のシステムは、どの項目も出ない（P4 はチャットだけ）', () => {
-    expect(isRightItemShown(SCREEN_MODES, 'system', 'P4', {}, 'feature-adjust')).toBe(false)
+  it('P4 のシステムには機能の調整が出て、チャットは出ない（P4 は System・Chat。2b の改定）', () => {
+    expect(isRightItemShown(SCREEN_MODES, 'system', 'P4', {}, 'feature-adjust')).toBe(true)
+    expect(isRightItemShown(SCREEN_MODES, 'system', 'P4', {}, 'claude-chat')).toBe(false)
   })
 
   it('閉じた項目（×）は出ない', () => {

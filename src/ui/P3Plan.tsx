@@ -27,6 +27,7 @@ import { P3Canvas } from './P3Canvas'
 import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
 import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { SemanticConfirm } from './SemanticConfirm'
+import { DrawingReviewTile } from './DrawingReviewTile'
 import { PANEL_TILES, usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { ChatTile } from './ChatTile'
@@ -621,6 +622,11 @@ export function P3Plan() {
               onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
               onConfirm={setSemanticKind}
             />
+          </PanelTile>
+        )}
+        {!tileShown('drawing-review') ? null : (
+          <PanelTile title="候補の確認（Drawing）" onHide={() => hideTile('drawing-review')}>
+            <DrawingReviewTile />
           </PanelTile>
         )}
         {!tileShown('claude-chat') ? null : (
