@@ -2,6 +2,8 @@
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
 import { useEffect, useMemo, useState } from 'react'
 import { useObjectTable } from '../store/objectTable'
+import { useComponentFire } from '../store/componentFire'
+import type { RebarCondition } from '../estimate/rebarCondition'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
@@ -86,13 +88,16 @@ export function P4Estimate() {
     () => fixtureCostLines(estimateFixtureCost(fixtures, parseUnitPrices(fixtureUnitPriceTexts))),
     [fixtures, fixtureUnitPriceTexts],
   )
+  // 鉄筋の被り厚と継手（G86。仮の条件。係数は仮置き）
+  const rebar = useComponentFire((s) => s.rebar)
+  const setRebar = useComponentFire((s) => s.setRebar)
   const autoQuantities = useMemo(() => {
     const out: { item: string; category: string; quantity: number; unit: string }[] = []
     if (volume) {
       const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(q.exterior_wall, q.roof)
       // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
-      const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+      const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height }, undefined, rebar)
       out.push(structure.slab, structure.formwork, structure.concrete, structure.rebar)
       // 外構（建物以外の敷地。敷地は仮置きのダミー。拾い方は仮置き）
       out.push(siteWorksQuantity(DUMMY_PARCEL_MM2, volume.footprint))
@@ -114,7 +119,7 @@ export function P4Estimate() {
     }
     out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
     return out
-  }, [volume, plan, drawnEntries, assignments])
+  }, [volume, plan, drawnEntries, assignments, rebar])
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
@@ -227,6 +232,25 @@ export function P4Estimate() {
         )}
         <section style={{ margin: '0 0 12px' }}>
           <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>数量の内訳（区分別・自動で拾えたもの）</h3>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '0 0 6px', fontSize: 12 }}>
+            <label>
+              鉄筋の被り厚（mm。仮の条件）{' '}
+              <select value={rebar.coverMm} onChange={(e) => setRebar({ coverMm: Number(e.target.value) })}>
+                {[30, 40, 50].map((mm) => (
+                  <option key={mm} value={mm}>
+                    {mm}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              継手（仮の条件）{' '}
+              <select value={rebar.joint} onChange={(e) => setRebar({ joint: e.target.value as RebarCondition['joint'] })}>
+                <option value="重ね継手">重ね継手</option>
+                <option value="カプラー">カプラー</option>
+              </select>
+            </label>
+          </div>
           <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
             <thead>
               <tr>
