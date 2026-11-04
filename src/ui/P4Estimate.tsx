@@ -8,12 +8,12 @@ import {
   exteriorRow,
   interiorRow,
   planExteriorRow,
-  resolveUnitPriceRef,
   sashRow,
   siteRow,
   slabObjectRow,
 } from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
+import { laborLinesOf, priceOfLine } from '../estimate/laborConversion'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { effectiveQuantity } from '../estimate/autoQuantity'
@@ -98,9 +98,8 @@ export function P4Estimate() {
   // 数量の行の単価の参照（品目・単位・分類が一致する単価の行）と、金額（参照した単価 × 数量、円）。参照が無ければ未参照（G20）
   const priceFor = (q: { item: string; unit: string; category: string; quantity: number }) => {
     if (!('rows' in parsed)) return { ref: null as string | null, amount: null as number | null }
-    const ref = resolveUnitPriceRef(q, parsed.rows)
-    const row = ref === null ? undefined : parsed.rows.find((r) => r.id === ref)
-    return { ref, amount: row ? Math.round(row.unit_price * q.quantity) : null }
+    const p = priceOfLine(q, parsed.rows)
+    return { ref: p ? p.ref : null, amount: p ? p.amount : null }
   }
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
@@ -158,7 +157,9 @@ export function P4Estimate() {
       .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
       .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
-      return estimateCost(parsed.rows, lines, fixtureAmountLines)
+      // 歩掛の換算（G19・G86）: 自動作成の数量から、労務の行を一度だけ加える（手入力の行がある労務は加えない）
+      const labor = laborLinesOf(autoList, parsed.rows).filter((l) => !lines.some((x) => x.price_id === l.price_id))
+      return estimateCost(parsed.rows, [...lines, ...labor], fixtureAmountLines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
