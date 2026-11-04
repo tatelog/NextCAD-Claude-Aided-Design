@@ -67,14 +67,16 @@ describe('自動作成で、列の幅と間口が同じ型の部屋割りを使�
     expect(g.unsupportedSpans).toEqual([0, 1, 2, 3, 4])
   })
 
-  it('間口がスパンと違う型（2LDK・間口 8400）は、スパン 6000 の計画に割り付けない（null）', () => {
+  it('間口がスパンと違う型（2LDK・間口 8400）も、スパン 6000 の計画に割り付ける（列の幅で仮置き。要確認）', () => {
     const g = generateAutoPlan({ ...base, unitTypes: master, unitTypeIds: ['T-08-2LDK'] })
-    expect(g.spanTypes).toEqual([null, null, null, null, null])
+    expect(g.spanTypes).toEqual(['T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK'])
+    expect(g.provisionalSpans).toEqual([0, 1, 2, 3, 4])
   })
 
-  it('間口が未確認の型（4LDK②）は、どのスパンにも割り付けない', () => {
+  it('間口が未確認の型（4LDK②）は、どのスパンにも割り付け、列の幅（10400）で仮置き（要確認）', () => {
     const g = generateAutoPlan({ ...base, spanMm: 10400, unitTypes: master, unitTypeIds: ['T-08-4LDK-2'] })
-    expect(g.spanTypes.every((t) => t === null)).toBe(true)
+    expect(g.spanTypes.every((t) => t === 'T-08-4LDK-2')).toBe(true)
+    expect(g.provisionalSpans).toEqual([0, 1, 2, 3, 4])
   })
 
   it('型を入れなければ、列の型は空（null）で、部屋割りは従来どおり', () => {

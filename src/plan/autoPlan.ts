@@ -8,7 +8,7 @@ import { buildEvLevels, type EvLevels } from './evLevels'
 import { splitUnitRooms, type Room, type RoomPattern } from './rooms'
 import type { CorridorLayout, Rect } from './candidateCells'
 import { patternOfType, type UnitType } from './unitTypeMaster'
-import { groupByFrontage, typeIdsOfSpans, type FrontageBlock } from './frontageBlocks'
+import { groupByFrontage, typeIdsOfSpans, type FrontageGrouping, type FrontageUnit } from './frontageBlocks'
 
 const TargetSchema = z.number().int().positive()
 // コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
@@ -82,8 +82,10 @@ export interface AutoPlan {
   spanTypes: (string | null)[]
   /** 室数が合う割り付けが無く、既定の割り付けで仮置きした列（列の番号。0 始まり） */
   unsupportedSpans: number[]
-  /** 型を入れたとき、間口と合わず割り付けなしの列（列の番号。0 始まり。G99）。型を入れていないときは空 */
-  unfitSpans: number[]
+  /** 仮の間口で置いた列（未確認の型、または範囲が無い列。要確認。列の番号。0 始まり。G99・統括の訂正） */
+  provisionalSpans: number[]
+  /** 余りの列を前の住戸に吸収した列（要確認。列の番号。0 始まり） */
+  absorbedSpans: number[]
 }
 
 const SHAFT_MM = 600
@@ -117,57 +119,112 @@ function canSplitRooms(cell: Rect, pattern: RoomPattern): boolean {
   }
 }
 
+/** 住戸の区画の元（側ごとの区画と、型の部屋割り） */
+interface PlanUnit {
+  y0: number
+  y1: number
+  /** 側ごとの区画（L・R） */
+  rects: Map<string, Rect>
+  /** 型の部屋割り（G89）。型が割れる住戸だけ */
+  typed: RoomPattern | null
+}
+
+/** 列の並び（first から last まで）を、列ごとの区画のまま */
+function perSpanUnits(spanCell: ReadonlyMap<string, Rect>, sides: readonly string[], first: number, last: number): PlanUnit[] {
+  const out: PlanUnit[] = []
+  for (let k = first; k <= last; k++) {
+    const rects = new Map<string, Rect>()
+    for (const side of sides) {
+      const cell = spanCell.get(`${side}${k}`)
+      if (cell) rects.set(side, cell)
+    }
+    const any = rects.values().next().value
+    if (any !== undefined) out.push({ y0: any.y0, y1: any.y1, rects, typed: null })
+  }
+  return out
+}
+
 /**
- * 柱列のまとまり（G99）ごとに、側（L・R）の区画をまとめて 1 区画にする。
- * まとめた区画の部屋割りが割れない、または型の室数に合う割り付けが無いまとまりは、まとめずに未対応として印を出す（黙って割らない）。
- * 区画が 1 つでも欠けるまとまり（曲線の外形などで外れた）は、まとめない。
+ * 住戸の並び（G99・統括の訂正）を区画にする。1 戸が 1 列より広いときは、その幅の 1 区画にする（N 戸の範囲は N 区画に分ける）。
+ * 住戸の型の部屋割りが割れない、または室数に合う割り付けが無い住戸があれば、その範囲は列ごとの区画に戻し、未対応として印を出す（黙って割らない）。
+ * 区画が 1 つでも欠ける範囲（曲線の外形などで外れた）は、まとめず列ごとの区画のまま。
+ * 区画の id は住戸の順番（0 始まり）。
  */
-function mergeBlockCells(
-  cells: Rect[],
-  blocks: readonly FrontageBlock[],
+function unitCells(
+  perSpanCells: Rect[],
+  grouping: FrontageGrouping,
   types: readonly UnitType[],
-): { cells: Rect[]; typedPatterns: Map<number, RoomPattern>; unsupportedSpans: number[] } {
-  const typedPatterns = new Map<number, RoomPattern>()
+): { cells: Rect[]; typedById: Map<string, RoomPattern>; unsupportedSpans: number[] } {
+  const sides = [...new Set(perSpanCells.map((c) => c.id.charAt(0)))]
+  const spanCell = new Map(perSpanCells.map((c) => [c.id, c]))
+  const yBase = Math.min(...perSpanCells.map((c) => c.y0))
+  const units: PlanUnit[] = []
   const unsupportedSpans: number[] = []
-  const byId = new Map(cells.map((c) => [c.id, c]))
-  const sides = [...new Set(cells.map((c) => c.id.charAt(0)))]
-  const mergedOf = new Map<string, Rect>()
-  const blockOfSpan = new Map<number, FrontageBlock>()
-  for (const b of blocks) {
-    const end = b.start + b.count - 1
-    const t = types.find((x) => x.id === b.typeId)
-    const pattern = t === undefined ? null : patternOfType(t).pattern
-    const parts = sides.map((side) => ({ side, first: byId.get(`${side}${b.start}`), last: byId.get(`${side}${end}`) }))
-    const complete = parts.every((p) => p.first !== undefined && p.last !== undefined)
-    if (!complete) continue
-    const rects = parts.map((p) => ({ side: p.side, rect: { id: `${p.side}${b.start}`, x0: p.first!.x0, y0: p.first!.y0, x1: p.first!.x1, y1: p.last!.y1 } }))
-    const fits = pattern !== null && rects.every((r) => canSplitRooms(r.rect, pattern))
-    if (!fits) {
-      for (let k = b.start; k <= end; k++) unsupportedSpans.push(k)
+
+  const byGroup = new Map<number, FrontageUnit[]>()
+  for (const u of grouping.units) byGroup.set(u.group, [...(byGroup.get(u.group) ?? []), u])
+  for (const members of byGroup.values()) {
+    const first = Math.min(...members.map((u) => u.firstColumn))
+    const last = Math.max(...members.map((u) => u.lastColumn))
+    const complete = sides.every((side) => {
+      for (let k = first; k <= last; k++) if (!spanCell.has(`${side}${k}`)) return false
+      return true
+    })
+    if (!complete) {
+      units.push(...perSpanUnits(spanCell, sides, first, last))
       continue
     }
-    for (const r of rects) mergedOf.set(`${r.side}${b.start}`, r.rect)
-    typedPatterns.set(b.start, pattern)
-    for (let k = b.start; k <= end; k++) blockOfSpan.set(k, b)
+    const built: PlanUnit[] = []
+    let fits = true
+    for (const u of members) {
+      const t = types.find((x) => x.id === u.typeId)
+      const pattern = t === undefined ? null : patternOfType(t).pattern
+      const rects = new Map<string, Rect>()
+      for (const side of sides) {
+        const col = spanCell.get(`${side}${u.firstColumn}`)!
+        rects.set(side, { id: `${side}-unit`, x0: col.x0, y0: yBase + u.startMm, x1: col.x1, y1: yBase + u.startMm + u.widthMm })
+      }
+      const ok = pattern !== null && [...rects.values()].every((r) => canSplitRooms(r, pattern))
+      if (!ok) fits = false
+      built.push({ y0: yBase + u.startMm, y1: yBase + u.startMm + u.widthMm, rects, typed: ok ? pattern : null })
+    }
+    if (fits) units.push(...built)
+    else {
+      for (let k = first; k <= last; k++) unsupportedSpans.push(k)
+      units.push(...perSpanUnits(spanCell, sides, first, last))
+    }
   }
-  const out: Rect[] = []
-  for (const c of cells) {
-    const k = Number(c.id.slice(1))
-    const b = blockOfSpan.get(k)
-    if (b === undefined) out.push(c)
-    else if (k === b.start) out.push(mergedOf.get(`${c.id.charAt(0)}${b.start}`)!)
-  }
-  return { cells: out, typedPatterns, unsupportedSpans }
+
+  units.sort((a, b) => a.y0 - b.y0)
+  const cells: Rect[] = []
+  const typedById = new Map<string, RoomPattern>()
+  units.forEach((unit, ordinal) => {
+    for (const side of sides) {
+      const rect = unit.rects.get(side)
+      if (rect === undefined) continue
+      const id = `${side}${ordinal}`
+      cells.push({ ...rect, id })
+      if (unit.typed !== null) typedById.set(id, unit.typed)
+    }
+  })
+  return { cells, typedById, unsupportedSpans: [...new Set(unsupportedSpans)].sort((a, b) => a - b) }
+}
+
+/** 住戸の列の番号（重なりを除いて昇順） */
+function spansOf(units: readonly FrontageUnit[]): number[] {
+  const out = new Set<number>()
+  for (const u of units) for (let k = u.firstColumn; k <= u.lastColumn; k++) out.add(k)
+  return [...out].sort((a, b) => a - b)
 }
 
 // 区画ごとの部屋割り。角は両端の区画（k = 0 と最後）だけ、他は田の字
 // 型の割り付けがある列（typed）は、その型の部屋割り（G89）。ほかは従来どおり
-function roomsFor(cells: Rect[], pattern: RoomPattern, typed: ReadonlyMap<number, RoomPattern>): Room[] {
-  const last = cells.reduce((m, c) => Math.max(m, Number(c.id.slice(1))), 0)
+function roomsFor(cells: Rect[], pattern: RoomPattern, typed: ReadonlyMap<string, RoomPattern>): Room[] {
+  const minY = Math.min(...cells.map((c) => c.y0))
+  const maxY = Math.max(...cells.map((c) => c.y0))
   return cells.flatMap((c) => {
-    const k = Number(c.id.slice(1))
-    const isEnd = k === 0 || k === last
-    const typedPattern = typed.get(k)
+    const isEnd = c.y0 === minY || c.y0 === maxY
+    const typedPattern = typed.get(c.id)
     if (typedPattern !== undefined) return splitUnitRooms(c, typedPattern)
     return splitUnitRooms(c, pattern === '角' && !isEnd ? '田の字' : pattern)
   })
@@ -204,8 +261,8 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   coresInCorridor.push({ id: 'evHall', x0: c.corridor.x0, y0: evY0, x1: c.corridor.x1, y1: evY0 + EV_HALL_LEN_MM, evCount: input.evCount })
   // 曲線の外形などで外れる区画は、作らず数えない（G5）
   const perSpanCells = input.insideCell ? c.cells.filter(input.insideCell) : c.cells
-  // 列の型（G89・G99）: 柱列を 1 本から順にまとめ、まとめた幅が間口の整数倍になる最小の範囲に、型を 1 つ置く。
-  // まとめた範囲は 1 区画になり、その型の部屋割りになる。どの範囲も合わない列は「割り付けなし（間口と合わない）」
+  // 列の型（G89・G99・統括の訂正）: 柱列を 1 本から順にまとめ、まとめた幅が間口の整数倍になる最小の範囲に、型を 1 つ置く（N 戸に分ける）。
+  // 範囲に入らない列は、未確認の型の仮の間口（列の幅）か、前の住戸への吸収（要確認）。割り付けなしは作らない
   const selected = (input.unitTypeIds ?? [])
     .map((id) => input.unitTypes?.find((x) => x.id === id))
     .filter((t): t is UnitType => t !== undefined)
@@ -213,8 +270,12 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     Array.from({ length: spans }, () => input.spanMm),
     selected.map((t) => ({ id: t.id, frontageMm: t.frontage_mm })),
   )
-  const spanTypes = typeIdsOfSpans(grouping, spans)
-  const merged = mergeBlockCells(perSpanCells, grouping.blocks, input.unitTypes ?? [])
+  const spanTypes = typeIdsOfSpans(grouping)
+  // 型を入れていなければ、列ごとの区画のまま（従来どおり）
+  const merged =
+    selected.length === 0
+      ? { cells: perSpanCells, typedById: new Map<string, RoomPattern>(), unsupportedSpans: [] as number[] }
+      : unitCells(perSpanCells, grouping, input.unitTypes ?? [])
   const cells = merged.cells
   const counted = countUnits({
     outline: [
@@ -229,9 +290,10 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   })
   const unitsPerFloor = counted.usable_count
   const unsupportedSpans = merged.unsupportedSpans
-  // 型を入れていないときは、割り付けなし（間口と合わない）とは出さない
-  const unfitSpans = selected.length === 0 ? [] : grouping.unallocated
-  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), merged.typedPatterns)
+  // 仮の間口・余りの吸収（要確認）。型を入れていなければ空
+  const provisionalSpans = spansOf(grouping.units.filter((u) => u.provisional))
+  const absorbedSpans = spansOf(grouping.units.filter((u) => u.absorbed))
+  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), merged.typedById)
 
   return {
     unitType: input.unitType ?? 'ファミリー',
@@ -248,7 +310,8 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     shaftRects: shaftsOf(cells, rooms, coresInCorridor, c.corridor),
     spanTypes,
     unsupportedSpans,
-    unfitSpans,
+    provisionalSpans,
+    absorbedSpans,
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,

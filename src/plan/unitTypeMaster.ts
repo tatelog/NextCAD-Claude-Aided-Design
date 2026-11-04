@@ -17,7 +17,7 @@ export interface UnitType {
   room_types: string[]
   /** 最小面積（m²）。面積帯の下限。未確認は null */
   min_area: number | null
-  /** 間口（mm）。自作案の W（仮置き。実在の図面とは未照合）。案が無い型は null（未確認。G99 の割り付けの候補から外す） */
+  /** 間口（mm）。自作案の W（仮置き。実在の図面とは未照合）。案が無い型は null（未確認。候補からは外さず、余りの列に仮の間口で置く。統括の訂正） */
   frontage_mm: number | null
   /** 奥行（mm）。自作案の D（仮置き）。案が無い型は null */
   depth_mm: number | null

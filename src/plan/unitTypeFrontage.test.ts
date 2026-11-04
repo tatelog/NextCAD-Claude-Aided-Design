@@ -2,10 +2,10 @@
 // 仕様 1（値）: 住戸タイプの間口（frontage_mm）と奥行（depth_mm）は、自作案（public/practice）の envelope.W・envelope.D。
 //   型の案の A・B・C の間口が同じならその値、違えば A の値。案の無い型（4LDK②）は null。
 // 仕様 2（仮置き）: 間口と奥行は仮置き（自作案。実在の図面とは未照合）。未確認の印（unconfirmed）に間口を入れる。
-// 仕様 3（候補）: 間口が未確認（null）の型は、割り付けの候補にならない。
-// 仕様 4（割り付け）: 柱列の幅と間口が同じ型だけを、その列に割り付ける（間口に合わない列は候補にしない。G99）。
-// 仕様 5（合う型が無い列）: 合う型が無い列は null（黙って別の型で埋めない）。
-// 仕様 6（繰り返し）: 合う型が複数あれば、列ごとに順に繰り返す。
+// 仕様 3（候補）: 間口が未確認（null）の型も、割り付けの候補から外さない（選択肢に「（間口が未確認）」を付け、余りの列に仮の間口で置く。統括の訂正 2026-11-04）。
+// 仕様 4（割り付け）: 柱列をまとめた単位で、間口の整数倍になる範囲に型を置く（G99。規則の試験は frontageBlocks.test.ts）。
+// 仕様 5（合う型が無い列）: 合う型が無い列は、列の幅で仮置き（要確認）。黙って別の型で埋めない。割り付けなしは作らない。
+// 仕様 6（繰り返し）: 未確認の型が複数あれば、余りの列に順に繰り返す。
 import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { masterOf, unitTypeOptions } from './unitTypeMaster'
@@ -76,20 +76,26 @@ describe('割り付けの候補（マスタの型で。仕様 3・4）', () => {
       }),
     )
 
-  it('間口が未確認の型（4LDK②）は、どの列にも入らない（割り付けなし）', () => {
-    expect(grouped([10400, 6000], ['4LDK②'])).toEqual({ blocks: [], unallocated: [0, 1] })
+  it('間口が未確認の型（4LDK②）は、候補から外さず、列の幅で仮置き（要確認）', () => {
+    const id = MASTER.find((x) => x.name === '4LDK②')!.id
+    expect(grouped([10400, 6000], ['4LDK②']).units.map((u) => [u.typeId, u.widthMm, u.provisional])).toEqual([
+      [id, 10400, true],
+      [id, 6000, true],
+    ])
   })
 
   it('列幅が間口と同じ型は、その列を 1 戸にする（1DK は 6000、2LDK は 8400）', () => {
     const g = grouped([6000, 8400], ['1DK', '2LDK'])
-    expect(g.blocks).toEqual([
-      { start: 0, count: 1, typeId: MASTER.find((x) => x.name === '1DK')!.id, units: 1 },
-      { start: 1, count: 1, typeId: MASTER.find((x) => x.name === '2LDK')!.id, units: 1 },
+    expect(g.units.map((u) => [u.typeId, u.startMm, u.widthMm, u.provisional])).toEqual([
+      [MASTER.find((x) => x.name === '1DK')!.id, 0, 6000, false],
+      [MASTER.find((x) => x.name === '2LDK')!.id, 6000, 8400, false],
     ])
   })
 
-  it('合う型が無い列は割り付けなし（黙って別の型で埋めない）', () => {
-    expect(grouped([9000], ['1DK'])).toEqual({ blocks: [], unallocated: [0] })
+  it('合う型が無い列（9000 と 1DK の 6000）は、列の幅で仮置き（要確認。黙って別の型で埋めない）', () => {
+    expect(grouped([9000], ['1DK']).units.map((u) => [u.typeId, u.widthMm, u.provisional])).toEqual([
+      [MASTER.find((x) => x.name === '1DK')!.id, 9000, true],
+    ])
   })
 
   it('同じ入力には同じ出力', () => {

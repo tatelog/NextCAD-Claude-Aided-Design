@@ -496,11 +496,22 @@ export function P3Plan() {
           {auto ? (
             <>
               <p style={{ fontSize: 12, margin: '0 0 6px' }}>
-                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲。G99）: {auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '割り付けなし（間口と合わない）'}`).join('、')}
+                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲。G99）: {unitTypeIds.length === 0 ? '未指定（列ごとの区画）' : auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '—'}`).join('、')}
               </p>
+              <p style={{ fontSize: 12, margin: '0 0 6px' }}>住戸数は間口 × 列幅から決まる。</p>
+              {auto.provisionalSpans.length > 0 ? (
+                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+                  要確認（仮の間口。間口が未確認の型、または範囲に入らない列）: {auto.provisionalSpans.map((k) => `${k + 1} 列目`).join('、')}
+                </p>
+              ) : null}
+              {auto.absorbedSpans.length > 0 ? (
+                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
+                  要確認（余りの列を前の住戸に含めて幅を広げた）: {auto.absorbedSpans.map((k) => `${k + 1} 列目`).join('、')}
+                </p>
+              ) : null}
               {unitTypeIds.some((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null) ? (
                 <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
-                  間口が未確認のため候補から外した型: {unitTypeIds.filter((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null).map((id) => UNIT_TYPES.find((t) => t.id === id)?.name ?? id).join('、')}
+                  間口が未確認の型（候補からは外さず、仮の間口で置く）: {unitTypeIds.filter((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null).map((id) => UNIT_TYPES.find((t) => t.id === id)?.name ?? id).join('、')}
                 </p>
               ) : null}
             </>
