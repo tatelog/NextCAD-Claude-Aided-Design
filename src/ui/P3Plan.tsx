@@ -85,6 +85,8 @@ export function P3Plan() {
   const showDimensions = useUi((s) => s.showDimensions)
   const showGrid = useUi((s) => s.showGrid)
   const showMiniMap = useUi((s) => s.showMiniMap)
+  // ペンの道具の置き場は P2 と同じ店舗の値（上・左・独立。G52）
+  const placement = useUi((s) => s.toolbarPlacement)
   const [autoError, setAutoError] = useState<string | null>(null)
   // P2 の外形から幅と奥行きを取るボタン（仮置き）。取れなかった理由は短い文字列で持つ。
   // 外形の左下（原点）は、3D の対応のために記録しておく。今回はどこでも使わない（読む側は次の段）
@@ -408,9 +410,16 @@ export function P3Plan() {
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}
         <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>描く（ドラッグで線。直線・曲線（円弧は二点）。閉じた輪で部屋の閉合を見る）</h3>
-        {/* ペンの道具は P2 と同じ（直線・曲線・円弧（二点）。G152）。P3 では上に置く */}
-        <PenToolbar placement="top" />
-        <P3Canvas />
+        {/* ペンの道具は P2 と同じ店舗の置き場に従う（上・左・独立。G52）。道具の中身は直線・曲線・円弧（二点）（G152） */}
+        {placement === 'top' && <PenToolbar placement="top" />}
+        {/* 左と独立は、この枠の中に並べる（独立は枠を基準に浮かせる）。描く画面は幅いっぱいを保つ */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-start' }}>
+          {placement === 'left' && <PenToolbar placement="left" />}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <P3Canvas />
+          </div>
+          {placement === 'free' && <PenToolbar placement="free" />}
+        </div>
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
