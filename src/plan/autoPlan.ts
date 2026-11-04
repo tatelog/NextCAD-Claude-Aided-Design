@@ -9,11 +9,13 @@ import { splitUnitRooms, type Room, type RoomPattern } from './rooms'
 import type { CorridorLayout, Rect } from './candidateCells'
 import { patternOfType, type UnitType } from './unitTypeMaster'
 import { groupByFrontage, typeIdsOfSpans, type FrontageGrouping, type FrontageUnit } from './frontageBlocks'
+import { evHallLenMm, shaftSizeMm } from './coreDims'
 
 const TargetSchema = z.number().int().positive()
 // コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
 const STAIR_LEN_MM = 3_000
-const EV_HALL_LEN_MM = 3_000
+// EV ホールの奥行は差し替えられるブロック（coreDims。G138）から出す
+const EV_HALL_LEN_MM = evHallLenMm()
 
 export interface AutoPlanInput {
   /** 目標の戸数（1 階あたり、整数・1 以上） */
@@ -97,24 +99,25 @@ export interface AutoPlan {
   absorbedSpans: number[]
 }
 
-const SHAFT_MM = 600
-
-// 縦シャフトの位置。PS は各住戸の水回りの、廊下側の隅。EPS・DS は階段 A・B の隅
+// 縦シャフトの位置。寸法は coreDims（差し替えられるブロック。G138）から出す。PS は各住戸の水回りの、廊下側の隅。EPS・DS は階段 A・B の隅
 function shaftsOf(cells: Rect[], rooms: Room[], cores: AutoCore[], corridor: Rect): ShaftRect[] {
   const out: ShaftRect[] = []
   const corridorMid = (corridor.x0 + corridor.x1) / 2
+  const ps = shaftSizeMm('PS')
+  const eps = shaftSizeMm('EPS')
+  const ds = shaftSizeMm('DS')
   for (const cell of cells) {
     const wet = rooms.find((r) => r.kind === '水回り' && r.id.startsWith(cell.id + '-'))
     if (!wet) continue
     // 廊下が右にある住戸は、水回りの右の隅に置く
     const cellMid = (cell.x0 + cell.x1) / 2
-    const x0 = cellMid < corridorMid ? wet.x1 - SHAFT_MM : wet.x0
-    out.push({ id: 'PS-' + cell.id, kind: 'PS', unitId: cell.id, x0, y0: wet.y0, x1: x0 + SHAFT_MM, y1: wet.y0 + SHAFT_MM })
+    const x0 = cellMid < corridorMid ? wet.x1 - ps : wet.x0
+    out.push({ id: 'PS-' + cell.id, kind: 'PS', unitId: cell.id, x0, y0: wet.y0, x1: x0 + ps, y1: wet.y0 + ps })
   }
   const stairA = cores.find((c) => c.id === 'stairA')!
   const stairB = cores.find((c) => c.id === 'stairB')!
-  out.push({ id: 'EPS', kind: 'EPS', x0: stairA.x0, y0: stairA.y0, x1: stairA.x0 + SHAFT_MM, y1: stairA.y0 + SHAFT_MM })
-  out.push({ id: 'DS', kind: 'DS', x0: stairB.x1 - SHAFT_MM, y0: stairB.y1 - SHAFT_MM, x1: stairB.x1, y1: stairB.y1 })
+  out.push({ id: 'EPS', kind: 'EPS', x0: stairA.x0, y0: stairA.y0, x1: stairA.x0 + eps, y1: stairA.y0 + eps })
+  out.push({ id: 'DS', kind: 'DS', x0: stairB.x1 - ds, y0: stairB.y1 - ds, x1: stairB.x1, y1: stairB.y1 })
   return out
 }
 
