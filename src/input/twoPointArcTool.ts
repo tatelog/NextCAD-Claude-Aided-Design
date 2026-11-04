@@ -42,6 +42,16 @@ export function offsetOnBisector(p1: ArcPoint, p2: ArcPoint, pointer: ArcPoint):
   return (pointer.x - mx) * nx + (pointer.y - my) * ny
 }
 
+/**
+ * 道具の途中の形（mm の点列。画面への変換は呼び出し側）。一点目の前は null。
+ * 二点目の前は、一点目から今のポインタ（hover）までの弦。中心を決める途中は、今のずらし量の円弧の点列（両端は二点）。
+ */
+export function arcPreviewMm(state: ArcToolState, hover: ArcPoint): ArcPoint[] | null {
+  if (state.phase === 'first') return null
+  if (state.phase === 'second') return [state.p1, hover]
+  return arcFromTwoPoints(state.p1, state.p2, state.offsetMm).points
+}
+
 /** 道具の一歩。押す・動かすで、状態を進める。中心を決めて押したら、円弧を返して一点目の待ちに戻る */
 export function arcToolStep(state: ArcToolState, action: ArcToolAction): ArcToolStep {
   switch (state.phase) {

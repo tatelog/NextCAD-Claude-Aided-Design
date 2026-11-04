@@ -1,38 +1,60 @@
-// P3 の描く画面（D-04 P3、D-02 C1）。ドラッグで直線を描き、線分にして（strokeToSegments）、閉合を表示する（findClosedOutline）。
+// P3 の描く画面（D-04 P3、D-02 C1、G152）。ドラッグで線を描き、線分にして（strokeToSegments）、閉合を表示する（findClosedOutline）。
+// 直線モードは直線に整形し、曲線モードは曲線のまま残す（P2 と同じペンのモード。store の penMode）。
+// 曲線モードの「円弧（二点）」（t81・G152。P2 と同じ道具）: 二点を押し、中心線上を動かして中心を決め、押して確定する。
 // 描画の入力は setPointerCapture を使わない（合成イベントでも確かめられるように）。描画の共通部品（DrawingCanvas）には触れない。
 import { useEffect, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { strokeToSegments } from '../canvas/strokeToSegments'
-import type { Node, Segment } from '../model/schema'
+import { strokeStartPx } from '../input/endpointPick'
+import { arcPreviewMm, arcToolStep, ARC_TOOL_START, type ArcToolState } from '../input/twoPointArcTool'
+import type { Node, Segment, Stroke } from '../model/schema'
 import { p3Stroke } from '../plan/p3Stroke'
+import { useUi } from '../store/ui'
+import { P3_H, P3_MM_PER_PX, P3_VIEWPORT, P3_W, p3ArcStroke, p3MmToPx, p3PxToMm } from './p3CanvasGeometry'
 
-const W = 600
-const H = 400
-const MM_PER_PX = 10
-// 表示の原点（mm）。画面の中央あたりに置く
-const OX = W / 2
-const OY = H / 2
+// 表示の原点（画面の中央）
+const OX = P3_VIEWPORT.originPx.x
+const OY = P3_VIEWPORT.originPx.y
 
-const toMm = (px: number, py: number) => ({ x: Math.round((px - OX) * MM_PER_PX), y: Math.round((OY - py) * MM_PER_PX) })
+const toMm = (px: number, py: number) => ({ x: Math.round((px - OX) * P3_MM_PER_PX), y: Math.round((OY - py) * P3_MM_PER_PX) })
+
+/** 二点の円弧の道具（t81）が選ばれているか。P2 と同じ store の値 */
+const arcOn = () => {
+  const u = useUi.getState()
+  return u.penMode === 'curve' && u.arcTwoPoint
+}
 
 export function P3Canvas() {
   const ref = useRef<HTMLCanvasElement | null>(null)
   const [nodes, setNodes] = useState<Node[]>([])
   const [segments, setSegments] = useState<Segment[]>([])
   const [trail, setTrail] = useState<{ x: number; y: number }[] | null>(null)
+  /** 二点の円弧の道具の状態（t81）。道具を外したら一点目の待ちに戻る */
+  const arcRef = useRef<ArcToolState>(ARC_TOOL_START)
+  const arcTwoPoint = useUi((s) => s.arcTwoPoint)
+  useEffect(() => {
+    arcRef.current = ARC_TOOL_START
+  }, [arcTwoPoint])
 
-  // 描いた線分と、描いている途中の軌跡を描く
+  // 描いた線（直線は線分、曲線は制御点を通る線）と、描いている途中の軌跡・道具のプレビューを描く
   useEffect(() => {
     const c = ref.current
     const g = c?.getContext('2d')
     if (!c || !g) return
-    g.clearRect(0, 0, W, H)
+    g.clearRect(0, 0, P3_W, P3_H)
     g.strokeStyle = '#1f2a44'
     g.lineWidth = 2
     for (const s of segments) {
+      // 曲線（spline）は制御点を通す。直線は両端を結ぶ
+      const cps = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as { x: number; y: number }[] | undefined) : undefined
+      const pts = cps && cps.length > 1 ? cps : [{ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 }]
       g.beginPath()
-      g.moveTo(s.x1 / MM_PER_PX + OX, OY - s.y1 / MM_PER_PX)
-      g.lineTo(s.x2 / MM_PER_PX + OX, OY - s.y2 / MM_PER_PX)
+      pts.forEach((p, i) => {
+        const x = p.x / P3_MM_PER_PX + OX
+        const y = OY - p.y / P3_MM_PER_PX
+        if (i === 0) g.moveTo(x, y)
+        else g.lineTo(x, y)
+      })
       g.stroke()
     }
     if (trail && trail.length > 1) {
@@ -49,31 +71,58 @@ export function P3Canvas() {
     return { x: e.clientX - r.left, y: e.clientY - r.top }
   }
 
+  // 道具の途中の形（mm）を、画面の軌跡（px）にする
+  const toTrail = (mm: { x: number; y: number }[] | null) => (mm ? mm.map((m) => p3MmToPx(m)) : null)
+
+  // 線を一本、線分（または曲線）にして足す
+  const addStroke = (stroke: Stroke) => {
+    const r = strokeToSegments(stroke, nodes, { rdpTolerancePx: 8, snapRadiusMm: 240, axisSnapDeg: 3 })
+    setNodes((n) => [...n, ...r.nodes])
+    setSegments((s) => [...s, ...r.segments])
+  }
+
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = local(e)
+    if (arcOn()) {
+      // 二点の円弧（t81）: 押した点（端点へ吸着した位置）で一点目・二点目・中心を決める
+      const step = arcToolStep(arcRef.current, { type: 'click', point: p3PxToMm(strokeStartPx(nodes, p, P3_VIEWPORT)) })
+      arcRef.current = step.state
+      if (step.commit) addStroke(p3ArcStroke(step.commit, crypto.randomUUID()))
+      setTrail(toTrail(arcPreviewMm(arcRef.current, p3PxToMm(p))))
+      return
+    }
     setTrail([p])
   }
+
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!trail) return
     const p = local(e)
+    if (arcOn()) {
+      // 二点の円弧（t81）: 動かした位置で、中心線上の中心を決める（確定は押したとき）
+      arcRef.current = arcToolStep(arcRef.current, { type: 'move', point: p3PxToMm(p) }).state
+      setTrail(toTrail(arcPreviewMm(arcRef.current, p3PxToMm(p))))
+      return
+    }
+    if (!trail) return
     setTrail((t) => (t ? [...t, p] : t))
   }
+
   const onUp = () => {
+    // 二点の円弧は押したときに決まる。離しても何もしない（軌跡は無い）
+    if (arcOn()) return
     if (!trail || trail.length < 2) {
       setTrail(null)
       return
     }
-    // 軌跡を mm に直し、既存の端点に吸着させて線分にする（D-02 C1: 端点の共有、水平・垂直の吸着）
+    // 軌跡を mm に直し、既存の端点に吸着させて線にする（D-02 C1: 端点の共有、水平・垂直の吸着）。
+    // 直線モードは直線に整形し、曲線モードは曲線のまま残す（pen_mode）
     const mmPoints = trail.map((p) => toMm(p.x, p.y))
     const stroke = p3Stroke({
-      points: mmPoints.map((m) => ({ px: m.x / MM_PER_PX + OX, py: OY - m.y / MM_PER_PX })),
-      viewScaleMmPerPx: MM_PER_PX,
+      points: mmPoints.map((m) => ({ px: m.x / P3_MM_PER_PX + OX, py: OY - m.y / P3_MM_PER_PX })),
+      viewScaleMmPerPx: P3_MM_PER_PX,
       viewOriginPx: { px: OX, py: OY },
       id: crypto.randomUUID(),
     })
-    const r = strokeToSegments(stroke, nodes, { rdpTolerancePx: 8, snapRadiusMm: 240, axisSnapDeg: 3 })
-    setNodes((n) => [...n, ...r.nodes])
-    setSegments((s) => [...s, ...r.segments])
+    addStroke({ ...stroke, pen_mode: useUi.getState().penMode })
     setTrail(null)
   }
 
@@ -92,13 +141,13 @@ export function P3Canvas() {
     <div style={{ display: 'grid', gap: 6 }}>
       <canvas
         ref={ref}
-        width={W}
-        height={H}
+        width={P3_W}
+        height={P3_H}
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerLeave={() => setTrail(null)}
-        style={{ border: '1px solid #ddd8cc', background: '#fff', touchAction: 'none', width: W, height: H, maxWidth: '100%' }}
+        style={{ border: '1px solid #ddd8cc', background: '#fff', touchAction: 'none', width: P3_W, height: P3_H, maxWidth: '100%' }}
         data-testid="p3-canvas"
       />
       <p data-testid="p3-closure">閉合: {label}（線分 {segments.length} 本）</p>
