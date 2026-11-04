@@ -151,7 +151,7 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
 describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
   const NON_ELEVATOR = '非常用の昇降機の図書（法34条2項、高さ31m超）'
   const HIGH_FIRE = '消防用設備等の図書（高層建築物・消防法令）'
-  const OUTLET = '非常コンセント設備の図（消防法施行令29条の2、地上11階以上）'
+  const OUTLET = '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）'
 
   it('高さ31mを超えると、非常用の昇降機の図書と構造計算書が要る', () => {
     const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
@@ -178,6 +178,18 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
   it('地上11階以上では、非常コンセント設備の図が要る（消防法施行令29条の2）', () => {
     const { required } = requiredPermitDocuments({ ...plateRc, storeys: 11, heightM: 33 })
     expect(required).toContain(OUTLET)
+  })
+
+  it('連結送水管の図は、地階を除く階数7以上で要る（施行令29条1項1号・共同住宅）', () => {
+    const CONN = '連結送水管の図（消防法施行令29条）'
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 7, heightM: 21 }).required).toContain(CONN)
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 6, heightM: 18, totalFloorAreaM2: 2000 }).required).not.toContain(CONN)
+  })
+
+  it('連結送水管の図は、5階以上で延べ面積6000㎡以上でも要る（施行令29条1項2号）', () => {
+    const CONN = '連結送水管の図（消防法施行令29条）'
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 15, totalFloorAreaM2: 6000 }).required).toContain(CONN)
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 15, totalFloorAreaM2: 5999 }).required).not.toContain(CONN)
   })
 
   it('地上10階以下では、非常コンセント設備の図は要らない', () => {

@@ -33,7 +33,7 @@ export interface PermitInput {
   usesCertifiedParts: boolean
 }
 
-type Op = 'eq' | 'ne' | 'gt'
+type Op = 'eq' | 'ne' | 'gt' | 'gte'
 type Cond =
   | 'always'
   | { field: keyof PermitInput; op: Op; value: string | number | boolean; /** 当たらないときの理由の語（例: 高さ10m以下） */ notLabel?: string }
@@ -55,7 +55,8 @@ const NO: Verdict = { kind: 'no' }
 function compare(actual: unknown, op: Op, value: string | number | boolean): boolean {
   if (op === 'eq') return actual === value
   if (op === 'ne') return actual !== value
-  return typeof actual === 'number' && typeof value === 'number' && actual > value
+  if (op === 'gt') return typeof actual === 'number' && typeof value === 'number' && actual > value
+  return typeof actual === 'number' && typeof value === 'number' && actual >= value
 }
 
 function evaluate(cond: Cond, input: PermitInput): Verdict {
