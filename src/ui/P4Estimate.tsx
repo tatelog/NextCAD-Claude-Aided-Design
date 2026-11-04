@@ -89,7 +89,8 @@ export function P4Estimate() {
       const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(q.exterior_wall, q.roof)
       // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
-      out.push(structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height }).slab)
+      const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
+      out.push(structure.slab, structure.formwork)
     }
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
