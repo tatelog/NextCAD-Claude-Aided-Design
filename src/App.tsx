@@ -95,7 +95,7 @@ export function App() {
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   const featureOn = useFeatures((s) => s.on)
-  // 作業のモード（G95・G100）: システム・チャット・ドロー。切替は、この画面で使えるものだけ出す
+  // 作業のモード（G95・G100・G101）: System・Chat・Drawing。切替は、この画面で使えるものだけ出す
   const activeMode = useActiveMode(screen)
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
   const panelHidden = usePanelTiles((s) => s.hidden)

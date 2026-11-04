@@ -1,9 +1,10 @@
-// 左のオブジェクト一覧の既定の開閉と、利用者の開閉（ハブ A-03 G55）。描画（システム）のモードと 3D は、折りたたんだ状態で始める。
-// 開閉は、どのモードでもできる（ObjectMenu の開閉のボタン）。利用者が開閉したら、その文脈（画面・モード・表示）の間だけ覚える。
+// 左のオブジェクト一覧の既定の開閉と、利用者の開閉（ハブ A-03 G55。統括の訂正 版 58 で既定を差し替え）。
+// ドロー（drawing）のモードと 3D は、折りたたんだ状態で始める。開閉は、どのモードでもできる（ObjectMenu の開閉のボタン）。
+// 利用者が開閉したら、その文脈（画面・モード・表示）の間だけ覚える。
 import { useState } from 'react'
 
 export function objectMenuFoldedByDefault(mode: string, view: 'plan' | '3d'): boolean {
-  return view === '3d' || mode === 'system'
+  return view === '3d' || mode === 'drawing'
 }
 
 /** 利用者が開閉した値と、その文脈（画面・モード・表示を続けた文字） */

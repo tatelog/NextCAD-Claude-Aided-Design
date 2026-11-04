@@ -1,11 +1,11 @@
-// 作業のモード（ハブ A-03 G100・G95・G43、統括の依頼 t57）。システム（1）・チャット（2）・ドロー（3）。モード名は仮。コードの id は変えない。
+// 作業のモード（ハブ A-03 G100・G95・G43・G101）。System（1）・Chat（2）・Drawing（3）。id は system・chat・drawing（表示名は表 screenModes の name。1 か所）。
 // 切り替えると、そのモードの右メニューの項目を開く。右メニューに何が出るかは、モードと画面の組で決まる（表 screenModes）。
-// ドロー（3）は表で使えない（t54 の仕様が出るまで）。
+// Drawing（3）は表で使えない（t54 の仕様が出るまで）。
 import { create } from 'zustand'
 import { modesOfScreen, rightBarItems, SCREEN_MODES, type ScreenModesConfig } from '../app/screenModes'
 import { usePanelTiles } from './panelTiles'
 
-export type WorkMode = 'system' | 'chat' | 'draw'
+export type WorkMode = 'system' | 'chat' | 'drawing'
 
 export interface ModeState {
   mode: WorkMode

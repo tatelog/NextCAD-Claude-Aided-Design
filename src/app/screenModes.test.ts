@@ -2,7 +2,7 @@
 // 右のメニューバーの中身は、「今のモード」と「画面（P1〜P5）」の組で決まる。その画面で使えないモードは、切替を出さない。
 // 使えるモードの表は設定（src/config/screenModes.json）に出し、表を変えてもコードを変えずに済むようにする。
 // 仕様 1（切替）: 画面ごとに使えるモードだけを出す（P1 はチャットだけ。P2・P3 はシステムとチャット。P4・P5 はチャットだけ）。
-// 仕様 2（ドロー）: モード 3（ドロー）は、t54 の仕様が出るまで使えない（available が false）。どの画面にも出ない。
+// 仕様 2（Drawing）: モード 3（drawing）は、t54 の仕様が出るまで使えない（available が false）。どの画面にも出ない。
 // 仕様 3（右メニュー）: 右のメニューバーの中身は、モードと画面で決まる。システムは機能の調整（G43）と、その画面の項目。チャットはチャットの項目と、その画面の項目。
 // 仕様 4（表を変える）: 表を変えると、コードを変えずに、出るモードと右メニューが変わる。
 // 仕様 5（名前）: モード名は表から出す（仮。コードの名前は id のまま）。
@@ -25,9 +25,9 @@ describe('画面ごとに使えるモード（仕様 1・2）', () => {
     expect(modesOfScreen(SCREEN_MODES, 'P5').map((m) => m.id)).toEqual(['chat'])
   })
 
-  it('ドロー（3）は使えないので、どの画面にも出ない', () => {
+  it('Drawing（3）は使えないので、どの画面にも出ない', () => {
     for (const s of ['P1', 'P2', 'P3', 'P4', 'P5']) {
-      expect(modesOfScreen(SCREEN_MODES, s).some((m) => m.id === 'draw')).toBe(false)
+      expect(modesOfScreen(SCREEN_MODES, s).some((m) => m.id === 'drawing')).toBe(false)
     }
   })
 })
@@ -68,10 +68,19 @@ describe('表を変える（仕様 4）', () => {
   })
 })
 
-describe('名前（仕様 5）', () => {
-  it('モード名は表から出す（仮の名前）', () => {
-    expect(modeName(SCREEN_MODES, 'chat')).toBe('チャット（仮）')
-    expect(modeName(SCREEN_MODES, 'system')).toBe('システム（仮）')
+describe('名前（仕様 5・G101）', () => {
+  it('モード名は表から出す（1 か所）。表示名は System・Chat・Drawing', () => {
+    expect(modeName(SCREEN_MODES, 'chat')).toBe('Chat')
+    expect(modeName(SCREEN_MODES, 'system')).toBe('System')
+    expect(modeName(SCREEN_MODES, 'drawing')).toBe('Drawing')
+  })
+
+  it('表示名は 3 つだけ（「デジタイザ」「ドロー」は使わない。仮の「（仮）」も付けない）', () => {
+    expect(SCREEN_MODES.modes.map((m) => m.name)).toEqual(['System', 'Chat', 'Drawing'])
+  })
+
+  it('モードの id は system・chat・drawing（コードの名前を表示名と揃える）', () => {
+    expect(SCREEN_MODES.modes.map((m) => m.id)).toEqual(['system', 'chat', 'drawing'])
   })
 })
 
