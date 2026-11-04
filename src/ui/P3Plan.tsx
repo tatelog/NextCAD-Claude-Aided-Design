@@ -41,6 +41,11 @@ import { cellsInsideArc } from '../plan/arcCells'
 import { wallOutlineRings } from '../plan/wallUnion'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
+import unitTypeCandidates from '../plan/unitTypeCandidates.json'
+import { assignTypesToSpans, masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
+
+/** 住戸タイプのマスタ（T-08。候補 14 型。未確認の値は仮置き） */
+const UNIT_TYPES = masterOf(unitTypeCandidates)
 
 export function P3Plan() {
   const [widthText, setWidthText] = useState('20000')
@@ -51,7 +56,11 @@ export function P3Plan() {
   const [minText, setMinText] = useState('')
   const [maxText, setMaxText] = useState('')
   const [layoutText, setLayoutText] = useState<CorridorLayout>('中廊下')
-  const [unitTypeText, setUnitTypeText] = useState<'ファミリー' | '単独'>('ファミリー')
+  // 住戸タイプ（G89）: 縦割り（柱割りの列）ごとに、型の id を , で並べる。型が少なければ繰り返す
+  const [unitTypeIdsText, setUnitTypeIdsText] = useState('T-08-2LDK')
+  const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
+  const firstUnitType = UNIT_TYPES.find((t) => t.id === unitTypeIds[0])
+  const unitType = firstUnitType ? unitTypeKind(firstUnitType) : 'ファミリー'
   const [patternText, setPatternText] = useState<RoomPattern>('田の字')
   const [targetText, setTargetText] = useState('')
   const [coreText, setCoreText] = useState<CoreRectText>({ x0: '', y0: '', x1: '', y1: '' })
@@ -108,7 +117,7 @@ export function P3Plan() {
         unitDepthMm: Number(unitDepthText),
         corridorMm: Number(corridorText),
         layout: layoutText,
-        unitType: unitTypeText,
+        unitType,
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
@@ -446,15 +455,22 @@ export function P3Plan() {
             <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
           </label>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
-            住戸タイプ
-            <select value={unitTypeText} onChange={(e) => setUnitTypeText(e.target.value as 'ファミリー' | '単独')} style={{ width: '100%' }}>
-              <option value="ファミリー">ファミリー</option>
-              <option value="単独">単独（2 室）</option>
-            </select>
+            住戸タイプ（縦割りごと。ID を , で区切る。型が少なければ繰り返す）
+            <input list="unit-type-options" value={unitTypeIdsText} onChange={(e) => setUnitTypeIdsText(e.target.value)} style={{ width: '100%' }} />
+            <datalist id="unit-type-options">
+              {unitTypeOptions(UNIT_TYPES).map((o) => (
+                <option key={o.value} value={o.value} label={o.label} />
+              ))}
+            </datalist>
           </label>
+          {auto ? (
+            <p style={{ fontSize: 12, margin: '0 0 6px' }}>
+              縦割りごとの住戸タイプ: {assignTypesToSpans(auto.spans, unitTypeIds).map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '未割付'}`).join('、')}
+            </p>
+          ) : null}
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
             間取りパターン（ファミリー）
-            <select value={patternText} disabled={unitTypeText === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
+            <select value={patternText} disabled={unitType === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
               <option value="田の字">田の字</option>
               <option value="縦長">縦長</option>
               <option value="角">角（両端の住戸だけ）</option>
