@@ -486,7 +486,7 @@ export function P3Plan() {
           {auto ? (
             <>
               <p style={{ fontSize: 12, margin: '0 0 6px' }}>
-                縦割りごとの住戸タイプ（列の幅と間口が同じ型。G99）: {auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '間口に合う型なし'}`).join('、')}
+                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲。G99）: {auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '割り付けなし（間口と合わない）'}`).join('、')}
               </p>
               {unitTypeIds.some((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null) ? (
                 <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>

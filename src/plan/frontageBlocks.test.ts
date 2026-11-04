@@ -1,64 +1,88 @@
-// 仕様（ハブ A-03 G99。統括の依頼 t56、2026-11-04）: P3 の住戸の自動割付は、住戸タイプの間口（mm）の整数倍になる柱列をまとめた単位で割り付ける。
-// 間口に合わない列の組み合わせは候補にしない。
-// 仕様 1（候補）: 連続する柱列の幅の合計が、型の間口の整数倍なら、その型の候補になる（単位数は合計 ÷ 間口）。
-// 仕様 2（候補にしない）: 合計が間口の整数倍でなければ候補にしない。間口が未確認（null）の型も候補にしない。
-// 仕様 3（覆う）: 柱列の全部を、候補の単位だけで覆う割り付けを返す。覆えないときは null（黙って別の型で埋めない）。
-// 仕様 4（少ない住戸）: 覆う割り付けのうち、住戸の数（幅 ÷ 間口の合計）が最も少ないものを返す。
-//   住戸の数が同じなら、柱列のまとまりの数が少ないほう（まとめた単位を優先する。G99「柱列をまとめた単位」）。
-// 仕様 5（同じ入力）: 同じ入力には同じ出力。
+// 仕様（ハブ A-03 G99。統括の依頼 t56、2026-11-04。統括の補足 2026-11-04 で置き換え）:
+// 住戸の割り付けの単位は「柱列をまとめた単位」。隣り合う柱列を 1 本から順にまとめ、まとめた幅が 間口 × N（N は 1 以上の整数）になる
+// 最小の範囲に、1 タイプを置く。N が住戸の数（戸）。幅が合わない列は「割り付けなし（間口と合わない）」。
+// 仕様 1（まとめる）: 列幅 3000 が 2 本で 6000 なら、間口 6000 の型（1DK）が 1 戸。
+// 仕様 2（列ごと）: 列幅 6000 が 2 本で 12000 なら、1DK が 2 戸（1 本ずつ、それぞれ 1 戸）。
+// 仕様 3（割り付けなし）: 列幅 3500 は、どの型の間口の整数倍にもならないので、割り付けなし。
+// 仕様 4（最小の範囲）: 同じ列の並びでも、合う範囲のうち一番短いものを選ぶ。
+// 仕様 5（型の順）: 同じ範囲に合う型が複数なら、型の並びで先の型。
+// 仕様 6（未確認）: 間口が未確認（null）の型は、どの範囲にも使わない。
+// 仕様 7（同じ入力）: 同じ入力には同じ出力で、入力を書き換えない。
 import { describe, expect, it } from 'vitest'
-import { candidateBlocks, partitionByFrontage } from './frontageBlocks'
+import { groupByFrontage, typeIdsOfSpans } from './frontageBlocks'
 
-const TYPES = [
-  { id: 'T-4500', frontageMm: 4500 },
-  { id: 'T-6000', frontageMm: 6000 },
-  { id: 'T-unknown', frontageMm: null },
-]
+const T1DK = { id: 'T-08-1DK', frontageMm: 6000 }
 
-describe('候補（仕様 1・2）', () => {
-  it('連続する柱列の幅の合計が間口の整数倍なら候補（3 列 18000 mm は間口 4500 の 4 単位）', () => {
-    const c = candidateBlocks([6000, 6000, 6000], TYPES)
-    expect(c).toContainEqual({ start: 0, count: 3, typeId: 'T-4500', units: 4 })
+describe('まとめ方（仕様 1〜3）', () => {
+  it('列幅 3000 が 2 本で 6000 なら、1DK が 1 戸（2 本をまとめた 1 単位）', () => {
+    expect(groupByFrontage([3000, 3000], [T1DK])).toEqual({
+      blocks: [{ start: 0, count: 2, typeId: 'T-08-1DK', units: 1 }],
+      unallocated: [],
+    })
   })
 
-  it('整数倍でない列の組み合わせは候補にしない（2 列 12000 mm は間口 4500 に合わない）', () => {
-    const c = candidateBlocks([6000, 6000], [{ id: 'T-4500', frontageMm: 4500 }])
-    expect(c.some((x) => x.count === 2)).toBe(false)
+  it('列幅 6000 が 2 本で 12000 なら、1DK が 2 戸（1 本ずつ、それぞれ 1 戸）', () => {
+    const g = groupByFrontage([6000, 6000], [T1DK])
+    expect(g.blocks).toEqual([
+      { start: 0, count: 1, typeId: 'T-08-1DK', units: 1 },
+      { start: 1, count: 1, typeId: 'T-08-1DK', units: 1 },
+    ])
+    expect(g.blocks.reduce((sum, b) => sum + b.units, 0)).toBe(2)
   })
 
-  it('間口が未確認（null）の型は候補にしない', () => {
-    const c = candidateBlocks([6000], TYPES)
-    expect(c.some((x) => x.typeId === 'T-unknown')).toBe(false)
-  })
-})
-
-describe('覆う割り付け（仕様 3）', () => {
-  it('候補の単位だけで柱列を覆えば、その割り付けを返す（住戸 2 の同じ数なら、まとめた 1 単位を優先）', () => {
-    const p = partitionByFrontage([6000, 6000], [{ id: 'T-6000', frontageMm: 6000 }])
-    expect(p).toEqual([{ start: 0, count: 2, typeId: 'T-6000', units: 2 }])
-  })
-
-  it('覆えないときは null（黙って別の型で埋めない）', () => {
-    expect(partitionByFrontage([6000, 6000], [{ id: 'T-4500', frontageMm: 4500 }])).toBeNull()
+  it('列幅 3500 は、どの型の間口の整数倍にもならないので、割り付けなし', () => {
+    expect(groupByFrontage([3500], [T1DK])).toEqual({ blocks: [], unallocated: [0] })
   })
 })
 
-describe('少ない単位（仕様 4）', () => {
-  it('住戸の数が最も少ない割り付けを返す（12000 の型は 4 列を 2 住戸で覆い、6000 の型の 4 住戸より少ない）', () => {
-    const types = [
-      { id: 'T-6000', frontageMm: 6000 },
-      { id: 'T-12000', frontageMm: 12000 },
-    ]
-    const p = partitionByFrontage([6000, 6000, 6000, 6000], types)
-    expect(p).toEqual([{ start: 0, count: 4, typeId: 'T-12000', units: 2 }])
+describe('最小の範囲（仕様 4）', () => {
+  it('列幅 3000 が 4 本なら、2 本ずつ 2 まとまり（それぞれ 1 戸）', () => {
+    const g = groupByFrontage([3000, 3000, 3000, 3000], [T1DK])
+    expect(g.blocks).toEqual([
+      { start: 0, count: 2, typeId: 'T-08-1DK', units: 1 },
+      { start: 2, count: 2, typeId: 'T-08-1DK', units: 1 },
+    ])
+  })
+
+  it('合わない列が混じると、その列は割り付けなし（前後の合う列はまとめ直す）', () => {
+    expect(groupByFrontage([3000, 3500, 3000], [T1DK])).toEqual({ blocks: [], unallocated: [0, 1, 2] })
   })
 })
 
-describe('同じ入力（仕様 5）', () => {
+describe('型の順（仕様 5）', () => {
+  it('同じ範囲に合う型が複数なら、型の並びで先の型を置く', () => {
+    const a = { id: 'T-A', frontageMm: 6000 }
+    const b = { id: 'T-B', frontageMm: 6000 }
+    expect(groupByFrontage([6000], [a, b]).blocks).toEqual([{ start: 0, count: 1, typeId: 'T-A', units: 1 }])
+    expect(groupByFrontage([6000], [b, a]).blocks).toEqual([{ start: 0, count: 1, typeId: 'T-B', units: 1 }])
+  })
+
+  it('型の並びより、最小の範囲が先（12000 の型が後にあっても、6000 の 1 列は 1DK で割る）', () => {
+    const big = { id: 'T-12000', frontageMm: 12000 }
+    expect(groupByFrontage([6000, 6000], [big, T1DK]).blocks).toEqual([
+      { start: 0, count: 1, typeId: 'T-08-1DK', units: 1 },
+      { start: 1, count: 1, typeId: 'T-08-1DK', units: 1 },
+    ])
+  })
+})
+
+describe('未確認（仕様 6）', () => {
+  it('間口が未確認（null）の型は、どの範囲にも使わない', () => {
+    expect(groupByFrontage([6000], [{ id: 'T-unknown', frontageMm: null }])).toEqual({ blocks: [], unallocated: [0] })
+  })
+})
+
+describe('同じ入力（仕様 7）と列ごとの型', () => {
   it('同じ入力には同じ出力で、入力を書き換えない', () => {
-    const spans = [6000, 6000, 6000]
+    const spans = [3000, 3000, 6000]
     const before = JSON.stringify(spans)
-    expect(partitionByFrontage(spans, TYPES)).toEqual(partitionByFrontage(spans, TYPES))
+    expect(groupByFrontage(spans, [T1DK])).toEqual(groupByFrontage(spans, [T1DK]))
     expect(JSON.stringify(spans)).toBe(before)
+  })
+
+  it('列ごとの型：まとまりの型を、その範囲の各列に置き、割り付けなしの列は null', () => {
+    const spans = [3000, 3000, 3500]
+    const g = groupByFrontage(spans, [T1DK])
+    expect(typeIdsOfSpans(g, spans.length)).toEqual(['T-08-1DK', 'T-08-1DK', null])
   })
 })

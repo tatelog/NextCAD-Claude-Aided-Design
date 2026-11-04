@@ -7,7 +7,8 @@ import { countUnits } from './units'
 import { buildEvLevels, type EvLevels } from './evLevels'
 import { splitUnitRooms, type Room, type RoomPattern } from './rooms'
 import type { CorridorLayout, Rect } from './candidateCells'
-import { assignByFrontage, patternOfType, type UnitType } from './unitTypeMaster'
+import { patternOfType, type UnitType } from './unitTypeMaster'
+import { groupByFrontage, typeIdsOfSpans, type FrontageBlock } from './frontageBlocks'
 
 const TargetSchema = z.number().int().positive()
 // コアの寸法（仮置き）。階段は廊下の両端、EV ホールは中央。奥行の方向の長さ（mm）
@@ -81,6 +82,8 @@ export interface AutoPlan {
   spanTypes: (string | null)[]
   /** 室数が合う割り付けが無く、既定の割り付けで仮置きした列（列の番号。0 始まり） */
   unsupportedSpans: number[]
+  /** 型を入れたとき、間口と合わず割り付けなしの列（列の番号。0 始まり。G99）。型を入れていないときは空 */
+  unfitSpans: number[]
 }
 
 const SHAFT_MM = 600
@@ -112,6 +115,49 @@ function canSplitRooms(cell: Rect, pattern: RoomPattern): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * 柱列のまとまり（G99）ごとに、側（L・R）の区画をまとめて 1 区画にする。
+ * まとめた区画の部屋割りが割れない、または型の室数に合う割り付けが無いまとまりは、まとめずに未対応として印を出す（黙って割らない）。
+ * 区画が 1 つでも欠けるまとまり（曲線の外形などで外れた）は、まとめない。
+ */
+function mergeBlockCells(
+  cells: Rect[],
+  blocks: readonly FrontageBlock[],
+  types: readonly UnitType[],
+): { cells: Rect[]; typedPatterns: Map<number, RoomPattern>; unsupportedSpans: number[] } {
+  const typedPatterns = new Map<number, RoomPattern>()
+  const unsupportedSpans: number[] = []
+  const byId = new Map(cells.map((c) => [c.id, c]))
+  const sides = [...new Set(cells.map((c) => c.id.charAt(0)))]
+  const mergedOf = new Map<string, Rect>()
+  const blockOfSpan = new Map<number, FrontageBlock>()
+  for (const b of blocks) {
+    const end = b.start + b.count - 1
+    const t = types.find((x) => x.id === b.typeId)
+    const pattern = t === undefined ? null : patternOfType(t).pattern
+    const parts = sides.map((side) => ({ side, first: byId.get(`${side}${b.start}`), last: byId.get(`${side}${end}`) }))
+    const complete = parts.every((p) => p.first !== undefined && p.last !== undefined)
+    if (!complete) continue
+    const rects = parts.map((p) => ({ side: p.side, rect: { id: `${p.side}${b.start}`, x0: p.first!.x0, y0: p.first!.y0, x1: p.first!.x1, y1: p.last!.y1 } }))
+    const fits = pattern !== null && rects.every((r) => canSplitRooms(r.rect, pattern))
+    if (!fits) {
+      for (let k = b.start; k <= end; k++) unsupportedSpans.push(k)
+      continue
+    }
+    for (const r of rects) mergedOf.set(`${r.side}${b.start}`, r.rect)
+    typedPatterns.set(b.start, pattern)
+    for (let k = b.start; k <= end; k++) blockOfSpan.set(k, b)
+  }
+  const out: Rect[] = []
+  for (const c of cells) {
+    const k = Number(c.id.slice(1))
+    const b = blockOfSpan.get(k)
+    if (b === undefined) out.push(c)
+    else if (k === b.start) out.push(mergedOf.get(`${c.id.charAt(0)}${b.start}`)!)
+  }
+  return { cells: out, typedPatterns, unsupportedSpans }
 }
 
 // 区画ごとの部屋割り。角は両端の区画（k = 0 と最後）だけ、他は田の字
@@ -157,7 +203,19 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   if (!Number.isInteger(evY0)) throw new Error('奥行が奇数で、EV ホールを中央に置けない')
   coresInCorridor.push({ id: 'evHall', x0: c.corridor.x0, y0: evY0, x1: c.corridor.x1, y1: evY0 + EV_HALL_LEN_MM, evCount: input.evCount })
   // 曲線の外形などで外れる区画は、作らず数えない（G5）
-  const cells = input.insideCell ? c.cells.filter(input.insideCell) : c.cells
+  const perSpanCells = input.insideCell ? c.cells.filter(input.insideCell) : c.cells
+  // 列の型（G89・G99）: 柱列を 1 本から順にまとめ、まとめた幅が間口の整数倍になる最小の範囲に、型を 1 つ置く。
+  // まとめた範囲は 1 区画になり、その型の部屋割りになる。どの範囲も合わない列は「割り付けなし（間口と合わない）」
+  const selected = (input.unitTypeIds ?? [])
+    .map((id) => input.unitTypes?.find((x) => x.id === id))
+    .filter((t): t is UnitType => t !== undefined)
+  const grouping = groupByFrontage(
+    Array.from({ length: spans }, () => input.spanMm),
+    selected.map((t) => ({ id: t.id, frontageMm: t.frontage_mm })),
+  )
+  const spanTypes = typeIdsOfSpans(grouping, spans)
+  const merged = mergeBlockCells(perSpanCells, grouping.blocks, input.unitTypes ?? [])
+  const cells = merged.cells
   const counted = countUnits({
     outline: [
       { x: 0, y: 0 },
@@ -170,27 +228,10 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     cells,
   })
   const unitsPerFloor = counted.usable_count
-  // 列ごとの型（G89）。型の室数から、その列の部屋割りを決める。室数が合わない列は未対応として印を出す
-  // 列の型は、列の幅（スパン）と間口が同じ型だけ（G99）。間口が未確認の型や、間口に合わない型は割り付けない（null）
-  const selected = (input.unitTypeIds ?? [])
-    .map((id) => input.unitTypes?.find((x) => x.id === id))
-    .filter((t): t is UnitType => t !== undefined)
-  const spanTypes = assignByFrontage(
-    Array.from({ length: spans }, () => input.spanMm),
-    selected,
-  )
-  const typedPatterns = new Map<number, RoomPattern>()
-  const unsupportedSpans: number[] = []
-  spanTypes.forEach((id, k) => {
-    const t = id === null ? undefined : input.unitTypes?.find((x) => x.id === id)
-    if (t === undefined) return
-    const { pattern } = patternOfType(t)
-    // 室数に合う割り付けが無い、または列の寸法で割り付けられない（三室・四室の割り算）列は、未対応として印を出す（黙って割らない）
-    const sample = cells.find((c) => Number(c.id.slice(1)) === k)
-    if (pattern === null || (sample !== undefined && !canSplitRooms(sample, pattern))) unsupportedSpans.push(k)
-    else typedPatterns.set(k, pattern)
-  })
-  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), typedPatterns)
+  const unsupportedSpans = merged.unsupportedSpans
+  // 型を入れていないときは、割り付けなし（間口と合わない）とは出さない
+  const unfitSpans = selected.length === 0 ? [] : grouping.unallocated
+  const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), merged.typedPatterns)
 
   return {
     unitType: input.unitType ?? 'ファミリー',
@@ -207,6 +248,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     shaftRects: shaftsOf(cells, rooms, coresInCorridor, c.corridor),
     spanTypes,
     unsupportedSpans,
+    unfitSpans,
     ev: buildEvLevels({
       storeyCount: input.storeyCount,
       storeyHeightMm: input.storeyHeightMm,

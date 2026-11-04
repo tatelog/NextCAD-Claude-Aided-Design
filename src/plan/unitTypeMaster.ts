@@ -103,17 +103,3 @@ export function patternOfType(t: UnitType): { pattern: RoomPattern | null; reaso
   return { pattern: null, reason: '室数に合う割り付けが無い（個室 5 以上は未対応）' }
 }
 
-/**
- * 柱列（縦割り）ごとに、列の幅と間口が同じ型を割り付ける（G89・G99）。間口が未確認（null）の型と、間口に合わない型は候補にしない。
- * 合う型が無い列は null（黙って別の型で埋めない）。合う型が複数なら、同じ幅の列ごとに順に繰り返す。
- */
-export function assignByFrontage(spanWidthsMm: readonly number[], types: readonly UnitType[]): (string | null)[] {
-  const next = new Map<number, number>()
-  return spanWidthsMm.map((w) => {
-    const fit = types.filter((t) => t.frontage_mm !== null && t.frontage_mm === w)
-    if (fit.length === 0) return null
-    const i = next.get(w) ?? 0
-    next.set(w, i + 1)
-    return fit[i % fit.length]!.id
-  })
-}

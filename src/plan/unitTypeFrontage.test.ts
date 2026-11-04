@@ -8,7 +8,8 @@
 // 仕様 6（繰り返し）: 合う型が複数あれば、列ごとに順に繰り返す。
 import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { assignByFrontage, masterOf, unitTypeOptions } from './unitTypeMaster'
+import { masterOf, unitTypeOptions } from './unitTypeMaster'
+import { groupByFrontage } from './frontageBlocks'
 
 const CANDIDATES = JSON.parse(readFileSync(new URL('./unitTypeCandidates.json', import.meta.url), 'utf8'))
 const MASTER = masterOf(CANDIDATES)
@@ -63,31 +64,35 @@ describe('選択肢の表示（仕様 3）', () => {
   })
 })
 
-describe('割り付けの候補（仕様 3〜6）', () => {
-  it('間口が未確認の型は、どの列にも入らない', () => {
-    const t4 = MASTER.find((x) => x.name === '4LDK②')!
-    expect(assignByFrontage([10400, 6000], [t4])).toEqual([null, null])
+// 割り付けの単位は「柱列をまとめた単位」（G99 の統括の補足 2026-11-04。規則の試験は frontageBlocks.test.ts）。
+// ここでは、マスタの型を使ったときの割り付けを確かめる。
+describe('割り付けの候補（マスタの型で。仕様 3・4）', () => {
+  const grouped = (spans: number[], names: string[]) =>
+    groupByFrontage(
+      spans,
+      names.map((n) => {
+        const t = MASTER.find((x) => x.name === n)!
+        return { id: t.id, frontageMm: t.frontage_mm }
+      }),
+    )
+
+  it('間口が未確認の型（4LDK②）は、どの列にも入らない（割り付けなし）', () => {
+    expect(grouped([10400, 6000], ['4LDK②'])).toEqual({ blocks: [], unallocated: [0, 1] })
   })
 
-  it('柱列の幅と間口が同じ型だけを、その列に割り付ける', () => {
-    const t1dk = MASTER.find((x) => x.name === '1DK')!
-    const t2ldk = MASTER.find((x) => x.name === '2LDK')!
-    expect(assignByFrontage([6000, 8400], [t1dk, t2ldk])).toEqual([t1dk.id, t2ldk.id])
+  it('列幅が間口と同じ型は、その列を 1 戸にする（1DK は 6000、2LDK は 8400）', () => {
+    const g = grouped([6000, 8400], ['1DK', '2LDK'])
+    expect(g.blocks).toEqual([
+      { start: 0, count: 1, typeId: MASTER.find((x) => x.name === '1DK')!.id, units: 1 },
+      { start: 1, count: 1, typeId: MASTER.find((x) => x.name === '2LDK')!.id, units: 1 },
+    ])
   })
 
-  it('合う型が無い列は null（黙って別の型で埋めない）', () => {
-    const t1dk = MASTER.find((x) => x.name === '1DK')!
-    expect(assignByFrontage([9000], [t1dk])).toEqual([null])
-  })
-
-  it('合う型が複数あれば、列ごとに順に繰り返す', () => {
-    const a = { ...MASTER.find((x) => x.name === '1DK')!, id: 'A' }
-    const b = { ...MASTER.find((x) => x.name === '1DK')!, id: 'B' }
-    expect(assignByFrontage([6000, 6000, 6000], [a, b])).toEqual(['A', 'B', 'A'])
+  it('合う型が無い列は割り付けなし（黙って別の型で埋めない）', () => {
+    expect(grouped([9000], ['1DK'])).toEqual({ blocks: [], unallocated: [0] })
   })
 
   it('同じ入力には同じ出力', () => {
-    const t1dk = MASTER.find((x) => x.name === '1DK')!
-    expect(assignByFrontage([6000, 6000], [t1dk])).toEqual(assignByFrontage([6000, 6000], [t1dk]))
+    expect(grouped([6000, 6000], ['1DK'])).toEqual(grouped([6000, 6000], ['1DK']))
   })
 })
