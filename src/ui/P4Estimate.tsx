@@ -9,6 +9,8 @@ import { buildingExteriorQuantities } from '../estimate/quantities'
 import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
 import { structureQuantities } from '../estimate/structureQuantities'
 import { sashQuantity } from '../estimate/sashQuantity'
+import { siteWorksQuantity } from '../estimate/siteWorks'
+import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 import { objectTableOf } from '../plan/objectTable'
 import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
@@ -91,6 +93,8 @@ export function P4Estimate() {
       // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
       const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(structure.slab, structure.formwork, structure.concrete, structure.rebar)
+      // 外構（建物以外の敷地。敷地は仮置きのダミー。拾い方は仮置き）
+      out.push(siteWorksQuantity(DUMMY_PARCEL_MM2, volume.footprint))
     }
     if (plan) {
       const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })

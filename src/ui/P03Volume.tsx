@@ -41,14 +41,7 @@ import { usePanelTiles } from '../store/panelTiles'
 import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
-const DUMMY_PARCEL_MM2 = 20_000 * 30_000
-// 筆界のダミー（反時計回り。辺 0 は下の辺）。P1 の筆界が入るまでの仮の敷地
-const DUMMY_PARCEL = [
-  { x: 0, y: 0 },
-  { x: 20_000, y: 0 },
-  { x: 20_000, y: 30_000 },
-  { x: 0, y: 30_000 },
-]
+import { DUMMY_PARCEL, DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 // 周辺建物は P1 の基準点を、ダミー筆界の中心（20 m × 30 m の中心）に合わせて置く（筆界が入るまでの仮）
 const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
