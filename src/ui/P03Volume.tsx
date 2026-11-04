@@ -10,6 +10,7 @@ import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { setbackLabel } from '../plan/dimensionLabel'
+import { setbackLines } from '../volume/setbackLines'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
 import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
@@ -98,6 +99,7 @@ export function P03Volume() {
   const siteBuildings = useSite((s) => s.buildings)
   const showShadow = useUi((s) => s.showShadow)
   const showNeighbors = useUi((s) => s.showNeighbors)
+  const showDimensions = useUi((s) => s.showDimensions)
   const showMiniMap = useUi((s) => s.showMiniMap)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
@@ -225,6 +227,8 @@ export function P03Volume() {
 
   // 敷地との離れ（敷地が矩形のときだけ。G67）
   const setback = useMemo(() => (volume ? setbackFromRectParcel(DUMMY_PARCEL, volume.footprint) : null), [volume])
+  // 離れの寸法線（G67）。3D の地面に出す。寸法線の表示をオフにしたら出さない
+  const setbackLinesOfVolume = useMemo(() => (volume ? setbackLines(DUMMY_PARCEL, volume.footprint) : null), [volume])
   // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
   const roadSlope = useMemo(() => {
     const road = legal.boundaries.filter((b) => b.kind === 'road')
@@ -361,6 +365,7 @@ export function P03Volume() {
                 footprint={volume.footprint}
                 shadow={showShadow ? sunShadow : null}
                 neighbors={showNeighbors ? neighbors : []}
+                setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
