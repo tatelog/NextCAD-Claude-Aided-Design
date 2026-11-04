@@ -1,5 +1,5 @@
 {
-  "作成": "2026-11-04 t57（統括の依頼）。D-04 の 2b の草案（G100。統括の推奨案。代表は未確定）を写した。表示名は G101（2026-11-05 決定）: 1 System・2 Chat・3 Drawing。表示名はこの表の name だけに置く（ここを変えれば画面が変わる）。モード 3（Drawing）は t54 の仕様が出るまで使えない",
+  "作成": "2026-11-04 t57（統括の依頼）。D-04 の 2b の草案（G100。統括の推奨案。代表は未確定）を写した。表示名は G101（2026-11-05 決定）: 1 System・2 Chat・3 Drawing。表示名はこの表の name だけに置く（ここを変えれば画面が変わる）。モード 3（Drawing）は、D-04 の 2b の表の確認待ち（代表）。available は false のまま",
   "modes": [
     { "id": "system", "name": "System", "available": true, "rightTiles": ["feature-adjust"] },
     { "id": "chat", "name": "Chat", "available": true, "rightTiles": ["claude-chat"] },
