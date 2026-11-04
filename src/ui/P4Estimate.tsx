@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useObjectTable } from '../store/objectTable'
 import { useComponentFire } from '../store/componentFire'
+import { detailLinesOfObjects, resolveUnitPriceRef, slabObjectRow } from '../estimate/estimateObjects'
 import type { RebarCondition } from '../estimate/rebarCondition'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
@@ -10,7 +11,6 @@ import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { buildingExteriorQuantities } from '../estimate/quantities'
 import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
-import { structureQuantities } from '../estimate/structureQuantities'
 import { sashQuantity } from '../estimate/sashQuantity'
 import { siteWorksQuantity } from '../estimate/siteWorks'
 import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
@@ -91,14 +91,24 @@ export function P4Estimate() {
   // 鉄筋の被り厚と継手（G86。仮の条件。係数は仮置き）
   const rebar = useComponentFire((s) => s.rebar)
   const setRebar = useComponentFire((s) => s.setRebar)
+  // 積算はオブジェクト表から集計する（G86）。表の行は下の effect で作って書く
+  const objectRows = useObjectTable((s) => s.rows)
+  // 数量の行の単価の参照（品目・単位・分類が一致する単価の行）と、金額（参照した単価 × 数量、円）。参照が無ければ未参照（G20）
+  const priceFor = (q: { item: string; unit: string; category: string; quantity: number }) => {
+    if (!('rows' in parsed)) return { ref: null as string | null, amount: null as number | null }
+    const ref = resolveUnitPriceRef(q, parsed.rows)
+    const row = ref === null ? undefined : parsed.rows.find((r) => r.id === ref)
+    return { ref, amount: row ? Math.round(row.unit_price * q.quantity) : null }
+  }
   const autoQuantities = useMemo(() => {
     const out: { item: string; category: string; quantity: number; unit: string }[] = []
     if (volume) {
       const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
       out.push(q.exterior_wall, q.roof)
-      // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
-      const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height }, undefined, rebar)
-      out.push(structure.slab, structure.formwork, structure.concrete, structure.rebar)
+      // 躯体（G86）: オブジェクト表の床版の行から明細を出し、その明細を正本にする
+      for (const l of detailLinesOfObjects(objectRows, rebar)) {
+        out.push({ item: l.item, category: l.category, quantity: l.quantity, unit: l.unit })
+      }
       // 外構（建物以外の敷地。敷地は仮置きのダミー。拾い方は仮置き）
       out.push(siteWorksQuantity(DUMMY_PARCEL_MM2, volume.footprint))
     }
@@ -119,7 +129,7 @@ export function P4Estimate() {
     }
     out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
     return out
-  }, [volume, plan, drawnEntries, assignments, rebar])
+  }, [volume, plan, drawnEntries, assignments, rebar, objectRows])
   const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
 
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
@@ -127,14 +137,13 @@ export function P4Estimate() {
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
   // 住戸をグループとして数える（G58）。自動作成の結果からオブジェクト表の行を作り、表（SQLite）に書いて、表から読む
-  const derivedObjectRows = useMemo(
-    () =>
-      plan
-        ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
-        : [],
-    [plan, fixtures],
-  )
-  const objectRows = useObjectTable((s) => s.rows)
+  const derivedObjectRows = useMemo(() => {
+    const rows = plan
+      ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
+      : []
+    // 床版（外形から出る躯体）も表の 1 行にする（G86）。躯体の数量はこの行から出す
+    return volume ? [...rows, slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height)] : rows
+  }, [plan, fixtures, volume])
   const objectPersisted = useObjectTable((s) => s.persisted)
   useEffect(() => {
     void useObjectTable.getState().init()
@@ -257,6 +266,8 @@ export function P4Estimate() {
                 <th align="left">区分</th>
                 <th align="left">品目</th>
                 <th align="right">数量</th>
+                <th align="left">単価（参照）</th>
+                <th align="right">金額（円）</th>
               </tr>
             </thead>
             <tbody>
@@ -265,7 +276,7 @@ export function P4Estimate() {
                 return rows.length === 0 ? (
                   <tr key={cat}>
                     <td>{cat}</td>
-                    <td colSpan={2} style={{ color: '#666' }}>
+                    <td colSpan={4} style={{ color: '#666' }}>
                       未拾い（この区分の数量は、対応するオブジェクトを作ってから）
                     </td>
                   </tr>
@@ -279,6 +290,8 @@ export function P4Estimate() {
                         <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
                       </td>
                       <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
+                      <td>{priceFor(q).ref ?? '未参照'}</td>
+                      <td align="right">{priceFor(q).amount === null ? '—' : priceFor(q).amount!.toLocaleString('ja-JP')}</td>
                     </tr>
                   ))
                 )
