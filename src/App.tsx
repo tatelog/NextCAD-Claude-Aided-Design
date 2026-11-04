@@ -35,6 +35,7 @@ import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
 import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
+import { useUndoKeys } from './ui/useUndoKeys'
 
 const SCREENS = [
   { id: 'P1', name: '敷地' },
@@ -53,6 +54,8 @@ const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a
 const WORKER_URL: string = appWorkerUrl()
 
 export function App() {
+  // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
+  useUndoKeys()
   const [screen, setScreen] = useState<ScreenId>('P2')
   // 案件名（敷地名）。画面の中だけで持つ（保存のときだけ書き出す）
   const [project, setProject] = useState('')
