@@ -21,7 +21,9 @@ import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
-import { DUMMY_SITE_MM, p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
+import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
+import { useSite } from '../store/site'
+import { lotOf } from '../plan/lot'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
 import { strokeToSegments } from '../canvas/strokeToSegments'
@@ -131,6 +133,9 @@ export function DrawingCanvas() {
   // 描く画面（P2）の線は P2 の線だけ。P3 の線はこの画面に出さない
   const drawnAll = useDrawing((s) => s.entries)
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
+  // 敷地（筆界）: 地図で選んだ筆、無ければダミー。点線で出す（統括の依頼 2026-11-06）
+  const parcel = useSite((s) => s.parcel)
+  const lot = lotOf(parcel)
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
@@ -207,8 +212,9 @@ export function DrawingCanvas() {
       useFeatures.getState().on.endpointRing ? hoverRef.current : null,
       handleDragRef.current?.view ?? null,
       layerById,
+      lot,
     )
-  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid])
+  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -231,6 +237,7 @@ export function DrawingCanvas() {
         useFeatures.getState().on.endpointRing ? hoverRef.current : null,
         handleDragRef.current?.view ?? null,
         layerById,
+        lot,
       )
 
     // 押さえ続けた線を、判定に送る（Drawing モード。G108・G112）。送るのは描いている線だけで、チャットの文は送らない
@@ -563,7 +570,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot])
 
   return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
 }
@@ -579,6 +586,7 @@ function paint(
   hoverPx: Point | null,
   handleView: HandleDragView | null,
   layerById: ReadonlyMap<string, { layer: LayerName; needsReview: boolean }>,
+  lot: readonly Point[],
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -619,12 +627,12 @@ function paint(
     ctx.stroke()
   }
 
-  // ダミー筆界
+  // 敷地（筆界）を点線で出す（選んだ筆、無ければダミー）
   ctx.strokeStyle = '#8a7f6a'
   ctx.setLineDash([8, 6])
   ctx.lineWidth = 1.5
   ctx.beginPath()
-  DUMMY_SITE_MM.forEach((p, i) => {
+  lot.forEach((p, i) => {
     const q = mmToPx(vp, p)
     if (i === 0) ctx.moveTo(q.x, q.y)
     else ctx.lineTo(q.x, q.y)

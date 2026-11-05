@@ -10,6 +10,7 @@ import { formatParcelInfo, parcelUid } from '../map/parcelInfo'
 import { decodeLocalJson } from '../map/localData'
 import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
 import type { LonLat } from '../map/viewport'
+import { publishSelectedParcel, rememberParcelGeometry } from '../map/selectedParcel'
 
 const LOCAL_DATA = '/local-data/'
 
@@ -116,6 +117,7 @@ export function P1Map(props: Props) {
         if (selectedRef.current !== null) map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: false })
         selectedRef.current = String(parcel.id)
         map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: true })
+        publishSelectedParcel(selectedRef.current)
       }
       const info = infoAt(map, e.point)
       if (info) onInfo(info)
@@ -228,9 +230,13 @@ async function loadLocalLayers(
     missing.push('道路')
   }
   try {
-    const parcels = (await loadLocal('koto-parcels.geojson')) as { features: { properties: Record<string, string> }[] }
+    const parcels = (await loadLocal('koto-parcels.geojson')) as { features: { properties: Record<string, string>; geometry: unknown }[] }
     // 筆の識別子（地図名と筆IDの組）を、筆ごとに付ける
-    for (const f of parcels.features) f.properties['筆UID'] = parcelUid(f.properties as { 地図名: string; 筆ID: string })
+    for (const f of parcels.features) {
+      const uid = parcelUid(f.properties as { 地図名: string; 筆ID: string })
+      f.properties['筆UID'] = uid
+      rememberParcelGeometry(uid, f.geometry)
+    }
     parcelCount = parcels.features.length
     map.addSource('parcels', { type: 'geojson', data: parcels as GeoJSONSourceSpecification['data'], promoteId: '筆UID' })
     map.addLayer({
@@ -249,6 +255,7 @@ async function loadLocalLayers(
       selectedRef.current = DEMO_PARCEL_UID
       onInfo(formatParcelInfo(demo.properties))
       selectDemoParcel(map)
+      publishSelectedParcel(DEMO_PARCEL_UID)
     }
   } catch {
     missing.push('筆')
