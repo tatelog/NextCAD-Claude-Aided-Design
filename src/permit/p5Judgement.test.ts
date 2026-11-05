@@ -75,6 +75,25 @@ describe('三区分と法の区分（仕様 2）', () => {
   })
 })
 
+// 仕様（施行令129条の13の2、t24）: 非常用の昇降機の図書は、31m超の床面積が500㎡を超え、第3号（耐火・区画）の入力が無いあいだは「要確認」。理由は第3号の入力待ちの語で、画面の行に出る。
+describe('非常用の昇降機（D32）の行（仕様 2 の続き）', () => {
+  const NON_ELEVATOR = '非常用の昇降機の図書（法34条2項、高さ31m超）'
+
+  it('31m超の床面積が500㎡を超える共同住宅は、要確認の行に理由つきで出る（要らないには入らない）', () => {
+    const rows = judgementRowsOf(requiredPermitDocuments({ ...sample, storeys: 15, heightM: 48, totalFloorAreaM2: 6000, areaAbove31M2: 2400 }))
+    const row = rows.find((r) => r.name === NON_ELEVATOR)
+    expect(row?.kind).toBe('要確認')
+    expect(row?.reason).toContain('第3号')
+  })
+
+  it('31m超の床面積が500㎡以下なら、要らない行に理由つきで出る（第2号の除外）', () => {
+    const rows = judgementRowsOf(requiredPermitDocuments({ ...sample, storeys: 15, heightM: 48, totalFloorAreaM2: 6000, areaAbove31M2: 400 }))
+    const row = rows.find((r) => r.name === NON_ELEVATOR)
+    expect(row?.kind).toBe('要らない')
+    expect(row?.reason).toContain('500㎡以下')
+  })
+})
+
 describe('一覧は判定の全件（仕様 3）', () => {
   it('行の数は図書の定義の数と同じで、どの図書も一度ずつ出る', () => {
     const rows = judgementRowsOf(requiredPermitDocuments(sample))

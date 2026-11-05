@@ -72,9 +72,10 @@ describe('ボリュームから作る判定の入力', () => {
     expect(r.required).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
   })
 
-  it('15階・3.2m（31m超の部分は6階分の2400㎡）は、非常用の昇降機の図書が要る', () => {
+  it('15階・3.2m（31m超の部分は6階分の2400㎡）は、第2号の除外に当たらず、第3号の判断が要るので非常用の昇降機の図書は要確認', () => {
     const r = requiredPermitDocuments(permitInputFromVolume(block(15, 3_200), project))
-    expect(r.required).toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+    expect(r.required).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+    expect(r.needsCheck.map((n) => n.name)).toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
   })
 
   it('敷地の日影規制区域は、ボリュームの高さと合わせて日影図の要否を決める', () => {
