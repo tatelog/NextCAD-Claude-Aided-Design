@@ -42,6 +42,8 @@ type Cond =
   | { all: Cond[] }
   | { any: Cond[] }
   | { unresolved: string }
+  /** 否定。当たる（yes）なら要らない（no）、当たらないなら要る（yes）、未確認なら未確認のまま */
+  | { not: Cond }
 
 interface DocDef {
   name: string
@@ -64,6 +66,12 @@ function compare(actual: unknown, op: Op, value: string | number | boolean): boo
 function evaluate(cond: Cond, input: PermitInput): Verdict {
   if (cond === 'always') return YES
   if ('unresolved' in cond) return { kind: 'unknown', reason: cond.unresolved }
+  if ('not' in cond) {
+    const inner = evaluate(cond.not, input)
+    if (inner.kind === 'yes') return NO
+    if (inner.kind === 'no') return YES
+    return inner
+  }
   if ('field' in cond) return compare(input[cond.field], cond.op, cond.value) ? YES : NO
   if ('all' in cond) {
     const verdicts = cond.all.map((c) => evaluate(c, input))
@@ -80,7 +88,7 @@ function evaluate(cond: Cond, input: PermitInput): Verdict {
 
 // 当たらなかった条件の語（notLabel）を集める。条件式の中で偽になった比較だけを数える
 function missingLabels(cond: Cond, input: PermitInput): (string | undefined)[] {
-  if (cond === 'always' || 'unresolved' in cond) return []
+  if (cond === 'always' || 'unresolved' in cond || 'not' in cond) return []
   if ('field' in cond) return compare(input[cond.field], cond.op, cond.value) ? [] : [cond.notLabel]
   if ('all' in cond) return cond.all.flatMap((c) => missingLabels(c, input))
   return cond.any.flatMap((c) => missingLabels(c, input))
