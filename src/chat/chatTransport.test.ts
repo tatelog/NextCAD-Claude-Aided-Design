@@ -6,7 +6,7 @@
 // 仕様 4（失敗）: Worker が失敗したら例外にする（店舗が「返答を読めませんでした」を出す）。
 // 仕様 5（文脈の入力）: 作業ログは新しい順で届くので、古い順に直す。線は種類があるものだけ種類を持つ。案件の要約を入れる。
 import { describe, expect, it } from 'vitest'
-import { chatTransportOf, contextInputOf } from './chatTransport'
+import { ChatPendingError, chatTransportOf, contextInputOf } from './chatTransport'
 import type { ChatMessage } from '../store/chat'
 import type { ChatContextInput } from './chatContext'
 
@@ -55,6 +55,14 @@ describe('失敗（仕様 4）', () => {
   it('Worker が失敗したら例外にする', async () => {
     const fetchImpl = async (): Promise<Response> => new Response('{}', { status: 500 })
     await expect(chatTransportOf({ workerUrl: 'https://w.example', model: 'm', fetchImpl, contextOf: () => ctx })(hist)).rejects.toThrow()
+  })
+
+  // 保留（503）は、型に合わない返答と区別して伝える（仕様 9。店舗が「保留」と出す）
+  it('Worker が保留（503）を返したら、保留の例外（ChatPendingError）にする', async () => {
+    const fetchImpl = async (): Promise<Response> => new Response('{}', { status: 503 })
+    await expect(chatTransportOf({ workerUrl: 'https://w.example', model: 'm', fetchImpl, contextOf: () => ctx })(hist)).rejects.toBeInstanceOf(
+      ChatPendingError,
+    )
   })
 })
 

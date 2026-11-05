@@ -20,11 +20,20 @@ function historyOf(history: readonly ChatMessage[]): { role: 'user' | 'claude'; 
   return history.filter((m) => m.role !== 'system').map((m) => ({ role: m.role === 'claude' ? 'claude' : 'user', text: m.text }))
 }
 
+/** Worker が保留と返した（再試行でも返答が型に合わなかった）。店舗は、型に合わない返答と区別して「保留」と出す */
+export class ChatPendingError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ChatPendingError'
+  }
+}
+
 export function chatTransportOf(opts: ChatTransportOptions): ChatTransport {
   return async (history) => {
     const blocks = buildChatContext(opts.contextOf())
     const req = buildChatRequest({ workerUrl: opts.workerUrl, model: opts.model, blocks, history: historyOf(history) })
     const res = await opts.fetchImpl(req.url, req.init)
+    if (res.status === 503) throw new ChatPendingError('Worker が保留（再試行でも返答が型に合わない）')
     if (!res.ok) throw new Error(`Worker が失敗: ${res.status}`)
     const json = (await res.json()) as { reply?: unknown }
     if (json.reply === undefined) throw new Error('返答が無い')
