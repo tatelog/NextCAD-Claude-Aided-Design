@@ -59,3 +59,20 @@ export function setbackInitialOf(parcel: readonly Pt[], roadEdge: number, overri
     southMm: setbackDefaultOf(roadEdge === southEdge, overrides),
   }
 }
+
+/**
+ * 離れの入力（西・南。文字）から、外形を動かす値を決める。どちらかが空、または数でないときは null（描いた外形のまま動かさない）。
+ * 既定の値は入力に入れない（入力欄の placeholder に出す。t62 の直し）。
+ */
+export function setbackInputsOf(westText: string, southText: string): { westMm: number; southMm: number } | null {
+  if (westText.trim() === '' || southText.trim() === '') return null
+  const westMm = Number(westText)
+  const southMm = Number(southText)
+  if (!Number.isFinite(westMm) || !Number.isFinite(southMm)) return null
+  return { westMm, southMm }
+}
+
+/** 離れの入力欄の placeholder。既定があれば既定を出す（値としては入れない）。既定が無い敷地は描いた位置の文 */
+export function setbackHintOf(defaultMm: number | null): string {
+  return defaultMm === null ? '空欄は描いた位置' : `既定 ${defaultMm}（空欄は描いた位置）`
+}

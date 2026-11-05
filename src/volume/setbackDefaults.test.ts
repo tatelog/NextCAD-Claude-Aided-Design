@@ -4,7 +4,9 @@
 // 仕様 2（上書き）: 地区計画の壁面の位置の制限がある敷地は、設定値で既定を上書きできる。上書きは、その種類（隣地・道路）だけに効く。
 // 仕様 3（辺ごと）: 離れは辺ごとに測る（G104）。西と南の辺のうち、前面道路の辺は 0 mm、それ以外は 500 mm。
 // 仕様 4（複数の道路）: 道路が複数に面するときは、幅員の大きい道路を前面道路とする（G115）。同じ幅員なら先の道路。道路が無ければ無い。
-// 仕様 5（入力の初期値・自動配置）: 離れの入力欄の初期値は、この既定。自動で外形を置くときも、この既定を使う。
+// 仕様 5（既定の表示）: 離れの入力欄には、この既定を placeholder に出す（値としては入れない）。自動案は離れを使わないので、既定は足さない。
+// 仕様 6（描いた外形は動かない）: 離れの入力が空、または数でないときは、外形を動かさない。入力が揃ったときだけ、その離れへ置く。
+// 仕様 7（表示の文）: 入力欄の placeholder は、既定があれば「既定 500（空欄は描いた位置）」、無ければ「空欄は描いた位置」。
 // 注: 地区計画の値は持たない（今は設定値で上書きする形にしておく）。
 import { describe, expect, it } from 'vitest'
 import { DUMMY_PARCEL } from '../plan/dummyParcel'
@@ -13,7 +15,9 @@ import {
   ROAD_SETBACK_DEFAULT_MM,
   frontRoadEdgeOf,
   setbackDefaultOf,
+  setbackHintOf,
   setbackInitialOf,
+  setbackInputsOf,
 } from './setbackDefaults'
 
 describe('既定の値（仕様 1）', () => {
@@ -69,8 +73,20 @@ describe('複数の道路（仕様 4）', () => {
   })
 })
 
-describe('初期値と自動配置（仕様 5）', () => {
-  it('前面道路の辺（既定の 0）が南なら、西は 500 mm・南は 0 mm が初期値になる', () => {
-    expect(setbackInitialOf(DUMMY_PARCEL, 0)).toEqual({ westMm: 500, southMm: 0 })
+describe('既定の表示（仕様 5・7）', () => {
+  it('入力欄の placeholder に既定を出す。既定が無い敷地は、描いた位置の文だけ', () => {
+    expect(setbackHintOf(500)).toBe('既定 500（空欄は描いた位置）')
+    expect(setbackHintOf(null)).toBe('空欄は描いた位置')
+  })
+})
+
+describe('描いた外形は動かない（仕様 6）', () => {
+  it('離れの入力が空、または数でないときは、外形を動かさない（null）。揃ったときだけ、その離れへ置く', () => {
+    expect(setbackInputsOf('', '')).toBeNull()
+    expect(setbackInputsOf('500', '')).toBeNull()
+    expect(setbackInputsOf('', '0')).toBeNull()
+    expect(setbackInputsOf('abc', '0')).toBeNull()
+    expect(setbackInputsOf('500', '0')).toEqual({ westMm: 500, southMm: 0 })
+    expect(setbackInputsOf('0', '0')).toEqual({ westMm: 0, southMm: 0 })
   })
 })

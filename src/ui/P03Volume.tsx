@@ -9,7 +9,7 @@ import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type Road
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
-import { setbackInitialOf } from '../volume/setbackDefaults'
+import { setbackHintOf, setbackInitialOf, setbackInputsOf } from '../volume/setbackDefaults'
 import { setbackLabel } from '../plan/dimensionLabel'
 import { setbackLines } from '../volume/setbackLines'
 import { placeBySetback } from '../volume/placeBySetback'
@@ -122,10 +122,10 @@ export function P03Volume() {
   // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
   const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
-  // 離れ（西・南）の初期値は既定（G104・G115・t62）。前面道路の辺なら 0 mm、それ以外は 500 mm。長方形でない敷地は空欄（描いた位置のまま）
+  // 離れ（西・南）の入力は空で始める。描いた外形は、離れを入れるまで動かない（t62 の直し）。既定（G104・G115）は入力欄の placeholder に出す
   const setbackInit = setbackInitialOf(DUMMY_PARCEL, roadEdge)
-  const [westText, setWestText] = useState(() => (setbackInit === null ? '' : String(setbackInit.westMm)))
-  const [southText, setSouthText] = useState(() => (setbackInit === null ? '' : String(setbackInit.southMm)))
+  const [westText, setWestText] = useState('')
+  const [southText, setSouthText] = useState('')
   // 基準線（ハブ A-03 G59・統括の依頼 t52）: 描いた外形（外壁の中心線）を、内側へ寄せるか、中心線から量（外へ正）だけずらす。既定は中心線・ずらし 0
   const [baselineSide, setBaselineSide] = useState<BaselineSide>('中心線')
   const [baselineOffsetText, setBaselineOffsetText] = useState('0')
@@ -182,10 +182,9 @@ export function P03Volume() {
     if (baseline === null || !baseline.ok) return null
     // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
     const base = aligned ? roundFootprintMm(alignToDirection(baseline.footprint, roadDeg)) : baseline.footprint
-    const w = Number(westText)
-    const s = Number(southText)
-    if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
-    return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: w, south: s }))
+    const sb = setbackInputsOf(westText, southText)
+    if (sb === null) return base
+    return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: sb.westMm, south: sb.southMm }))
   }, [baseline, westText, southText, aligned, roadDeg])
 
   // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
@@ -552,11 +551,11 @@ export function P03Volume() {
             </button>
             <label>
               西の離れ (mm)
-              <input type="number" value={westText} placeholder="空欄は描いた位置" onChange={(e) => setWestText(e.target.value)} />
+              <input type="number" value={westText} placeholder={setbackHintOf(setbackInit?.westMm ?? null)} onChange={(e) => setWestText(e.target.value)} />
             </label>
             <label>
               南の離れ (mm)
-              <input type="number" value={southText} placeholder="空欄は描いた位置" onChange={(e) => setSouthText(e.target.value)} />
+              <input type="number" value={southText} placeholder={setbackHintOf(setbackInit?.southMm ?? null)} onChange={(e) => setSouthText(e.target.value)} />
             </label>
             {setback ? (
               <dl>
