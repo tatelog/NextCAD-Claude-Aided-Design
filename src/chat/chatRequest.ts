@@ -9,7 +9,7 @@ import { KINDS } from '../plan/semantic'
 const CHANGE_ITEMS: Record<string, unknown>[] = [
   { type: 'object', properties: { op: { type: 'string', enum: ['setStoreyCount'] }, count: { type: 'integer', minimum: 1, maximum: 30 } }, required: ['op', 'count'] },
   { type: 'object', properties: { op: { type: 'string', enum: ['setStoreyHeight'] }, mm: { type: 'integer', minimum: 1 } }, required: ['op', 'mm'] },
-  { type: 'object', properties: { op: { type: 'string', enum: ['setKind'] }, segmentId: { type: 'string', minLength: 1 }, kind: { type: 'string', enum: [...KINDS] } }, required: ['op', 'segmentId', 'kind'] },
+  { type: 'object', properties: { op: { type: 'string', enum: ['setKind'] }, segmentId: { type: 'string', minLength: 1, description: '文脈の『選んだ線』にある線の id だけを使う（選んでいない線・存在しない id は図面に反映されない）' }, kind: { type: 'string', enum: [...KINDS] } }, required: ['op', 'segmentId', 'kind'] },
   { type: 'object', properties: { op: { type: 'string', enum: ['setUnitPrice'] }, id: { type: 'string', minLength: 1 }, unit_price: { type: 'integer', minimum: 0, maximum: 1000000000 } }, required: ['op', 'id', 'unit_price'] },
   { type: 'object', properties: { op: { type: 'string', enum: ['setFactor'] }, id: { type: 'string', minLength: 1 }, factor: { type: 'number', exclusiveMinimum: 0, maximum: 1000 } }, required: ['op', 'id', 'factor'] },
   { type: 'object', properties: { op: { type: 'string', enum: ['addLine'] }, start: { type: 'object', properties: { x: { type: 'integer' }, y: { type: 'integer' } }, required: ['x', 'y'] }, lengthMm: { type: 'number', exclusiveMinimum: 0, maximum: 100000 }, angleDeg: { type: 'number' } }, required: ['op', 'start', 'lengthMm', 'angleDeg'] },

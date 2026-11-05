@@ -3,6 +3,9 @@
 import { create } from 'zustand'
 import { recordWorkLog } from '../app/workLogStore'
 import { applyChangeBatch, restoreSnapshot, type ChangeSnapshot } from '../chat/applyChanges'
+import { contextSelectedIdsOf, unknownSegmentIdsOf } from '../chat/segmentIdCheck'
+import { useDrawing } from './drawing'
+import { useSelection } from './selection'
 import { parseClaudeReply } from '../chat/claudeReply'
 import { ChatPendingError, ChatUnreachableError, ChatWorkerError } from '../chat/chatTransport'
 import { WORKER_UNREACHABLE_NOTICE } from '../worker/notices'
@@ -78,6 +81,8 @@ export const useChat = create<ChatState>((set, get) => {
         set({ notice: UNCONNECTED_NOTICE })
         return
       }
+      // 送る時点で、文脈に入れた『選んだ線』の id（返事の線はこの中だけを使う。統括の依頼 2026-11-06。2）
+      const allowedIds = contextSelectedIdsOf(useDrawing.getState().entries.flatMap((e) => e.segments), useSelection.getState().segmentIds)
       set({ sending: true, notice: null })
       try {
         const reply = parseClaudeReply(await transport(get().messages))
@@ -85,6 +90,9 @@ export const useChat = create<ChatState>((set, get) => {
           push({ role: 'claude', text: reply.text })
         } else if (reply.type === 'question') {
           push({ role: 'claude', text: reply.text, choices: reply.choices })
+        } else if (unknownSegmentIdsOf(reply.changes, allowedIds).length > 0) {
+          // 選んでいない線（存在しない id）への変更は、図面を変えずに、線を選ぶように出す
+          push({ role: 'system', text: '線を選んでから指示してください（選んでいない線・図面に無い線への変更は、図面を変えていません）' })
         } else {
           const applied = applyChangeBatch(reply.changes)
           push({
