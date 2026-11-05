@@ -8,6 +8,7 @@ import { mmLabel } from '../plan/dimensionLabel'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import { missingDimensionOf, missingTargetOf, plainErrorTextOf } from '../plan/inputProblem'
+import { outlineFitOf } from '../plan/outlineFit'
 import { useP3Field } from './useP3Field'
 import { corridorDefaultOf } from '../plan/corridorDefaults'
 import type { RoomPattern } from '../plan/rooms'
@@ -137,6 +138,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       return
     }
     try {
+      // P2 の外形が閉じた矩形なら、その幅・奥行きの中に割り付ける（依頼 C）。寸法は上書きしない。取れないときは今までどおり目標から寸法を決める
+      const closure = findClosedOutline(p2Entries(useDrawing.getState().entries).flatMap((e) => e.segments))
+      const outline = outlineFitOf(closure.closed, closure.footprint, DRAW_OPTIONS.axisSnapDeg) ?? undefined
       const g = generateAutoPlan({
         targetPerFloor: Number(targetText),
         storeyCount,
@@ -154,6 +158,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
         // 円弧の外形があるときは、四隅が円の内側の区画だけを作る（ハブ A-03 G5）
         insideCell: outlineArcs[0] ? (cell) => cellsInsideArc([cell], outlineArcs[0]!).inside.length > 0 : undefined,
+        outline,
       })
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
