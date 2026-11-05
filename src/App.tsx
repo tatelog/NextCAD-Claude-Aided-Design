@@ -406,7 +406,7 @@ export function App() {
       </nav>
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         {screen === 'P1' && <P1Site />}
-        {screen === 'P2' && <P03Volume />}
+        {screen === 'P2' && <P03Volume onNext={() => go('P3')} />}
         {screen === 'P3' && <P3Plan />}
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}

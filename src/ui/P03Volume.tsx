@@ -65,6 +65,10 @@ import { TileClose } from './PanelTile'
 import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { DrawingReviewTile } from './DrawingReviewTile'
+import { NextCheckPanel } from './NextCheckPanel'
+import { nextGateOf, p2NextIssuesOf, type CheckIssue } from '../plan/nextCheck'
+import { floorProblemOf } from '../volume/mesh'
+import { recordWorkLog } from '../app/workLogStore'
 import { usePanelTiles } from '../store/panelTiles'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
@@ -76,7 +80,7 @@ const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住�
 // 周辺建物は P1 の基準点を、ダミー筆界の中心（20 m × 30 m の中心）に合わせて置く（筆界が入るまでの仮）
 const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
 
-export function P03Volume() {
+export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
   const drawnAll = useDrawing((s) => s.entries)
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
@@ -245,14 +249,27 @@ export function P03Volume() {
     useSite.getState().setRoadSlope(roadSlope)
   }, [roadSlope])
   // 切り取った階ごとの形（階の天端までの立体）。斜線が無ければ階ごとに外形のまま
-  const stackedFloors = useMemo(() => {
+  const floorsAll = useMemo(() => {
     if (!volume) return []
     const floors =
       legal.boundaries.length > 0
         ? cutFloors(volume.footprint, legal.boundaries, volume)
         : Array.from({ length: volume.storey_count }, () => volume.footprint)
-    return floors.map((f, i) => ({ footprint: f, heightMm: (i + 1) * volume.storey_height })).filter((b) => b.footprint.length >= 3)
+    return floors.map((f, i) => ({ footprint: f, heightMm: (i + 1) * volume.storey_height }))
   }, [volume, legal])
+  const stackedFloors = useMemo(() => floorsAll.filter((b) => b.footprint.length >= 3), [floorsAll])
+  // 立体にできない階（点が残っているのに壊れた階。斜線で全部切り取られた階は、壊れた階ではない）。次へのときの確かめに渡す
+  const brokenFloors = useMemo(
+    () =>
+      volume
+        ? floorsAll.flatMap((b, i) => {
+            if (b.footprint.length === 0) return []
+            const reason = floorProblemOf(b, volume.storey_height)
+            return reason === null ? [] : [{ floor: i + 1, reason }]
+          })
+        : [],
+    [floorsAll, volume],
+  )
   // 地面に落ちる日影（時刻の太陽の位置から、切り取った階ごとの影の形）。太陽が地平線の上のときだけ
   const sunShadow = useMemo(
     () =>
@@ -326,6 +343,37 @@ export function P03Volume() {
         : closure.reason === 'branch'
           ? '閉じていない（枝が出ている）'
           : '閉じていない（複数の輪）'
+
+  // 次へ（D-04 P2。G158）: 押したとき、外形・斜線・日影・段状の形を確かめる。問題が無ければ進む。あれば一覧を出し、直すか、このまま進むかを選ぶ（止めない）
+  const [nextIssues, setNextIssues] = useState<CheckIssue[] | null>(null)
+  const p2Issues = (): CheckIssue[] =>
+    p2NextIssuesOf({
+      closed: closure.closed,
+      closureText: closureLabel,
+      slope:
+        !volume || legal.boundaries.length === 0
+          ? null
+          : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height }),
+      shadow: shadowJudge.result,
+      shadowText: shadowJudge.text,
+      brokenFloors,
+    })
+  const clickNext = () => {
+    const issues = p2Issues()
+    if (nextGateOf(issues) === 'go') onNext?.()
+    else setNextIssues(issues)
+  }
+  const goNextAnyway = (issues: readonly CheckIssue[]) => {
+    recordWorkLog({
+      at: new Date().toISOString(),
+      screen: 'P2',
+      action: '次へ（要確認として残した）',
+      target: issues.map((i) => `${i.area}: ${i.text}`).join(' / '),
+      who: 'human',
+    })
+    setNextIssues(null)
+    onNext?.()
+  }
 
   return (
     <div className="p03">
@@ -624,9 +672,17 @@ export function P03Volume() {
             </button>
           </section>
           <section>
-            <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
-              確定して P04 へ
+            <button type="button" onClick={clickNext}>
+              次へ（P3 平面）
             </button>
+            {nextIssues !== null ? (
+              <NextCheckPanel
+                issues={nextIssues}
+                goLabel="このまま進む（要確認として残す）"
+                onStay={() => setNextIssues(null)}
+                onGoAnyway={() => goNextAnyway(nextIssues)}
+              />
+            ) : null}
           </section>
           <section style={tileStyle('claude-chat')}>
             <TileClose title="Claude（チャット）" onHide={() => hideTile('claude-chat')} />
