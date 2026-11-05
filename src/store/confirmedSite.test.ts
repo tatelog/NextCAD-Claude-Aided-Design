@@ -1,0 +1,48 @@
+// 仕様（統括の依頼 2026-11-06。1: P1 の「この敷地で確定」。確定した敷地を P2〜P5 が使う）:
+// 仕様 1f: 確定した敷地を入れると読める。取り消すと、確定していない状態に戻る。
+// 仕様 1g: 確定のあとに、地点か筆を変えたら「確定し直しが要る」（古い確定として判定する）。同じなら、そうならない。
+// 仕様 1h: 確定した敷地の平面は、筆が無いとき（lot が null）は、ダミーの筆界を使う（null を返す）。
+import { beforeEach, describe, expect, it } from 'vitest'
+import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite, type ConfirmedSite } from './confirmedSite'
+
+const LOT = [
+  { x: 0, y: 0 },
+  { x: 1000, y: 0 },
+  { x: 1000, y: 1000 },
+  { x: 0, y: 1000 },
+]
+const CENTER = { lat: 35.667125, lon: 139.829867 }
+const confirmed = (over: Partial<ConfirmedSite> = {}): ConfirmedSite => ({
+  parcelUid: '筆A',
+  lot: LOT,
+  frame: null,
+  center: CENTER,
+  roadEdge: 0,
+  ...over,
+})
+
+beforeEach(() => useConfirmedSite.setState({ confirmed: null }))
+
+describe('確定した敷地（仕様 1f〜1h）', () => {
+  it('仕様 1f: 確定した敷地を入れて読め、取り消すと確定していない状態に戻る', () => {
+    useConfirmedSite.getState().confirm(confirmed())
+    expect(useConfirmedSite.getState().confirmed?.parcelUid).toBe('筆A')
+    useConfirmedSite.getState().clear()
+    expect(useConfirmedSite.getState().confirmed).toBeNull()
+  })
+
+  it('仕様 1g: 地点か筆が変われば確定し直しが要る。同じなら要らない', () => {
+    const c = confirmed()
+    expect(isConfirmedStaleOf(null, '筆A', CENTER)).toBe(false)
+    expect(isConfirmedStaleOf(c, '筆A', CENTER)).toBe(false)
+    expect(isConfirmedStaleOf(c, '筆B', CENTER)).toBe(true)
+    expect(isConfirmedStaleOf(c, '筆A', { lat: 35.6, lon: 139.8 })).toBe(true)
+    expect(isConfirmedStaleOf(c, null, null)).toBe(true)
+  })
+
+  it('仕様 1h: 筆が無い確定（lot が null）は、ダミーの筆界を使う（null を返す）', () => {
+    expect(lotOfConfirmed(confirmed({ lot: null, parcelUid: null }))).toBeNull()
+    expect(lotOfConfirmed(confirmed())).toEqual(LOT)
+    expect(lotOfConfirmed(null)).toBeNull()
+  })
+})

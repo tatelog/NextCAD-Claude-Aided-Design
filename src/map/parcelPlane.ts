@@ -8,7 +8,7 @@ const DEG = Math.PI / 180
 type LonLat = [number, number]
 
 /** GeoJSON の図形（Polygon か MultiPolygon）から、いちばん広い多角形の外周（経緯度）を取る。穴は使わない */
-function outerRingOf(geometry: unknown): LonLat[] | null {
+export function outerRingOf(geometry: unknown): LonLat[] | null {
   if (typeof geometry !== 'object' || geometry === null) return null
   const g = geometry as { type?: unknown; coordinates?: unknown }
   let polygons: unknown[]
@@ -42,23 +42,41 @@ function signedAreaDeg(ring: LonLat[]): number {
   return s / 2
 }
 
-/** 筆の図形（GeoJSON）を、筆の重心を原点にした平面（mm）の多角形にする。取れないときは null */
-export function parcelRingOf(geometry: unknown): Point[] | null {
+/** 筆の外周（経緯度。閉じるための重複の点は外す）。取れないときは null */
+export function outerLonLatOf(geometry: unknown): LonLat[] | null {
   const ring = outerRingOf(geometry)
   if (ring === null) return null
-  // 閉じるための重複の点は外す
   const open = ring.length > 1 && ring[0]![0] === ring[ring.length - 1]![0] && ring[0]![1] === ring[ring.length - 1]![1] ? ring.slice(0, -1) : ring
-  if (open.length < 3) return null
+  return open.length < 3 ? null : open
+}
+
+/** 筆の平面の枠（経緯度を平面（mm）に写す式）。基準は筆の頂点の平均（経緯度）。cx・cy は面積の重心の移動量 */
+export interface ParcelFrame {
+  readonly lon0: number
+  readonly lat0: number
+  readonly kx: number
+  readonly ky: number
+  readonly cx: number
+  readonly cy: number
+}
+
+function planarAreaOf(pts: readonly Point[]): number {
+  return pts.reduce((s, p, i) => {
+    const q = pts[(i + 1) % pts.length]!
+    return s + (p.x * q.y - q.x * p.y)
+  }, 0)
+}
+
+/** 筆の図形から、筆の平面の枠を作る（parcelRingOf と同じ枠）。取れないときは null */
+export function parcelFrameOf(geometry: unknown): ParcelFrame | null {
+  const open = outerLonLatOf(geometry)
+  if (open === null) return null
   const lat0 = open.reduce((s, p) => s + p[1], 0) / open.length
   const lon0 = open.reduce((s, p) => s + p[0], 0) / open.length
   const kx = EARTH_RADIUS_M * DEG * Math.cos(lat0 * DEG) * 1000
   const ky = EARTH_RADIUS_M * DEG * 1000
-  let pts: Point[] = open.map(([lon, lat]) => ({ x: (lon - lon0) * kx, y: (lat - lat0) * ky }))
-  // 面積の重心を原点にする（矩形なら頂点の平均と同じ）
-  const area2 = pts.reduce((s, p, i) => {
-    const q = pts[(i + 1) % pts.length]!
-    return s + (p.x * q.y - q.x * p.y)
-  }, 0)
+  const pts: Point[] = open.map(([lon, lat]) => ({ x: (lon - lon0) * kx, y: (lat - lat0) * ky }))
+  const area2 = planarAreaOf(pts)
   if (area2 === 0) return null
   const cx = pts.reduce((s, p, i) => {
     const q = pts[(i + 1) % pts.length]!
@@ -68,8 +86,22 @@ export function parcelRingOf(geometry: unknown): Point[] | null {
     const q = pts[(i + 1) % pts.length]!
     return s + (p.y + q.y) * (p.x * q.y - q.x * p.y)
   }, 0) / (3 * area2)
-  pts = pts.map((p) => ({ x: Math.round(p.x - cx), y: Math.round(p.y - cy) }))
+  return { lon0, lat0, kx, ky, cx, cy }
+}
+
+/** 経緯度を、筆の平面（mm。整数に丸めない）にする。周辺建物も同じ枠で置くと、筆とずれない */
+export function planeOfLonLat(frame: ParcelFrame, lon: number, lat: number): Point {
+  return { x: (lon - frame.lon0) * frame.kx - frame.cx, y: (lat - frame.lat0) * frame.ky - frame.cy }
+}
+
+/** 筆の図形（GeoJSON）を、筆の重心を原点にした平面（mm）の多角形にする。取れないときは null */
+export function parcelRingOf(geometry: unknown): Point[] | null {
+  const open = outerLonLatOf(geometry)
+  const frame = parcelFrameOf(geometry)
+  if (open === null || frame === null) return null
+  const unrounded = open.map(([lon, lat]) => planeOfLonLat(frame, lon, lat))
+  const pts = unrounded.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }))
   // 向きは反時計回りにそろえる
-  if (area2 < 0) pts.reverse()
+  if (planarAreaOf(unrounded) < 0) pts.reverse()
   return pts
 }

@@ -29,6 +29,7 @@ import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { lotAreaMm2, lotOf } from '../plan/lot'
+import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { objectTableOf, type ObjectRow } from '../plan/objectTable'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { p4CanGoNext } from './p4NextGate'
@@ -119,9 +120,9 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   const drawnAll = useDrawing((s) => s.entries)
   const drawnEntries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const assignments = useSemantic((s) => s.assignments)
-  // 敷地の面積: 地図で選んだ筆（無ければダミー）。P2 の敷地と同じ値（統括の依頼 2026-11-06）
-  const parcel = useSite((s) => s.parcel)
-  const siteAreaMm2 = useMemo(() => lotAreaMm2(lotOf(parcel)), [parcel])
+  // 敷地の面積: 確定した敷地の筆（無ければダミー）。P2 の敷地と同じ値（統括の依頼 2026-11-06。1）
+  const confirmedSite = useConfirmedSite((s) => s.confirmed)
+  const siteAreaMm2 = useMemo(() => lotAreaMm2(lotOf(lotOfConfirmed(confirmedSite))), [confirmedSite])
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
   const fixtureUnitIds = useFixtures((s) => s.unitIds)

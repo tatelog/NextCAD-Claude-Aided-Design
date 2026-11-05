@@ -43,6 +43,9 @@ interface SiteState {
   /** 選んだ筆の情報の文（P1 の表示に出す）。含む筆が無いときは「この地点を含む筆は無い」。決まるまでは null */
   parcelInfo: string | null
   setParcelInfo: (parcelInfo: string | null) => void
+  /** 選んだ筆の UID（含む筆が無いときは null）。確定の敷地に使う（統括の依頼 2026-11-06。1） */
+  parcelUid: string | null
+  setParcelUid: (parcelUid: string | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -65,4 +68,6 @@ export const useSite = create<SiteState>((set) => ({
   setParcel: (parcel) => set({ parcel }),
   parcelInfo: null,
   setParcelInfo: (parcelInfo) => set({ parcelInfo }),
+  parcelUid: null,
+  setParcelUid: (parcelUid) => set({ parcelUid }),
 }))

@@ -22,7 +22,7 @@ import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
 import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
-import { useSite } from '../store/site'
+import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { lotOf } from '../plan/lot'
 import { viewOfLot } from '../plan/lotView'
 import { useUi } from '../store/ui'
@@ -138,9 +138,9 @@ export function DrawingCanvas() {
   // 描く画面（P2）の線は P2 の線だけ。P3 の線はこの画面に出さない
   const drawnAll = useDrawing((s) => s.entries)
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
-  // 敷地（筆界）: 地図で選んだ筆、無ければダミー。点線で出す（統括の依頼 2026-11-06）
-  const parcel = useSite((s) => s.parcel)
-  const lot = lotOf(parcel)
+  // 敷地（筆界）: 確定した敷地の筆、無ければダミー。点線で出す（統括の依頼 2026-11-06。1）
+  const confirmedSite = useConfirmedSite((s) => s.confirmed)
+  const lot = lotOf(lotOfConfirmed(confirmedSite))
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])

@@ -76,11 +76,15 @@ import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf } from '../plan/lot'
+import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
-  // P2 の敷地: 地図で選んだ筆（P1 の公図）の平面。無ければダミー（統括の依頼 2026-11-06）
-  const parcel = useSite((s) => s.parcel)
+  // P2 の敷地: 確定した敷地の筆（P1 の「この敷地で確定」）。確定していなければダミー（統括の依頼 2026-11-06。1）
+  const confirmed = useConfirmedSite((s) => s.confirmed)
+  const currentSite = useConfirmedSite((s) => s.currentSite)
+  const currentUid = useSite((s) => s.parcelUid)
+  const parcel = lotOfConfirmed(confirmed)
   const lot = lotOf(parcel)
   // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
   const drawnAll = useDrawing((s) => s.entries)
@@ -126,7 +130,10 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     return solarPosition({ lat: 35.67, lon: 139.86, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
   }, [solarTime])
   const [zone, setZone] = useState<Zone>('住居系')
-  const [roadEdge, setRoadEdge] = useState(0)
+  // 前面道路の辺（確定していれば確定の店舗が持つ。確定していなければ画面の中だけ）
+  const [roadEdgeLocal, setRoadEdgeLocal] = useState(0)
+  const roadEdge = confirmed?.roadEdge ?? roadEdgeLocal
+  const setRoadEdge = (n: number) => (confirmed !== null ? useConfirmedSite.getState().setRoadEdge(n) : setRoadEdgeLocal(n))
   // 前面道路の辺は、今の敷地の辺の範囲に収めて使う（統括の依頼 2026-11-06 (b)）
   const edge = roadEdgeIndexOf(lot, roadEdge)
   const [roadWidth, setRoadWidth] = useState('6000')
@@ -397,6 +404,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             全部消す
           </button>
         </span>
+        {confirmed === null ? <span className="p03-note">まだ確定していない（P1 の「この敷地で確定」。今はダミーの筆界）。</span> : null}
+        {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（P1 で地点か筆を変えた）。</span> : null}
         <span className="p03-note">議論用・未確定。{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
         {siteBuildings && (
           <span className="p03-note">周辺建物の底面 {neighbors.length} 件（P1 の地点を敷地中心に仮配置。高さ不明は表示しない）</span>
