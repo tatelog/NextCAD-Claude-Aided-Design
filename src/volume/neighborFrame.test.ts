@@ -54,3 +54,17 @@ describe('確定した筆の枠で置く周辺建物（仕様 2a〜2c）', () =>
     expect(neighborVolumesInFrame([bld(null, PARCEL_LONLAT)], frame)).toEqual([])
   })
 })
+
+// 仕様（統括の依頼 2026-11-06。4: P2 の注記を、実際の置き方に合わせる）:
+// 仕様 4a: 確定した筆の枠で置くときは「確定した敷地の位置で配置」。件数は底面（輪郭）の数。
+// 仕様 4b: 確定が無いときは、今までどおり「P1 の地点を敷地中心に仮配置」。
+import { neighborNoteOf } from './neighborFrame'
+describe('周辺建物の注記（仕様 4a・4b）', () => {
+  it('仕様 4a: 確定した筆の枠で置くときは、確定した敷地の位置で配置と書く', () => {
+    expect(neighborNoteOf(285, true)).toBe('周辺建物の底面 285 件（確定した敷地の位置で配置。高さ不明は表示しない）')
+  })
+
+  it('仕様 4b: 確定が無いときは、今までどおりの仮配置の文言', () => {
+    expect(neighborNoteOf(285, false)).toBe('周辺建物の底面 285 件（P1 の地点を敷地中心に仮配置。高さ不明は表示しない）')
+  })
+})

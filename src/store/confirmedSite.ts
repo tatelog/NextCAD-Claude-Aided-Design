@@ -102,6 +102,11 @@ export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   setCurrentSite: (currentSite) => set({ currentSite }),
 }))
 
+/** P1 を開き直すときの地点: 今いる地点（店舗）があればそこから。無ければ既定の地点（統括の依頼 2026-11-06。1） */
+export function startSiteOf(current: { lat: number; lon: number } | null, fallback: { lat: number; lon: number }): { lat: number; lon: number } {
+  return current ?? fallback
+}
+
 /** 確定した敷地の筆の平面。筆が無い確定は null（ダミーの筆界を使う） */
 export function lotOfConfirmed(c: ConfirmedSite | null): Point[] | null {
   return c?.lot ?? null

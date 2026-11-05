@@ -11,6 +11,8 @@ export interface ViewFit {
 
 const FILL_WIDTH = 0.6
 const FILL_HEIGHT = 0.8
+/** 確定した筆の初めの表示の割合（画面の大きい方の辺の半分くらい） */
+const SITE_FILL = 0.5
 
 interface Box {
   minX: number
@@ -25,8 +27,8 @@ function boxOf(points: readonly Point[]): Box {
   return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }
 }
 
-function fitBox(box: Box, widthPx: number, heightPx: number): ViewFit {
-  const mmPerPx = Math.max((box.maxX - box.minX) / (widthPx * FILL_WIDTH), (box.maxY - box.minY) / (heightPx * FILL_HEIGHT))
+function fitBox(box: Box, widthPx: number, heightPx: number, fillW: number = FILL_WIDTH, fillH: number = FILL_HEIGHT): ViewFit {
+  const mmPerPx = Math.max((box.maxX - box.minX) / (widthPx * fillW), (box.maxY - box.minY) / (heightPx * fillH))
   const cx = (box.minX + box.maxX) / 2
   const cy = (box.minY + box.maxY) / 2
   return { originPx: { x: widthPx / 2 - cx / mmPerPx, y: heightPx / 2 + cy / mmPerPx }, mmPerPx }
@@ -37,4 +39,11 @@ export function viewOfLot(lot: readonly Point[], widthPx: number, heightPx: numb
   const box = boxOf(lot)
   const hasSize = box.maxX - box.minX > 0 || box.maxY - box.minY > 0
   return fitBox(hasSize ? box : boxOf(lotOf(null)), widthPx, heightPx)
+}
+
+/** 確定した筆の初めの表示（統括の依頼 2026-11-06。3）: 筆が画面の大きい方の辺の半分くらいに収まり、すぐ隣の周辺建物が見える */
+export function viewOfSite(lot: readonly Point[], widthPx: number, heightPx: number): ViewFit {
+  const box = boxOf(lot)
+  const hasSize = box.maxX - box.minX > 0 || box.maxY - box.minY > 0
+  return fitBox(hasSize ? box : boxOf(lotOf(null)), widthPx, heightPx, SITE_FILL, SITE_FILL)
 }

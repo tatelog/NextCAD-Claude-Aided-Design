@@ -1,7 +1,7 @@
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
-import { lotPlateTrianglesOf, LOT_LIFT_MM, sceneFrameOf, type SceneFrame } from './volumeScene'
+import { clipPlanesOf, lotPlateTrianglesOf, LOT_LIFT_MM, sceneFrameOf, type SceneFrame } from './volumeScene'
 import { neighborMeshesOf } from '../volume/neighborMesh'
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
@@ -48,6 +48,12 @@ function FrameCamera({ frame, controlsRef }: { frame: SceneFrame | null; control
     if (!frame) return
     camera.position.set(frame.position[0], frame.position[1], frame.position[2])
     camera.lookAt(frame.target[0], frame.target[1], frame.target[2])
+    // 近い平面・遠い平面を範囲に合わせる（既定の遠い平面 1000 m では、範囲が切れて空に見えた。統括の依頼 2026-11-06）
+    const planes = clipPlanesOf(frame)
+    const perspective = camera as THREE.PerspectiveCamera
+    perspective.near = planes.near
+    perspective.far = planes.far
+    perspective.updateProjectionMatrix()
     const controls = controlsRef.current
     if (controls) {
       controls.target.set(frame.target[0], frame.target[1], frame.target[2])

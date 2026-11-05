@@ -25,7 +25,7 @@ import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { lotOf } from '../plan/lot'
-import { viewOfLot } from '../plan/lotView'
+import { viewOfLot, viewOfSite } from '../plan/lotView'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
 import { strokeToSegments } from '../canvas/strokeToSegments'
@@ -142,6 +142,7 @@ export function DrawingCanvas() {
   // 敷地（筆界）: 確定した敷地の筆、無ければダミー。点線で出す（統括の依頼 2026-11-06。1）
   const confirmedSite = useConfirmedSite((s) => s.confirmed)
   const lot = lotOf(lotOfConfirmed(confirmedSite))
+  const siteFill = confirmedSite?.lot != null
   // 周辺建物の輪郭（確定した筆の枠で置いた。筆とずれない。統括の依頼 2026-11-06。5）
   const confirmedFrame = confirmedSite?.frame ?? null
   const confirmedBuildings = useConfirmedSite((s) => s.buildings.data)
@@ -200,11 +201,12 @@ export function DrawingCanvas() {
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     if (!(rect.width > 0 && rect.height > 0)) return
-    const view = viewOfLot(lot, rect.width, rect.height)
+    // 確定した筆は、筆が画面の半分くらいに、すぐ隣の周辺建物が見えるように合わせる（統括の依頼 2026-11-06。3）
+    const view = siteFill ? viewOfSite(lot, rect.width, rect.height) : viewOfLot(lot, rect.width, rect.height)
     if (fittedLot === undefined) fitViewport(view)
     else if (fittedLot !== lot) setViewport(view)
     fittedLot = lot
-  }, [lot, fitViewport, setViewport])
+  }, [lot, siteFill, fitViewport, setViewport])
 
   // 状態が変わるたびに描き直す
   useEffect(() => {

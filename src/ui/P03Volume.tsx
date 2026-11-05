@@ -79,7 +79,7 @@ import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf } from '../plan/lot'
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
-import { neighborVolumesInFrame } from '../volume/neighborFrame'
+import { neighborNoteOf, neighborVolumesInFrame } from '../volume/neighborFrame'
 import { sunSiteOf } from '../plan/sunSite'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
@@ -418,7 +418,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（P1 で地点か筆を変えた）。</span> : null}
         <span className="p03-note">議論用・未確定。{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
         {siteBuildings && (
-          <span className="p03-note">周辺建物の底面 {neighbors.length} 件（P1 の地点を敷地中心に仮配置。高さ不明は表示しない）</span>
+          <span className="p03-note">{neighborNoteOf(neighbors.length, confirmed?.frame != null)}</span>
         )}
       </header>
       <div className="p03-body">

@@ -5,7 +5,7 @@
 // 仕様 4d: 敷地の面は、外形と同じ平面（x・y）の座標で、敷地の頂点の上に載る（地面より少し上）。
 import { describe, expect, it } from 'vitest'
 import type { Point } from '../geom/viewport'
-import { lotPlateTrianglesOf, LOT_LIFT_MM, shouldShowScene3DOf } from './volumeScene'
+import { clipPlanesOf, lotPlateTrianglesOf, LOT_LIFT_MM, shouldShowScene3DOf } from './volumeScene'
 
 const SQUARE: Point[] = [
   { x: 0, y: 0 },
@@ -100,5 +100,27 @@ describe('敷地の板と枠の退化（仕様 4a・4b）', () => {
     expect(Number.isFinite(frame.radiusM)).toBe(true)
     expect(frame.target.every((v) => Number.isFinite(v))).toBe(true)
     expect(frame.position.every((v) => Number.isFinite(v))).toBe(true)
+  })
+})
+
+// 仕様（統括の依頼 2026-11-06（3D が空）。2: 外形が無いときの 3D は、範囲が見える。範囲の点はカメラの近い平面と遠い平面の間に入る）:
+// 仕様 2a: 範囲の点は、カメラからの距離が近い平面以上・遠い平面以下（遠い平面で切れない）。
+describe('外形が無いときのカメラの平面（仕様 2a）', () => {
+  it('範囲の点は、近い平面と遠い平面の間に入る（周辺建物の範囲は、既定の遠い平面 1000 m を超えても切れない）', () => {
+    const wide: Point[] = [
+      { x: -400_000, y: -400_000 },
+      { x: 400_000, y: -400_000 },
+      { x: 400_000, y: 400_000 },
+      { x: -400_000, y: 400_000 },
+    ]
+    const frame = sceneFrameOf([wide], 40)!
+    const planes = clipPlanesOf(frame)
+    const [cx, cy, cz] = frame.position
+    for (const p of wide) {
+      const d = Math.hypot(p.x / 1000 - cx, 0 - cy, p.y / 1000 - cz)
+      expect(d).toBeGreaterThanOrEqual(planes.near)
+      expect(d).toBeLessThanOrEqual(planes.far)
+    }
+    expect(planes.far).toBeGreaterThan(1000)
   })
 })
