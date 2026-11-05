@@ -8,16 +8,15 @@ import { polylineOfSegment } from '../canvas/arcSegment'
 import { strokeStartPx } from '../input/endpointPick'
 import { arcPreviewMm, arcToolStep, ARC_TOOL_START, type ArcToolState } from '../input/twoPointArcTool'
 import type { Stroke } from '../model/schema'
-import { p3Stroke } from '../plan/p3Stroke'
 import { p3Entries, useDrawing } from '../store/drawing'
 import { useUi } from '../store/ui'
 import { P3_H, P3_MM_PER_PX, P3_VIEWPORT, P3_W, p3ArcStroke, p3MmToPx, p3PxToMm } from './p3CanvasGeometry'
+import { p3StrokeOfTrail } from './p3TrailStroke'
 
 // 表示の原点（画面の中央）
 const OX = P3_VIEWPORT.originPx.x
 const OY = P3_VIEWPORT.originPx.y
 
-const toMm = (px: number, py: number) => ({ x: Math.round((px - OX) * P3_MM_PER_PX), y: Math.round((OY - py) * P3_MM_PER_PX) })
 
 /** 二点の円弧の道具（t81）が選ばれているか。P2 と同じ store の値 */
 const arcOn = () => {
@@ -104,24 +103,23 @@ export function P3Canvas() {
     setTrail((t) => (t ? [...t, p] : t))
   }
 
-  const onUp = () => {
+  // 軌跡を線にして店舗に入れる。既存の端点に吸着させて線にする（D-02 C1: 端点の共有、水平・垂直の吸着）。
+  // 直線モードは直線に整形し、曲線モードは曲線のまま残す（pen_mode）
+  const finishTrail = () => {
     // 二点の円弧は押したときに決まる。離しても何もしない（軌跡は無い）
     if (arcOn()) return
-    if (!trail || trail.length < 2) {
+    const stroke = p3StrokeOfTrail(trail, useUi.getState().penMode, crypto.randomUUID())
+    if (stroke) addStroke(stroke)
+    setTrail(null)
+  }
+  const onUp = finishTrail
+  // キャンバスの外へ出たら、そこまでの軌跡を線にする（離した位置がキャンバスの外でも線を消さない。統括の依頼 2026-11-05）
+  const onLeave = () => {
+    if (arcOn()) {
       setTrail(null)
       return
     }
-    // 軌跡を mm に直し、既存の端点に吸着させて線にする（D-02 C1: 端点の共有、水平・垂直の吸着）。
-    // 直線モードは直線に整形し、曲線モードは曲線のまま残す（pen_mode）
-    const mmPoints = trail.map((p) => toMm(p.x, p.y))
-    const stroke = p3Stroke({
-      points: mmPoints.map((m) => ({ px: m.x / P3_MM_PER_PX + OX, py: OY - m.y / P3_MM_PER_PX })),
-      viewScaleMmPerPx: P3_MM_PER_PX,
-      viewOriginPx: { px: OX, py: OY },
-      id: crypto.randomUUID(),
-    })
-    addStroke({ ...stroke, pen_mode: useUi.getState().penMode })
-    setTrail(null)
+    finishTrail()
   }
 
   const closure = findClosedOutline(segments)
@@ -144,7 +142,7 @@ export function P3Canvas() {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
-        onPointerLeave={() => setTrail(null)}
+        onPointerLeave={onLeave}
         style={{ border: '1px solid #ddd8cc', background: '#fff', touchAction: 'none', width: P3_W, height: P3_H, maxWidth: '100%' }}
         data-testid="p3-canvas"
       />
