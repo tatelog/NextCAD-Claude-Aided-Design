@@ -11,6 +11,7 @@ const plateRc: PermitInput = {
   heightM: 14,
   totalFloorAreaM2: 800,
   areaAbove31M2: 0,
+  storeysAbove31: 0,
   usage: '共同住宅',
   inShadowRegulationArea: false,
   structuralCalc: false,
@@ -198,6 +199,19 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
     expect(required).not.toContain(NON_ELEVATOR)
     expect(notRequired.map((n) => n.name)).not.toContain(NON_ELEVATOR)
     expect(needsCheck.find((n) => n.name === NON_ELEVATOR)?.reason).toContain('500㎡以下')
+  })
+
+  // 仕様（施行令129条の13の2 第3号、代表の指示 2026-11-06）: 第3号は「高さ31mを超える部分の階数が四以下」。31mをまたぐ階も数える。
+  // 階数が5以上なら、耐火構造・区画に関係なく第3号に当たらない。
+  it('31m超の部分の階数が5以上なら、第3号に当たらないので、共同住宅の非常用の昇降機の図書は要る', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 13, heightM: 45.5, totalFloorAreaM2: 3_900, areaAbove31M2: 1_500, storeysAbove31: 5 })
+    expect(required).toContain(NON_ELEVATOR)
+  })
+
+  it('31m超の部分の階数が4以下なら、第3号の耐火構造・区画の入力待ちで要確認', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 12, heightM: 42, totalFloorAreaM2: 3_600, areaAbove31M2: 1_200, storeysAbove31: 4 })
+    expect(required).not.toContain(NON_ELEVATOR)
+    expect(needsCheck.find((n) => n.name === NON_ELEVATOR)?.reason).toContain('第3号')
   })
 
   it('31m超の部分の床面積が500㎡を超えると、第2号の除外に当たらない（第3号の判断が要るので要確認）', () => {

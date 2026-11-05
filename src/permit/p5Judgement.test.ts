@@ -18,6 +18,7 @@ const sample: PermitInput = {
   heightM: 9,
   totalFloorAreaM2: 600,
   areaAbove31M2: 0,
+  storeysAbove31: 0,
   usage: '共同住宅',
   inShadowRegulationArea: false,
   structuralCalc: false,
