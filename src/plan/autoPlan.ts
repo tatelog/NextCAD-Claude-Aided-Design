@@ -40,6 +40,8 @@ export interface AutoPlanInput {
   unitTypeIds?: readonly string[]
   /** 階段室型のしつらえ（統括の決定 G107）。既定は屋内シャフト。階段室以外では使わない */
   stairFinish?: StairFinish
+  /** 外形の幅・奥行き（mm）。あれば、その寸法の中に住戸を外形いっぱいに割り付ける。目標の戸数は寸法を決めず、外形に入る数と比べる（統括の依頼 2026-11-06。依頼 C）。無ければ目標の戸数から寸法を決める */
+  outline?: { widthMm: number; depthMm: number }
 }
 
 /** 階段室のしつらえ: 屋内シャフト（全部屋内）／外部階段（4 面のうち 2 面がアルミスリット、外壁に接する） */
@@ -246,10 +248,13 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const target = TargetSchema.parse(input.targetPerFloor)
   // 1 スパンあたりの住戸: 中廊下・階段室・ツインは両側の 2 戸（ツインは中廊下の変形。G106）、片廊下は 1 戸
   const perSpan = input.layout === '片廊下' ? 1 : 2
-  const spans = Math.ceil(target / perSpan)
-  const depthMm = spans * input.spanMm
-  const widthMm =
-    input.layout === '片廊下'
+  // 外形があれば、その寸法の中に割り付ける（依頼 C）。スパン数は奥行の切り捨て。目標の戸数は寸法を決めない
+  const spans = input.outline ? Math.floor(input.outline.depthMm / input.spanMm) : Math.ceil(target / perSpan)
+  if (spans < 1) throw new Error('外形の奥行がスパンより短い')
+  const depthMm = input.outline ? input.outline.depthMm : spans * input.spanMm
+  const widthMm = input.outline
+    ? input.outline.widthMm
+    : input.layout === '片廊下'
       ? input.unitDepthMm + input.corridorMm
       : input.layout === 'ツイン'
         ? 2 * input.unitDepthMm + 3 * input.corridorMm
@@ -268,8 +273,8 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     { id: 'stairB', x0: c.corridor.x0, y0: depthMm - STAIR_LEN_MM, x1: c.corridor.x1, y1: depthMm },
   ]
   if (depthMm < 2 * STAIR_LEN_MM + EV_HALL_LEN_MM) throw new Error('奥行が短く、階段とEVホールを廊下に置けない')
-  const evY0 = (depthMm - EV_HALL_LEN_MM) / 2
-  if (!Number.isInteger(evY0)) throw new Error('奥行が奇数で、EV ホールを中央に置けない')
+  // 中央からずれる 1 mm（奥行が奇数のとき）は上側に寄せる（依頼 C）
+  const evY0 = Math.floor((depthMm - EV_HALL_LEN_MM) / 2)
   coresInCorridor.push({ id: 'evHall', x0: c.corridor.x0, y0: evY0, x1: c.corridor.x1, y1: evY0 + EV_HALL_LEN_MM, evCount: input.evCount })
   // 曲線の外形などで外れる区画は、作らず数えない（G5）
   const perSpanCells = input.insideCell ? c.cells.filter(input.insideCell) : c.cells
