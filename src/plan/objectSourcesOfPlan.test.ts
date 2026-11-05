@@ -25,7 +25,7 @@
 // 仕様 10（外形）: 閉じた輪郭（頂点が 3 つ以上）なら外形は 1 件。頂点の数ではなく輪郭の数を数える。閉じていない（null・未指定・頂点が 3 つ未満）なら 0 件。
 // 仕様 11（筆界）: 仮の筆界（矩形）を渡せば筆界は 1 件。渡さなければ 0 件。
 // 仕様 12（P2 に無いもの）: 通り芯・コア・縦シャフト・廊下・什器・住戸・部屋は P2 に無い（什器は P3 の道具で、P2 は渡さない）ので、空の配列（件数 0）。
-// 仕様 13（中身）: 筆界・外形の中身は未配線（detailOfKind の「中身: 未配線」）。
+// 仕様 13（中身）: 筆界・外形は中身の行を出さない（統括の依頼 2026-11-06。detailOfKind の中身の行は消した）。
 // 仕様 14（結果が無い）: 外形も筆界も無ければ、自動作成の前の P3 と同じ（全部空）。
 // 仕様 15（純粋）: 仕様 9 と同じ。
 import { describe, expect, it } from 'vitest'
@@ -56,7 +56,6 @@ const KINDS: readonly ObjectKind[] = [
 const NOTED = ['column', 'wall', 'opening']
 const NONE = 'なし'
 const MEANING = '意味づけの結果: 未配線'
-const NOT_WIRED = '中身: 未配線'
 
 // 品目は名前で引く（品目の ID は仮置きなので、試験に書かない）
 function itemOf(label: string): FixtureItem {
@@ -154,9 +153,9 @@ describe('objectSourcesOfPlan（種類ごとの入力。仕様 1〜5・7）', ()
     }
   })
 
-  it('外形は 1 件で、中身は未配線（仮置き）', () => {
+  it('外形は 1 件で、中身の行は出さない（意味づけとレイヤーだけ）', () => {
     for (const plan of [MID, SIDE]) {
-      expect(linesOf('outline', objectSourcesOfPlan(plan))).toEqual([[NOT_WIRED, MEANING, 'レイヤー: 外形']])
+      expect(linesOf('outline', objectSourcesOfPlan(plan))).toEqual([[MEANING, 'レイヤー: 外形']])
     }
   })
 
@@ -456,10 +455,10 @@ describe('objectSourcesOfFootprint（P2 に無いもの・中身。仕様 12〜1
     expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual([])
   })
 
-  it('筆界・外形の中身は、1 件ずつ「中身: 未配線」（意味づけの結果とレイヤーが付く）', () => {
+  it('筆界・外形は、1 件ずつ中身の行を出さず、意味づけの結果とレイヤーだけが付く', () => {
     const s = objectSourcesOfFootprint(SQUARE, PARCEL)
-    expect(linesOf('siteBoundary', s)).toEqual([[NOT_WIRED, MEANING, 'レイヤー: 筆界']])
-    expect(linesOf('outline', s)).toEqual([[NOT_WIRED, MEANING, 'レイヤー: 外形']])
+    expect(linesOf('siteBoundary', s)).toEqual([[MEANING, 'レイヤー: 筆界']])
+    expect(linesOf('outline', s)).toEqual([[MEANING, 'レイヤー: 外形']])
   })
 
   it('P2 に無い種類を選んでも、中身は空で「なし」と出す', () => {
