@@ -32,6 +32,9 @@ import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 import { objectTableOf, type ObjectRow } from '../plan/objectTable'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { p4CanGoNext } from './p4NextGate'
+import { nextGateOf, p4NextIssuesOf, type CheckIssue } from '../plan/nextCheck'
+import { NextCheckPanel } from './NextCheckPanel'
+import { recordWorkLog } from '../app/workLogStore'
 import { useSemantic } from '../store/semantic'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -184,6 +187,32 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P4 はチャットだけ
   const hiddenTiles = usePanelTiles((s) => s.hidden)
   const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P4', hiddenTiles, id)
+
+  // 次へ（D-04 P4。G158）: 押したとき、工事原価・単価未設定・未確定の品目を確かめる。問題が無ければ進む。あれば一覧を出し、直すか、このまま進むかを選ぶ（止めない）
+  const [nextIssues, setNextIssues] = useState<CheckIssue[] | null>(null)
+  const p4Issues = (): CheckIssue[] => [
+    ...(p4CanGoNext(estimate) ? [] : [{ area: '工事原価', text: '工事原価が出ていない' }]),
+    ...p4NextIssuesOf({
+      laborUnset: estimateLines.filter((q) => q.unitPriceRef === null && isLaborItem(q.item)).map((q) => q.item),
+      provisional: estimateLines.map((q) => q.item),
+    }),
+  ]
+  const clickNextP4 = () => {
+    const issues = p4Issues()
+    if (nextGateOf(issues) === 'go') onNext?.()
+    else setNextIssues(issues)
+  }
+  const goNextP4Anyway = (issues: readonly CheckIssue[]) => {
+    recordWorkLog({
+      at: new Date().toISOString(),
+      screen: 'P4',
+      action: '次へ（要確認として残した）',
+      target: issues.map((i) => `${i.area}: ${i.text}`).join(' / '),
+      who: 'human',
+    })
+    setNextIssues(null)
+    onNext?.()
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 360px`, height: '100%' }}>
@@ -404,11 +433,20 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
         ) : (
           <p style={{ color: '#a33' }}>{estimate && 'error' in estimate ? estimate.error : '—'}</p>
         )}
-        {/* 次へ進む条件（D-04 P4）: 工事原価が出ている。出ていなければ押せない */}
-        <button type="button" disabled={!p4CanGoNext(estimate)} onClick={onNext} style={{ marginTop: 12 }}>
-          次へ（P5 出力）
-        </button>
-        {!p4CanGoNext(estimate) && <p style={{ color: '#666', fontSize: 12 }}>工事原価が出ていないので、次へ進めません。</p>}
+        {/* 次へ（D-04 P4）: 工事原価が出ているかを含めて確かめる。止めない（問題は一覧で出し、選ぶのは利用者） */}
+        <div style={{ marginTop: 12 }}>
+          <button type="button" onClick={clickNextP4}>
+            次へ（P5 出力）
+          </button>
+          {nextIssues !== null ? (
+            <NextCheckPanel
+              issues={nextIssues}
+              goLabel="このまま進む（要確認として残す）"
+              onStay={() => setNextIssues(null)}
+              onGoAnyway={() => goNextP4Anyway(nextIssues)}
+            />
+          ) : null}
+        </div>
         <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>未決</h3>
         <ul style={{ margin: 0, paddingLeft: 18, color: '#666', fontSize: 12 }}>
           <li>単価の置き場（G72、代表の答え待ち）</li>
