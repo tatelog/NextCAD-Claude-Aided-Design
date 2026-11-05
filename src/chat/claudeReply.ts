@@ -8,6 +8,13 @@ export const ChangeSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setStoreyCount'), count: z.number().int().min(1).max(30) }),
   z.object({ op: z.literal('setStoreyHeight'), mm: z.number().int().min(1) }),
   z.object({ op: z.literal('setKind'), segmentId: z.string().min(1), kind: z.enum(KINDS) }),
+  // 数値の線を一本足す（G140。始点・長さ・角度で決まる。Worker の配備を待たずに作れる操作）
+  z.object({
+    op: z.literal('addLine'),
+    start: z.object({ x: z.number().int(), y: z.number().int() }),
+    lengthMm: z.number().positive().max(100_000),
+    angleDeg: z.number().finite(),
+  }),
 ])
 
 export type Change = z.infer<typeof ChangeSchema>

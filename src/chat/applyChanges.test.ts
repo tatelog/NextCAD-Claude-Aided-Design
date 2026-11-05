@@ -40,7 +40,8 @@ describe('戻す（仕様 2）', () => {
   })
 
   it('snapshotOfState は、いまの図面の状態をそのまま返す', () => {
-    expect(snapshotOfState()).toEqual({ storeyCount: 3, storeyHeightMm: 3000, assignments: {} })
+    // 仕様の変更（t55・G143）: 図面の状態に、線（entries）も含める（一指示＝一 Undo で線も戻すため）
+    expect(snapshotOfState()).toEqual({ storeyCount: 3, storeyHeightMm: 3000, assignments: {}, entries: drawingWithS1 })
   })
 })
 
