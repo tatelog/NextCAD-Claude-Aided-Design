@@ -5,6 +5,7 @@ import { recordWorkLog } from '../app/workLogStore'
 import { applyChangeBatch, restoreSnapshot, type ChangeSnapshot } from '../chat/applyChanges'
 import { parseClaudeReply } from '../chat/claudeReply'
 import { ChatPendingError, ChatUnreachableError, ChatWorkerError } from '../chat/chatTransport'
+import { WORKER_UNREACHABLE_NOTICE } from '../worker/notices'
 
 export type ChatRole = 'user' | 'claude' | 'system'
 
@@ -25,7 +26,7 @@ export const UNCONNECTED_NOTICE = '未接続: Claude の返信の仕組みが未
 /** Worker が保留と返したとき（再試行でも型に合わない）。型に合わない返答（下の注記）と区別する */
 export const PENDING_NOTICE = '保留: Claude の返答を、再試行でも型に合わせられませんでした。図面は変えていません。'
 /** Worker に届かなかったとき（接続の失敗）。返答を読んだのではない */
-export const UNREACHABLE_NOTICE = 'Worker につながりません。図面は変えていません。'
+export const UNREACHABLE_NOTICE = WORKER_UNREACHABLE_NOTICE
 /** 返答を読めなかったとき（型に合わない・その他） */
 export const UNREADABLE_NOTICE = '返答を読めませんでした。図面は変えていません。'
 

@@ -46,7 +46,7 @@ describe('judgeSegments（判定の送り先と結果の反映）', () => {
     const calls: string[] = []
     const log = { suggested: [] as Array<[string, string]>, pending: [] as string[] }
     const out = await judgeSegments({ segments: segs, workerUrl: '  ', enabled: true, fetchImpl: fakeFetch([{ status: 200, body: okBody }], calls) }, sinksOf(log))
-    expect(out.state).toBe('unconnected')
+    expect(out.state).toBe('unset')
     expect(calls).toHaveLength(0)
   })
 

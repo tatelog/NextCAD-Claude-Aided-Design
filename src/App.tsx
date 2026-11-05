@@ -310,8 +310,8 @@ export function App() {
           type="button"
           style={button}
           onClick={judgeNow}
-          disabled={!WORKER_URL || !featureOn.classifyClaude}
-          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : 'VITE_WORKER_URL が未設定のため送れない'}
+          disabled={!featureOn.classifyClaude}
+          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : 'Worker の URL が未設定。押すと、未接続の一行を出す'}
         >
           意味づけを判定
         </button>

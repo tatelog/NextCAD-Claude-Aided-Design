@@ -5,12 +5,25 @@ import { PendingError, type SegmentIn } from './classify'
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
+/** Worker に届かなかった（接続の失敗）。保留ではなく「つながらない」と分けて伝える（G154） */
+export class WorkerUnreachableError extends Error {
+  constructor() {
+    super('Worker につながりません')
+    this.name = 'WorkerUnreachableError'
+  }
+}
+
 async function once(segments: SegmentIn[], workerUrl: string, fetchImpl: FetchLike) {
-  const res = await fetchImpl(`${workerUrl.replace(/\/$/, '')}/classify`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ segments }),
-  })
+  let res: Response
+  try {
+    res = await fetchImpl(`${workerUrl.replace(/\/$/, '')}/classify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ segments }),
+    })
+  } catch {
+    throw new WorkerUnreachableError()
+  }
   if (!res.ok) throw new Error(`Worker が失敗: ${res.status}`)
   const json = (await res.json()) as { segments?: unknown }
   return parseClassifierOutput(json.segments)
@@ -23,6 +36,8 @@ export async function classifyViaWorker(segments: SegmentIn[], workerUrl: string
     try {
       return await once(segments, workerUrl, fetchImpl)
     } catch (e) {
+      // つながらないときは、再試行せずに伝える（何度呼んでも届かない）
+      if (e instanceof WorkerUnreachableError) throw e
       lastError = e
     }
   }
