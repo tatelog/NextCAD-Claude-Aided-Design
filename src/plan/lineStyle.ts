@@ -34,8 +34,9 @@ export function lineStyleOf(layer: LayerName): LineStyle {
   return { color: s.color, width: s.width, dash: [...s.dash] }
 }
 
-/** 要確認の線は、橙色で一段太くする（仮置き）。確定の線は層の見え方のまま */
+/** 要確認の線は、層の色のまま破線で一段太くする（仮の見た目。統括の依頼 2026-11-06）。確定の線は層の見え方のまま */
 export function segmentStyle(layer: LayerName, needsReview: boolean): LineStyle {
   const base = lineStyleOf(layer)
-  return needsReview ? { ...base, color: '#d9822b', width: base.width + 1 } : base
+  // 要確認（提案された種類）の線は、層の色のまま、破線で一段太く（仮の見た目。統括の依頼 2026-11-06）
+  return needsReview ? { ...base, width: base.width + 1, dash: [6, 4] } : base
 }
