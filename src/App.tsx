@@ -32,6 +32,7 @@ import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
 import { appWorkerUrl } from './worker/workerUrl'
 import { useChat } from './store/chat'
+import { useSelection } from './store/selection'
 import { chatTransportOf, contextInputOf } from './chat/chatTransport'
 import { CHAT_MODEL_DEFAULT } from './chat/chatRequest'
 import { pendingLogEntry } from './app/pendingJudgments'
@@ -116,7 +117,7 @@ export function App() {
             rows: recentWorkLog(200),
             entries: useDrawing.getState().entries,
             assignments: useSemantic.getState().assignments,
-            selectedSegmentIds: [],
+            selectedSegmentIds: useSelection.getState().segmentIds,
           }),
       }),
     )

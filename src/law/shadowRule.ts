@@ -8,6 +8,9 @@ import type { Zone } from './slopeRules'
 
 export type ShadowLevel = 1 | 2 | 3
 
+/** 製品の範囲の区（AGENTS.md・README: 江東区（13108）を対象）。日影の区の読み替えに使う */
+export const PROJECT_WARD = '江東区' as const
+
 export interface ShadowRuleContext {
   /** 高度地区。第三種のときだけ測定面を切り替える */
   koudo?: '第三種' | 'その他'
