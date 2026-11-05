@@ -60,6 +60,16 @@ export interface DrawingState {
 
 export const DRAW_OPTIONS = { rdpTolerancePx: 8, axisSnapDeg: 3, snapRadiusPx: SNAP_RADIUS_PX }
 
+/** 線を線分にするときのオプション。確定（addStroke）と、押さえている間の判定の仮の分け方で同じものを使う（t69） */
+export function segmentOptionsOf(stroke: Stroke, gridMm: number | null) {
+  return {
+    rdpTolerancePx: DRAW_OPTIONS.rdpTolerancePx,
+    axisSnapDeg: DRAW_OPTIONS.axisSnapDeg,
+    snapRadiusMm: snapRadiusMm(stroke.view_scale),
+    gridMm,
+  }
+}
+
 export const useDrawing = create<DrawingState>((set, get) => {
   // 1 単位の操作: 操作の前の entries を past に積み、新しい entries にする。Redo は消える
   const commit = (next: StrokeEntry[]) =>
@@ -83,12 +93,7 @@ export const useDrawing = create<DrawingState>((set, get) => {
       const { segments, nodes } = strokeToSegments(
         stroke,
         entries.flatMap((e) => e.nodes),
-        {
-          rdpTolerancePx: DRAW_OPTIONS.rdpTolerancePx,
-          axisSnapDeg: DRAW_OPTIONS.axisSnapDeg,
-          snapRadiusMm: snapRadiusMm(stroke.view_scale),
-          gridMm,
-        },
+        segmentOptionsOf(stroke, gridMm),
         entries.flatMap((e) => e.segments),
       )
       if (segments.length === 0) return
