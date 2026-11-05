@@ -125,7 +125,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
     // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
     if (volume) {
       rows.push(
-        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height),
+        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2),
         exteriorRow(volume.footprint, volume.storey_count, volume.storey_height),
         siteRow(volume.footprint, DUMMY_PARCEL_MM2),
       )
