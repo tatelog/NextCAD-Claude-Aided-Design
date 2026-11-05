@@ -311,6 +311,18 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(details('D35').join('\n')).toContain('100mm以上')
   })
 
+  // 仕様（消防法施行規則 第31条 六・七。e-Gov 法令一覧で引いた法令ID 336M50000008006、2026-11-05 取得）:
+  // 地階を除く階数11以上の連結送水管。高さ70m超は、ポンプの吐出量（800L/分）と全揚程（60m以上）、起動装置の遠隔操作。
+  // 11階以上は、放水用器具（長さ20mのホース4本以上、筒先2本以上）と格納箱（3階以内ごと、放水口から歩行距離5m以内）。非常電源は加圧送水装置を2時間以上作動できる容量。
+  it('連結送水管の加圧送水装置の細目（施行規則 第31条六・七）は、条文の数値のまま図書マスタに入っている', () => {
+    const joined = (documentsJson as { documents: { id: string; details?: string[] }[] }).documents.find((d) => d.id === 'D35')?.details?.join('\n') ?? ''
+    expect(joined).toContain('800リットル毎分')
+    expect(joined).toContain('全揚程は60m以上')
+    expect(joined).toContain('2時間以上')
+    expect(joined).toContain('長さ20mのホース4本以上')
+    expect(joined).toContain('歩行距離5m以内')
+  })
+
   it('消防法9条の市町村条例に関する図書（表二(六十四)）は、区の条例を確かめるまで要確認になる', () => {
     const { required, needsCheck } = requiredPermitDocuments(plateRc)
     expect(required).not.toContain(BYLAW)
