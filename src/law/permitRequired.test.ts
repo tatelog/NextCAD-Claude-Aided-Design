@@ -262,10 +262,11 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(needsCheck.map((n) => n.name)).toContain(TABLE5)
   })
 
-  it('防火壁・防火床（法26条）は、延べ面積1000㎡以下なら要らない', () => {
-    const { required, notRequired } = requiredPermitDocuments(plateRc)
+  it('防火壁・防火床（法26条）は、延べ面積1000㎡以下でも要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments(plateRc)
     expect(required).not.toContain(FIREWALL)
-    expect(notRequired.find((n) => n.name === FIREWALL)?.reason).toContain('1000㎡以下')
+    expect(notRequired.map((n) => n.name)).not.toContain(FIREWALL)
+    expect(needsCheck.find((n) => n.name === FIREWALL)?.reason).toContain('1000㎡以下')
   })
 
   it('防火壁・防火床（法26条）は、延べ面積が1000㎡を超えると、耐火建築物か未入力のとき要確認になる', () => {
@@ -362,8 +363,8 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(required).toContain(SHEET)
   })
 
-  it('平屋で延べ面積200㎡以下の建築物は、建築設備があっても概要書は要らない（6条1項3号は第4項ロに当たらない）', () => {
-    const { required, notRequired } = requiredPermitDocuments({
+  it('平屋で延べ面積200㎡以下の建築物は、第4項ロに当たらない。概要書は要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({
       ...plateRc,
       usage: '戸建住宅',
       storeys: 1,
@@ -371,7 +372,10 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
       hasBuildingEquipment: true,
     })
     expect(required).not.toContain(SHEET)
-    expect(notRequired.map((n) => n.name)).toContain(SHEET)
+    expect(notRequired.map((n) => n.name)).not.toContain(SHEET)
+    const reason = needsCheck.find((n) => n.name === SHEET)?.reason ?? ''
+    expect(reason).toContain('平屋')
+    expect(reason).toContain('200㎡以下')
   })
 
   it('高さ31mを超えても、概要書の要否は高さでは決まらない。昇降機がなければ要確認になる（規則に31mの条件はない）', () => {
@@ -428,6 +432,23 @@ describe('階数・面積・区域で変わる5件は、要らないと決めず
     const reason = (name: string) => j.needsCheck.find((n) => n.name === name)?.reason ?? ''
     expect(reason('日影図')).toContain('日影規制区域の外')
     expect(reason('連結送水管の図（消防法施行令29条）')).toContain('6以下')
+  })
+
+  // 同じ扱いの2件（代表の承認 2026-11-06）: 防火壁・防火床の図書（延べ面積で変わる）と、建築設備の概要書（階数・延べ面積で変わる）。
+  it('防火壁・防火床の図書と建築設備の概要書も、どの入力でも「要らない」に入らない', () => {
+    const also = ['防火壁・防火床の図書（法26条・表二(七)）', '建築設備の概要書（別記第八号様式）']
+    const inputs: Partial<PermitInput>[] = [
+      {},
+      { totalFloorAreaM2: 1_000 },
+      { totalFloorAreaM2: 1_200 },
+      { usage: '戸建住宅', storeys: 1, totalFloorAreaM2: 150 },
+      { usage: '戸建住宅', storeys: 1, totalFloorAreaM2: 200, hasBuildingEquipment: false },
+      { storeys: 2, totalFloorAreaM2: 150, hasElevator: true },
+    ]
+    for (const input of inputs) {
+      const { notRequired } = requiredPermitDocuments({ ...plateRc, ...input })
+      for (const name of also) expect(notRequired.map((n) => n.name)).not.toContain(name)
+    }
   })
 
   it('条件に当たる4件は、要る（日影図・非常コンセント・連結送水管・消防用設備等）', () => {
