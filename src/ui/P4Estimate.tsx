@@ -284,7 +284,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
               </select>
             </label>
           </div>
-          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13, background: '#fff', color: '#1f2a44' }}>
             <thead>
               <tr>
                 <th align="left">区分</th>
