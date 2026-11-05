@@ -54,6 +54,7 @@ import { CircleMenu } from './CircleMenu'
 import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
+import { shouldShowScene3DOf } from './volumeScene'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
@@ -77,6 +78,8 @@ import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf } from '../plan/lot'
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { neighborVolumesInFrame } from '../volume/neighborFrame'
+import { sunSiteOf } from '../plan/sunSite'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
@@ -84,6 +87,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const confirmed = useConfirmedSite((s) => s.confirmed)
   const currentSite = useConfirmedSite((s) => s.currentSite)
   const currentUid = useSite((s) => s.parcelUid)
+  const confirmedBuildings = useConfirmedSite((s) => s.buildings.data)
+  // 日射・日影の地点（確定した敷地の中心。確定していなければ今までの固定の地点。統括の依頼 2026-11-06。3）
+  const sunSite = sunSiteOf(confirmed?.center ?? null)
   const parcel = lotOfConfirmed(confirmed)
   const lot = lotOf(parcel)
   // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
@@ -117,18 +123,22 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const showMiniMap = useUi((s) => s.showMiniMap)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
-    () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, lotCenterOf(lot)) : []),
-    [siteBuildings, sitePoint, lot],
+    () => {
+      // 確定した筆があれば、その筆の枠で置く（筆とずれない。統括の依頼 2026-11-06。2）。無ければ今までどおり
+      if (confirmed?.frame) return confirmedBuildings ? neighborVolumesInFrame(confirmedBuildings, confirmed.frame) : []
+      return siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, lotCenterOf(lot)) : []
+    },
+    [siteBuildings, sitePoint, lot, confirmed, confirmedBuildings],
   )
 
   const [farLimit, setFarLimit] = useState('')
   const [heightDistrict, setHeightDistrict] = useState<HeightDistrict | ''>('')
-  // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は江東区の点（35.67N, 139.86E）
+  // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は確定した敷地の中心（確定していなければ江東区の点）
   const [solarTime, setSolarTime] = useState('12:00')
   const sun = useMemo(() => {
     if (!/^\d{2}:\d{2}$/.test(solarTime)) return null
-    return solarPosition({ lat: 35.67, lon: 139.86, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
-  }, [solarTime])
+    return solarPosition({ lat: sunSite.lat, lon: sunSite.lon, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
+  }, [solarTime, sunSite])
   const [zone, setZone] = useState<Zone>('住居系')
   // 前面道路の辺（確定していれば確定の店舗が持つ。確定していなければ画面の中だけ）
   const [roadEdgeLocal, setRoadEdgeLocal] = useState(0)
@@ -305,8 +315,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
       lot,
       buildings: stackedFloors,
       rule: ordinance.rule,
-      lat: 35.67,
-      lon: 139.86,
+      lat: sunSite.lat,
+      lon: sunSite.lon,
       date: new Date(Date.UTC(2026, 11, 22)),
     })
     // 日影図（RC 造。切り取った階ごとの影を格子で数える）の一行を判定文に添える（t28）
@@ -316,15 +326,15 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         lot,
         buildings: stackedFloors,
         rule: ordinance.rule,
-        lat: 35.67,
-        lon: 139.86,
+        lat: sunSite.lat,
+        lon: sunSite.lon,
         date: new Date(Date.UTC(2026, 11, 22)),
       }),
     )
     if (judgment.result === '適合') return { text: `適合（確認済みの条例の値で判定）／${drawingText}`, result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）／${drawingText}`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot, sunSite])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -424,10 +434,11 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
-          volume ? (
+          shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: showNeighbors ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
               <Volume3D
-                footprint={volume.footprint}
+                footprint={volume ? volume.footprint : null}
+                lot={parcel}
                 shadow={showShadow ? sunShadow : null}
                 neighbors={showNeighbors ? neighbors : []}
                 floors={stackedFloors}
@@ -440,7 +451,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 onRotate={featureOn.knobs && featureOn.rotateOperation ? onKnobRotate : undefined}
                 onStoreyCount={featureOn.knobs ? setStoreyCount : undefined}
               />
-              {showMiniMap && boundsOf([volume.footprint]) ? (
+              {showMiniMap && volume && boundsOf([volume.footprint]) ? (
                 <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
               ) : null}
             </div>

@@ -23,6 +23,7 @@ import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewp
 import type { Node, Segment, Stroke } from '../model/schema'
 import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { lotOf } from '../plan/lot'
 import { viewOfLot } from '../plan/lotView'
 import { useUi } from '../store/ui'
@@ -141,6 +142,10 @@ export function DrawingCanvas() {
   // 敷地（筆界）: 確定した敷地の筆、無ければダミー。点線で出す（統括の依頼 2026-11-06。1）
   const confirmedSite = useConfirmedSite((s) => s.confirmed)
   const lot = lotOf(lotOfConfirmed(confirmedSite))
+  // 周辺建物の輪郭（確定した筆の枠で置いた。筆とずれない。統括の依頼 2026-11-06。5）
+  const confirmedFrame = confirmedSite?.frame ?? null
+  const confirmedBuildings = useConfirmedSite((s) => s.buildings.data)
+  const neighborOutlines = useMemo(() => neighborOutlinesOf(confirmedBuildings ?? [], confirmedFrame), [confirmedBuildings, confirmedFrame])
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
@@ -217,8 +222,9 @@ export function DrawingCanvas() {
       handleDragRef.current?.view ?? null,
       layerById,
       lot,
+      neighborOutlines,
     )
-  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot])
+  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -242,6 +248,7 @@ export function DrawingCanvas() {
         handleDragRef.current?.view ?? null,
         layerById,
         lot,
+        neighborOutlines,
       )
 
     // 押さえ続けた線を、判定に送る（Drawing モード。G108・G112）。送るのは描いている線だけで、チャットの文は送らない
@@ -574,7 +581,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines])
 
   return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
 }
@@ -591,6 +598,7 @@ function paint(
   handleView: HandleDragView | null,
   layerById: ReadonlyMap<string, { layer: LayerName; needsReview: boolean }>,
   lot: readonly Point[],
+  neighborOutlines: readonly (readonly Point[])[],
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -644,6 +652,20 @@ function paint(
   ctx.closePath()
   ctx.stroke()
   ctx.setLineDash([])
+
+  // 周辺建物の輪郭（確定した筆の枠。細い灰色の線）
+  ctx.strokeStyle = '#7d8790'
+  ctx.lineWidth = 1
+  for (const ring of neighborOutlines) {
+    ctx.beginPath()
+    ring.forEach((p, i) => {
+      const q = mmToPx(vp, p)
+      if (i === 0) ctx.moveTo(q.x, q.y)
+      else ctx.lineTo(q.x, q.y)
+    })
+    ctx.closePath()
+    ctx.stroke()
+  }
 
   // 閉じた外形の塗り
   if (shownFootprint && shownFootprint.length >= 3) {

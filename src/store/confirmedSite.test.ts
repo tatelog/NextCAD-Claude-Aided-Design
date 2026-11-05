@@ -21,7 +21,7 @@ const confirmed = (over: Partial<ConfirmedSite> = {}): ConfirmedSite => ({
   ...over,
 })
 
-beforeEach(() => useConfirmedSite.setState({ confirmed: null }))
+beforeEach(() => useConfirmedSite.setState({ confirmed: null, currentSite: null }))
 
 describe('確定した敷地（仕様 1f〜1h）', () => {
   it('仕様 1f: 確定した敷地を入れて読め、取り消すと確定していない状態に戻る', () => {
@@ -44,5 +44,17 @@ describe('確定した敷地（仕様 1f〜1h）', () => {
     expect(lotOfConfirmed(confirmed({ lot: null, parcelUid: null }))).toBeNull()
     expect(lotOfConfirmed(confirmed())).toEqual(LOT)
     expect(lotOfConfirmed(null)).toBeNull()
+  })
+})
+
+// 統括の依頼 2026-11-06（不具合）: 確定した直後に「確定し直しが要る」が出ない。確定の処理は、地点を筆の中の点へ動かしてから P2 へ移るので、
+// P1 の「今いる地点」の更新は動かない。だから、確定の店舗が、確定したときに今いる地点も確定の中心にする。
+describe('確定の直後（仕様 1g2）', () => {
+  it('仕様 1g2: 確定した直後は、確定し直しの表示が出ない（今いる地点も確定の中心になる）', () => {
+    const c = confirmed({ center: { lat: 35.667125, lon: 139.829867 } })
+    useConfirmedSite.getState().confirm(c)
+    const s = useConfirmedSite.getState()
+    expect(s.currentSite).toEqual({ lat: 35.667125, lon: 139.829867 })
+    expect(isConfirmedStaleOf(s.confirmed, '筆A', s.currentSite)).toBe(false)
   })
 })
