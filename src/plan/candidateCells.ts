@@ -74,8 +74,8 @@ export function candidateCells(input: CandidateInput): CandidateCells {
     return { corridor, corridors: [corridor], cells, voids: [] }
   }
 
-  if ((W - cw) % 2 !== 0) throw new Error('建物の幅と廊下の幅の差は偶数にする（中央に通すため）')
-  const half = (W - cw) / 2
+  // 中廊下は左に寄せる（半分は切り捨て）。幅と廊下の差が奇数なら、余りの 1 mm は東の外周に残す（どの住戸にも入れない。奇数の区画は田の字に割れない）
+  const half = Math.floor((W - cw) / 2)
   if (ud > half) throw new Error('住戸の奥行が建物の半幅を超える')
 
   // 中廊下・階段室型: 中央の通路（階段室型は階段室）の両側に住戸
