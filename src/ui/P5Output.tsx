@@ -18,6 +18,7 @@ import { COMPONENTS, judgeComponent, requiredMinutes } from '../law/structureFir
 import { ICHI_NOTE, judgeIchi } from '../law/fireIchi'
 import { useComponentFire } from '../store/componentFire'
 import { useSite } from '../store/site'
+import { grossFloorAreaMm2 } from '../volume/cutVolume'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { usePanelTiles } from '../store/panelTiles'
@@ -73,9 +74,15 @@ export function P5Output() {
   const volumeResult = useMemo(() => (outline.ok ? volumeOfOutline(outline.footprint, storeys, height) : null), [outline, storeys, height])
   const volume = volumeResult?.ok ? volumeResult.volume : null
   const outlineReason = !outline.ok ? outline.reason : volumeResult && !volumeResult.ok ? volumeResult.reason : null
-  const grossM2 = volume ? volume.gross_floor_area_mm2 / 1_000_000 : 0
+  // 延べ面積は、P2 の切り取った階の面積の和にそろえる（統括の依頼 2026-11-06。依頼 5a）。階の面積が無いときは押し出しのまま
+  const siteFloorAreas = useSite((s) => s.volume?.floor_areas_mm2)
+  const permitVolume = useMemo(
+    () => (volume ? { ...volume, gross_floor_area_mm2: grossFloorAreaMm2(volume.gross_floor_area_mm2, siteFloorAreas, storeys) } : null),
+    [volume, siteFloorAreas, storeys],
+  )
+  const grossM2 = permitVolume ? permitVolume.gross_floor_area_mm2 / 1_000_000 : 0
   const heightM = volume ? volume.total_height / 1000 : 0
-  const judgement = useMemo(() => (volume ? requiredPermitDocuments(permitInputFromVolume(volume, project)) : null), [volume, project])
+  const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
   const ready = volume !== null
   const valid = ready && wallOk
 

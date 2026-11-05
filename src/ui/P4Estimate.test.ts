@@ -199,6 +199,14 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     expect(text).toContain('675,000')
   })
 
+  // 仕様（統括の依頼 2026-11-06「単価（参照）に英語の ID（carpenter）が出る」）: 単価（参照）の欄は、単価表の品目の名前（型枠大工）を出す。ID は出さない。
+  it('単価（参照）の欄は、単価表の品目の名前（型枠大工）を出し、参照の ID（carpenter）は出さない', () => {
+    estimateStore.state = { lines: [formwork], persisted: true }
+    const html = htmlOf()
+    expect(html).toContain('<td>型枠大工</td>')
+    expect(html).not.toContain('<td>carpenter</td>')
+  })
+
   it('表が空なら、自動で拾える数量があっても、区分ごとに「未拾い」と出す（表が正本）', () => {
     site.state = { volume: null, plan: PLAN }
     estimateStore.state = { lines: [], persisted: true }

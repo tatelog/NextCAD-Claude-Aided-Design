@@ -14,7 +14,7 @@
 // P4 仕様 13（単価未設定）: 単価が未設定の品目は、単価未設定の問題（品目の名前を出す）。
 // P4 仕様 14（未確定）: 未確定（出典なし・仮置き）の品目は、未確定の問題（品目の名前を出す）。
 import { describe, expect, it } from 'vitest'
-import { nextGateOf, p2NextIssuesOf, p3NextIssuesOf, p4NextIssuesOf } from './nextCheck'
+import { brokenFloorIssuesOf, floorRangeTextOf, nextGateOf, p2NextIssuesOf, p3NextIssuesOf, p4NextIssuesOf } from './nextCheck'
 
 const P2_OK = { closed: true, closureText: '閉じている', slope: '適合' as const, shadow: '適合' as const, shadowText: '適合', brokenFloors: [] }
 const P3_OK = { spanJudge: 'ok' as const, unitCount: 8, unitError: null, shaftAligned: true, corridorMm: 1600, reviewCount: 0, provisionalSpanCount: 0 }
@@ -44,12 +44,66 @@ describe('P2 の確かめ（仕様 2〜6）', () => {
     expect(none.find((i) => i.area === '日影')?.text).toContain('測定面')
   })
 
-  it('仕様 5: 立体にできなかった階は、階の番号と理由を一行ずつ出す', () => {
-    const issues = p2NextIssuesOf({ ...P2_OK, brokenFloors: [{ floor: 3, reason: '点が 3 つ未満' }] })
+  // 仕様 5（文言の改訂。統括の依頼 2026-11-06。理由の英文は出さず、直す手がかりを一文で）
+  it('仕様 5: 立体にできなかった階は、階の番号と、直す手がかりを一文で出す', () => {
+    const issues = p2NextIssuesOf({ ...P2_OK, brokenFloors: [{ floor: 3, kind: 'fewPoints' }] })
     const shape = issues.filter((i) => i.area === '段状の形')
     expect(shape).toHaveLength(1)
-    expect(shape[0]!.text).toContain('3 階')
-    expect(shape[0]!.text).toContain('点が 3 つ未満')
+    expect(shape[0]!.text).toContain('3 階は')
+    expect(shape[0]!.text).toContain('削られて')
+    expect(shape[0]!.text).toContain('外形を広げるか')
+  })
+
+  // 仕様 15（並び。統括の依頼 2026-11-06）: 外形 → 段状の形 → 斜線 → 日影。外形が閉じていなければ段状の形は出ないので、外形が一番上。
+  it('仕様 15: 並びは、外形・段状の形・斜線・日影の順', () => {
+    const closed = p2NextIssuesOf({ ...P2_OK, slope: '超過', shadow: '不適合', shadowText: '不適合（最大 3 h）', brokenFloors: [{ floor: 9, kind: 'fewPoints' }] })
+    expect(closed.map((i) => i.area)).toEqual(['段状の形', '斜線', '日影'])
+    const open = p2NextIssuesOf({ ...P2_OK, closed: false, closureText: 'まだ線が無い', brokenFloors: [{ floor: 9, kind: 'fewPoints' }] })
+    expect(open.map((i) => i.area)).toEqual(['外形', '段状の形'])
+  })
+
+  // 仕様 16（見出しを二重に付けない）: 一覧は「斜線: 」の見出しを付けるので、文の中で「斜線:」を重ねない
+  it('仕様 16: 斜線の文は、見出し「斜線」を文の中に重ねない', () => {
+    const [i] = p2NextIssuesOf({ ...P2_OK, slope: '超過' }).filter((x) => x.area === '斜線')
+    expect(i!.text).not.toMatch(/^斜線/)
+    expect(i!.text).toContain('超過')
+  })
+
+  // 仕様 17・18（階の番号の並べ方）: 続いた番号は「9〜11 階」、飛んだ番号は「9・11 階」
+  it('仕様 17・18: 続いた階は範囲で一行に、飛んだ階は「・」で並べる', () => {
+    expect(floorRangeTextOf([9, 10, 11])).toBe('9〜11 階')
+    expect(floorRangeTextOf([9, 11])).toBe('9・11 階')
+    expect(floorRangeTextOf([2, 9, 10, 11])).toBe('2・9〜11 階')
+    expect(floorRangeTextOf([11, 9, 10])).toBe('9〜11 階')
+  })
+
+  // 仕様 19（座標・天端）: 座標か天端が数でない階は、形の計算の失敗として一行
+  it('仕様 19: 座標か天端が数でない階は、形の計算に失敗した一行（外形を描き直す）', () => {
+    const [i] = brokenFloorIssuesOf([{ floor: 9, kind: 'coordinate' }])
+    expect(i!.area).toBe('段状の形')
+    expect(i!.text).toBe('9 階は、形の計算に失敗した（座標か高さが数でない）。外形を描き直す。')
+  })
+
+  // 仕様 20（削られて線か点）: 続いた階を一行にまとめる
+  it('仕様 20: 削られて線か点しか残らない階は、範囲で一行（3D に出せない）', () => {
+    const issues = brokenFloorIssuesOf([9, 10, 11].map((floor) => ({ floor, kind: 'area' as const })))
+    expect(issues).toHaveLength(1)
+    expect(issues[0]!.text).toBe('9〜11 階は、斜線で削られて床が線か点しか残らないので、3D に出せない。外形を広げるか、階数を減らす。')
+  })
+
+  // 仕様 21（階高）: 階高が不正なら、階の番号を付けずに一行
+  it('仕様 21: 階高が不正なら、階の番号を付けずに一行（1 mm 以上の数）', () => {
+    const issues = brokenFloorIssuesOf([{ floor: 1, kind: 'height' }, { floor: 2, kind: 'height' }])
+    expect(issues).toEqual([{ area: '段状の形', text: '階高が正しくない。1 mm 以上の数を入れる。' }])
+  })
+
+  // 仕様 22（種類が混ざる）: 削られた階と計算の失敗の階は、別の一行にする
+  it('仕様 22: 削られた階と計算の失敗は、別々の一行', () => {
+    const issues = brokenFloorIssuesOf([{ floor: 2, kind: 'fewPoints' }, { floor: 5, kind: 'top' }])
+    expect(issues.map((i) => i.text)).toEqual([
+      '2 階は、斜線で削られて床が線か点しか残らないので、3D に出せない。外形を広げるか、階数を減らす。',
+      '5 階は、形の計算に失敗した（座標か高さが数でない）。外形を描き直す。',
+    ])
   })
 
   it('仕様 6: 問題が無ければ、一覧は空', () => {

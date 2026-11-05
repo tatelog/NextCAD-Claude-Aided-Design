@@ -7,12 +7,14 @@ import { spanDimensions } from '../plan/spanDimension'
 import { mmLabel } from '../plan/dimensionLabel'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
+import { missingDimensionOf, missingTargetOf, plainErrorTextOf } from '../plan/inputProblem'
+import { useP3Field } from './useP3Field'
 import { corridorDefaultOf } from '../plan/corridorDefaults'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
-import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
+import { parseCoreRect } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
 import { confirmRows, countByStatus, targetSegmentsOf } from '../plan/semanticConfirm'
@@ -63,29 +65,29 @@ import { masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
 const UNIT_TYPES = masterOf(unitTypeCandidates)
 
 export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
-  const [widthText, setWidthText] = useState('20000')
-  const [depthText, setDepthText] = useState('12000')
+  const [widthText, setWidthText] = useP3Field('widthText')
+  const [depthText, setDepthText] = useP3Field('depthText')
   // 廊下幅の既定は廊下タイプから（G135。中廊下 1,600 mm の仮置き）。既定の無い層は 2,000 mm のまま
-  const [corridorText, setCorridorText] = useState(String(corridorDefaultOf('中廊下')?.mm ?? 2000))
-  const [unitDepthText, setUnitDepthText] = useState('6000')
-  const [spanText, setSpanText] = useState('3000')
-  const [minText, setMinText] = useState('')
-  const [maxText, setMaxText] = useState('')
-  const [layoutText, setLayoutText] = useState<CorridorLayout>('中廊下')
+  const [corridorText, setCorridorText] = useP3Field('corridorText')
+  const [unitDepthText, setUnitDepthText] = useP3Field('unitDepthText')
+  const [spanText, setSpanText] = useP3Field('spanText')
+  const [minText, setMinText] = useP3Field('minText')
+  const [maxText, setMaxText] = useP3Field('maxText')
+  const [layoutText, setLayoutText] = useP3Field('layoutText')
   // 階段室型のしつらえ（統括の決定 G107）: 屋内シャフト（既定）か外部階段（アルミスリット 2 面）
-  const [stairFinishText, setStairFinishText] = useState<StairFinish>('indoorShaft')
+  const [stairFinishText, setStairFinishText] = useP3Field('stairFinishText')
   // 住戸タイプ（G89）: 縦割り（柱割りの列）ごとに、型の id を , で並べる。型が少なければ繰り返す
-  const [unitTypeIdsText, setUnitTypeIdsText] = useState('T-08-2LDK')
+  const [unitTypeIdsText, setUnitTypeIdsText] = useP3Field('unitTypeIdsText')
   const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
   const firstUnitType = UNIT_TYPES.find((t) => t.id === unitTypeIds[0])
   const unitType = firstUnitType ? unitTypeKind(firstUnitType) : 'ファミリー'
-  const [patternText, setPatternText] = useState<RoomPattern>('田の字')
-  const [targetText, setTargetText] = useState('')
-  const [coreText, setCoreText] = useState<CoreRectText>({ x0: '', y0: '', x1: '', y1: '' })
+  const [patternText, setPatternText] = useP3Field('patternText')
+  const [targetText, setTargetText] = useP3Field('targetText')
+  const [coreText, setCoreText] = useP3Field('coreText')
   // 階数・階高は P2（ボリューム）の値を使う
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
-  const [evCountText, setEvCountText] = useState('2')
+  const [evCountText, setEvCountText] = useP3Field('evCountText')
   const [auto, setAuto] = useState<AutoPlan | null>(null)
   const showDimensions = useUi((s) => s.showDimensions)
   const showGrid = useUi((s) => s.showGrid)
@@ -117,7 +119,23 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const semanticRows = useMemo(() => confirmRows(targetSegmentsOf(drawnAll), assignments), [drawnAll, assignments])
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
+  // 画面の寸法の入力（mm）。空の欄は 0 になり、足りない項目として一文にする
+  const dimensionsOf = () => ({
+    widthMm: Number(widthText),
+    depthMm: Number(depthText),
+    corridorMm: Number(corridorText),
+    unitDepthMm: Number(unitDepthText),
+    spanMm: Number(spanText),
+  })
+
   const runAuto = () => {
+    // 足りない入力は、一文で言う（ZodError の JSON は出さない。依頼 2b）
+    const problem = missingTargetOf(Number(targetText)) ?? missingDimensionOf(dimensionsOf())
+    if (problem !== null) {
+      setAuto(null)
+      setAutoError(problem)
+      return
+    }
     try {
       const g = generateAutoPlan({
         targetPerFloor: Number(targetText),
@@ -144,7 +162,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       setAutoError(null)
     } catch (e) {
       setAuto(null)
-      setAutoError(e instanceof Error ? e.message : String(e))
+      setAutoError(plainErrorTextOf(e))
     }
   }
 
@@ -189,6 +207,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const core = parseCoreRect(coreText)
 
   const units = useMemo(() => {
+    // 足りない寸法は、一文で言う（依頼 2b）
+    const problem = missingDimensionOf(dimensionsOf())
+    if (problem !== null) return { cells: null, result: null, error: problem as string | null }
     try {
       const c = candidateCells({
         width_mm: Number(widthText),
@@ -213,7 +234,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       })
       return { cells: c, result: r, error: null as string | null }
     } catch (e) {
-      return { cells: null, result: null, error: e instanceof Error ? e.message : String(e) }
+      return { cells: null, result: null, error: plainErrorTextOf(e) }
     }
   }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText, core.rect])
 

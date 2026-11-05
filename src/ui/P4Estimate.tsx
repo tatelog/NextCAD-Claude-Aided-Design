@@ -80,6 +80,8 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
       return { error: e instanceof Error ? e.message : String(e) }
     }
   }, [csv])
+  // 単価（参照）の欄は、参照の ID ではなく単価表の品目の名前を出す（統括の依頼 2026-11-06。ID を画面に出さない）。表に無い ID はそのまま出す
+  const itemNameOfRef = (ref: string): string => ('rows' in parsed ? parsed.rows.find((r) => r.id === ref)?.item : undefined) ?? ref
 
   // P2 の外形から拾った数量（外壁・屋根）。P2 で外形が閉じていれば入る
   const volume = useSite((s) => s.volume)
@@ -123,7 +125,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
     // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
     if (volume) {
       rows.push(
-        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height),
+        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2),
         exteriorRow(volume.footprint, volume.storey_count, volume.storey_height),
         siteRow(volume.footprint, DUMMY_PARCEL_MM2),
       )
@@ -346,7 +348,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
                       </td>
                       <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
                       {/* 対応のある労務で単価の参照が無い行は「単価未設定」（単価は利用者が置く。G20・G136）。isLaborUnset と同じ判定 */}
-                      <td>{q.unitPriceRef ?? (isLaborItem(q.item) ? '単価未設定' : '未参照')}</td>
+                      <td>{q.unitPriceRef ? itemNameOfRef(q.unitPriceRef) : isLaborItem(q.item) ? '単価未設定' : '未参照'}</td>
                       <td align="right">{q.amountYen === null ? '—' : q.amountYen.toLocaleString('ja-JP')}</td>
                     </tr>
                   ))

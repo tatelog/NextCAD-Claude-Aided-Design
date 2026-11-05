@@ -34,11 +34,12 @@ function partRow(id: string, part: string, data: Record<string, unknown>, name: 
 }
 
 /** 外形と階数から、床版（躯体）の行。kind は slab（G92） */
-export function slabObjectRow(footprint: readonly Point[], storeyCount: number, storeyHeight: number): ObjectRow {
+export function slabObjectRow(footprint: readonly Point[], storeyCount: number, storeyHeight: number, floorAreasMm2?: readonly number[]): ObjectRow {
+  // 切り取った階の面積（floor_areas_mm2）があれば、床版はその和（統括の依頼 2026-11-06。依頼 5a）
   return {
     id: 'slab-volume',
     kind: 'slab',
-    attr: JSON.stringify({ footprint, storey_count: storeyCount, storey_height: storeyHeight }),
+    attr: JSON.stringify({ footprint, storey_count: storeyCount, storey_height: storeyHeight, floor_areas_mm2: floorAreasMm2 }),
     name: '床版（外形から）',
     parent_id: null,
   }
@@ -108,8 +109,8 @@ export function detailLinesOfObjects(rows: readonly ObjectRow[], rebar: RebarCon
   const lines: DetailLine[] = []
   for (const row of rows) {
     if (row.kind === 'slab' && row.attr !== null) {
-      const s = JSON.parse(row.attr) as { footprint: readonly Point[]; storey_count: number; storey_height: number }
-      const q = structureQuantities(s.footprint, { storey_count: s.storey_count, storey_height: s.storey_height }, undefined, rebar)
+      const s = JSON.parse(row.attr) as { footprint: readonly Point[]; storey_count: number; storey_height: number; floor_areas_mm2?: number[] }
+      const q = structureQuantities(s.footprint, { storey_count: s.storey_count, storey_height: s.storey_height }, undefined, rebar, s.floor_areas_mm2)
       lines.push(...detailLinesOfStructure(row.id, q, rebar))
       continue
     }

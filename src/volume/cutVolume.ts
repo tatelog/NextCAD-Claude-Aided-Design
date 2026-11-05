@@ -13,6 +13,12 @@ export interface CutVolume {
   floor_area_ratio: number
 }
 
+/** P5 の延床面積（統括の依頼 2026-11-06。依頼 5a）: 切り取った階の面積の和。階の面積が無い・階数が合わないときは、押し出しの延床面積のまま */
+export function grossFloorAreaMm2(extrudeGrossMm2: number, floorAreasMm2: readonly number[] | undefined, storeyCount: number): number {
+  if (floorAreasMm2 === undefined || floorAreasMm2.length !== storeyCount) return extrudeGrossMm2
+  return floorAreasMm2.reduce((sum, a) => sum + a, 0)
+}
+
 export function volumeAfterSlope(input: ExtrudeInput, boundaries: readonly SlopeBoundary[], parcelAreaMm2: number): CutVolume {
   const parcel = z.number().positive().parse(parcelAreaMm2)
   const v = extrudeVolume(input)

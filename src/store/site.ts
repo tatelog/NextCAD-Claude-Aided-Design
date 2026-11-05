@@ -6,6 +6,14 @@ import type { PlateauBuilding } from '../plateau/bldg'
 import type { Point } from '../geom/viewport'
 import type { AutoPlan } from '../plan/autoPlan'
 
+/** P2 の外形と階。P4 の数量と P5 の延べ面積に使う。floor_areas_mm2 は切り取った階ごとの面積（mm²。統括の依頼 2026-11-06。依頼 5a） */
+export interface SiteVolume {
+  footprint: Point[]
+  storey_count: number
+  storey_height: number
+  floor_areas_mm2?: number[]
+}
+
 interface SiteState {
   matches: UseDistrict[] | null
   setMatches: (matches: UseDistrict[] | null) => void
@@ -21,8 +29,8 @@ interface SiteState {
   shadow: '適合' | '不適合' | null
   setShadow: (shadow: '適合' | '不適合' | null) => void
   /** 外形と階（P2）。P4 の数量の自動拾いと、2D の図に使う。閉じていなければ null */
-  volume: { footprint: Point[]; storey_count: number; storey_height: number } | null
-  setVolume: (volume: { footprint: Point[]; storey_count: number; storey_height: number } | null) => void
+  volume: SiteVolume | null
+  setVolume: (volume: SiteVolume | null) => void
   /** P3 の自動作成の結果（柱割り・住戸の区画と部屋）。P4 の数量と 2D に使う */
   plan: AutoPlan | null
   setPlan: (plan: AutoPlan | null) => void

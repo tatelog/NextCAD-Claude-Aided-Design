@@ -56,14 +56,45 @@ export function stackedMesh(floors: readonly { footprint: readonly Point2[]; hei
   return { total_height: floors.length > 0 ? floors[floors.length - 1]!.heightMm : 0, triangles }
 }
 
-/** 階の形が立体にならない理由（立体にできれば null）。点が 3 つ未満・数でない座標・面積が 0 など */
-export function floorProblemOf(f: { footprint: readonly Point2[]; heightMm: number }, storeyHeightMm: number): string | null {
-  if (!(storeyHeightMm >= 1) || !Number.isFinite(storeyHeightMm)) return '階高が不正'
-  if (!Number.isFinite(f.heightMm)) return '天端の高さが数でない'
-  if (f.footprint.length < 3) return '点が 3 つ未満（斜線で切り取られて残らない）'
-  if (f.footprint.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return '座標が数でない'
-  if (Math.abs(polygonAreaMm2(f.footprint)) < 1) return '面積が 0（線になる）'
+/** 階の形が立体にならない種類（一覧の文言は確かめの関数が決める。理由の英文はそのままの文字） */
+export type FloorProblemKind = 'height' | 'top' | 'fewPoints' | 'coordinate' | 'area'
+
+const FLOOR_PROBLEM_TEXT: Record<FloorProblemKind, string> = {
+  height: '階高が不正',
+  top: '天端の高さが数でない',
+  fewPoints: '点が 3 つ未満（斜線で切り取られて残らない）',
+  coordinate: '座標が数でない',
+  area: '面積が 0（線になる）',
+}
+
+/** 階の形が立体にならない種類（立体にできれば null）。点が 3 つ未満・数でない座標・面積が 0 など */
+export function floorProblemKindOf(f: { footprint: readonly Point2[]; heightMm: number }, storeyHeightMm: number): FloorProblemKind | null {
+  if (!(storeyHeightMm >= 1) || !Number.isFinite(storeyHeightMm)) return 'height'
+  if (!Number.isFinite(f.heightMm)) return 'top'
+  if (f.footprint.length < 3) return 'fewPoints'
+  if (f.footprint.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return 'coordinate'
+  if (Math.abs(polygonAreaMm2(f.footprint)) < 1) return 'area'
   return null
+}
+
+/** 階の形が立体にならない理由の文（立体にできれば null）。文は floorProblemKindOf の種類に対応する */
+export function floorProblemOf(f: { footprint: readonly Point2[]; heightMm: number }, storeyHeightMm: number): string | null {
+  const kind = floorProblemKindOf(f, storeyHeightMm)
+  return kind === null ? null : FLOOR_PROBLEM_TEXT[kind]
+}
+
+/**
+ * 立体にできない階を、階の番号（1 始まり）と種類で集める。点が 0 の階（全部削られた階）は出さない（統括の依頼 2026-11-06）。
+ */
+export function brokenFloorsOf(
+  floors: readonly { footprint: readonly Point2[]; heightMm: number }[],
+  storeyHeightMm: number,
+): { floor: number; kind: FloorProblemKind }[] {
+  return floors.flatMap((f, i) => {
+    if (f.footprint.length === 0) return []
+    const kind = floorProblemKindOf(f, storeyHeightMm)
+    return kind === null ? [] : [{ floor: i + 1, kind }]
+  })
 }
 
 type Point2 = { x: number; y: number }
