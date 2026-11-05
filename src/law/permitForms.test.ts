@@ -4,7 +4,7 @@ import formsJson from './permitForms.json'
 // 仕様: 第二号様式（確認申請書）は第一面〜第六面、第三号様式（建築計画概要書）は第一面〜第三面。
 // 各面の見出し（番号つき）が欠けず、各項目に出典 ID と記入元のデータ（D-03 の表・列）を持つ。
 
-type Field = { id: string; no?: number; label: string; dataSource: string; sourceIds: string[] }
+type Field = { id: string; no?: number; label: string; subitems?: string[]; dataSource: string; sourceIds: string[] }
 type Face = { no: number; title: string; heading: string; fields: Field[] }
 type Form = { id: string; name: string; sourceIds: string[]; faces: Face[] }
 
@@ -105,5 +105,33 @@ describe('第三号様式（建築計画概要書）の記入項目', () => {
 
   it('第三面は付近見取図と配置図を添付として持つ', () => {
     expect(labelsOf(form3?.faces[2])).toEqual(['付近見取図', '配置図'])
+  })
+})
+
+// 仕様（施行規則 第1条の3 第4項ロ・第八号様式（昇降機用）第二面・注意⑩、原文 2026-11-05）:
+// 6条1項1・2号の建築物に、法87条の4の昇降機（令146条1項1・2号）がある場合、別記第八号様式の「昇降機の概要」の事項を書いた書類が要る。
+// 注意⑩: 建築物の確認申請と併せるときは、6欄の記載を第二号様式に追加添付すれば、第八号様式を別途出さなくてよい。
+// 第一面は行政・申請者の記入欄なので、本システムの入力対象は第二面。
+describe('第八号様式（確認申請書（昇降機）・昇降機用）の記入項目', () => {
+  const form8 = forms.find((f) => f.id === 'F8')
+
+  it('第二面は、番号1〜10の見出しを持つ（1設置者・2代理者・3設計者・4工事施工者・5設置する建築物・6昇降機の概要・7〜9 工事の予定・10備考）', () => {
+    expect(labelsOf(form8?.faces[0])).toEqual([
+      '設置者',
+      '代理者',
+      '設計者',
+      '工事施工者',
+      '設置する建築物又は工作物',
+      '昇降機の概要',
+      '工事着手予定年月日',
+      '工事完了予定年月日',
+      '特定工程工事終了予定年月日',
+      '備考',
+    ])
+  })
+
+  it('6欄（昇降機の概要）は、番号・種別・用途・積載荷重・最大定員・定格速度・その他必要な事項を持つ', () => {
+    const field = form8?.faces[0]?.fields.find((f) => f.label === '昇降機の概要')
+    expect(field?.subitems).toEqual(['番号', '種別', '用途', '積載荷重', '最大定員', '定格速度', 'その他必要な事項'])
   })
 })
