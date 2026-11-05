@@ -40,12 +40,13 @@ export function roomFinishQuantities(room: readonly Point[], ceilingHeightMm: nu
   }
 }
 
-// 建物: 外壁は外周 × 階高 × 階数（開口は未控除）、屋根は建築面積。
-export function buildingExteriorQuantities(footprint: readonly Point[], storeys: { storey_count: number; storey_height: number }) {
+// 建物: 外壁は外周 × 階高 × 階数（開口は未控除）、屋根は 1 階の切り取り後の面積（建築面積。統括の依頼 2026-11-06。依頼 A）。
+// 屋根の面積が無いときは、今までどおり外形の面積。
+export function buildingExteriorQuantities(footprint: readonly Point[], storeys: { storey_count: number; storey_height: number }, roofAreaMm2?: number) {
   const v = extrudeVolume({ footprint: footprint.map((p) => ({ x: p.x, y: p.y })), ...storeys })
   const wallM2 = (perimeterMm(v.footprint) * v.storey_height * v.storey_count) / M2
   return {
     exterior_wall: { item: '外壁仕上げ', category: '外装' as const, quantity: wallM2, unit: 'm2' as const, provisional: true },
-    roof: { item: '屋根防水', category: '外装' as const, quantity: polygonAreaMm2(v.footprint) / M2, unit: 'm2' as const, provisional: false },
+    roof: { item: '屋根防水', category: '外装' as const, quantity: (roofAreaMm2 ?? polygonAreaMm2(v.footprint)) / M2, unit: 'm2' as const, provisional: false },
   }
 }

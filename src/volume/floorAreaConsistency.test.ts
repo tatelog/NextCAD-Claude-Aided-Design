@@ -80,3 +80,38 @@ describe('P4 の床版の明細は、切り取った階の面積の和を使う�
     expect(slab?.quantity).toBeCloseTo(p2.gross_floor_area_mm2 / 1_000_000, 6)
   })
 })
+
+// 屋根防水（統括の依頼 2026-11-06。依頼 A）: 屋根は 1 階の切り取り後の面積（P2 の建築面積）。段状の最上階の屋根と各段のテラスを足すと、1 階の床の形になる。
+import { exteriorRow } from '../estimate/estimateObjects'
+
+describe('屋根防水は 1 階の切り取り後の面積（依頼 A）', () => {
+  it('段状の建物では、屋根防水の数量は 1 階の面積（建築面積）。外形の面積ではない', () => {
+    const p2 = volumeAfterSlope({ footprint: rect, ...storeys }, [west], 5e10)
+    const row = exteriorRow(rect, storeys.storey_count, storeys.storey_height, p2.floor_areas_mm2[0])
+    const roof = detailLinesOfObjects([row], DEFAULT_REBAR).find((l) => l.item === '屋根防水')
+    expect(roof?.quantity).toBeCloseTo(p2.building_area_mm2 / 1_000_000, 6)
+    expect(roof?.quantity).not.toBeCloseTo((20_000 * 30_000) / 1_000_000, 3)
+  })
+
+  it('1 階の面積が無いときは、今までどおり外形の面積', () => {
+    const row = exteriorRow(rect, storeys.storey_count, storeys.storey_height)
+    const roof = detailLinesOfObjects([row], DEFAULT_REBAR).find((l) => l.item === '屋根防水')
+    expect(roof?.quantity).toBeCloseTo((20_000 * 30_000) / 1_000_000, 6)
+  })
+})
+
+// 階数を P2 を開かずに変えたとき（統括の依頼 2026-11-06。依頼 B）: 切り取った階の面積は、外形・境界・今の階数から、その場で計算する。
+import { cutFloorAreasOf } from './cutVolume'
+
+describe('切り取った階の面積は、今の階数から計算する（依頼 B）', () => {
+  it('階数が変わると、階の面積の数も変わる（古い階数の値を使わない）', () => {
+    const five = cutFloorAreasOf(rect, [west], { storey_count: 5, storey_height: 3_000 })
+    expect(five).toHaveLength(5)
+    expect(five).toEqual(volumeAfterSlope({ footprint: rect, storey_count: 5, storey_height: 3_000 }, [west], 1).floor_areas_mm2)
+  })
+
+  it('境界が無いときは、外形の面積を各階に持つ（押し出しと同じ）', () => {
+    const two = cutFloorAreasOf(rect, null, { storey_count: 2, storey_height: 3_000 })
+    expect(two).toEqual([20_000 * 30_000, 20_000 * 30_000])
+  })
+})

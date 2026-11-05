@@ -5,13 +5,13 @@ import type { UseDistrict } from '../plateau/urf'
 import type { PlateauBuilding } from '../plateau/bldg'
 import type { Point } from '../geom/viewport'
 import type { AutoPlan } from '../plan/autoPlan'
+import type { SlopeBoundary } from '../volume/slope'
 
-/** P2 の外形と階。P4 の数量と P5 の延べ面積に使う。floor_areas_mm2 は切り取った階ごとの面積（mm²。統括の依頼 2026-11-06。依頼 5a） */
+/** P2 の外形と階（P4 の数量と P5 の延べ面積に使う）。階数と階高は、今の店舗の値を使う（統括の依頼 2026-11-06。依頼 B） */
 export interface SiteVolume {
   footprint: Point[]
   storey_count: number
   storey_height: number
-  floor_areas_mm2?: number[]
 }
 
 interface SiteState {
@@ -31,6 +31,9 @@ interface SiteState {
   /** 外形と階（P2）。P4 の数量の自動拾いと、2D の図に使う。閉じていなければ null */
   volume: SiteVolume | null
   setVolume: (volume: SiteVolume | null) => void
+  /** 斜線の規則（切り取りの境界）。P2 が渡す。切り取った階の面積は、P4・P5 が今の階数から計算する（依頼 B） */
+  slopeBoundaries: SlopeBoundary[] | null
+  setSlopeBoundaries: (boundaries: SlopeBoundary[]) => void
   /** P3 の自動作成の結果（柱割り・住戸の区画と部屋）。P4 の数量と 2D に使う */
   plan: AutoPlan | null
   setPlan: (plan: AutoPlan | null) => void
@@ -48,6 +51,8 @@ export const useSite = create<SiteState>((set) => ({
   setShadow: (shadow) => set({ shadow }),
   volume: null,
   setVolume: (volume) => set({ volume }),
+  slopeBoundaries: null,
+  setSlopeBoundaries: (slopeBoundaries) => set({ slopeBoundaries }),
   plan: null,
   setPlan: (plan) => set({ plan }),
 }))

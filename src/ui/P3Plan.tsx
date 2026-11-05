@@ -8,6 +8,7 @@ import { mmLabel } from '../plan/dimensionLabel'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
 import { missingDimensionOf, missingTargetOf, plainErrorTextOf } from '../plan/inputProblem'
+import { outlineFitOf, outlineFitTextOf } from '../plan/outlineFit'
 import { useP3Field } from './useP3Field'
 import { corridorDefaultOf } from '../plan/corridorDefaults'
 import type { RoomPattern } from '../plan/rooms'
@@ -89,6 +90,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const [evCountText, setEvCountText] = useP3Field('evCountText')
   const [auto, setAuto] = useState<AutoPlan | null>(null)
+  // 直前の自動作成が、P2 の外形の寸法を使ったか（使ったときは、外形に入る数と目標を比べる文言を出す。依頼 C）
+  const [autoUsesOutline, setAutoUsesOutline] = useState(false)
   const showDimensions = useUi((s) => s.showDimensions)
   const showGrid = useUi((s) => s.showGrid)
   const showMiniMap = useUi((s) => s.showMiniMap)
@@ -137,6 +140,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       return
     }
     try {
+      // P2 の外形が閉じた矩形なら、その幅・奥行きの中に割り付ける（依頼 C）。寸法は上書きしない。取れないときは今までどおり目標から寸法を決める
+      const closure = findClosedOutline(p2Entries(useDrawing.getState().entries).flatMap((e) => e.segments))
+      const outline = outlineFitOf(closure.closed, closure.footprint, DRAW_OPTIONS.axisSnapDeg) ?? undefined
       const g = generateAutoPlan({
         targetPerFloor: Number(targetText),
         storeyCount,
@@ -154,10 +160,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
         // 円弧の外形があるときは、四隅が円の内側の区画だけを作る（ハブ A-03 G5）
         insideCell: outlineArcs[0] ? (cell) => cellsInsideArc([cell], outlineArcs[0]!).inside.length > 0 : undefined,
+        outline,
       })
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
       setAuto(g)
+      setAutoUsesOutline(outline !== undefined)
       useSite.getState().setPlan(g)
       setAutoError(null)
     } catch (e) {
@@ -643,7 +651,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               </dd>
               <dt>住戸（1 階）</dt>
               <dd>
-                {auto.unitsPerFloor} 戸{auto.shortfall > 0 ? `（目標に ${auto.shortfall} 戸足りない）` : '（目標を満たす）'}
+                {autoUsesOutline
+                  ? outlineFitTextOf(Number(targetText), auto.unitsPerFloor)
+                  : `${auto.unitsPerFloor} 戸${auto.shortfall > 0 ? `（目標に ${auto.shortfall} 戸足りない）` : '（目標を満たす）'}`}
               </dd>
               <dt>縦シャフト</dt>
               <dd>
