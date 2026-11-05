@@ -12,6 +12,8 @@ import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
 import type { LonLat } from '../map/viewport'
 import { publishSelectedParcel, rememberParcelGeometry, selectParcelAt } from '../map/selectedParcel'
 import { layerBeforeOf } from '../map/layerBefore'
+import { parcelOnLoadOf } from '../map/parcelOnLoad'
+import { useSite } from '../store/site'
 
 const LOCAL_DATA = '/local-data/'
 
@@ -253,9 +255,11 @@ async function loadLocalLayers(
     // デモの筆を、最初から選択した状態で出す（情報欄にも）
     const demo = parcels.features.find((f) => f.properties['筆UID'] === DEMO_PARCEL_UID)
     if (demo) {
-      selectedRef.current = DEMO_PARCEL_UID
-      selectDemoParcel(map)
-      publishSelectedParcel(DEMO_PARCEL_UID)
+      // 筆が既に選ばれていれば、その筆を残す（開き直しで確定した筆を、デモの筆で上書きしない。統括の依頼 2026-11-06。1）。無ければデモの筆
+      const uid = parcelOnLoadOf(useSite.getState().parcelUid, DEMO_PARCEL_UID)
+      selectedRef.current = uid
+      selectParcelVisual(map, uid)
+      publishSelectedParcel(uid)
     }
   } catch {
     missing.push('筆')
@@ -296,11 +300,11 @@ function neighborsBefore(map: MaplibreMap): string | undefined {
   return layerBeforeOf(map.getStyle()?.layers.map((l) => l.id) ?? [], 'neighbors')
 }
 
-// デモの筆（DEMO_PARCEL_ID）を、最初から選択した状態にする
-function selectDemoParcel(map: MaplibreMap) {
+// 選んだ筆（読み込みで選んだ筆）を、地図の塗りで選択した状態にする
+function selectParcelVisual(map: MaplibreMap, uid: string) {
   const apply = () => {
     if (!map.getSource('parcels') || !map.isSourceLoaded('parcels')) return false
-    map.setFeatureState({ source: 'parcels', id: DEMO_PARCEL_UID }, { selected: true })
+    map.setFeatureState({ source: 'parcels', id: uid }, { selected: true })
     return true
   }
   if (!apply()) map.once('idle', apply)

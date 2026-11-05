@@ -11,7 +11,7 @@ import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
 import { OrdinanceForm } from './OrdinanceForm'
-import { useConfirmedSite, isConfirmedStaleOf } from '../store/confirmedSite'
+import { useConfirmedSite, isConfirmedStaleOf, startSiteOf } from '../store/confirmedSite'
 import { districtStatusTextOf } from './districtFetch'
 import { geometryOfParcel } from '../map/selectedParcel'
 import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
@@ -31,11 +31,15 @@ const DEFAULT = DEMO_SITE
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
 export function P1Site({ onNext }: { onNext?: () => void } = {}) {
-  const [lonText, setLonText] = useState(String(DEFAULT.lon))
-  const [latText, setLatText] = useState(String(DEFAULT.lat))
+  // 開き直すときは、店舗の今いる地点から始める（既定の地点に戻すと、確定のあとに確定し直しになる。統括の依頼 2026-11-06。1）
+  const startSite = startSiteOf(useConfirmedSite.getState().currentSite, DEFAULT)
+  const [lonText, setLonText] = useState(String(startSite.lon))
+  const [latText, setLatText] = useState(String(startSite.lat))
   const [zoom, setZoom] = useState(DEMO_INITIAL_VIEW.zoom)
   // 地図の中心（表示の中央）。対象地点とは別で、ドラッグで動く。経緯度を入れたときは、その地点へ寄る
-  const [center, setCenter] = useState<LonLat>({ lon: DEMO_INITIAL_VIEW.center[0], lat: DEMO_INITIAL_VIEW.center[1] })
+  const [center, setCenter] = useState<LonLat>(
+    useConfirmedSite.getState().currentSite ? { lon: startSite.lon, lat: startSite.lat } : { lon: DEMO_INITIAL_VIEW.center[0], lat: DEMO_INITIAL_VIEW.center[1] },
+  )
   const [cityCode, setCityCode] = useState('13108')
   // 用途地域の取得（店舗が持つ。取っている間・失敗・結果。P1 から P2 へ移っても残る。統括の依頼 2026-11-06。1）
   const { loading, data: result, error } = useConfirmedSite((s) => s.district)
