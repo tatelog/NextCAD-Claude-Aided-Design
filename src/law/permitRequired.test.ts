@@ -506,3 +506,43 @@ describe('階数・面積・区域で変わる5件は、要らないと決めず
     )
   })
 })
+
+// 仕様（建築基準法 第6条の3 第1項・第7項、施行令 第9条の3・第81条第2項。e-Gov の現行本文 2026-11-06 取得）:
+// 法20条1項2号イ・3号イの構造計算（特定構造計算基準）の確認審査が要る計画は、構造計算適合性判定を受け、適合判定通知書又はその写しを確認に出す。
+// 除外は、令81条2項2号イ（高さ31m以下の許容応力度等計算）を、構造計算に高度の専門知識を有する者が審査する場合だけ（同項ただし書第1号・令9条の3）。
+// 高さ31m超は令81条2項1号（保有水平耐力計算・限界耐力計算）で除外に入らない。高さ60m超は法20条1項1号（大臣認定）で、法6条の3の対象外。
+describe('構造計算適合性判定の適合判定通知書（法6条の3）', () => {
+  const TEKIHAN = '構造計算適合性判定の適合判定通知書又はその写し（法6条の3第7項）'
+
+  it('高さ31m超・60m以下のRC造（12階・階高3.5m・42m）は、適合判定通知書が要る', () => {
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 12, heightM: 42, totalFloorAreaM2: 3_600, areaAbove31M2: 1_200 }).required).toContain(TEKIHAN)
+  })
+
+  it('高さ20m超・31m以下は、許容応力度等計算を専門の審査者が見るか（ただし書第1号）が入力にないので要確認', () => {
+    const j = requiredPermitDocuments({ ...plateRc, storeys: 8, heightM: 28 })
+    expect(j.required).not.toContain(TEKIHAN)
+    expect(j.needsCheck.find((n) => n.name === TEKIHAN)?.reason).toContain('ただし書')
+  })
+
+  it('高さ20m以下は、大臣認定プログラムによる構造計算か（法20条1項3号イ）が入力にないので要確認。要るとは決めない', () => {
+    const j = requiredPermitDocuments(plateRc)
+    expect(j.required).not.toContain(TEKIHAN)
+    expect(j.needsCheck.find((n) => n.name === TEKIHAN)?.reason).toContain('プログラム')
+  })
+
+  it('高さ60m超は法20条1項1号（大臣認定）で適判の対象外。要らないとは決めず、要確認に理由つきで残す', () => {
+    const j = requiredPermitDocuments({ ...plateRc, storeys: 20, heightM: 61 })
+    expect(j.required).not.toContain(TEKIHAN)
+    expect(j.notRequired.map((n) => n.name)).not.toContain(TEKIHAN)
+    expect(j.needsCheck.find((n) => n.name === TEKIHAN)?.reason).toContain('60m超')
+  })
+})
+
+// 仕様（消防法施行令 第12条第1項第12号。e-Gov の現行本文 2026-11-06 取得）: 前各号以外の別表第一の防火対象物（共同住宅を含む）の
+// 11階以上の階（総務省令で定める部分を除く）には、スプリンクラー設備を設ける。
+it('消防用設備等の図書の細目に、11階以上の階のスプリンクラー設備（施行令12条1項12号）が入っている', () => {
+  const joined = (documentsJson as { documents: { id: string; details?: string[] }[] }).documents.find((d) => d.id === 'D33')?.details?.join('\n') ?? ''
+  expect(joined).toContain('施行令12条1項12号')
+  expect(joined).toContain('11階以上の階')
+  expect(joined).toContain('スプリンクラー設備')
+})
