@@ -126,7 +126,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
     if (volume) {
       rows.push(
         slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2),
-        exteriorRow(volume.footprint, volume.storey_count, volume.storey_height),
+        exteriorRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2?.[0]),
         siteRow(volume.footprint, DUMMY_PARCEL_MM2),
       )
     }

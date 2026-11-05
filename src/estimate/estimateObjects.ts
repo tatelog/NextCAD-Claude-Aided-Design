@@ -46,8 +46,9 @@ export function slabObjectRow(footprint: readonly Point[], storeyCount: number, 
 }
 
 /** 外形と階数から、外壁と屋根（外装）の行 */
-export function exteriorRow(footprint: readonly Point[], storeyCount: number, storeyHeight: number): ObjectRow {
-  return partRow('exterior-volume', PART.exterior, { footprint, storey_count: storeyCount, storey_height: storeyHeight }, '外壁と屋根（外形から）')
+/** 外形と階数から、外壁と屋根（外装）の行。屋根の面積（1 階の切り取り後の面積）があれば、屋根はその面積（依頼 A） */
+export function exteriorRow(footprint: readonly Point[], storeyCount: number, storeyHeight: number, roofAreaMm2?: number): ObjectRow {
+  return partRow('exterior-volume', PART.exterior, { footprint, storey_count: storeyCount, storey_height: storeyHeight, roof_area_mm2: roofAreaMm2 }, '外壁と屋根（外形から）')
 }
 
 /** 外形と敷地（mm²）から、外構の行 */
@@ -118,7 +119,7 @@ export function detailLinesOfObjects(rows: readonly ObjectRow[], rebar: RebarCon
     if (a === null) continue
     switch (a.part) {
       case PART.exterior: {
-        const q = buildingExteriorQuantities(a.footprint, { storey_count: a.storey_count, storey_height: a.storey_height })
+        const q = buildingExteriorQuantities(a.footprint, { storey_count: a.storey_count, storey_height: a.storey_height }, a.roof_area_mm2)
         lines.push(lineOf(row.id, q.exterior_wall, BASIS.exterior), lineOf(row.id, q.roof, BASIS.exterior))
         break
       }
