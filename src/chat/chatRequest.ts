@@ -2,6 +2,19 @@
 // 返答は「操作の列（操作名と引数）」を tool use のスキーマで返させる。アプリが検査してから実行する（claudeReply.ts）。
 // モデル名は設定値で持つ。既定は仮置き（モデルの決定は未決。統括が起票）。
 
+import { KINDS } from '../plan/semantic'
+
+// 図面の変更の一件の形。claudeReply.ts の ChangeSchema の 6 種と一致させる（項目・型・必須）。
+// 道具の定義に項目と型を書かないと、Claude は項目の名前を外し、返答が型に合わず弾かれる（統括の依頼 2026-11-06。A）
+const CHANGE_ITEMS: Record<string, unknown>[] = [
+  { type: 'object', properties: { op: { type: 'string', enum: ['setStoreyCount'] }, count: { type: 'integer', minimum: 1, maximum: 30 } }, required: ['op', 'count'] },
+  { type: 'object', properties: { op: { type: 'string', enum: ['setStoreyHeight'] }, mm: { type: 'integer', minimum: 1 } }, required: ['op', 'mm'] },
+  { type: 'object', properties: { op: { type: 'string', enum: ['setKind'] }, segmentId: { type: 'string', minLength: 1 }, kind: { type: 'string', enum: [...KINDS] } }, required: ['op', 'segmentId', 'kind'] },
+  { type: 'object', properties: { op: { type: 'string', enum: ['setUnitPrice'] }, id: { type: 'string', minLength: 1 }, unit_price: { type: 'integer', minimum: 0, maximum: 1000000000 } }, required: ['op', 'id', 'unit_price'] },
+  { type: 'object', properties: { op: { type: 'string', enum: ['setFactor'] }, id: { type: 'string', minLength: 1 }, factor: { type: 'number', exclusiveMinimum: 0, maximum: 1000 } }, required: ['op', 'id', 'factor'] },
+  { type: 'object', properties: { op: { type: 'string', enum: ['addLine'] }, start: { type: 'object', properties: { x: { type: 'integer' }, y: { type: 'integer' } }, required: ['x', 'y'] }, lengthMm: { type: 'number', exclusiveMinimum: 0, maximum: 100000 }, angleDeg: { type: 'number' } }, required: ['op', 'start', 'lengthMm', 'angleDeg'] },
+]
+
 /** モデルの既定（仮置き。未決） */
 export const CHAT_MODEL_DEFAULT = 'claude-haiku-5-5'
 
@@ -14,14 +27,7 @@ export const OPERATIONS_TOOL = {
       type: { type: 'string', enum: ['answer', 'question', 'changes'] },
       text: { type: 'string' },
       choices: { type: 'array', items: { type: 'string' } },
-      changes: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: { op: { type: 'string', enum: ['setStoreyCount', 'setStoreyHeight', 'setKind', 'addLine'] } },
-          required: ['op'],
-        },
-      },
+      changes: { type: 'array', items: { anyOf: CHANGE_ITEMS } },
     },
     required: ['type', 'text'],
   },
