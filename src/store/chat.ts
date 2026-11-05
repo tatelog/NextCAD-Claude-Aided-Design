@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { recordWorkLog } from '../app/workLogStore'
 import { applyChangeBatch, restoreSnapshot, type ChangeSnapshot } from '../chat/applyChanges'
 import { parseClaudeReply } from '../chat/claudeReply'
-import { ChatPendingError } from '../chat/chatTransport'
+import { ChatPendingError, ChatUnreachableError, ChatWorkerError } from '../chat/chatTransport'
 
 export type ChatRole = 'user' | 'claude' | 'system'
 
@@ -24,6 +24,18 @@ export type ChatTransport = (history: readonly ChatMessage[]) => Promise<unknown
 export const UNCONNECTED_NOTICE = '未接続: Claude の返信の仕組みが未設定です（Worker の設定が入るまで図面は変わりません）'
 /** Worker が保留と返したとき（再試行でも型に合わない）。型に合わない返答（下の注記）と区別する */
 export const PENDING_NOTICE = '保留: Claude の返答を、再試行でも型に合わせられませんでした。図面は変えていません。'
+/** Worker に届かなかったとき（接続の失敗）。返答を読んだのではない */
+export const UNREACHABLE_NOTICE = 'Worker につながりません。図面は変えていません。'
+/** 返答を読めなかったとき（型に合わない・その他） */
+export const UNREADABLE_NOTICE = '返答を読めませんでした。図面は変えていません。'
+
+/** 失敗の種類を、画面に出す一行にする。図面は、どの失敗でも変えない */
+export function noticeOfFailure(e: unknown): string {
+  if (e instanceof ChatPendingError) return PENDING_NOTICE
+  if (e instanceof ChatUnreachableError) return UNREACHABLE_NOTICE
+  if (e instanceof ChatWorkerError) return `Worker が失敗しました（${e.status}）。図面は変えていません。`
+  return UNREADABLE_NOTICE
+}
 
 export interface ChatState {
   messages: ChatMessage[]
@@ -85,7 +97,7 @@ export const useChat = create<ChatState>((set, get) => {
           }
         }
       } catch (e) {
-        set({ notice: e instanceof ChatPendingError ? PENDING_NOTICE : '返答を読めませんでした。図面は変えていません。' })
+        set({ notice: noticeOfFailure(e) })
       } finally {
         set({ sending: false })
       }
