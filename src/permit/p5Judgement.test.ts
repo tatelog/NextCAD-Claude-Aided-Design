@@ -1,5 +1,6 @@
 // 仕様（統括の依頼 2026-11-05、t91。G46・D-02 C10・t30）: P5 の図書は、判定（requiredPermitDocuments）の結果で出す。
-// 仕様 1（案件の入力）: 案件の項目（構造・用途・日影規制区域・構造計算・代理者・BIM・認定部材・建築設備・昇降機）は P5 で入れられる。既定は RC・共同住宅、ほかは「いいえ」。
+// 仕様 1（案件の入力）: 案件の項目（構造・用途・日影規制区域・構造計算・代理者・BIM・認定部材・建築設備・昇降機）は P5 で入れられる。既定は RC・共同住宅、
+// 「はい・いいえ」の項目は「未入力」（null。統括の指示 2026-11-06。「いいえ」を既定にすると、図書が黙って要らないになるため）。
 // 仕様 2（三区分）: 判定の行は「要る」「要らない（理由）」「要確認（理由）」の三区分。要確認は一行も落とさない。法 6 条 1 項・20 条 1 項の区分を出す。
 // 仕様 3（全件）: 行は判定の全件（図書の定義の数）。固定の 12 行には戻らない。
 // 仕様 4（外形）: P2 の閉じた外形から、IFC の外形と体積を作る。外形が閉じていなければ「外形が未作成」。
@@ -30,18 +31,18 @@ const sample: PermitInput = {
 }
 
 describe('案件の入力（仕様 1）', () => {
-  it('既定は RC・共同住宅、ほかは「いいえ」。setter で変わる', () => {
+  it('既定は RC・共同住宅、「はい・いいえ」の項目は未入力（null）。setter で変わる', () => {
     const s = usePermitProject.getState()
     expect(s.project).toEqual({
       structure: 'RC',
       usage: '共同住宅',
-      inShadowRegulationArea: false,
-      structuralCalc: false,
-      hasAgent: false,
-      bimSubmission: false,
-      usesCertifiedParts: false,
-      hasBuildingEquipment: false,
-      hasElevator: false,
+      inShadowRegulationArea: null,
+      structuralCalc: null,
+      hasAgent: null,
+      bimSubmission: null,
+      usesCertifiedParts: null,
+      hasBuildingEquipment: null,
+      hasElevator: null,
     })
     s.set('structure', 'SRC')
     s.set('hasElevator', true)

@@ -560,3 +560,46 @@ it('消防用設備等の図書の細目に、11階以上の階のスプリン�
   expect(joined).toContain('11階以上の階')
   expect(joined).toContain('スプリンクラー設備')
 })
+
+// 仕様（統括の指示 2026-11-06。代表「勝手に対象から外さないで。要確認項目と同じ扱い」）:
+// 案件の「はい・いいえ」の項目は、既定を「未入力」（null）にする。未入力のあいだ、その項目で決まる図書は要確認に出し、理由に「〇〇が未入力」と書く。
+// 未入力の項目は「当たらなかった条件」に数えない。ほかの条件だけで要ると決まる図書は要る。
+describe('案件の「はい・いいえ」の項目が未入力のとき（統括の指示 2026-11-06）', () => {
+  const unset: PermitInput = {
+    ...plateRc,
+    inShadowRegulationArea: null,
+    structuralCalc: null,
+    hasBuildingEquipment: null,
+    hasElevator: null,
+    hasAgent: null,
+    bimSubmission: null,
+    usesCertifiedParts: null,
+  }
+  const reasonIn = (input: PermitInput, name: string) => requiredPermitDocuments(input).needsCheck.find((n) => n.name === name)?.reason ?? ''
+
+  it('すべて未入力（RC造・共同住宅・4階・14m・800㎡）なら、「要らない」に入る図書は無い', () => {
+    expect(requiredPermitDocuments(unset).notRequired).toEqual([])
+  })
+
+  it('未入力の項目で決まる図書は、要確認に「〇〇が未入力」の理由で出る', () => {
+    expect(reasonIn(unset, '建築設備の図書')).toContain('建築設備を含むかが未入力')
+    expect(reasonIn(unset, '建築設備の概要書（別記第八号様式）')).toContain('昇降機があるかが未入力')
+    expect(reasonIn(unset, '日影図')).toContain('日影規制区域内かが未入力')
+    expect(reasonIn(unset, '委任状')).toContain('代理者が申請するかが未入力')
+    expect(reasonIn(unset, '誓約書（建築物等情報モデル図書申請）')).toContain('BIM 由来の図書で申請するかが未入力')
+    expect(reasonIn(unset, '認定書の写し（表四）')).toContain('認定を受けた部材・構造方法を用いるかが未入力')
+    expect(reasonIn({ ...unset, storeys: 1, heightM: 4, totalFloorAreaM2: 150 }, '構造計算書（表三）')).toContain('構造計算を行うかが未入力')
+  })
+
+  it('未入力の項目は当たらなかった条件に数えない（日影規制区域が未入力で高さ9mなら、理由は高さ10m以下だけ）', () => {
+    const reason = reasonIn({ ...unset, heightM: 9 }, '日影図')
+    expect(reason).toContain('高さ10m以下')
+    expect(reason).not.toContain('日影規制区域の外')
+  })
+
+  it('ほかの条件だけで要ると決まる図書は、未入力があっても要る（4階なら構造計算書と証明書の写しは要る）', () => {
+    expect(requiredPermitDocuments(unset).required).toEqual(
+      expect.arrayContaining(['構造計算書（表三）', '建築士法第20条第2項の証明書の写し']),
+    )
+  })
+})
