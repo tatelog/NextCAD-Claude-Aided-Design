@@ -77,6 +77,7 @@ import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf } from '../plan/lot'
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { neighborVolumesInFrame } from '../volume/neighborFrame'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
@@ -84,6 +85,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const confirmed = useConfirmedSite((s) => s.confirmed)
   const currentSite = useConfirmedSite((s) => s.currentSite)
   const currentUid = useSite((s) => s.parcelUid)
+  const confirmedBuildings = useConfirmedSite((s) => s.buildings.data)
   const parcel = lotOfConfirmed(confirmed)
   const lot = lotOf(parcel)
   // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
@@ -117,8 +119,12 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const showMiniMap = useUi((s) => s.showMiniMap)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
-    () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, lotCenterOf(lot)) : []),
-    [siteBuildings, sitePoint, lot],
+    () => {
+      // 確定した筆があれば、その筆の枠で置く（筆とずれない。統括の依頼 2026-11-06。2）。無ければ今までどおり
+      if (confirmed?.frame) return confirmedBuildings ? neighborVolumesInFrame(confirmedBuildings, confirmed.frame) : []
+      return siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, lotCenterOf(lot)) : []
+    },
+    [siteBuildings, sitePoint, lot, confirmed, confirmedBuildings],
   )
 
   const [farLimit, setFarLimit] = useState('')
