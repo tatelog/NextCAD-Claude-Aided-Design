@@ -244,7 +244,7 @@ export function App() {
           style={button}
           onClick={judgeNow}
           disabled={!featureOn.classifyClaude}
-          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : 'Worker の URL が未設定。押すと、未接続の一行を出す'}
+          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : '判定の接続先が未設定です。押すと、その旨を出します'}
         >
           意味づけを判定
         </button>

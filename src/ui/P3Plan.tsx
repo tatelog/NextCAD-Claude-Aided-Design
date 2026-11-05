@@ -337,7 +337,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   // 縦シャフトの上下階の一致（G119）。今は各階が基準階の複製（G30）なので、個別の階を持つときだけ食い違いが出る
   const shaftCheck = auto ? checkShaftAlignment(shaftFloorsOf(auto.shaftRects, storeyCount)) : null
-  let judge: string = '許容範囲は未決'
+  let judge: string = '許容範囲は未入力'
   if (range && Number.isFinite(range.minMm) && Number.isFinite(range.maxMm)) {
     try {
       judge = checkSpan(Number(spanText), range)
@@ -569,11 +569,11 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </label>
         <label style={{ display: 'block', marginBottom: 4 }}>
           許容範囲 最小 (mm)
-          <input value={minText} onChange={(e) => setMinText(e.target.value)} placeholder="未決" style={{ width: '100%' }} />
+          <input value={minText} onChange={(e) => setMinText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
         </label>
         <label style={{ display: 'block', marginBottom: 10 }}>
           許容範囲 最大 (mm)
-          <input value={maxText} onChange={(e) => setMaxText(e.target.value)} placeholder="未決" style={{ width: '100%' }} />
+          <input value={maxText} onChange={(e) => setMaxText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
         </label>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>EV コアの矩形（任意・mm。四隅すべて入れると区画の除外判定に使う）</legend>
