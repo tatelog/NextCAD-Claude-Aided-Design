@@ -28,10 +28,13 @@ function practiceSizes(): Map<string, { W: number; D: number }[]> {
   return out
 }
 
+// 案の読み込みは一度だけにする（型ごとに読み直すと、全体の実行で時間が伸びる。t87。仕様の値は変えない）
+const PRACTICE_SIZES = practiceSizes()
+
 // 仕様 1: 案の型の間口が同じならその値、違えば A の値（A・B・C は同じ並びで読む）
 const expectedSize = (typeName: string): { frontage: number; depth: number } | null => {
   if (typeName === '4LDK②') return null
-  const cases = practiceSizes().get(typeName.replace(/[①②]$/, ''))
+  const cases = PRACTICE_SIZES.get(typeName.replace(/[①②]$/, ''))
   if (!cases || cases.length === 0) return null
   const first = cases[0]!
   const sameW = cases.every((c) => c.W === first.W)
