@@ -49,7 +49,7 @@ function measurementHintOf(site: { zone: string; farPercent: number | null } | n
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
-import { useDrawing } from '../store/drawing'
+import { p2Entries, useDrawing } from '../store/drawing'
 import { CircleMenu } from './CircleMenu'
 import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
@@ -77,7 +77,9 @@ const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住�
 const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
 
 export function P03Volume() {
-  const entries = useDrawing((s) => s.entries)
+  // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
+  const drawnAll = useDrawing((s) => s.entries)
+  const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
   const closure = useMemo(() => findClosedOutline(segments), [segments])
   // 左メニュー（G55）の入力: 外形（閉じた輪郭）と仮の筆界（ダミー）から。P1 の筆界が入るまでの仮
@@ -373,6 +375,7 @@ export function P03Volume() {
                 footprint={volume.footprint}
                 shadow={showShadow ? sunShadow : null}
                 neighbors={showNeighbors ? neighbors : []}
+                floors={stackedFloors}
                 setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}

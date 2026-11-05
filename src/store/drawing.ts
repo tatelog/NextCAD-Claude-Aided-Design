@@ -10,12 +10,18 @@ import { movesLockedLayer } from '../plan/layers'
 import { useSemantic } from './semantic'
 import { useLayers } from './layers'
 
-/** 1 ストロークを 1 単位にした記録 */
-interface StrokeEntry {
+/** 1 ストロークを 1 単位にした記録。P3 で描いた線だけ screen を持つ（無い線は P2 の線） */
+export interface StrokeEntry {
   stroke: Stroke
   segments: Segment[]
   nodes: Node[]
+  screen?: 'P3'
 }
+
+/** P3 の線（描く画面 P3 で入った線） */
+export const p3Entries = (entries: readonly StrokeEntry[]): StrokeEntry[] => entries.filter((e) => e.screen === 'P3')
+/** P2 の線（P3 の線を除く。外形・閉合・判定はこちらを見る） */
+export const p2Entries = (entries: readonly StrokeEntry[]): StrokeEntry[] => entries.filter((e) => e.screen !== 'P3')
 
 /** 1 単位の前の状態。Undo はこれに戻す */
 type Snapshot = StrokeEntry[]
@@ -44,8 +50,8 @@ export interface DrawingState {
   /** 初期配置。最初の一回だけ効く（描く画面を開き直しても、今の表示を保つ） */
   fitted: boolean
   fitViewport: (vp: Viewport) => void
-  /** 1 本のストロークを 1 単位として追加。gridMm は入力スナップのグリッド（null で無効） */
-  addStroke: (stroke: Stroke, gridMm?: number | null) => void
+  /** 1 本のストロークを 1 単位として追加。gridMm は入力スナップのグリッド（null で無効）。screen 'P3' は P3 の線（端点は P3 の線の中だけに吸着する） */
+  addStroke: (stroke: Stroke, gridMm?: number | null, screen?: 'P3') => void
   /**
    * 線分をまとめて変える操作（変形）。1 回の呼び出しが 1 単位。
    * 動いた線（座標または revision が変わった線）のうち種類を持つものは、意味づけの店舗で「要確認」にする（G65 の既定。仮置き）
@@ -88,19 +94,22 @@ export const useDrawing = create<DrawingState>((set, get) => {
       if (get().fitted) return
       set({ viewport, fitted: true })
     },
-    addStroke: (stroke, gridMm = null) => {
+    addStroke: (stroke, gridMm = null, screen) => {
       const entries = get().entries
+      // 吸着と交点は、同じ画面の線の中だけで見る（P3 の線は P2 の端点に吸わない。P2 の線は今までどおり）
+      const scope = screen === 'P3' ? p3Entries(entries) : p2Entries(entries)
       const { segments, nodes } = strokeToSegments(
         stroke,
-        entries.flatMap((e) => e.nodes),
+        scope.flatMap((e) => e.nodes),
         segmentOptionsOf(stroke, gridMm),
-        entries.flatMap((e) => e.segments),
+        scope.flatMap((e) => e.segments),
       )
       if (segments.length === 0) return
       const entry: StrokeEntry = {
         stroke: { ...stroke, segment_ids: segments.map((s) => s.id) },
         segments,
         nodes,
+        ...(screen === 'P3' ? { screen } : {}),
       }
       commit([...entries, entry])
     },

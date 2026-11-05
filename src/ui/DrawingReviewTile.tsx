@@ -3,12 +3,14 @@
 // 判定（Claude）は未接続（t15）。ここでは判定を呼ばない。
 import { useMemo } from 'react'
 import { confirmRows } from '../plan/semanticConfirm'
-import { useDrawing } from '../store/drawing'
+import { p2Entries, useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
 import { SemanticConfirm } from './SemanticConfirm'
 
 export function DrawingReviewTile() {
-  const entries = useDrawing((s) => s.entries)
+  const drawnAll = useDrawing((s) => s.entries)
+  // 候補は P2 の線だけ（P3 の線は P3 の欄で見る）
+  const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const assignments = useSemantic((s) => s.assignments)
   const setKind = useSemantic((s) => s.setKind)
   const clearKind = useSemantic((s) => s.clearKind)

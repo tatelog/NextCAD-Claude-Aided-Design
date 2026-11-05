@@ -2,14 +2,14 @@
 // 直線モードは直線に整形し、曲線モードは曲線のまま残す（P2 と同じペンのモード。store の penMode）。
 // 曲線モードの「円弧（二点）」（t81・G152。P2 と同じ道具）: 二点を押し、中心線上を動かして中心を決め、押して確定する。
 // 描画の入力は setPointerCapture を使わない（合成イベントでも確かめられるように）。描画の共通部品（DrawingCanvas）には触れない。
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { polylineOfSegment } from '../canvas/arcSegment'
-import { strokeToSegments } from '../canvas/strokeToSegments'
 import { strokeStartPx } from '../input/endpointPick'
 import { arcPreviewMm, arcToolStep, ARC_TOOL_START, type ArcToolState } from '../input/twoPointArcTool'
-import type { Node, Segment, Stroke } from '../model/schema'
+import type { Stroke } from '../model/schema'
 import { p3Stroke } from '../plan/p3Stroke'
+import { p3Entries, useDrawing } from '../store/drawing'
 import { useUi } from '../store/ui'
 import { P3_H, P3_MM_PER_PX, P3_VIEWPORT, P3_W, p3ArcStroke, p3MmToPx, p3PxToMm } from './p3CanvasGeometry'
 
@@ -27,8 +27,10 @@ const arcOn = () => {
 
 export function P3Canvas() {
   const ref = useRef<HTMLCanvasElement | null>(null)
-  const [nodes, setNodes] = useState<Node[]>([])
-  const [segments, setSegments] = useState<Segment[]>([])
+  // P3 の線は店舗の線（P3 の印つき）。表示・吸着・閉合は P3 の線だけを見る（P2 の外形は P3 の平面が別に描く）
+  const drawn = useDrawing((s) => s.entries)
+  const segments = useMemo(() => p3Entries(drawn).flatMap((e) => e.segments), [drawn])
+  const nodes = useMemo(() => p3Entries(drawn).flatMap((e) => e.nodes), [drawn])
   const [trail, setTrail] = useState<{ x: number; y: number }[] | null>(null)
   /** 二点の円弧の道具の状態（t81）。道具を外したら一点目の待ちに戻る */
   const arcRef = useRef<ArcToolState>(ARC_TOOL_START)
@@ -74,12 +76,8 @@ export function P3Canvas() {
   // 道具の途中の形（mm）を、画面の軌跡（px）にする
   const toTrail = (mm: { x: number; y: number }[] | null) => (mm ? mm.map((m) => p3MmToPx(m)) : null)
 
-  // 線を一本、線分（または曲線）にして足す
-  const addStroke = (stroke: Stroke) => {
-    const r = strokeToSegments(stroke, nodes, { rdpTolerancePx: 8, snapRadiusMm: 240, axisSnapDeg: 3 })
-    setNodes((n) => [...n, ...r.nodes])
-    setSegments((s) => [...s, ...r.segments])
-  }
+  // 線を一本、線分（または曲線）にして店舗に足す（P3 の印つき。Undo と作業ログは店舗の経路）
+  const addStroke = (stroke: Stroke) => useDrawing.getState().addStroke(stroke, null, 'P3')
 
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = local(e)

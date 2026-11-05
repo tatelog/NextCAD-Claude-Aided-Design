@@ -30,7 +30,8 @@ import { parsePriceCsv } from '../estimate/priceCsv'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
 import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 import { objectTableOf, type ObjectRow } from '../plan/objectTable'
-import { useDrawing } from '../store/drawing'
+import { p2Entries, useDrawing } from '../store/drawing'
+import { p4CanGoNext } from './p4NextGate'
 import { useSemantic } from '../store/semantic'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -63,7 +64,7 @@ const ROOM_FILL: Record<RoomKind, string> = {
   水回り: 'rgba(90,102,112,0.35)',
 }
 
-export function P4Estimate() {
+export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   // 単価表は店舗が持つ（チャットの積算の操作と同じ表。t55）
   const csv = usePriceTable((s) => s.csv)
   const setCsv = usePriceTable((s) => s.setCsv)
@@ -92,7 +93,9 @@ export function P4Estimate() {
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
   // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
-  const drawnEntries = useDrawing((s) => s.entries)
+  // 描いた線は P2 の線だけ（P3 の線は P3 の欄で見る）
+  const drawnAll = useDrawing((s) => s.entries)
+  const drawnEntries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const assignments = useSemantic((s) => s.assignments)
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
@@ -401,6 +404,11 @@ export function P4Estimate() {
         ) : (
           <p style={{ color: '#a33' }}>{estimate && 'error' in estimate ? estimate.error : '—'}</p>
         )}
+        {/* 次へ進む条件（D-04 P4）: 工事原価が出ている。出ていなければ押せない */}
+        <button type="button" disabled={!p4CanGoNext(estimate)} onClick={onNext} style={{ marginTop: 12 }}>
+          次へ（P5 出力）
+        </button>
+        {!p4CanGoNext(estimate) && <p style={{ color: '#666', fontSize: 12 }}>工事原価が出ていないので、次へ進めません。</p>}
         <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>未決</h3>
         <ul style={{ margin: 0, paddingLeft: 18, color: '#666', fontSize: 12 }}>
           <li>単価の置き場（G72、代表の答え待ち）</li>
