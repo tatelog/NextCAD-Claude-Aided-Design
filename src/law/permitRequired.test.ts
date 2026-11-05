@@ -11,6 +11,7 @@ const plateRc: PermitInput = {
   heightM: 14,
   totalFloorAreaM2: 800,
   areaAbove31M2: 0,
+  storeysAbove31: 0,
   usage: '共同住宅',
   inShadowRegulationArea: false,
   structuralCalc: false,
@@ -49,9 +50,9 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
     )
   })
 
-  it('委任状・誓約書・構造計算書・日影図・認定書の写しは、条件がなければ要らない', () => {
+  it('委任状・誓約書・認定書の写しは、条件がなければ要らない', () => {
     const { required, notRequired } = requiredPermitDocuments(plateRc)
-    for (const name of ['委任状', '誓約書（建築物等情報モデル図書申請）', '構造計算書（表三）', '日影図', '認定書の写し（表四）']) {
+    for (const name of ['委任状', '誓約書（建築物等情報モデル図書申請）', '認定書の写し（表四）']) {
       expect(required).not.toContain(name)
       expect(notRequired.map((n) => n.name)).toContain(name)
     }
@@ -62,11 +63,38 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
     expect(required).toContain('構造計算書（表三）')
   })
 
-  it('高さ20mちょうどのRC造は、構造計算を選ばなければ構造計算書は要らない', () => {
-    const plain = requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20 })
+  // 仕様（建築基準法 第20条第1項、e-Gov の現行本文 2026-11-06 取得）: 3号は、6条1項1号・2号の建築物（2階以上か延べ面積200㎡超）で、
+  // イ（許容応力度計算などの構造計算）かロ（1号・2号の基準）に適合すること。仕様規定だけで済むのは4号（それ以外の建築物）に限る。
+  it('RC造で2階以上なら、高さ20m以下でも構造計算書が要る（法20条1項3号）', () => {
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20 }).required).toContain('構造計算書（表三）')
+    expect(requiredPermitDocuments(plateRc).required).toContain('構造計算書（表三）')
+  })
+
+  it('平屋で延べ面積200㎡以下（法20条1項4号）は、構造計算を行わなければ構造計算書は要らない見込み。要らないとは決めず要確認に残す', () => {
+    const plain = requiredPermitDocuments({ ...plateRc, storeys: 1, heightM: 4, totalFloorAreaM2: 150 })
     expect(plain.required).not.toContain('構造計算書（表三）')
-    const calc = requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20, structuralCalc: true })
+    expect(plain.notRequired.map((n) => n.name)).not.toContain('構造計算書（表三）')
+    expect(plain.needsCheck.find((n) => n.name === '構造計算書（表三）')?.reason).toContain('平屋')
+    const calc = requiredPermitDocuments({ ...plateRc, storeys: 1, heightM: 4, totalFloorAreaM2: 150, structuralCalc: true })
     expect(calc.required).toEqual(expect.arrayContaining(['構造計算書（表三）', '建築士法第20条第2項の証明書の写し']))
+  })
+
+  // 仕様（施行規則 第1条の3 第1項第四号、建築士法 第3条第1項・第20条の2。e-Gov の現行本文 2026-11-06 取得）:
+  // 建築士が構造計算で安全性を確かめた場合は、建築士法20条2項の証明書の写しが要る。ただし建築士法20条の2の適用がある場合
+  // （3条1項の建築物のうち法20条1項1号・2号のもの。RC造なら高さ20m超）は除く。
+  it('RC造で2階以上・高さ20m以下は、建築士法20条2項の証明書の写しが要る', () => {
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20 }).required).toContain('建築士法第20条第2項の証明書の写し')
+    expect(requiredPermitDocuments(plateRc).required).toContain('建築士法第20条第2項の証明書の写し')
+  })
+
+  it('RC造で高さ20m超は、建築士法20条の2の適用で証明書の写しが除かれる。要らないとは決めず要確認に理由つきで残す', () => {
+    const j = requiredPermitDocuments({ ...plateRc, storeys: 7, heightM: 21 })
+    expect(j.required).not.toContain('建築士法第20条第2項の証明書の写し')
+    expect(j.notRequired.map((n) => n.name)).not.toContain('建築士法第20条第2項の証明書の写し')
+    const reason = j.needsCheck.find((n) => n.name === '建築士法第20条第2項の証明書の写し')?.reason ?? ''
+    expect(reason).toContain('20条の2')
+    // 「いずれか」が満たされている（2階以上）ときは、その中で外れた語（構造計算を行わない）は出さない。当たらなかった条件の語だけを並べる
+    expect(reason).not.toContain('構造計算を行わない')
   })
 
   it('日影規制区域内で高さ10mを超えると日影図が要る。10m以下や区域外は要らない', () => {
@@ -166,10 +194,24 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
     expect(needsCheck.map((n) => n.name)).toContain(NON_ELEVATOR)
   })
 
-  it('31m超の部分の床面積が500㎡以下なら、政令の除外で非常用の昇降機の図書は要らない（施行令129条の13の2 第1項第2号）', () => {
-    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, storeys: 11, heightM: 33, areaAbove31M2: 400 })
+  it('31m超の部分の床面積が500㎡以下なら、政令の除外に当たる。要らないとは決めず、要確認に理由つきで残す（施行令129条の13の2 第1項第2号）', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 11, heightM: 33, areaAbove31M2: 400 })
     expect(required).not.toContain(NON_ELEVATOR)
-    expect(notRequired.map((n) => n.name)).toContain(NON_ELEVATOR)
+    expect(notRequired.map((n) => n.name)).not.toContain(NON_ELEVATOR)
+    expect(needsCheck.find((n) => n.name === NON_ELEVATOR)?.reason).toContain('500㎡以下')
+  })
+
+  // 仕様（施行令129条の13の2 第3号、代表の指示 2026-11-06）: 第3号は「高さ31mを超える部分の階数が四以下」。31mをまたぐ階も数える。
+  // 階数が5以上なら、耐火構造・区画に関係なく第3号に当たらない。
+  it('31m超の部分の階数が5以上なら、第3号に当たらないので、共同住宅の非常用の昇降機の図書は要る', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 13, heightM: 45.5, totalFloorAreaM2: 3_900, areaAbove31M2: 1_500, storeysAbove31: 5 })
+    expect(required).toContain(NON_ELEVATOR)
+  })
+
+  it('31m超の部分の階数が4以下なら、第3号の耐火構造・区画の入力待ちで要確認', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 12, heightM: 42, totalFloorAreaM2: 3_600, areaAbove31M2: 1_200, storeysAbove31: 4 })
+    expect(required).not.toContain(NON_ELEVATOR)
+    expect(needsCheck.find((n) => n.name === NON_ELEVATOR)?.reason).toContain('第3号')
   })
 
   it('31m超の部分の床面積が500㎡を超えると、第2号の除外に当たらない（第3号の判断が要るので要確認）', () => {
@@ -178,10 +220,11 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
     expect(needsCheck.map((n) => n.name)).toContain(NON_ELEVATOR)
   })
 
-  it('高さ31m以下なら、非常用の昇降機の図書は要らない', () => {
-    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 31 })
+  it('高さ31m以下でも、非常用の昇降機の図書は要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({ ...plateRc, heightM: 31 })
     expect(required).not.toContain(NON_ELEVATOR)
-    expect(notRequired.map((n) => n.name)).toContain(NON_ELEVATOR)
+    expect(notRequired.map((n) => n.name)).not.toContain(NON_ELEVATOR)
+    expect(needsCheck.find((n) => n.name === NON_ELEVATOR)?.reason).toContain('31m以下')
   })
 
   it('地上11階以上では、非常コンセント設備の図が要る（消防法施行令29条の2）', () => {
@@ -201,15 +244,18 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
     expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 15, totalFloorAreaM2: 5999 }).required).not.toContain(CONN)
   })
 
-  it('地上10階以下では、非常コンセント設備の図は要らない', () => {
-    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 31 })
+  it('地上10階以下でも、非常コンセント設備の図は要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 31 })
     expect(required).not.toContain(OUTLET)
-    expect(notRequired.map((n) => n.name)).toContain(OUTLET)
+    expect(notRequired.map((n) => n.name)).not.toContain(OUTLET)
+    expect(needsCheck.find((n) => n.name === OUTLET)?.reason).toContain('10以下')
   })
 
-  it('日影図を要らない理由は、当たらない条件（区域の外・高さ10m以下）の組み合わせで決まる', () => {
-    const reasonOf = (input: Parameters<typeof requiredPermitDocuments>[0]) =>
-      requiredPermitDocuments(input).notRequired.find((n) => n.name === '日影図')?.reason ?? ''
+  it('日影図の理由は、当たらない条件（区域の外・高さ10m以下）の組み合わせで決まる', () => {
+    const reasonOf = (input: Parameters<typeof requiredPermitDocuments>[0]) => {
+      const j = requiredPermitDocuments(input)
+      return (j.notRequired.find((n) => n.name === '日影図') ?? j.needsCheck.find((n) => n.name === '日影図'))?.reason ?? ''
+    }
 
     const outsideAndLow = reasonOf({ ...plateRc, inShadowRegulationArea: false, heightM: 9 })
     expect(outsideAndLow).toContain('日影規制区域の外')
@@ -257,10 +303,11 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(needsCheck.map((n) => n.name)).toContain(TABLE5)
   })
 
-  it('防火壁・防火床（法26条）は、延べ面積1000㎡以下なら要らない', () => {
-    const { required, notRequired } = requiredPermitDocuments(plateRc)
+  it('防火壁・防火床（法26条）は、延べ面積1000㎡以下でも要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments(plateRc)
     expect(required).not.toContain(FIREWALL)
-    expect(notRequired.find((n) => n.name === FIREWALL)?.reason).toContain('1000㎡以下')
+    expect(notRequired.map((n) => n.name)).not.toContain(FIREWALL)
+    expect(needsCheck.find((n) => n.name === FIREWALL)?.reason).toContain('1000㎡以下')
   })
 
   it('防火壁・防火床（法26条）は、延べ面積が1000㎡を超えると、耐火建築物か未入力のとき要確認になる', () => {
@@ -279,10 +326,11 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(exactly.required).toContain(FIRE_CODE)
   })
 
-  it('共同住宅で延べ面積150㎡未満かつ2階以下なら、消防用設備等の図書は要らない', () => {
-    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, storeys: 2, totalFloorAreaM2: 120 })
+  it('共同住宅で延べ面積150㎡未満かつ2階以下でも、消防用設備等の図書は要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 2, totalFloorAreaM2: 120 })
     expect(required).not.toContain(FIRE_CODE)
-    expect(notRequired.map((n) => n.name)).toContain(FIRE_CODE)
+    expect(notRequired.map((n) => n.name)).not.toContain(FIRE_CODE)
+    expect(needsCheck.find((n) => n.name === FIRE_CODE)?.reason).toContain('150㎡未満')
   })
 
   it('共同住宅で延べ面積150㎡未満・3階以上は、3階以上の階の床面積が入力にないため要確認になる（施行令10条1項5号）', () => {
@@ -296,10 +344,11 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 }).required).toContain(FIRE_CODE)
   })
 
-  it('共同住宅以外の用途では、この消防用設備の図書は要らない（別表第一（五）項ロに当たらない）', () => {
-    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, usage: '事務所' })
+  it('共同住宅以外の用途でも、この消防用設備の図書は要らないとは決めず、要確認に残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({ ...plateRc, usage: '事務所' })
     expect(required).not.toContain(FIRE_CODE)
-    expect(notRequired.map((n) => n.name)).toContain(FIRE_CODE)
+    expect(notRequired.map((n) => n.name)).not.toContain(FIRE_CODE)
+    expect(needsCheck.map((n) => n.name)).toContain(FIRE_CODE)
   })
 
   it('消防の図書の細目（施行令10条・29条・29条の2）は、条文の数値のまま図書マスタに入っている', () => {
@@ -355,8 +404,8 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     expect(required).toContain(SHEET)
   })
 
-  it('平屋で延べ面積200㎡以下の建築物は、建築設備があっても概要書は要らない（6条1項3号は第4項ロに当たらない）', () => {
-    const { required, notRequired } = requiredPermitDocuments({
+  it('平屋で延べ面積200㎡以下の建築物は、第4項ロに当たらない。概要書は要らないとは決めず、要確認に理由つきで残す', () => {
+    const { required, notRequired, needsCheck } = requiredPermitDocuments({
       ...plateRc,
       usage: '戸建住宅',
       storeys: 1,
@@ -364,7 +413,10 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
       hasBuildingEquipment: true,
     })
     expect(required).not.toContain(SHEET)
-    expect(notRequired.map((n) => n.name)).toContain(SHEET)
+    expect(notRequired.map((n) => n.name)).not.toContain(SHEET)
+    const reason = needsCheck.find((n) => n.name === SHEET)?.reason ?? ''
+    expect(reason).toContain('平屋')
+    expect(reason).toContain('200㎡以下')
   })
 
   it('高さ31mを超えても、概要書の要否は高さでは決まらない。昇降機がなければ要確認になる（規則に31mの条件はない）', () => {
@@ -383,5 +435,171 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, usesCertifiedParts: true })
     expect(required).not.toContain(CERT)
     expect(needsCheck.map((n) => n.name)).toContain(CERT)
+  })
+})
+
+// 仕様（代表の指示 2026-11-06）: 日影図・非常用の昇降機の図書・消防用設備等の図書・非常コンセント設備の図・連結送水管の図は、
+// 階数・面積・区域で条件が変わる。当たらないからといって勝手に対象から外さず、要確認と同じく理由つきで残す。当たれば要る。
+describe('階数・面積・区域で変わる5件は、要らないと決めず要確認に残す（代表の指示 2026-11-06）', () => {
+  const KEPT = [
+    '日影図',
+    '非常用の昇降機の図書（法34条2項、高さ31m超）',
+    '消防用設備等の図書（消防法17条・表二(六十七)）',
+    '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）',
+    '連結送水管の図（消防法施行令29条）',
+  ]
+
+  it('どの入力でも、この5件のどれも「要らない」に入らない', () => {
+    const inputs: Partial<PermitInput>[] = [
+      {},
+      { inShadowRegulationArea: true, heightM: 9 },
+      { storeys: 2, totalFloorAreaM2: 120 },
+      { usage: '事務所', storeys: 8, totalFloorAreaM2: 3_000 },
+      { storeys: 10, heightM: 31 },
+      { storeys: 6, heightM: 18, totalFloorAreaM2: 2_000 },
+      { storeys: 11, heightM: 33, areaAbove31M2: 400 },
+      { storeys: 15, heightM: 48, areaAbove31M2: 2_400 },
+      { usage: '工場', heightM: 32, areaAbove31M2: 1_200 },
+      { usage: '戸建住宅', storeys: 1, heightM: 4, totalFloorAreaM2: 150 },
+    ]
+    for (const input of inputs) {
+      const { notRequired } = requiredPermitDocuments({ ...plateRc, ...input })
+      for (const name of KEPT) expect(notRequired.map((n) => n.name)).not.toContain(name)
+    }
+  })
+
+  it('条件に当たらない5件は、要確認に当たらない理由つきで出る', () => {
+    const j = requiredPermitDocuments({ ...plateRc, inShadowRegulationArea: false, heightM: 12, storeys: 6, totalFloorAreaM2: 2_000 })
+    const reason = (name: string) => j.needsCheck.find((n) => n.name === name)?.reason ?? ''
+    expect(reason('日影図')).toContain('日影規制区域の外')
+    expect(reason('連結送水管の図（消防法施行令29条）')).toContain('6以下')
+  })
+
+  // 同じ扱いの2件（代表の承認 2026-11-06）: 防火壁・防火床の図書（延べ面積で変わる）と、建築設備の概要書（階数・延べ面積で変わる）。
+  it('防火壁・防火床の図書と建築設備の概要書も、どの入力でも「要らない」に入らない', () => {
+    const also = ['防火壁・防火床の図書（法26条・表二(七)）', '建築設備の概要書（別記第八号様式）']
+    const inputs: Partial<PermitInput>[] = [
+      {},
+      { totalFloorAreaM2: 1_000 },
+      { totalFloorAreaM2: 1_200 },
+      { usage: '戸建住宅', storeys: 1, totalFloorAreaM2: 150 },
+      { usage: '戸建住宅', storeys: 1, totalFloorAreaM2: 200, hasBuildingEquipment: false },
+      { storeys: 2, totalFloorAreaM2: 150, hasElevator: true },
+    ]
+    for (const input of inputs) {
+      const { notRequired } = requiredPermitDocuments({ ...plateRc, ...input })
+      for (const name of also) expect(notRequired.map((n) => n.name)).not.toContain(name)
+    }
+  })
+
+  it('構造計算書と証明書の写しも、どの入力でも「要らない」に入らない（階数・面積・高さで変わる）', () => {
+    const calcDocs = ['構造計算書（表三）', '建築士法第20条第2項の証明書の写し']
+    const inputs: Partial<PermitInput>[] = [
+      {},
+      { storeys: 1, heightM: 4, totalFloorAreaM2: 150 },
+      { storeys: 7, heightM: 21 },
+      { storeys: 20, heightM: 61 },
+      { storeys: 1, heightM: 4, totalFloorAreaM2: 150, structuralCalc: true },
+    ]
+    for (const input of inputs) {
+      const { notRequired } = requiredPermitDocuments({ ...plateRc, ...input })
+      for (const name of calcDocs) expect(notRequired.map((n) => n.name)).not.toContain(name)
+    }
+  })
+
+  it('条件に当たる4件は、要る（日影図・非常コンセント・連結送水管・消防用設備等）', () => {
+    const shadow = requiredPermitDocuments({ ...plateRc, inShadowRegulationArea: true, heightM: 12 })
+    expect(shadow.required).toContain('日影図')
+    const tall = requiredPermitDocuments({ ...plateRc, storeys: 11, heightM: 33, totalFloorAreaM2: 3_000 })
+    expect(tall.required).toEqual(
+      expect.arrayContaining([
+        '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）',
+        '連結送水管の図（消防法施行令29条）',
+        '消防用設備等の図書（消防法17条・表二(六十七)）',
+      ]),
+    )
+  })
+})
+
+// 仕様（建築基準法 第6条の3 第1項・第7項、施行令 第9条の3・第81条第2項。e-Gov の現行本文 2026-11-06 取得）:
+// 法20条1項2号イ・3号イの構造計算（特定構造計算基準）の確認審査が要る計画は、構造計算適合性判定を受け、適合判定通知書又はその写しを確認に出す。
+// 除外は、令81条2項2号イ（高さ31m以下の許容応力度等計算）を、構造計算に高度の専門知識を有する者が審査する場合だけ（同項ただし書第1号・令9条の3）。
+// 高さ31m超は令81条2項1号（保有水平耐力計算・限界耐力計算）で除外に入らない。高さ60m超は法20条1項1号（大臣認定）で、法6条の3の対象外。
+describe('構造計算適合性判定の適合判定通知書（法6条の3）', () => {
+  const TEKIHAN = '構造計算適合性判定の適合判定通知書又はその写し（法6条の3第7項）'
+
+  it('高さ31m超・60m以下のRC造（12階・階高3.5m・42m）は、適合判定通知書が要る', () => {
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 12, heightM: 42, totalFloorAreaM2: 3_600, areaAbove31M2: 1_200 }).required).toContain(TEKIHAN)
+  })
+
+  it('高さ20m超・31m以下は、許容応力度等計算を専門の審査者が見るか（ただし書第1号）が入力にないので要確認', () => {
+    const j = requiredPermitDocuments({ ...plateRc, storeys: 8, heightM: 28 })
+    expect(j.required).not.toContain(TEKIHAN)
+    expect(j.needsCheck.find((n) => n.name === TEKIHAN)?.reason).toContain('ただし書')
+  })
+
+  it('高さ20m以下は、大臣認定プログラムによる構造計算か（法20条1項3号イ）が入力にないので要確認。要るとは決めない', () => {
+    const j = requiredPermitDocuments(plateRc)
+    expect(j.required).not.toContain(TEKIHAN)
+    expect(j.needsCheck.find((n) => n.name === TEKIHAN)?.reason).toContain('プログラム')
+  })
+
+  it('高さ60m超は法20条1項1号（大臣認定）で適判の対象外。要らないとは決めず、要確認に理由つきで残す', () => {
+    const j = requiredPermitDocuments({ ...plateRc, storeys: 20, heightM: 61 })
+    expect(j.required).not.toContain(TEKIHAN)
+    expect(j.notRequired.map((n) => n.name)).not.toContain(TEKIHAN)
+    expect(j.needsCheck.find((n) => n.name === TEKIHAN)?.reason).toContain('60m超')
+  })
+})
+
+// 仕様（消防法施行令 第12条第1項第12号。e-Gov の現行本文 2026-11-06 取得）: 前各号以外の別表第一の防火対象物（共同住宅を含む）の
+// 11階以上の階（総務省令で定める部分を除く）には、スプリンクラー設備を設ける。
+it('消防用設備等の図書の細目に、11階以上の階のスプリンクラー設備（施行令12条1項12号）が入っている', () => {
+  const joined = (documentsJson as { documents: { id: string; details?: string[] }[] }).documents.find((d) => d.id === 'D33')?.details?.join('\n') ?? ''
+  expect(joined).toContain('施行令12条1項12号')
+  expect(joined).toContain('11階以上の階')
+  expect(joined).toContain('スプリンクラー設備')
+})
+
+// 仕様（統括の指示 2026-11-06。代表「勝手に対象から外さないで。要確認項目と同じ扱い」）:
+// 案件の「はい・いいえ」の項目は、既定を「未入力」（null）にする。未入力のあいだ、その項目で決まる図書は要確認に出し、理由に「〇〇が未入力」と書く。
+// 未入力の項目は「当たらなかった条件」に数えない。ほかの条件だけで要ると決まる図書は要る。
+describe('案件の「はい・いいえ」の項目が未入力のとき（統括の指示 2026-11-06）', () => {
+  const unset: PermitInput = {
+    ...plateRc,
+    inShadowRegulationArea: null,
+    structuralCalc: null,
+    hasBuildingEquipment: null,
+    hasElevator: null,
+    hasAgent: null,
+    bimSubmission: null,
+    usesCertifiedParts: null,
+  }
+  const reasonIn = (input: PermitInput, name: string) => requiredPermitDocuments(input).needsCheck.find((n) => n.name === name)?.reason ?? ''
+
+  it('すべて未入力（RC造・共同住宅・4階・14m・800㎡）なら、「要らない」に入る図書は無い', () => {
+    expect(requiredPermitDocuments(unset).notRequired).toEqual([])
+  })
+
+  it('未入力の項目で決まる図書は、要確認に「〇〇が未入力」の理由で出る', () => {
+    expect(reasonIn(unset, '建築設備の図書')).toContain('建築設備を含むかが未入力')
+    expect(reasonIn(unset, '建築設備の概要書（別記第八号様式）')).toContain('昇降機があるかが未入力')
+    expect(reasonIn(unset, '日影図')).toContain('日影規制区域内かが未入力')
+    expect(reasonIn(unset, '委任状')).toContain('代理者が申請するかが未入力')
+    expect(reasonIn(unset, '誓約書（建築物等情報モデル図書申請）')).toContain('BIM 由来の図書で申請するかが未入力')
+    expect(reasonIn(unset, '認定書の写し（表四）')).toContain('認定を受けた部材・構造方法を用いるかが未入力')
+    expect(reasonIn({ ...unset, storeys: 1, heightM: 4, totalFloorAreaM2: 150 }, '構造計算書（表三）')).toContain('構造計算を行うかが未入力')
+  })
+
+  it('未入力の項目は当たらなかった条件に数えない（日影規制区域が未入力で高さ9mなら、理由は高さ10m以下だけ）', () => {
+    const reason = reasonIn({ ...unset, heightM: 9 }, '日影図')
+    expect(reason).toContain('高さ10m以下')
+    expect(reason).not.toContain('日影規制区域の外')
+  })
+
+  it('ほかの条件だけで要ると決まる図書は、未入力があっても要る（4階なら構造計算書と証明書の写しは要る）', () => {
+    expect(requiredPermitDocuments(unset).required).toEqual(
+      expect.arrayContaining(['構造計算書（表三）', '建築士法第20条第2項の証明書の写し']),
+    )
   })
 })

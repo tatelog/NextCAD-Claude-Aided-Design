@@ -25,21 +25,10 @@ import { usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { useDevTools } from '../store/devTools'
+import { PermitProjectFields } from './PermitProjectFields'
 
 const KIND_COLOR: Record<JudgementKind, string> = { 要る: '#1f2a44', 要らない: '#666', 要確認: '#a86b00' }
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
-
-function YesNo({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
-      {label}{' '}
-      <select value={value ? 'yes' : 'no'} onChange={(e) => onChange(e.target.value === 'yes')}>
-        <option value="no">いいえ</option>
-        <option value="yes">はい</option>
-      </select>
-    </label>
-  )
-}
 
 export function P5Output() {
   const devShown = useDevTools((s) => s.shown)
@@ -302,27 +291,7 @@ export function P5Output() {
           <>
             <section style={{ marginBottom: 16 }}>
               <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>案件の項目（ボリュームから決まらない条件）</h3>
-              <label style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
-                構造{' '}
-                <select value={project.structure} onChange={(e) => setProject('structure', e.target.value as typeof project.structure)}>
-                  <option value="RC">RC</option>
-                  <option value="SRC">SRC</option>
-                  <option value="S">S</option>
-                  <option value="W">W</option>
-                  <option value="other">その他</option>
-                </select>
-              </label>
-              <label style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
-                用途{' '}
-                <input value={project.usage} onChange={(e) => setProject('usage', e.target.value)} style={{ width: 160 }} />
-              </label>
-              <YesNo label="日影規制区域内" value={project.inShadowRegulationArea} onChange={(v) => setProject('inShadowRegulationArea', v)} />
-              <YesNo label="構造計算を行う" value={project.structuralCalc} onChange={(v) => setProject('structuralCalc', v)} />
-              <YesNo label="代理者が申請する" value={project.hasAgent} onChange={(v) => setProject('hasAgent', v)} />
-              <YesNo label="BIM 由来の図書で申請する" value={project.bimSubmission} onChange={(v) => setProject('bimSubmission', v)} />
-              <YesNo label="認定を受けた部材・構造方法を用いる" value={project.usesCertifiedParts} onChange={(v) => setProject('usesCertifiedParts', v)} />
-              <YesNo label="建築設備を含む" value={project.hasBuildingEquipment} onChange={(v) => setProject('hasBuildingEquipment', v)} />
-              <YesNo label="昇降機がある" value={project.hasElevator} onChange={(v) => setProject('hasElevator', v)} />
+              <PermitProjectFields project={project} onChange={setProject} />
             </section>
 
             {judgement ? (
@@ -404,7 +373,7 @@ export function P5Output() {
                     印刷・PDF に保存
                   </button>
                   <p style={{ color: '#666', fontSize: 12 }}>
-                    ブラウザの印刷で PDF にする。図枠の罫線の規定と書式一式は未決。
+                    ブラウザの印刷で PDF にする。
                   </p>
                   <style>{`.permit-print{display:none}@media print{@page{size:${frame === 'A1' ? 'A1 landscape' : 'A3 landscape'};margin:12mm}body *{visibility:hidden}.permit-print,.permit-print *{visibility:visible}.permit-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff}}`}</style>
                 </section>
