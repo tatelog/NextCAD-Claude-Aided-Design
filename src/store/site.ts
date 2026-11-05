@@ -37,6 +37,9 @@ interface SiteState {
   /** P3 の自動作成の結果（柱割り・住戸の区画と部屋）。P4 の数量と 2D に使う */
   plan: AutoPlan | null
   setPlan: (plan: AutoPlan | null) => void
+  /** 選んだ筆（P1 の公図）の平面（mm、原点は筆の重心）。P2 の斜線・日影の基準に使う。筆を選んでいない・筆のファイルが無いときは null（P2 はダミーの筆を使う） */
+  parcel: Point[] | null
+  setParcel: (parcel: Point[] | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -55,4 +58,6 @@ export const useSite = create<SiteState>((set) => ({
   setSlopeBoundaries: (slopeBoundaries) => set({ slopeBoundaries }),
   plan: null,
   setPlan: (plan) => set({ plan }),
+  parcel: null,
+  setParcel: (parcel) => set({ parcel }),
 }))
