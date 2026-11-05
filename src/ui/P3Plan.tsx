@@ -16,7 +16,7 @@ import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
 import { confirmRows } from '../plan/semanticConfirm'
-import { DRAW_OPTIONS, useDrawing } from '../store/drawing'
+import { DRAW_OPTIONS, p2Entries, useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
 import { useSemantic } from '../store/semantic'
 import { useSite } from '../store/site'
@@ -104,7 +104,9 @@ export function P3Plan() {
   const removeFixtureById = useFixtures((s) => s.remove)
   const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
   // 意味づけの確認（G14）: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
-  const drawnEntries = useDrawing((s) => s.entries)
+  // 外形と意味づけは P2 の線だけ（P3 の線は店舗に入るが、この欄の対象にはまだ入れない）
+  const drawnAll = useDrawing((s) => s.entries)
+  const drawnEntries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const assignments = useSemantic((s) => s.assignments)
   const setSemanticKind = useSemantic((s) => s.setKind)
   const clearSemanticKind = useSemantic((s) => s.clearKind)
@@ -146,14 +148,14 @@ export function P3Plan() {
   // 閉じていない・矩形でないときは、幅と奥行きを変えずに理由を出す。外形は、押した時点の P2 の線分から取る。
   // 軸に平行とみなす傾きは、P2 が線を軸に揃える角度（手で閉じた外形は、最後の辺が端点への吸着で少し斜めに残る）
   const takeFromOutline = () => {
-    const closure = findClosedOutline(useDrawing.getState().entries.flatMap((e) => e.segments))
+    const closure = findClosedOutline(p2Entries(useDrawing.getState().entries).flatMap((e) => e.segments))
     if (!closure.closed) {
       setOutlineMessage('P2 で外形を閉じてください')
       return
     }
     const dims = outlineDimensions(closure.footprint, DRAW_OPTIONS.axisSnapDeg)
     // 円弧を含む外形: 円弧の外接する幅・奥行きを取る（ハブ A-03 G5）
-    const arcs = outlineArcsOf(useDrawing.getState().entries)
+    const arcs = outlineArcsOf(p2Entries(useDrawing.getState().entries))
     if (!dims && arcs.length > 0) {
       const b = arcBoundsOf(arcs)
       setWidthText(String(Math.round(b.maxX - b.minX)))
@@ -231,7 +233,7 @@ export function P3Plan() {
   // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
   const firstFloorNames = useFirstFloor((s) => s.names)
   // 描いた円弧の外形（P2 から。G5）。P3 の平面に外周の円弧として重ねる
-  const outlineArcs = outlineArcsOf(useDrawing((s) => s.entries))
+  const outlineArcs = outlineArcsOf(drawnEntries)
   // 壁の輪郭（ハブ A-03 G4）。壁厚は仮置きで P5 の既定と同じ 200 mm。交わるところは和の輪郭にして、重なりを取り除く
   const wallPolys = wallOutlineRings(
     drawnEntries.flatMap((e) => e.segments).map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 }, kind: assignments[s.id]?.kind ?? null })),

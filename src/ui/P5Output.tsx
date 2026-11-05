@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react'
 import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { findClosedOutline } from '../canvas/closure'
-import { useDrawing } from '../store/drawing'
+import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { permitInputFromVolume } from '../law/permitInput'
 import { requiredPermitDocuments } from '../law/permitRequired'
@@ -56,7 +56,9 @@ export function P5Output() {
   const project = usePermitProject((s) => s.project)
   const setProject = usePermitProject((s) => s.set)
   // P2 の外形と階数・階高（P2 の値）
-  const entries = useDrawing((s) => s.entries)
+  // 外形は P2 の線だけ（P3 の線は外形に入れない）
+  const drawnAll = useDrawing((s) => s.entries)
+  const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const storeys = useDrawing((s) => s.storeyCount)
   const height = useDrawing((s) => s.storeyHeightMm)
   // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P5 は System だけなので、機能の調整を出す（切替は出さない）

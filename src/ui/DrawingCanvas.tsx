@@ -21,7 +21,7 @@ import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
-import { DUMMY_SITE_MM, segmentOptionsOf, useDrawing } from '../store/drawing'
+import { DUMMY_SITE_MM, p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
 import { strokeToSegments } from '../canvas/strokeToSegments'
@@ -123,7 +123,9 @@ export function DrawingCanvas() {
   const fitViewport = useDrawing((s) => s.fitViewport)
   const addStroke = useDrawing((s) => s.addStroke)
   const transform = useDrawing((s) => s.transform)
-  const entries = useDrawing((s) => s.entries)
+  // 描く画面（P2）の線は P2 の線だけ。P3 の線はこの画面に出さない
+  const drawnAll = useDrawing((s) => s.entries)
+  const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
@@ -242,7 +244,7 @@ export function DrawingCanvas() {
         pen_input: toPenInput(d.pointerType),
       }
       const gridMm = ui.inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : null
-      const { entries } = useDrawing.getState()
+      const entries = p2Entries(useDrawing.getState().entries)
       // 確定（addStroke）と同じ分け方で仮の線分を作る。送った線の id を、離したあとの線に対応づける
       const provisional = strokeToSegments(
         stroke,

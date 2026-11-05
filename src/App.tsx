@@ -7,7 +7,7 @@ import { P3Plan } from './ui/P3Plan'
 import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
 import { PracticeScreen } from './ui/PracticeScreen'
-import { useDrawing } from './store/drawing'
+import { p2Entries, useDrawing } from './store/drawing'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
 import { workLogToCsv } from './app/workLogCsv'
@@ -161,9 +161,8 @@ export function App() {
   // 意味づけの判定（Claude）。F5・F9 の線を Worker に送り、結果は要確認の提案として入れる。失敗は保留へ（G9・G14・G31）
   const [judgeMessage, setJudgeMessage] = useState<string | null>(null)
   const judgeNow = async () => {
-    const segments = useDrawing
-      .getState()
-      .entries.flatMap((e) => e.segments)
+    const segments = p2Entries(useDrawing.getState().entries)
+      .flatMap((e) => e.segments)
       .filter((s) => s.stage === 'F5' || s.stage === 'F9')
       .map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 } }))
     const outcome = await judgeSegments(
