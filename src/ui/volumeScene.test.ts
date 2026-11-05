@@ -81,3 +81,24 @@ describe('範囲に合わせるカメラ（仕様 B1〜B3）', () => {
     expect(frame.target[2]).toBeCloseTo(20, 6)
   })
 })
+
+// 仕様（統括の依頼 2026-11-06（急ぎ）。4: 敷地の板と枠にも、退化や数でない値で落ちる道を作らない）:
+// 仕様 4a: 敷地の板は、点が 2 つの退化した敷地でも例外にせず、空を返す。
+// 仕様 4b: 枠（sceneFrameOf）は、数でない座標の点を無視する（枠の値が有限のまま）。
+describe('敷地の板と枠の退化（仕様 4a・4b）', () => {
+  it('仕様 4a: 点が 2 つの敷地は、例外にせず板を作らない', () => {
+    expect(lotPlateTrianglesOf([{ x: 0, y: 0 }, { x: 1000, y: 0 }])).toEqual([])
+  })
+
+  it('仕様 4b: 数でない座標の点を無視して、枠の値は有限のまま', () => {
+    const square: Point[] = [
+      { x: -40_000, y: -30_000 },
+      { x: 60_000, y: -30_000 },
+      { x: 60_000, y: 70_000 },
+    ]
+    const frame = sceneFrameOf([[...square, { x: Number.NaN, y: 0 }]], 40)!
+    expect(Number.isFinite(frame.radiusM)).toBe(true)
+    expect(frame.target.every((v) => Number.isFinite(v))).toBe(true)
+    expect(frame.position.every((v) => Number.isFinite(v))).toBe(true)
+  })
+})

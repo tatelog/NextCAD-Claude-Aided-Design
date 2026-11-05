@@ -21,7 +21,7 @@ export function buildVolumeMesh(input: ExtrudeInput): VolumeMesh {
 }
 
 /** 底面の多角形を、base から base + height まで押し出した立体の三角形。検証はしない（呼び出し側が確かめる） */
-function prismTriangles(footprint: readonly Point2[], base: number, height: number): VolumeMesh['triangles'] {
+export function prismTriangles(footprint: readonly Point2[], base: number, height: number): VolumeMesh['triangles'] {
   const h = base + height
   const bottom = (p: Point2): Vertex3 => ({ x: p.x, y: p.y, z: base })
   const top = (p: Point2): Vertex3 => ({ x: p.x, y: p.y, z: h })

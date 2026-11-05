@@ -13,7 +13,16 @@ export function shouldShowScene3DOf(input: { hasVolume: boolean; hasLot: boolean
 
 /** 敷地の面の三角形（mm）。平面（x・y）の座標は外形と同じで、高さだけ地面より少し上 */
 export function lotPlateTrianglesOf(lot: readonly Point[]): VolumeMesh['triangles'] {
-  return triangulatePolygon(lot).map(([a, b, c]) => [
+  // 数でない点は除く。退化した敷地（点が 3 つ未満・面積 0）は板を作らない（統括の依頼 2026-11-06（急ぎ）。4）
+  const finite = lot.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+  if (finite.length < 3) return []
+  let triangles: ReturnType<typeof triangulatePolygon>
+  try {
+    triangles = triangulatePolygon(finite)
+  } catch {
+    return []
+  }
+  return triangles.map(([a, b, c]) => [
     { x: a.x, y: a.y, z: LOT_LIFT_MM },
     { x: b.x, y: b.y, z: LOT_LIFT_MM },
     { x: c.x, y: c.y, z: LOT_LIFT_MM },
@@ -33,7 +42,8 @@ const FRAME_MARGIN = 1.15
 
 /** 範囲（平面 mm の多角形の並び）に合わせるカメラを決める。範囲が無ければ null。目標は範囲の中心、カメラは既定の向きのまま、球が縦の視野（fovDeg）に入る距離に置く */
 export function sceneFrameOf(polygonsMm: readonly (readonly Point[])[], fovDeg: number): SceneFrame | null {
-  const pts = polygonsMm.flat()
+  // 数でない点は無視する（統括の依頼 2026-11-06（急ぎ）。4）
+  const pts = polygonsMm.flat().filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
   if (pts.length === 0) return null
   const M = 1 / 1000
   const xs = pts.map((p) => p.x * M)
