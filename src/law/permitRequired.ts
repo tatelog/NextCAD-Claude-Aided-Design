@@ -21,21 +21,35 @@ export interface PermitInput {
   storeysAbove31: number
   /** 用途（例: 共同住宅、事務所、戸建住宅） */
   usage: string
+  // ここから下の「はい・いいえ」は、null が未入力（統括の指示 2026-11-06）。未入力で決まる図書は要確認にする
   /** 日影規制区域内か（自治体の指定。人が入力する） */
-  inShadowRegulationArea: boolean
+  inShadowRegulationArea: boolean | null
   /** 構造計算を行うか */
-  structuralCalc: boolean
+  structuralCalc: boolean | null
   /** 建築設備を含むか（施行規則 第1条の3 第4項） */
-  hasBuildingEquipment: boolean
+  hasBuildingEquipment: boolean | null
   /** 昇降機があるか */
-  hasElevator: boolean
+  hasElevator: boolean | null
   /** 代理者が申請するか */
-  hasAgent: boolean
+  hasAgent: boolean | null
   /** BIM 由来の図書で申請するか（建築物等情報モデル図書申請） */
-  bimSubmission: boolean
+  bimSubmission: boolean | null
   /** 認定を受けた部材・構造方法を用いるか */
-  usesCertifiedParts: boolean
+  usesCertifiedParts: boolean | null
 }
+
+// 未入力のときの理由の語（「〇〇が未入力」）
+const UNSET_LABELS: Partial<Record<keyof PermitInput, string>> = {
+  inShadowRegulationArea: '日影規制区域内か',
+  structuralCalc: '構造計算を行うか',
+  hasBuildingEquipment: '建築設備を含むか',
+  hasElevator: '昇降機があるか',
+  hasAgent: '代理者が申請するか',
+  bimSubmission: 'BIM 由来の図書で申請するか',
+  usesCertifiedParts: '認定を受けた部材・構造方法を用いるか',
+}
+
+const isUnset = (v: unknown) => v === null || v === undefined
 
 type Op = 'eq' | 'ne' | 'gt' | 'gte'
 type Cond =
@@ -76,7 +90,10 @@ function evaluate(cond: Cond, input: PermitInput): Verdict {
     if (inner.kind === 'no') return YES
     return inner
   }
-  if ('field' in cond) return compare(input[cond.field], cond.op, cond.value) ? YES : NO
+  if ('field' in cond) {
+    if (isUnset(input[cond.field])) return { kind: 'unknown', reason: `${UNSET_LABELS[cond.field] ?? cond.field}が未入力` }
+    return compare(input[cond.field], cond.op, cond.value) ? YES : NO
+  }
   if ('all' in cond) {
     const verdicts = cond.all.map((c) => evaluate(c, input))
     const no = verdicts.find((v) => v.kind === 'no')
@@ -91,11 +108,11 @@ function evaluate(cond: Cond, input: PermitInput): Verdict {
 }
 
 // 当たらなかった条件の語（notLabel）を集める。条件式の中で偽になった比較だけを数える。
-// 「いずれか」が満たされているときは、その中で外れた語は理由にしない。否定は語があるときだけ数える
+// 「いずれか」が満たされているときは、その中で外れた語は理由にしない。否定は語があるときだけ数える。未入力の項目は数えない
 function missingLabels(cond: Cond, input: PermitInput): (string | undefined)[] {
   if (cond === 'always' || 'unresolved' in cond) return []
   if ('not' in cond) return cond.notLabel !== undefined && evaluate(cond, input).kind === 'no' ? [cond.notLabel] : []
-  if ('field' in cond) return compare(input[cond.field], cond.op, cond.value) ? [] : [cond.notLabel]
+  if ('field' in cond) return isUnset(input[cond.field]) || compare(input[cond.field], cond.op, cond.value) ? [] : [cond.notLabel]
   if ('all' in cond) return cond.all.flatMap((c) => missingLabels(c, input))
   if (evaluate(cond, input).kind === 'yes') return []
   return cond.any.flatMap((c) => missingLabels(c, input))
