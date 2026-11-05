@@ -1,7 +1,7 @@
 // 日影の規制値を、確認済みの条例の値で置く（ハブ A-03 G15、D-02 C4）。条例の値は人が出典つきで入れ、人が確認したものだけを使う。決定論。
 // 高さの下限と対象の用途地域は法（別表第四）の値（shadowRuleFor）を使い、時間・測定面の高さ・距離の区分だけを条例の値で置き換える。
 import type { ShadowRule } from './shadowRegulation'
-import { shadowRuleFor } from './shadowRule'
+import { shadowRuleFor, type ShadowRuleContext } from './shadowRule'
 import { ordinanceStatus, type OrdinanceEntry } from './ordinance'
 import type { Zone } from './slopeRules'
 
@@ -23,8 +23,9 @@ export function numberOf(text: string): number | null {
   return m ? Number(m[1]) : null
 }
 
-export function shadowRuleFromOrdinance(zone: Zone, entries: readonly OrdinanceEntry[]): ShadowOrdinance {
-  const base = shadowRuleFor(zone, 2)
+/** 文脈（高度地区・区）は基準の表に渡す。判定の測定面は、確認済みの条例の値で置き換わるので、文脈で結果は変わらない（t29） */
+export function shadowRuleFromOrdinance(zone: Zone, entries: readonly OrdinanceEntry[], ctx?: ShadowRuleContext): ShadowOrdinance {
+  const base = shadowRuleFor(zone, 2, ctx)
   if (base === null) return { ok: false, reason: '対象外（この用途地域の規制値は未確認）' }
   const values: number[] = []
   for (const key of [SHADOW_KEYS.near, SHADOW_KEYS.far, SHADOW_KEYS.height]) {
