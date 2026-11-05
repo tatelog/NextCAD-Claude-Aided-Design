@@ -32,6 +32,20 @@ describe('shadowRuleFor（用途地域ごとの日影規制の値）', () => {
     expect(r.bands[1]!.hours).toBe(2.5)
   })
 
+  // 仕様（東京都日影条例 別表第四。第三種高度地区の行は 6.5 m。江東区の全域で 第一種中高層・第一種住居・第二種住居・準住居・準工業 の第三種は 別表第四6 で 4 m）
+  it('第三種高度地区で、江東区の住居系は、測定面 4 m（別表第四6）', () => {
+    expect(shadowRuleFor('住居系', 2, { koudo: '第三種', ward: '江東区' })!.measurementHeightM).toBe(4)
+    expect(shadowRuleFor('中高層住専', 2, { koudo: '第三種', ward: '江東区' })!.measurementHeightM).toBe(4)
+  })
+
+  it('第三種高度地区で、江東区以外の住居系は、原則の測定面 6.5 m（別表第四6の読み替えは江東区だけ）', () => {
+    expect(shadowRuleFor('住居系', 2, { koudo: '第三種', ward: 'その他' })!.measurementHeightM).toBe(6.5)
+  })
+
+  it('低層住専は、高度地区の指定に関わらず測定面 1.5 m', () => {
+    expect(shadowRuleFor('低層住専', 2, { koudo: '第三種', ward: '江東区' })!.measurementHeightM).toBe(1.5)
+  })
+
   it('商業系・高層住居誘導・準工・工業・指定なしは値を返さない', () => {
     for (const z of ['商業系', '高層住居誘導', '準工・工業系', '指定なし'] as const) {
       expect(shadowRuleFor(z, 2)).toBeNull()
