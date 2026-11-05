@@ -17,6 +17,8 @@ export interface PermitInput {
   totalFloorAreaM2: number
   /** 高さ 31m を超える部分の各階の床面積の合計（㎡）。政令の除外（施行令129条の13の2 第1項第2号、500㎡以下）に使う */
   areaAbove31M2: number
+  /** 高さ 31m を超える部分の階数。31m をまたぐ階も数える（代表の指示 2026-11-06）。施行令129条の13の2 第3号（4以下）に使う */
+  storeysAbove31: number
   /** 用途（例: 共同住宅、事務所、戸建住宅） */
   usage: string
   /** 日影規制区域内か（自治体の指定。人が入力する） */
@@ -42,13 +44,15 @@ type Cond =
   | { all: Cond[] }
   | { any: Cond[] }
   | { unresolved: string }
-  /** 否定。当たる（yes）なら要らない（no）、当たらないなら要る（yes）、未確認なら未確認のまま */
-  | { not: Cond }
+  /** 否定。当たる（yes）なら要らない（no）、当たらないなら要る（yes）、未確認なら未確認のまま。notLabel は要らないになったときの理由の語 */
+  | { not: Cond; notLabel?: string }
 
 interface DocDef {
   name: string
   when: Cond
   notApplicableReason?: string
+  /** 当たらなくても要らないとは決めず、要確認に残す。階数・面積・区域で条件が変わる図書を勝手に対象から外さない（代表の指示 2026-11-06） */
+  keepAsCheck?: boolean
 }
 
 type Verdict = { kind: 'yes' } | { kind: 'no' } | { kind: 'unknown'; reason: string }
@@ -86,11 +90,14 @@ function evaluate(cond: Cond, input: PermitInput): Verdict {
   return unknown ?? NO
 }
 
-// 当たらなかった条件の語（notLabel）を集める。条件式の中で偽になった比較だけを数える
+// 当たらなかった条件の語（notLabel）を集める。条件式の中で偽になった比較だけを数える。
+// 「いずれか」が満たされているときは、その中で外れた語は理由にしない。否定は語があるときだけ数える
 function missingLabels(cond: Cond, input: PermitInput): (string | undefined)[] {
-  if (cond === 'always' || 'unresolved' in cond || 'not' in cond) return []
+  if (cond === 'always' || 'unresolved' in cond) return []
+  if ('not' in cond) return cond.notLabel !== undefined && evaluate(cond, input).kind === 'no' ? [cond.notLabel] : []
   if ('field' in cond) return compare(input[cond.field], cond.op, cond.value) ? [] : [cond.notLabel]
   if ('all' in cond) return cond.all.flatMap((c) => missingLabels(c, input))
+  if (evaluate(cond, input).kind === 'yes') return []
   return cond.any.flatMap((c) => missingLabels(c, input))
 }
 
@@ -136,7 +143,9 @@ export function requiredPermitDocuments(input: PermitInput): PermitJudgement {
   for (const doc of documents) {
     const verdict = evaluate(doc.when, input)
     if (verdict.kind === 'yes') judgement.required.push(doc.name)
-    else if (verdict.kind === 'no') {
+    else if (verdict.kind === 'no' && doc.keepAsCheck) {
+      judgement.needsCheck.push({ name: doc.name, reason: `要らない見込み（${reasonOf(doc, input)}）。階数・面積・区域で変わるため人が確かめる` })
+    } else if (verdict.kind === 'no') {
       judgement.notRequired.push({ name: doc.name, reason: reasonOf(doc, input) })
     } else judgement.needsCheck.push({ name: doc.name, reason: verdict.reason })
   }

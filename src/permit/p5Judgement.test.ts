@@ -18,6 +18,7 @@ const sample: PermitInput = {
   heightM: 9,
   totalFloorAreaM2: 600,
   areaAbove31M2: 0,
+  storeysAbove31: 0,
   usage: '共同住宅',
   inShadowRegulationArea: false,
   structuralCalc: false,
@@ -86,10 +87,11 @@ describe('非常用の昇降機（D32）の行（仕様 2 の続き）', () => {
     expect(row?.reason).toContain('第3号')
   })
 
-  it('31m超の床面積が500㎡以下なら、要らない行に理由つきで出る（第2号の除外）', () => {
+  // 仕様（代表の指示 2026-11-06）: 階数・面積で変わる図書は、勝手に対象から外さず、要確認と同じ扱いにする。
+  it('31m超の床面積が500㎡以下なら、第2号の除外に当たる。要らないとは出さず、要確認の行に理由つきで出る', () => {
     const rows = judgementRowsOf(requiredPermitDocuments({ ...sample, storeys: 15, heightM: 48, totalFloorAreaM2: 6000, areaAbove31M2: 400 }))
     const row = rows.find((r) => r.name === NON_ELEVATOR)
-    expect(row?.kind).toBe('要らない')
+    expect(row?.kind).toBe('要確認')
     expect(row?.reason).toContain('500㎡以下')
   })
 })
