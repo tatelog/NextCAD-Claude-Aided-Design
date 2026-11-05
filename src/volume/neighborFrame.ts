@@ -22,3 +22,9 @@ export function neighborOutlinesOf(buildings: readonly PlateauBuilding[], frame:
   if (frame === null) return []
   return neighborVolumesInFrame(buildings, frame).map((v) => v.footprint)
 }
+
+/** P2 の上の注記（統括の依頼 2026-11-06。4）。件数は底面（輪郭）の数。確定した筆の枠で置いたときと、確定が無い時（仮配置）で言い分ける */
+export function neighborNoteOf(footprintCount: number, onConfirmedFrame: boolean): string {
+  const where = onConfirmedFrame ? '確定した敷地の位置で配置' : 'P1 の地点を敷地中心に仮配置'
+  return `周辺建物の底面 ${footprintCount} 件（${where}。高さ不明は表示しない）`
+}
