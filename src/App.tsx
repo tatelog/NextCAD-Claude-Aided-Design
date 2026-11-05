@@ -40,6 +40,7 @@ import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
 import { useUndoKeys } from './ui/useUndoKeys'
 import { SCREENS, type ScreenId } from './app/screenTabs'
+import { creditRowsOf } from './data/sources'
 import { useDevTools } from './store/devTools'
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
@@ -349,6 +350,13 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
+                <Fold title="クレジット（出典）">
+                  {creditRowsOf().map((r) => (
+                    <p key={r.key} style={{ margin: '0 0 6px', fontSize: 12 }}>
+                      {r.name}：{r.text}
+                    </p>
+                  ))}
+                </Fold>
                 <label style={{ display: 'block', margin: '0 0 8px', fontSize: 12 }}>
                   <input type="checkbox" checked={devShown} onChange={(e) => setDevShown(e.target.checked)} /> 開発用の道具を出す（経緯度・ズーム・区のコード・CityGML・数値入力・回転・機能の調整の欄）
                 </label>

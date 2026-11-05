@@ -56,5 +56,10 @@ export function sourceLabel(key: SourceKey): string {
   return `${s.citation.replace(/^出典：/, '')}（${s.url}）／利用条件：${s.status}`
 }
 
+// ☰ メニューの「クレジット（出典）」に出す行。外部データの出典を、名前と sourceLabel の文で並べる
+export function creditRowsOf(): { key: SourceKey; name: string; text: string }[] {
+  return (Object.keys(SOURCES) as SourceKey[]).map((key) => ({ key, name: SOURCES[key].name, text: sourceLabel(key) }))
+}
+
 // 選んだ筆の表示に付ける注記（法務上の境界ではないことを明記する）
 export const PARCEL_BOUNDARY_NOTE = '筆界は参考値です（法務上の境界を示すものではありません）'

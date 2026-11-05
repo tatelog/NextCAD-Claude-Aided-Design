@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
-import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
+import { PARCEL_BOUNDARY_NOTE } from '../data/sources'
 import { P1Map } from './P1Map'
 import { POSTAL_UNAVAILABLE_NOTICE } from '../geocode/postalNotice'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
@@ -206,7 +206,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               ))}
             </ul>
           )}
-          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: {sourceLabel('gsiAddress')}</p>
         </div>
         <div style={{ marginBottom: 12, opacity: 0.45 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
@@ -299,7 +298,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}。斜線・日影は urf に無い（条例で補う）。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>斜線・日影は urf に無い（条例で補う）。</p>
         </section>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
@@ -318,7 +317,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               周辺建物 {siteBuildings.length} 棟（基準点から半径 400 m 以内）。高さ不明 {siteBuildings.filter((b) => b.heightM === null).length} 棟は 3D に出ません。
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}（建物データ）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>建物データ。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
         {!rightShown('claude-chat') ? null : (
           <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
