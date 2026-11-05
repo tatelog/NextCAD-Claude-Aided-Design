@@ -55,6 +55,7 @@ import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
 import { shouldShowScene3DOf } from './volumeScene'
+import { SceneErrorBoundary } from './SceneErrorBoundary'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
@@ -435,6 +436,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         {view === '3d' ? (
           shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: showNeighbors ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
+              <SceneErrorBoundary>
               <Volume3D
                 footprint={volume ? volume.footprint : null}
                 lot={parcel}
@@ -450,6 +452,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 onRotate={featureOn.knobs && featureOn.rotateOperation ? onKnobRotate : undefined}
                 onStoreyCount={featureOn.knobs ? setStoreyCount : undefined}
               />
+              </SceneErrorBoundary>
               {showMiniMap && volume && boundsOf([volume.footprint]) ? (
                 <MiniMap bounds={boundsOf([volume.footprint])!} polygons={[volume.footprint]} />
               ) : null}

@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
-import { buildVolumeMesh } from '../volume/mesh'
+import { neighborMeshesOf } from '../volume/neighborMesh'
 import type { NeighborVolume } from '../volume/neighborLocal'
 import { toGeometry } from './Volume3D'
 
@@ -13,7 +13,7 @@ const GROUND_MM = 1_000_000
 
 export function NeighborScene3D({ neighbors }: { neighbors: readonly NeighborVolume[] }) {
   const geometry = useMemo(() => {
-    const triangles = neighbors.flatMap((n) => buildVolumeMesh({ footprint: n.footprint, storey_count: 1, storey_height: n.heightMm }).triangles)
+    const triangles = neighborMeshesOf(neighbors).flatMap((m) => m.triangles)
     return toGeometry({ triangles })
   }, [neighbors])
   return (

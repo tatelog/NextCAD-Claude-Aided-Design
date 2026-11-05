@@ -2,6 +2,7 @@
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
 import { lotPlateTrianglesOf, LOT_LIFT_MM, sceneFrameOf, type SceneFrame } from './volumeScene'
+import { neighborMeshesOf } from '../volume/neighborMesh'
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Line, OrbitControls } from '@react-three/drei'
@@ -174,7 +175,7 @@ export function Volume3D({
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
   const neighborGeo = useMemo(() => {
     if (!neighbors || neighbors.length === 0) return null
-    const triangles = neighbors.flatMap((n) => buildVolumeMesh({ footprint: n.footprint, storey_count: 1, storey_height: n.heightMm }).triangles)
+    const triangles = neighborMeshesOf(neighbors).flatMap((m) => m.triangles)
     return toGeometry({ triangles })
   }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
@@ -213,7 +214,10 @@ export function Volume3D({
   // 仮の形を作り直すたびに、古い形の GPU の領域を解放する
   useEffect(() => () => geometry?.dispose(), [geometry])
   // 敷地の面と輪郭（外形の前から。外形と同じ平面の座標）
-  const lotPlate = useMemo(() => (lot ? toGeometry({ triangles: lotPlateTrianglesOf(lot) }) : null), [lot])
+  const lotPlate = useMemo(() => {
+    const triangles = lot ? lotPlateTrianglesOf(lot) : []
+    return triangles.length > 0 ? toGeometry({ triangles }) : null
+  }, [lot])
   const lotLine = useMemo(() => {
     if (!lot || lot.length < 3) return null
     return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(p.x * MM_TO_M, LOT_LIFT_MM * MM_TO_M, p.y * MM_TO_M)))
