@@ -2,8 +2,8 @@
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
-import { Html, Line, OrbitControls } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Line, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
@@ -12,6 +12,7 @@ import { cameraForFace, type Face } from './viewFaces'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
 import type { RotationStep } from '../volume/rotation'
 import type { SetbackLine } from '../volume/setbackLines'
+import { screenPointOf } from './setbackLabelScreen'
 
 const FACE_LABELS: { face: Face; label: string }[] = [
   { face: 'top', label: '上' },
@@ -82,19 +83,32 @@ function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeo
   return geometry
 }
 
-// 敷地からの離れの寸法線（G67）: 平面の mm を three の m に直し、地面の少し上に線を引き、中ほどに表記（m・小数 2 桁）を置く
-function SetbackDimension({ line }: { line: SetbackLine }) {
+// 敷地からの離れの寸法線（G67）: 平面の mm を three の m に直し、地面の少し上に線を引く。両端と中点（表記を置く点）
+function setbackEnds(line: SetbackLine) {
   const a: [number, number, number] = [line.from.x * MM_TO_M, 0.02, line.from.y * MM_TO_M]
   const b: [number, number, number] = [line.to.x * MM_TO_M, 0.02, line.to.y * MM_TO_M]
   const mid: [number, number, number] = [(a[0] + b[0]) / 2, 0.1, (a[2] + b[2]) / 2]
-  return (
-    <>
-      <Line points={[a, b]} color="#1f5f8b" lineWidth={2} />
-      <Html position={mid} center style={{ pointerEvents: 'none', fontSize: 12, color: '#1f5f8b', background: 'rgba(255,255,255,0.85)', padding: '0 4px', borderRadius: 3, whiteSpace: 'nowrap' }}>
-        {line.label}
-      </Html>
-    </>
-  )
+  return { a, b, mid }
+}
+
+function SetbackDimension({ line }: { line: SetbackLine }) {
+  const { a, b } = setbackEnds(line)
+  return <Line points={[a, b]} color="#1f5f8b" lineWidth={2} />
+}
+
+// 表記（m・小数 2 桁）は Canvas の外の DOM として React が持ち、中点の画面の位置へ毎フレーム写す。
+// drei の Html は Canvas の外れるときに DOM を二重に外して removeChild が失敗するため使わない（統括の依頼 2026-11-05）
+function SetbackLabels({ lines, labels }: { lines: SetbackLine[]; labels: Record<string, HTMLDivElement | null> }) {
+  useFrame(({ camera, size }) => {
+    for (const l of lines) {
+      const el = labels[l.side]
+      if (!el) continue
+      const p = screenPointOf(setbackEnds(l).mid, camera as THREE.PerspectiveCamera, size)
+      el.style.display = p ? '' : 'none'
+      if (p) el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`
+    }
+  })
+  return null
 }
 
 interface Volume3DProps {
@@ -140,6 +154,8 @@ export function Volume3D({
     return toGeometry({ triangles })
   }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
+  // 寸法の表記（DOM）の置き場。側ごとに一つ（SetbackLabels が位置を写す）
+  const labelRefs = useRef<Record<string, HTMLDivElement | null>>({})
   // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
   const [knobPreview, setKnobPreview] = useState<KnobPreview | null>(null)
   const shownFootprint = knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
@@ -192,6 +208,7 @@ export function Volume3D({
       {setbackLines?.map((l) => (
         <SetbackDimension key={l.side} line={l} />
       ))}
+      {setbackLines && <SetbackLabels lines={setbackLines} labels={labelRefs.current} />}
       {shadowGeo && (
         <mesh geometry={shadowGeo}>
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
@@ -212,6 +229,17 @@ export function Volume3D({
       )}
       <OrbitControls ref={controlsRef} makeDefault />
     </Canvas>
+    {setbackLines?.map((l) => (
+      <div
+        key={l.side}
+        ref={(el) => {
+          labelRefs.current[l.side] = el
+        }}
+        style={{ display: 'none', position: 'absolute', top: 0, left: 0, pointerEvents: 'none', fontSize: 12, color: '#1f5f8b', background: 'rgba(255,255,255,0.85)', padding: '0 4px', borderRadius: 3, whiteSpace: 'nowrap' }}
+      >
+        {l.label}
+      </div>
+    ))}
     {knobPreview?.kind === 'height' && (
       <div
         style={{ position: 'absolute', left: 8, bottom: 8, padding: '2px 8px', border: '1px solid #b8b2a4', borderRadius: 4, background: '#fff', fontSize: 12, pointerEvents: 'none' }}
