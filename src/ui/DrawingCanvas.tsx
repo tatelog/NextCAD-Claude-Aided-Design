@@ -37,7 +37,7 @@ import { judgeSegments } from '../worker/judge'
 import { appWorkerUrl } from '../worker/workerUrl'
 import { HOLD_JUDGE_MS, holdJudgeDecision, rekeyBySegmentOrder } from '../worker/drawingHold'
 import { useSelection } from '../store/selection'
-import { isTapMove, segmentPickAt, strokeColorOf } from '../canvas/segmentPick'
+import { CHAT_PICK_PX, isTapMove, segmentPickAt, strokeColorOf } from '../canvas/segmentPick'
 
 /** チャットのモードのタップと動いたを分ける距離（px）。これを超えて動いたら、タップではない */
 const CHAT_TAP_PX = 6
@@ -479,7 +479,7 @@ export function DrawingCanvas() {
         chatTapRef.current = null
         if (!t.moved) {
           const vp = viewportRef.current
-          const hit = segmentPickAt(shownSegments, pxToMm(vp, local(e)), CHAT_TAP_PX * vp.mmPerPx)
+          const hit = segmentPickAt(shownSegments, pxToMm(vp, local(e)), CHAT_PICK_PX * vp.mmPerPx)
           if (hit !== null) useSelection.getState().toggleSegment(hit)
         }
         repaint()
