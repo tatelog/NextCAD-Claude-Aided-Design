@@ -57,7 +57,8 @@ export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   confirmed: null,
   district: IDLE,
   buildings: IDLE,
-  confirm: (confirmed) => set({ confirmed }),
+  // 確定したときは、今いる地点も確定の中心にする（確定の処理は P1 を離れるので、P1 は今いる地点を更新できない。統括の依頼 2026-11-06。不具合の直し）
+  confirm: (confirmed) => set({ confirmed, currentSite: confirmed.center }),
   clear: () => set({ confirmed: null }),
   setRoadEdge: (roadEdge) => {
     const c = get().confirmed
