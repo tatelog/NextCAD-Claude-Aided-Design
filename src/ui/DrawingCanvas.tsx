@@ -32,6 +32,11 @@ import { pendingLogEntry } from '../app/pendingJudgments'
 import { judgeSegments } from '../worker/judge'
 import { appWorkerUrl } from '../worker/workerUrl'
 import { HOLD_JUDGE_MS, holdJudgeDecision, rekeyBySegmentOrder } from '../worker/drawingHold'
+import { useSelection } from '../store/selection'
+import { isTapMove, segmentPickAt, strokeColorOf } from '../canvas/segmentPick'
+
+/** チャットのモードのタップと動いたを分ける距離（px）。これを超えて動いたら、タップではない */
+const CHAT_TAP_PX = 6
 import type { Kind } from '../plan/semantic'
 
 /** 押さえている間の判定（Drawing モード。t69）。送った線（仮の id）と、Claude の候補を持つ */
@@ -157,6 +162,8 @@ export function DrawingCanvas() {
   const handleDragRef = useRef<HandleDrag | null>(null)
   const pointersRef = useRef<Map<number, PointerTrack>>(new Map())
   const panRef = useRef<{ last: Point } | null>(null)
+  // チャットのモードのタップの途中（G159）。動かさずに離したら選ぶ
+  const chatTapRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
   const lastTapRef = useRef<TapRecord | null>(null)
   /** ポインタの今の位置（画面 px）。押していなくても持つ。無ければ null（端点の輪を出さない） */
   const hoverRef = useRef<Point | null>(null)
@@ -335,6 +342,11 @@ export function DrawingCanvas() {
         return
       }
       // ダブルタップは、描かずにサークルメニューを出す（G52）
+      // チャットのモード（G159）: 線は描かず、動かさずに離したらタップで選ぶ（onUp）
+      if (useMode.getState().mode === 'chat') {
+        chatTapRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
+        return
+      }
       const tap = nextTap(lastTapRef.current, { t: e.timeStamp, x: p.x, y: p.y })
       lastTapRef.current = tap.next
       if (tap.double) {
@@ -383,6 +395,11 @@ export function DrawingCanvas() {
 
     const onMove = (e: PointerEvent) => {
       const p = local(e)
+      // チャットのモードのタップ: 動いた距離が閾値を超えたら、タップではない（描く操作ではないので、ここでは何もしない）
+      if (chatTapRef.current && chatTapRef.current.pointerId === e.pointerId) {
+        if (isTapMove(e.clientX - chatTapRef.current.x, e.clientY - chatTapRef.current.y, CHAT_TAP_PX)) chatTapRef.current.moved = true
+        return
+      }
       const track = pointersRef.current.get(e.pointerId)
       if (!track) {
         // 押していないポインタ（マウス・ペンのホバー）。近づいた端点だけ輪で示す（G37）
@@ -445,6 +462,18 @@ export function DrawingCanvas() {
 
     const onUp = (e: PointerEvent) => {
       pointersRef.current.delete(e.pointerId)
+      // チャットのモードのタップ（G159）: 動かさずに離したら、いちばん近い線を選ぶ（もう一度で外れる）
+      if (chatTapRef.current && chatTapRef.current.pointerId === e.pointerId) {
+        const t = chatTapRef.current
+        chatTapRef.current = null
+        if (!t.moved) {
+          const vp = viewportRef.current
+          const hit = segmentPickAt(shownSegments, pxToMm(vp, local(e)), CHAT_TAP_PX * vp.mmPerPx)
+          if (hit !== null) useSelection.getState().toggleSegment(hit)
+        }
+        repaint()
+        return
+      }
       if (panRef.current) {
         panRef.current = null
         return
@@ -522,7 +551,10 @@ export function DrawingCanvas() {
     canvas.addEventListener('pointerleave', onLeave)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('contextmenu', onContextMenu)
+    // 選ぶ・外すで、線の色を描き直す（G159）
+    const unsubSelection = useSelection.subscribe(() => repaint())
     return () => {
+      unsubSelection()
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
@@ -616,9 +648,12 @@ function paint(
 
   // 整形後の線分。層ごとの見え方（色・太さ・破線）で、同じ見え方の線をまとめて描く。曲線は制御点を通る折れ線で描く（見た目だけ。正本は制御点）
   const groups = new Map<string, { style: LineStyle; list: Segment[] }>()
+  const selectedIds = new Set(useSelection.getState().segmentIds)
   for (const s of shownSegments) {
     const mark = layerById.get(s.id)
-    const style = segmentStyle(mark?.layer ?? 'その他', mark?.needsReview ?? false)
+    const base = segmentStyle(mark?.layer ?? 'その他', mark?.needsReview ?? false)
+    // 選んだ線は色を変える（G159）
+    const style = { ...base, color: strokeColorOf(base.color, selectedIds.has(s.id)) }
     const key = `${style.color}|${style.width}|${style.dash.join(',')}`
     const group = groups.get(key)
     if (group) group.list.push(s)
