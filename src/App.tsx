@@ -409,7 +409,7 @@ export function App() {
         {screen === 'P1' && <P1Site />}
         {screen === 'P2' && <P03Volume />}
         {screen === 'P3' && <P3Plan />}
-        {screen === 'P4' && <P4Estimate />}
+        {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}
         {screen === 'K' && <PracticeScreen />}
         {panel !== null && (

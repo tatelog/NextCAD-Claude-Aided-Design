@@ -31,6 +31,7 @@ import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estim
 import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 import { objectTableOf, type ObjectRow } from '../plan/objectTable'
 import { p2Entries, useDrawing } from '../store/drawing'
+import { p4CanGoNext } from './p4NextGate'
 import { useSemantic } from '../store/semantic'
 import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -63,7 +64,7 @@ const ROOM_FILL: Record<RoomKind, string> = {
   水回り: 'rgba(90,102,112,0.35)',
 }
 
-export function P4Estimate() {
+export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   // 単価表は店舗が持つ（チャットの積算の操作と同じ表。t55）
   const csv = usePriceTable((s) => s.csv)
   const setCsv = usePriceTable((s) => s.setCsv)
@@ -403,6 +404,11 @@ export function P4Estimate() {
         ) : (
           <p style={{ color: '#a33' }}>{estimate && 'error' in estimate ? estimate.error : '—'}</p>
         )}
+        {/* 次へ進む条件（D-04 P4）: 工事原価が出ている。出ていなければ押せない */}
+        <button type="button" disabled={!p4CanGoNext(estimate)} onClick={onNext} style={{ marginTop: 12 }}>
+          次へ（P5 出力）
+        </button>
+        {!p4CanGoNext(estimate) && <p style={{ color: '#666', fontSize: 12 }}>工事原価が出ていないので、次へ進めません。</p>}
         <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>未決</h3>
         <ul style={{ margin: 0, paddingLeft: 18, color: '#666', fontSize: 12 }}>
           <li>単価の置き場（G72、代表の答え待ち）</li>
