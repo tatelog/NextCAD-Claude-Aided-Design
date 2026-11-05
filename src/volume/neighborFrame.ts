@@ -1,4 +1,5 @@
 // 周辺建物を、確定した筆の枠で平面（mm）に置く（統括の依頼 2026-11-06。2）。筆と同じ写し方なので、筆とずれない。決定論。
+import type { Point } from '../geom/viewport'
 import { planeOfLonLat, type ParcelFrame } from '../map/parcelPlane'
 import type { PlateauBuilding } from '../plateau/bldg'
 import type { NeighborVolume } from './neighborLocal'
@@ -14,4 +15,10 @@ export function neighborVolumesInFrame(buildings: readonly PlateauBuilding[], fr
     }
   }
   return out
+}
+
+/** 周辺建物の輪郭（平面 mm）。確定した筆の枠で置く（2D の作図画面に敷く。統括の依頼 2026-11-06。5）。枠が無いとき（筆が無い確定）は出さない */
+export function neighborOutlinesOf(buildings: readonly PlateauBuilding[], frame: ParcelFrame | null): Point[][] {
+  if (frame === null) return []
+  return neighborVolumesInFrame(buildings, frame).map((v) => v.footprint)
 }
