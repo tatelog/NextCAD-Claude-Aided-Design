@@ -28,13 +28,37 @@ export class ChatPendingError extends Error {
   }
 }
 
+/** Worker に届かなかった（接続の失敗）。店舗は「Worker につながりません」と出す */
+export class ChatUnreachableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ChatUnreachableError'
+  }
+}
+
+/** Worker が失敗の状態（503 以外）を返した。店舗は、その状態を添えて出す */
+export class ChatWorkerError extends Error {
+  readonly status: number
+  constructor(status: number) {
+    super(`Worker が失敗しました（${status}）`)
+    this.name = 'ChatWorkerError'
+    this.status = status
+  }
+}
+
 export function chatTransportOf(opts: ChatTransportOptions): ChatTransport {
   return async (history) => {
     const blocks = buildChatContext(opts.contextOf())
     const req = buildChatRequest({ workerUrl: opts.workerUrl, model: opts.model, blocks, history: historyOf(history) })
-    const res = await opts.fetchImpl(req.url, req.init)
+    let res: Response
+    try {
+      res = await opts.fetchImpl(req.url, req.init)
+    } catch {
+      // 届かない（接続の失敗）。返答を読んだのではないので、読めなかったとは別に伝える
+      throw new ChatUnreachableError('Worker につながりません')
+    }
     if (res.status === 503) throw new ChatPendingError('Worker が保留（再試行でも返答が型に合わない）')
-    if (!res.ok) throw new Error(`Worker が失敗: ${res.status}`)
+    if (!res.ok) throw new ChatWorkerError(res.status)
     const json = (await res.json()) as { reply?: unknown }
     if (json.reply === undefined) throw new Error('返答が無い')
     return json.reply

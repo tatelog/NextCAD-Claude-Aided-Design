@@ -15,7 +15,7 @@ import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
-import { confirmRows } from '../plan/semanticConfirm'
+import { confirmRows, targetSegmentsOf } from '../plan/semanticConfirm'
 import { DRAW_OPTIONS, p2Entries, useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
 import { useSemantic } from '../store/semantic'
@@ -110,7 +110,8 @@ export function P3Plan() {
   const assignments = useSemantic((s) => s.assignments)
   const setSemanticKind = useSemantic((s) => s.setKind)
   const clearSemanticKind = useSemantic((s) => s.clearKind)
-  const semanticRows = useMemo(() => confirmRows(drawnEntries.flatMap((e) => e.segments), assignments), [drawnEntries, assignments])
+  // 確認欄の対象は P2 の F5・F9 と、P3 で描いた線（F9）。P2 の外形（F4）は入らない（G9・G14）
+  const semanticRows = useMemo(() => confirmRows(targetSegmentsOf(drawnAll), assignments), [drawnAll, assignments])
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
   const runAuto = () => {

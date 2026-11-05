@@ -59,6 +59,14 @@ export function statusName(status: ConfirmStatus): string {
 /** 判定の対象（G9）。F5（柱割り）と F9（間取り）の線。F4（外形）の線は対象外 */
 const TARGET_STAGES: ReadonlySet<Stage> = new Set<Stage>(['F5', 'F9'])
 
+/**
+ * 意味づけの対象（確認欄と Claude の判定）の線を、店舗の線の並びから取る（G9・G14）。
+ * P2 で描いた F5・F9 の線と、P3 で描いた線（段 F9）が入る。P2 の外形（F4）は入らない。
+ */
+export function targetSegmentsOf(entries: readonly { segments: readonly Segment[] }[]): Segment[] {
+  return entries.flatMap((e) => e.segments).filter((s) => TARGET_STAGES.has(s.stage))
+}
+
 /** 確認欄の行。対象の線だけを、線の並びのまま。割り当ての無い線は「未分類」 */
 export function confirmRows(
   segments: readonly Pick<Segment, 'id' | 'stage'>[],
