@@ -1,6 +1,7 @@
 // P5 の案件の項目（ボリュームから決まらない条件）の欄（t91・G46）。
 // 「はい・いいえ」の項目は「未入力」「はい」「いいえ」から選ぶ。既定は未入力（統括の指示 2026-11-06）。
-import type { PermitProject } from '../law/permitInput'
+// 構造と用途は選ばせず、固定の値を表示だけする（このアプリの対象は RC 造の板状マンション。統括の指示 2026-11-06）。
+import { APP_STRUCTURE, APP_USAGE, type PermitProject } from '../law/permitInput'
 
 function YesNo({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean | null) => void }) {
   return (
@@ -24,20 +25,8 @@ export function PermitProjectFields({
 }) {
   return (
     <>
-      <label style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
-        構造{' '}
-        <select value={project.structure} onChange={(e) => onChange('structure', e.target.value as typeof project.structure)}>
-          <option value="RC">RC</option>
-          <option value="SRC">SRC</option>
-          <option value="S">S</option>
-          <option value="W">W</option>
-          <option value="other">その他</option>
-        </select>
-      </label>
-      <label style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
-        用途{' '}
-        <input value={project.usage} onChange={(e) => onChange('usage', e.target.value)} style={{ width: 160 }} />
-      </label>
+      <p style={{ margin: '0 0 4px', fontSize: 13 }}>{`構造: ${APP_STRUCTURE}（このアプリの対象）`}</p>
+      <p style={{ margin: '0 0 4px', fontSize: 13 }}>{`用途: ${APP_USAGE}（同）`}</p>
       <YesNo label="日影規制区域内" value={project.inShadowRegulationArea} onChange={(v) => onChange('inShadowRegulationArea', v)} />
       <YesNo label="構造計算を行う" value={project.structuralCalc} onChange={(v) => onChange('structuralCalc', v)} />
       <YesNo label="代理者が申請する" value={project.hasAgent} onChange={(v) => onChange('hasAgent', v)} />

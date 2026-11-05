@@ -7,8 +7,6 @@ import { requiredPermitDocuments } from './permitRequired'
 // 高さ・階数・延べ面積は、ボリュームの値から毎回決まる。敷地と案件の条件（日影規制区域・構造など）は別に入れる。
 
 const project: PermitProject = {
-  structure: 'RC',
-  usage: '共同住宅',
   inShadowRegulationArea: false,
   structuralCalc: false,
   hasBuildingEquipment: true,
@@ -39,6 +37,13 @@ describe('ボリュームから作る判定の入力', () => {
 
   it('延べ面積は、各階の建築面積の合計を㎡で渡す（20m×20m=400㎡ を5階）', () => {
     expect(permitInputFromVolume(block(5), project).totalFloorAreaM2).toBe(2_000)
+  })
+
+  // 仕様（統括の指示 2026-11-06。AGENTS.md の対象「RC造の板状マンション」）: 構造と用途は案件の入力に持たず、判定の入力は常に RC・共同住宅。
+  it('構造と用途は案件の入力に無く、判定の入力は常に RC・共同住宅になる', () => {
+    const input = permitInputFromVolume(block(5), project)
+    expect(input.structure).toBe('RC')
+    expect(input.usage).toBe('共同住宅')
   })
 
   it('地上階数は、ボリュームの階数をそのまま渡す', () => {
