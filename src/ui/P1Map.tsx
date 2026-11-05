@@ -10,7 +10,7 @@ import { formatParcelInfo, parcelUid } from '../map/parcelInfo'
 import { decodeLocalJson } from '../map/localData'
 import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
 import type { LonLat } from '../map/viewport'
-import { publishSelectedParcel, rememberParcelGeometry } from '../map/selectedParcel'
+import { publishSelectedParcel, rememberParcelGeometry, selectParcelAt } from '../map/selectedParcel'
 
 const LOCAL_DATA = '/local-data/'
 
@@ -58,6 +58,18 @@ export function P1Map(props: Props) {
   const latest = useRef<Latest>(props)
   latest.current = props
   const selectedRef = useRef<string | null>(null)
+  // 地点（住所・座標の入力・地図のクリック）が変わったら、その地点を含む筆を選ぶ。含む筆が無ければ選択を外す（統括の依頼 2026-11-06。2 件目）。
+  // 読み込み時の地点では選び直さない（デモの筆を最初から選ぶ）。StrictMode の二重実行でも、同じ地点なら何もしない
+  const lastSiteRef = useRef<LonLat | null>(props.site)
+  useEffect(() => {
+    const site = props.site
+    if (site === lastSiteRef.current) return
+    lastSiteRef.current = site
+    let uid: string | null = null
+    if (site) uid = selectParcelAt(site.lon, site.lat)
+    else publishSelectedParcel(null)
+    showSelectedParcel(mapRef.current, selectedRef, uid)
+  }, [props.site])
 
   // 地図は一度だけ作る
   useEffect(() => {
@@ -111,14 +123,7 @@ export function P1Map(props: Props) {
     map.on('click', (e) => {
       const { onInfo, onSiteClick } = latest.current
       onSiteClick({ lon: e.lngLat.lng, lat: e.lngLat.lat })
-      const parcel = map.queryRenderedFeatures(e.point, { layers: ['parcels-fill'] })[0]
-      if (parcel) {
-        // 筆を選び直す（前に選んだ筆の選択は外す）
-        if (selectedRef.current !== null) map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: false })
-        selectedRef.current = String(parcel.id)
-        map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: true })
-        publishSelectedParcel(selectedRef.current)
-      }
+      // 選んだ筆は、地点が変わったときに決める（上の effect。住所・座標の入力と同じ規則）
       const info = infoAt(map, e.point)
       if (info) onInfo(info)
     })
@@ -280,6 +285,15 @@ async function loadLocalLayers(
   }
   const parts = [`道路 ${roadCount.toLocaleString('ja-JP')} 本`, `筆 ${parcelCount.toLocaleString('ja-JP')} 筆`, `建物 ${buildingCount.toLocaleString('ja-JP')} 棟`]
   onStatus(missing.length === 0 ? `表示中：${parts.join('、')}` : `未取得：${missing.join('、')}（public/local-data/ に置くと表示されます）`)
+}
+
+// 選んだ筆の見た目（地図の塗り）を、選んだ筆に合わせる。前に選んだ筆の選択は外す。地図の筆がまだ読めていないときは見た目だけ変えない（次に地点を変えたときに合う）
+function showSelectedParcel(map: MaplibreMap | null, selectedRef: { current: string | null }, uid: string | null) {
+  if (map && map.getSource('parcels') && map.isSourceLoaded('parcels')) {
+    if (selectedRef.current !== null) map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: false })
+    if (uid !== null) map.setFeatureState({ source: 'parcels', id: uid }, { selected: true })
+  }
+  selectedRef.current = uid
 }
 
 // デモの筆（DEMO_PARCEL_ID）を、最初から選択した状態にする
