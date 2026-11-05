@@ -3,12 +3,15 @@
 import { create } from 'zustand'
 import type { PriceRow } from '../estimate/estimate'
 
-/** 既定の単価表（例。出典の欄は利用者が書く） */
+/**
+ * 既定の単価表（例。出典は無い仮置き。G20）。出典の無い単価には未確定の印（provisional）を付ける（G22）。
+ * 出典の欄に「利用者入力」と書くと、出典つきの単価に見えるため、出典なしと書く。
+ */
 export const PRICE_CSV_SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
-  'cross,造作,内装,壁クロス,m2,1200,,利用者入力（出典を書く）,false,v1',
-  'carpenter,労務,躯体,型枠大工,人,25000,0.3,利用者入力（出典を書く）,false,v1',
-  'tile,造作,外装,外壁タイル,m2,8000,,,false,v1',
+  'cross,造作,内装,壁クロス,m2,1200,,出典なし（仮置き）,true,v1',
+  'carpenter,労務,躯体,型枠大工,人,25000,0.3,出典なし（仮置き）,true,v1',
+  'tile,造作,外装,外壁タイル,m2,8000,,出典なし（仮置き）,true,v1',
 ].join('\n')
 
 export interface PriceTableState {
