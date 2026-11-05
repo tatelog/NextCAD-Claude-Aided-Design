@@ -6,7 +6,6 @@ import { P1Site } from './ui/P1Site'
 import { P3Plan } from './ui/P3Plan'
 import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
-import { PracticeScreen } from './ui/PracticeScreen'
 import { useDrawing } from './store/drawing'
 import { targetSegmentsOf } from './plan/semanticConfirm'
 import { useFixtures } from './store/fixtures'
@@ -25,9 +24,6 @@ import { MenuCheckRows } from './ui/MenuCheckRows'
 import { ModeSwitch } from './ui/ModeSwitch'
 import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
 import { Fold } from './ui/Fold'
-import { downloadJsonFromDrive, listProjectFiles, type DriveProjectFile } from './drive/driveDownload'
-import { DRIVE_CLIENT_ID, requestDriveToken } from './drive/gis'
-import { saveProjectToDrive } from './drive/driveSave'
 import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
@@ -43,17 +39,9 @@ import { useSemantic } from './store/semantic'
 import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
 import { useUndoKeys } from './ui/useUndoKeys'
-
-const SCREENS = [
-  { id: 'P1', name: '敷地' },
-  { id: 'P2', name: 'ボリューム' },
-  { id: 'P3', name: '平面' },
-  { id: 'P4', name: '積算' },
-  { id: 'P5', name: '出力' },
-  { id: 'K', name: '練習' },
-] as const
-
-type ScreenId = (typeof SCREENS)[number]['id']
+import { SCREENS, type ScreenId } from './app/screenTabs'
+import { creditRowsOf } from './data/sources'
+import { useDevTools } from './store/devTools'
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
 
@@ -64,6 +52,9 @@ export function App() {
   // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
   useUndoKeys()
   const [screen, setScreen] = useState<ScreenId>('P2')
+  // 開発用の道具（☰ の切替。既定は隠す）
+  const devShown = useDevTools((s) => s.shown)
+  const setDevShown = useDevTools((s) => s.setShown)
   // 案件名（敷地名）。画面の中だけで持つ（保存のときだけ書き出す）
   const [project, setProject] = useState('')
   // 開発用: ?seed=square で、20 m × 30 m の閉じた外形を描いた状態から始める（画面の確認用。本番ビルドには入らない）
@@ -192,7 +183,7 @@ export function App() {
     }
   }
 
-  // 案件の中身（保存と Drive 保存で同じ）
+  // 案件の中身（保存と同じ）
   const projectData = () => {
     const d = useDrawing.getState()
     return buildSaveData({
@@ -237,66 +228,6 @@ export function App() {
     }
   }
 
-  // Drive から開く: 一覧を出し（アプリが作ったファイルだけ）、選んだものを読む。トークンは画面の中だけに持つ（保存しない）
-  const [driveToken, setDriveToken] = useState<string | null>(null)
-  const [driveFiles, setDriveFiles] = useState<DriveProjectFile[]>([])
-  const [driveFileId, setDriveFileId] = useState('')
-  // いま開いている Drive のファイルと、読んだ版（保存の確認に使う。G32）。新規は null
-  const [openedDrive, setOpenedDrive] = useState<{ id: string; revision: number } | null>(null)
-  const listDrive = async () => {
-    if (!DRIVE_CLIENT_ID) return
-    try {
-      const token = await requestDriveToken(DRIVE_CLIENT_ID)
-      const files = await listProjectFiles({ token })
-      setDriveToken(token)
-      setDriveFiles(files)
-      setDriveFileId(files[0]?.id ?? '')
-      setLoadMessage(files.length === 0 ? 'Drive に案件のファイルがありません' : `Drive に ${files.length} 件あります`)
-    } catch (e) {
-      setLoadMessage(`Drive の一覧を取れませんでした: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-  const openDrive = async () => {
-    if (!DRIVE_CLIENT_ID || !driveFileId) return
-    try {
-      const token = driveToken ?? (await requestDriveToken(DRIVE_CLIENT_ID))
-      const p = parseSaveData(await downloadJsonFromDrive({ token, id: driveFileId }))
-      applyLoadedProject(p)
-      setOpenedDrive({ id: driveFileId, revision: p.revision })
-      setProject(p.projectName)
-      setSaved(snapshotNow())
-      setLoadMessage(`Drive から「${p.projectName}」を読み込みました`)
-      record('Drive 読み込み', p.projectName)
-    } catch (e) {
-      setLoadMessage(`Drive から読めませんでした: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-
-  // Google Drive への保存（アプリのクライアント ID。drive.file。今回は接続まで。保存先は Drive の直下）
-  const [driveMessage, setDriveMessage] = useState<string | null>(null)
-  const saveToDrive = async () => {
-    if (!DRIVE_CLIENT_ID) return
-    setDriveMessage('Google の認証を開いています…')
-    try {
-      const data = projectData()
-      const token = await requestDriveToken(DRIVE_CLIENT_ID)
-      // 開いているファイルがあれば、読んだ版と保存先の版を比べてから上書きする（違えば上書きせず衝突として出す）
-      const out = await saveProjectToDrive({
-        token,
-        name: `${data.projectName}.json`,
-        fileId: openedDrive?.id ?? null,
-        loadedRevision: openedDrive?.revision ?? 0,
-        buildJson: (revision) => JSON.stringify({ ...data, revision }, null, 2),
-      })
-      setOpenedDrive(out)
-      setDriveMessage(`Drive に保存しました（版 ${out.revision}・ファイル ID: ${out.id}）`)
-      record('Drive 保存', data.projectName)
-      setSaved(snapshotNow())
-    } catch (e) {
-      setDriveMessage(e instanceof Error ? e.message : String(e))
-    }
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#fff' }}>
@@ -307,14 +238,13 @@ export function App() {
           onChange={(e) => setProject(e.target.value)}
           style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', minWidth: 200 }}
         />
-        <span style={{ fontSize: 11, color: '#c8412a', border: '1px solid #c8412a', borderRadius: 3, padding: '0 6px' }}>議論用・未確定</span>
         <span style={{ flex: 1 }} />
         <button
           type="button"
           style={button}
           onClick={judgeNow}
           disabled={!featureOn.classifyClaude}
-          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : 'Worker の URL が未設定。押すと、未接続の一行を出す'}
+          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : '判定の接続先が未設定です。押すと、その旨を出します'}
         >
           意味づけを判定
         </button>
@@ -337,44 +267,11 @@ export function App() {
             if (file) void load(file)
           }}
         />
-        <button
-          type="button"
-          style={button}
-          onClick={listDrive}
-          disabled={!DRIVE_CLIENT_ID}
-          title={DRIVE_CLIENT_ID ? 'Drive に上げた案件の一覧を出す（アプリが作ったファイルだけ）' : 'VITE_GOOGLE_CLIENT_ID が未設定のため使えない'}
-        >
-          Drive から開く
-        </button>
-        {driveFiles.length > 0 ? (
-          <>
-            <select aria-label="Drive の案件" value={driveFileId} onChange={(e) => setDriveFileId(e.target.value)} style={{ font: 'inherit', maxWidth: 200 }}>
-              {driveFiles.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-            <button type="button" style={button} onClick={openDrive}>
-              この案件を開く
-            </button>
-          </>
-        ) : null}
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
         <span style={{ fontSize: 11, color: saveStatus === '保存済み' ? '#5b6670' : '#a86b00' }}>{saveStatus}</span>
         <button type="button" style={button} onClick={save}>
           保存
         </button>
-        <button
-          type="button"
-          style={button}
-          onClick={saveToDrive}
-          disabled={!DRIVE_CLIENT_ID}
-          title={DRIVE_CLIENT_ID ? 'Google ドライブに案件を保存（アプリのクライアント ID）' : 'VITE_GOOGLE_CLIENT_ID が未設定のため使えない'}
-        >
-          Drive に保存
-        </button>
-        {driveMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{driveMessage}</span> : null}
         <ModeSwitch
           screen={screen}
           activeMode={activeMode}
@@ -403,7 +300,7 @@ export function App() {
             onClick={() => go(s.id)}
             style={{ ...button, background: screen === s.id ? '#1f2a44' : '#fff', color: screen === s.id ? '#fff' : '#1f2a44' }}
           >
-            {s.id} {s.name}
+            {s.name}
           </button>
         ))}
       </nav>
@@ -413,7 +310,6 @@ export function App() {
         {screen === 'P3' && <P3Plan onNext={() => go('P4')} />}
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}
-        {screen === 'K' && <PracticeScreen />}
         {panel !== null && (
           <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, ...(panel === 'menu' ? { left: 0 } : { width: 320 }), background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'log' && (
@@ -454,7 +350,17 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="機能一覧（チェックで入・切。G43・G70）">
+                <Fold title="クレジット（出典）">
+                  {creditRowsOf().map((r) => (
+                    <p key={r.key} style={{ margin: '0 0 6px', fontSize: 12 }}>
+                      {r.name}：{r.text}
+                    </p>
+                  ))}
+                </Fold>
+                <label style={{ display: 'block', margin: '0 0 8px', fontSize: 12 }}>
+                  <input type="checkbox" checked={devShown} onChange={(e) => setDevShown(e.target.checked)} /> 開発用の道具を出す（経緯度・ズーム・区のコード・CityGML・数値入力・回転・機能の調整の欄）
+                </label>
+                <Fold title="機能一覧（チェックで入・切）">
                   <MenuCheckRows
                     groups={featureMenuGroupsOf(featureShown)}
                     onToggle={(id, shown) => {
@@ -495,7 +401,7 @@ export function App() {
                     </div>
                   ))}
                 </Fold>
-                <Fold title="右パネルの項目（P2 の機能一覧。チェックで右パネルに出す。G43・G73・G74）">
+                <Fold title="右パネルの項目（ボリュームの機能一覧。チェックで右パネルに出す）">
                   <MenuCheckRows
                     groups={panelMenuGroupsOf(panelHidden, PANEL_TILES, modeHiddenTiles)}
                     onToggle={(id, shown) => {
@@ -508,7 +414,7 @@ export function App() {
                   />
                 </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
-                  全体図は、P2 と P3 の描く物の範囲を映す。P1 の地図の上には出していない（地図の範囲と合わせる規則が未決）。
+                  全体図は、ボリュームと平面の描く物の範囲を映す。敷地の地図の上には出していない。
                 </p>
               </>
             )}

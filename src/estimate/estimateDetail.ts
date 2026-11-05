@@ -26,8 +26,8 @@ export interface DetailLine {
 
 /** 明細の出典の欄（G22）。鉄筋の係数は、公的な出典が無いので「未確定（G22）」。ほかの仮置きは「出典なし・仮置き」。仮置きでない数量は「計算」 */
 export function sourceOf(item: string, provisional: boolean): string {
-  if (item.startsWith('鉄筋')) return '未確定（G22）: 出典なし・仮置き'
-  return provisional ? '出典なし・仮置き（G22）' : '計算（仮置きなし）'
+  if (item.startsWith('鉄筋')) return '未確定: 出典なし・仮置き'
+  return provisional ? '出典なし・仮置き' : '計算（仮置きなし）'
 }
 
 /** 躯体のオブジェクト 1 件（床版）を、見積の明細の行に分ける */

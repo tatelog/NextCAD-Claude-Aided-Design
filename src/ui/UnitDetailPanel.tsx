@@ -34,7 +34,7 @@ const listOrNone = (items: readonly string[]) => (items.length > 0 ? items.join(
 // 1F の共用部の名前（必須の 6 つ）
 const FIRST_FLOOR_NAMES = commonAreasOf('1F')
 
-export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms = [], walls, openings, balcony, shaft, sameTypeIds, onApplySameType, firstFloorName = null, onSetFirstFloorName }: UnitDetailPanelProps) {
+export function UnitDetailPanel({ detail, onClose, rooms = [], sameTypeIds, onApplySameType, firstFloorName = null, onSetFirstFloorName }: UnitDetailPanelProps) {
   if (!detail) return null
   return (
     <aside
@@ -64,25 +64,6 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
         <li>{`外側 ${listOrNone(detail.outerSides)}`}</li>
         <li>{`置いた什器 ${listOrNone(detail.fixtures)}`}</li>
         <li>{`部屋 ${listOrNone(rooms)}`}</li>
-        <li>{storeyCount === undefined ? '配置（階）: 未配線' : `配置（階）: 基準階（${storeyCount} 階に複製）`}</li>
-        <li>{ceilingMm === undefined ? '天井高: 未配線' : `天井高 ${ceilingMm} mm（仮置き）`}</li>
-      </ul>
-      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px', fontSize: 12, color: '#a33' }}>
-        <li>
-          {balcony === undefined
-            ? 'バルコニー: 未配線'
-            : balcony.faces.length === 0
-              ? 'バルコニー: なし（外周の下の辺に接しない）'
-              : `バルコニー: ${balcony.faces.join('、')}の面 ${balcony.areaM2.toFixed(2)} m²（仮置き: 奥行 1600 mm）`}
-        </li>
-        <li>{walls === undefined || openings === undefined ? '壁と開口: 未配線' : `壁 ${walls} 本・開口 ${openings} 箇所（描いた線から）`}</li>
-        <li>
-          {shaft === undefined
-            ? 'PS: 未配線'
-            : shaft === null
-              ? 'PS: なし'
-              : `PS: 位置 (${shaft.x0}, ${shaft.y0})〜(${shaft.x1}, ${shaft.y1}) mm（自動作成の水回りの隅）`}
-        </li>
       </ul>
       {onSetFirstFloorName ? (
         <label style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
@@ -103,7 +84,7 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button type="button" onClick={onClose}>
-          この住戸を直す（P3 に戻る）
+          この住戸を直す（平面に戻る）
         </button>
         <button
           type="button"

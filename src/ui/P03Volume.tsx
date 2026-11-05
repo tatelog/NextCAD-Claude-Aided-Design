@@ -42,7 +42,7 @@ const HEIGHT_DISTRICTS: readonly HeightDistrict[] = ['第一種', '第二種', '
 
 /** 測定面の候補の一行（都条例の別表第一。提案で、判定には使わない） */
 function measurementHintOf(site: { zone: string; farPercent: number | null } | null, height: HeightDistrict | ''): string {
-  if (!site) return '用途地域が決まっていない（P1 で取得する）'
+  if (!site) return '用途地域が決まっていない（敷地で取得する）'
   const r = suggestMeasurement({ zone: site.zone, farPercent: site.farPercent, heightDistrict: height === '' ? null : height, ward: PROJECT_WARD })
   return r.ok ? `${r.measurement.measurementM} m（別表第一 ${r.measurement.band}）` : `決められない（${r.reason}）`
 }
@@ -81,9 +81,11 @@ import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOpt
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborNoteOf, neighborVolumesInFrame } from '../volume/neighborFrame'
 import { sunSiteOf } from '../plan/sunSite'
+import { useDevTools } from '../store/devTools'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
+  const devShown = useDevTools((s) => s.shown)
   // P2 の敷地: 確定した敷地の筆（P1 の「この敷地で確定」）。確定していなければダミー（統括の依頼 2026-11-06。1）
   const confirmed = useConfirmedSite((s) => s.confirmed)
   const currentSite = useConfirmedSite((s) => s.currentSite)
@@ -147,7 +149,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // 前面道路の辺は、今の敷地の辺の範囲に収めて使う（統括の依頼 2026-11-06 (b)）
   const edge = roadEdgeIndexOf(lot, roadEdge)
   const [roadWidth, setRoadWidth] = useState('6000')
-  // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
+  // 幅員の出どころ（仮置き）: 値は入力のまま、出どころの名前だけを持つ
   const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   // 離れ（西・南）の入力は空で始める。描いた外形は、離れを入れるまで動かない（t62 の直し）。既定（G104・G115）は入力欄の placeholder に出す
@@ -393,7 +395,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   return (
     <div className="p03">
       <header className="p03-toolbar">
-        <strong>P03 ボリューム作図</strong>
+        <strong>ボリューム作図</strong>
         {placement === 'top' && <PenToolbar placement="top" />}
         <span className="p03-mode">
           表示:
@@ -414,9 +416,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             全部消す
           </button>
         </span>
-        {confirmed === null ? <span className="p03-note">まだ確定していない（P1 の「この敷地で確定」。今はダミーの筆界）。</span> : null}
-        {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（P1 で地点か筆を変えた）。</span> : null}
-        <span className="p03-note">議論用・未確定。{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
+        {confirmed === null ? <span className="p03-note">まだ確定していない（敷地の「この敷地で確定」。今はダミーの筆界）。</span> : null}
+        {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
+        <span className="p03-note">{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
         {siteBuildings && (
           <span className="p03-note">{neighborNoteOf(neighbors.length, confirmed?.frame != null)}</span>
         )}
@@ -565,10 +567,10 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             </label>
             {siteRule ? (
               <p className="muted">
-                PLATEAU（P1 で取得）から: 区分 {siteRule.zone}、容積率の限度 {siteRule.farPercent === null ? '未取得' : `${siteRule.farPercent} %`}
+                PLATEAU（敷地で取得）から: 区分 {siteRule.zone}、容積率の限度 {siteRule.farPercent === null ? '未取得' : `${siteRule.farPercent} %`}
               </p>
             ) : (
-              <p className="muted">PLATEAU の用途地域が一つに決まらない（P1 で取得していない、または複数）。下の入力を使う。</p>
+              <p className="muted">PLATEAU の用途地域が一つに決まらない（敷地で取得していない、または複数）。下の入力を使う。</p>
             )}
             <label>
               高度地区の区分（人が入れる。測定面の候補に使う）
@@ -620,7 +622,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
             <label>
-              幅員の出どころ（G16。仮置き）
+              幅員の出どころ（仮置き）
               <select value={roadSource} onChange={(e) => setRoadSource(e.target.value as RoadWidthSource)}>
                 {ROAD_WIDTH_SOURCES.map((s) => (
                   <option key={s} value={s}>
@@ -655,19 +657,19 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 <dd>{setbackLabel(setback.west)}</dd>
               </dl>
             ) : (
-              <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
+              <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する）</p>
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
-            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
+            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。</p>
           </section>
-          <section style={tileStyle('p2-numeric')}>
+          <section style={{ ...tileStyle('p2-numeric'), ...(devShown ? {} : { display: 'none' }) }}>
             <TileClose title="数値で線を入れる" onHide={() => hideTile('p2-numeric')} />
-            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（仮置き）</h3>
             <NumericLineForm />
           </section>
-          <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay ? {} : { display: 'none' }) }}>
+          <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay && devShown ? {} : { display: 'none' }) }}>
             <TileClose title="回転" onHide={() => hideTile('p2-rotate')} />
-            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり）</h3>
             <label>
               回転角 (°、反時計回り)
               <input type="number" value={rotateText} onChange={(e) => setRotateText(e.target.value)} />
@@ -700,7 +702,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           </section>
           <section>
             <button type="button" onClick={clickNext}>
-              次へ（P3 平面）
+              次へ（平面）
             </button>
             {nextIssues !== null ? (
               <NextCheckPanel
@@ -716,9 +718,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             <h2>Claude（チャット）</h2>
             <ChatTile screen="P2" />
           </section>
-          <section style={tileStyle('feature-adjust')}>
-            <TileClose title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')} />
-            <h2>機能の調整（G43）</h2>
+          <section style={{ ...tileStyle('feature-adjust'), ...(devShown ? {} : { display: 'none' }) }}>
+            <TileClose title="機能の調整" onHide={() => hideTile('feature-adjust')} />
+            <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P2" />
           </section>
           <section style={tileStyle('drawing-review')}>

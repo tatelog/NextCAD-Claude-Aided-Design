@@ -24,12 +24,14 @@ import { SCREEN_MODES } from '../app/screenModes'
 import { usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { useDevTools } from '../store/devTools'
 import { PermitProjectFields } from './PermitProjectFields'
 
 const KIND_COLOR: Record<JudgementKind, string> = { 要る: '#1f2a44', 要らない: '#666', 要確認: '#a86b00' }
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
 
 export function P5Output() {
+  const devShown = useDevTools((s) => s.shown)
   const [schema, setSchema] = useState<IfcSchema>('IFC4')
   const [wallText, setWallText] = useState('200')
   const [fireZone, setFireZone] = useState<FireZone>('なし')
@@ -101,12 +103,12 @@ export function P5Output() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', height: '100%' }}>
       <div style={{ padding: 16, maxWidth: 720 }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P5 出力</h2>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>出力</h2>
         {outlineReason ? (
-          <p style={{ color: '#a33' }}>{outlineReason}（P2 で外形を閉じてください。IFC と判定はそれまで出しません）</p>
+          <p style={{ color: '#a33' }}>{outlineReason}（ボリュームで外形を閉じてください。IFC と判定はそれまで出しません）</p>
         ) : (
           <p style={{ fontSize: 12, color: '#444' }}>
-            P2 の外形から作る（階数 {storeys}・階高 {height.toLocaleString('ja-JP')} mm・高さ {heightM.toFixed(2)} m・延べ面積 {grossM2.toFixed(1)} ㎡）
+            ボリュームの外形から作る（階数 {storeys}・階高 {height.toLocaleString('ja-JP')} mm・高さ {heightM.toFixed(2)} m・延べ面積 {grossM2.toFixed(1)} ㎡）
           </p>
         )}
 
@@ -128,7 +130,7 @@ export function P5Output() {
                 <input value={wallText} onChange={(e) => setWallText(e.target.value)} style={{ width: 120, marginLeft: 8 }} />
               </label>
               <label style={{ display: 'block', marginBottom: 6 }}>
-                防火地域の区分（P1 の地点を人が選ぶ。自動の接続は未了）
+                防火地域の区分（敷地の地点を人が選ぶ。自動の接続は未了）
                 <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
                   <option value="なし">なし</option>
                   <option value="防火">防火地域</option>
@@ -139,7 +141,7 @@ export function P5Output() {
 
             {ready ? (
               <p style={{ fontSize: 12, color: '#444', margin: '0 0 12px' }}>
-                号区分（大規模の判定。P2 の外形の延べ面積と高さで数える。RC・共同住宅・区域内は仮置き）:{' '}
+                号区分（大規模の判定。ボリュームの外形の延べ面積と高さで数える。RC・共同住宅・区域内は仮置き）:{' '}
                 {(() => {
                   const labels = classLabelsOf({
                     structure: 'RC',
@@ -173,7 +175,7 @@ export function P5Output() {
                             )
                           }
                           if (i.label.startsWith('ロ')) return <li key={i.label}>{ICHI_NOTE}</li>
-                          return <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い。ハブ G28）</li>
+                          return <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い）</li>
                         })}
                       </ul>
                     </>
@@ -183,7 +185,7 @@ export function P5Output() {
             ) : null}
             {ready ? (
               <section style={{ marginBottom: 12, fontSize: 12 }}>
-                <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる。G28）</strong>
+                <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる）</strong>
                 <label style={{ display: 'block', margin: '6px 0' }}>
                   外壁開口部設備（防火設備か。イの入力）{' '}
                   <select value={fireDoor === null ? '' : fireDoor ? 'yes' : 'no'} onChange={(e) => setFireDoor(e.target.value === '' ? null : e.target.value === 'yes')}>
@@ -280,7 +282,7 @@ export function P5Output() {
               <button type="button" onClick={download} disabled={!valid}>
                 IFC を書き出す
               </button>
-              <p style={{ color: '#666', fontSize: 12 }}>IFC4 は円弧を曲線のまま、IFC2X3 は折れ線で書く（D-02 C9）。開口・什器・縦シャフトは未対応。</p>
+              <p style={{ color: '#666', fontSize: 12 }}>IFC4 は円弧を曲線のまま、IFC2X3 は折れ線で書く。開口・什器・縦シャフトは未対応。</p>
             </section>
           </>
         )}
@@ -297,7 +299,7 @@ export function P5Output() {
                 <div className="permit-print">
                   <h2 style={{ fontSize: 18, margin: '0 0 4px' }}>建築確認申請 図書一覧</h2>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>
-                    議論用・未確定 ／ 申請者: {applicant.trim() === '' ? '未記入' : applicant} ／ 図枠: {frame}
+                    申請者: {applicant.trim() === '' ? '未記入' : applicant} ／ 図枠: {frame}
                   </p>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>{applicabilityTextOf(judgement)}</p>
                   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
@@ -371,7 +373,7 @@ export function P5Output() {
                     印刷・PDF に保存
                   </button>
                   <p style={{ color: '#666', fontSize: 12 }}>
-                    ブラウザの印刷で PDF にする。図枠の罫線の規定と書式一式は未決（D-02 C10）。
+                    ブラウザの印刷で PDF にする。
                   </p>
                   <style>{`.permit-print{display:none}@media print{@page{size:${frame === 'A1' ? 'A1 landscape' : 'A3 landscape'};margin:12mm}body *{visibility:hidden}.permit-print,.permit-print *{visibility:visible}.permit-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff}}`}</style>
                 </section>
@@ -383,9 +385,9 @@ export function P5Output() {
         )}
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        {!rightShown('feature-adjust') ? null : (
-          <PanelTile title="機能の調整（G43）" onHide={() => usePanelTiles.getState().hideTile('feature-adjust')}>
-            <h2>機能の調整（G43）</h2>
+        {!rightShown('feature-adjust') || !devShown ? null : (
+          <PanelTile title="機能の調整" onHide={() => usePanelTiles.getState().hideTile('feature-adjust')}>
+            <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P5" />
           </PanelTile>
         )}

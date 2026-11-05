@@ -1,8 +1,8 @@
-// 仕様（ハブ A-03 G13・G14・G65、D-04 共通部品「意味づけの結果表示」「要確認の修正」）: P3 の右パネルの末尾に出す節「意味づけの確認（G14）」。文言は仮置き。
+// 仕様（ハブ A-03 G13・G14・G65、D-04 共通部品「意味づけの結果表示」「要確認の修正」）: P3 の右パネルの末尾に出す節「意味づけの確認」。文言は仮置き。
 // 判断は聞き返さない。結果はそのまま入り、右側で「これでいいか」をまとめて確認する。変えたければ選択肢で選ぶ。いちいち確定させない。
 // props: rows（確認欄の行。F5・F9 の線だけ。線の並びのまま）、onSelectKind（種類を選んだ。未分類を選んだら kind は null）、
 //   onConfirm（要確認の行の「この種類で確定」。種類は変えない）。状態は持たず、値は呼び出し側（店舗）が持つ。
-// 仕様 1（節）: 見出し「意味づけの確認（G14）」の欄（fieldset）。
+// 仕様 1（節）: 見出し「意味づけの確認」の欄（fieldset）。
 // 仕様 2（注記）: 節の中に「判定（Claude）は未接続。種類は人が選ぶ」を一行出す（線が無くても出す）。
 // 仕様 3（件数）: 「未分類 N 件」「要確認 N 件」「確定 N 件」を、この順に出す（0 件も出す）。
 // 仕様 4（一覧）: 行ごとに 1 項目、渡された並びのまま。各行は 線の id（長いときは先頭 8 文字。全体は title に持つ）・種類を選ぶ select・状態の印を持つ。
@@ -85,10 +85,10 @@ const SIX: ConfirmRow[] = [
 ]
 
 describe('SemanticConfirm（節と注記。仕様 1・2）', () => {
-  it('見出し「意味づけの確認（G14）」の欄（fieldset）', () => {
+  it('見出し「意味づけの確認」の欄（fieldset）', () => {
     const tree = render()
     expect(tree.type).toBe('fieldset')
-    expect(findAll(tree, isTag('legend')).map(textOf)).toEqual(['意味づけの確認（G14）'])
+    expect(findAll(tree, isTag('legend')).map(textOf)).toEqual(['意味づけの確認'])
   })
 
   it('節の中に「判定（Claude）は、ヘッダーの「意味づけを判定」で送る。」が出る', () => {
@@ -266,7 +266,7 @@ describe('SemanticConfirm（線が無いとき。仕様 7）', () => {
 describe('SemanticConfirm（描ける。仕様 8）', () => {
   it('サーバー側の描画で例外が出ず、節の名前・注記・件数・状態・ボタンが出る', () => {
     const html = renderToStaticMarkup(createElement(SemanticConfirm, { rows: SIX, onSelectKind: () => undefined, onConfirm: () => undefined }))
-    expect(html).toContain('意味づけの確認（G14）')
+    expect(html).toContain('意味づけの確認')
     expect(html).toContain('判定（Claude）は、ヘッダーの「意味づけを判定」で送る。結果は要確認の提案として入る。種類は人が選ぶ')
     expect(html).toContain('未分類 2 件')
     expect(html).toContain('要確認 1 件')
@@ -292,7 +292,7 @@ describe('SemanticConfirm（描ける。仕様 8）', () => {
 
   it('線が無くても例外が出ない', () => {
     const html = renderToStaticMarkup(createElement(SemanticConfirm, { rows: [], onSelectKind: () => undefined, onConfirm: () => undefined }))
-    expect(html).toContain('意味づけの確認（G14）')
+    expect(html).toContain('意味づけの確認')
     expect(html).toContain('がまだありません')
   })
 })

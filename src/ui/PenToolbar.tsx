@@ -115,11 +115,11 @@ export function PenToolbar({ placement }: PenToolbarProps) {
           <span>入力スナップ</span>
         </button>
       </span>
-      <span className="pen-toolbar-group" title="什器は P3 で使う（P2 では使えない）">
+      <span className="pen-toolbar-group" title="什器は平面で使う（ボリュームでは使えない）">
         <button
           type="button"
           aria-label="什器"
-          title={isToolEnabled('fixture', PEN_SCREEN) ? '什器' : '什器（P3 で使う）'}
+          title={isToolEnabled('fixture', PEN_SCREEN) ? '什器' : '什器（平面で使う）'}
           disabled={!isToolEnabled('fixture', PEN_SCREEN)}
         >
           <ToolIcon name="fixture" />

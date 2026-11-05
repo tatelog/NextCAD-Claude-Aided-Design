@@ -56,7 +56,7 @@ function OrdinanceSuggest() {
   const ready = city.trim() !== '' && text.trim() !== '' && !busy
   return (
     <div style={{ display: 'grid', gap: 4, margin: '10px 0', fontSize: 12, borderTop: '1px dashed #ddd8cc', paddingTop: 8 }}>
-      <span>Claude で条例本文から補う（W4。補った値は未確認。人が確認する）</span>
+      <span>Claude で条例本文から補う（補った値は未確認。人が確認する）</span>
       {workerUrl.trim() === '' && <span style={{ color: '#a33' }}>Worker の URL が未設定のため、送れない（開発は VITE_WORKER_URL が要る）</span>}
       <input aria-label="自治体名" placeholder="自治体名（例: 東京都江東区）" value={city} onChange={(e) => setCity(e.target.value)} />
       <select aria-label="用途地域" value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
@@ -92,7 +92,7 @@ export function OrdinanceForm() {
   const [drafts, setDrafts] = useState<Record<string, { value: string; source: string }>>({})
   return (
     <section style={{ marginBottom: 10 }}>
-      <strong style={{ fontSize: 13 }}>条例の値（人が入力し、出典を付けて確認する。G15）</strong>
+      <strong style={{ fontSize: 13 }}>条例の値（人が入力し、出典を付けて確認する）</strong>
       {ORDINANCE_KEYS.map((key) => {
         const draft = drafts[key] ?? { value: '', source: '' }
         const status = ordinanceStatus(entries, key)

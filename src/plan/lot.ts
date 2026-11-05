@@ -23,7 +23,7 @@ export function roadEdgeIndexOf(lot: readonly Point[], requested: number): numbe
 
 /** 筆界の注記（選んだ筆か、ダミーか） */
 export function lotNoteOf(parcel: Point[] | null): string {
-  return parcel === null ? '筆界はダミー（20 m × 30 m）' : '筆界は選んだ筆（P1 の公図）'
+  return parcel === null ? '筆界はダミー（20 m × 30 m）' : '筆界は選んだ筆（敷地で選んだ公図）'
 }
 
 /** 離れの注記。敷地が軸に平行な矩形のときは出さない。矩形でなければ「離れは矩形の敷地だけ」 */
@@ -49,6 +49,6 @@ export function lotCenterOf(lot: readonly Point[]): Point {
 /** P1 の「前面道路の幅員」の下の注記（統括の依頼 2026-11-06。7）。選んだ筆があるときは、その筆の注記。筆が無いときだけ、ダミーの仮置きの文言 */
 export function parcelNoticeOf(parcel: Point[] | null): string {
   return parcel === null
-    ? '仮置き: 筆界はダミー（20 m × 30 m）。登記情報は使わない（約款未確認）。手描きの筆界は未実装（D-02 C4 は代表の決定待ち）'
-    : '筆界は選んだ筆（P1 の公図）。登記情報は使わない（約款未確認）'
+    ? '仮置き: 筆界はダミー（20 m × 30 m）。登記情報は使わない（約款未確認）。'
+    : '筆界は選んだ筆（敷地で選んだ公図）。登記情報は使わない（約款未確認）'
 }

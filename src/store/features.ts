@@ -35,10 +35,10 @@ export interface FeatureItem {
 }
 
 export const FEATURE_ITEMS: readonly FeatureItem[] = [
-  { key: 'showShadow', group: '表示', label: '日影（P2 の 3D の地面）', connected: true },
-  { key: 'showNeighbors', group: '表示', label: '周辺建物（P1 の地図と P2 の 3D）', connected: true },
-  { key: 'showDimensions', group: '表示', label: '寸法線（P3 の平面）', connected: true },
-  { key: 'showGrid', group: '表示', label: 'グリッド（P3 の平面）', connected: true },
+  { key: 'showShadow', group: '表示', label: '日影（ボリュームの 3D の地面）', connected: true },
+  { key: 'showNeighbors', group: '表示', label: '周辺建物（敷地の地図とボリュームの 3D）', connected: true },
+  { key: 'showDimensions', group: '表示', label: '寸法線（平面）', connected: true },
+  { key: 'showGrid', group: '表示', label: 'グリッド（平面）', connected: true },
   { key: 'showMiniMap', group: '表示', label: '全体図（右下の縮図）', connected: true },
   { key: 'rotateDisplay', group: '操作', label: '回転表示（回転の欄を出す）', connected: true },
   { key: 'rotateOperation', group: '操作', label: '回転操作（回す・つまみで回す）', connected: true },

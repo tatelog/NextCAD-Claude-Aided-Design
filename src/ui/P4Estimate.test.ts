@@ -1,6 +1,6 @@
 // 仕様: P4 の左にも左メニューを出す（ハブ A-03 G55、D-04 共通部品「左メニュー」。P2 の 2D 平面、P3、P4 に出す）。文言は仮置き。
 // 代表の決定（G55）: 「図面のとき左メニューは必須。オブジェクトが何で、どんな内容が入っているかを可視化する。」
-// 仕様 1（共通部品）: P4 の左に、P3 と同じ左メニュー（見出し「オブジェクト」、説明文「種類ごとの件数（P3 の自動作成の結果）」）を出す。
+// 仕様 1（共通部品）: P4 の左に、P3 と同じ左メニュー（見出し「オブジェクト」、説明文「種類ごとの件数（平面の自動作成の結果）」）を出す。
 //   左の列の幅は帯の幅（OBJECT_MENU_WIDTH = 180）で、その右に今までの本体と右パネル（360）が並ぶ。
 // 仕様 2（P3 の自動作成の前）: store の plan が無いとき、件数は全部 0 で、「自動作成の後に出ます」と注記する。
 // 仕様 3（P3 の自動作成の後）: plan があるとき、P3 の自動作成の結果から、P3 と同じ件数を出す（objectSourcesOfPlan）。注記は出さない。
@@ -48,13 +48,13 @@ const PLAN = generateAutoPlan({
 })
 
 const NOTICE = '自動作成の後に出ます'
-const CAPTION = '種類ごとの件数（P3 の自動作成の結果）'
+const CAPTION = '種類ごとの件数（平面の自動作成の結果）'
 // 一覧の行の文字（名前 + 件数 + 注記）を、並びどおりにつないだもの
 const ROWS_NO_PLAN =
-  '筆界0外形0通り芯0柱0（意味づけ未配線）コア0縦シャフト0廊下0什器0住戸0壁0（意味づけ未配線）開口0（意味づけ未配線）部屋0'
+  '筆界0外形0通り芯0柱0コア0縦シャフト0廊下0什器0住戸0壁0開口0部屋0'
 // 中廊下（4 スパン・8 区画）: 筆界 0・外形 1・通り芯 5・コア 3・縦シャフト 10・廊下 1・什器 0・住戸 8・部屋 32（P3 と同じ件数）
 const ROWS_WITH_PLAN =
-  '筆界0外形1通り芯5柱0（意味づけ未配線）コア3縦シャフト10廊下1什器0住戸8壁0（意味づけ未配線）開口0（意味づけ未配線）部屋32'
+  '筆界0外形1通り芯5柱0コア3縦シャフト10廊下1什器0住戸8壁0開口0部屋32'
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
@@ -75,7 +75,7 @@ beforeEach(() => {
 })
 
 describe('P4 の左メニュー（共通部品。仕様 1）', () => {
-  it('左に、見出し「オブジェクト」と説明文「種類ごとの件数（P3 の自動作成の結果）」が出る', () => {
+  it('左に、見出し「オブジェクト」と説明文「種類ごとの件数（平面の自動作成の結果）」が出る', () => {
     const text = textOf(htmlOf())
     expect(text).toContain(`オブジェクト${CAPTION}`)
   })
@@ -89,7 +89,7 @@ describe('P4 の左メニュー（共通部品。仕様 1）', () => {
     // 「オブジェクト」だけでは、本体の既存の文言（「対応するオブジェクトを作ってから」）にも当たるので、見出しと説明文で探す
     const menu = text.indexOf(`オブジェクト${CAPTION}`)
     expect(menu).toBeGreaterThanOrEqual(0)
-    expect(menu).toBeLessThan(text.indexOf('P4 積算'))
+    expect(menu).toBeLessThan(text.indexOf('積算 — 単価と数量'))
   })
 
   it('種類を選んでいないので、中身の欄は出ない', () => {
@@ -129,7 +129,7 @@ describe('P4 の左メニュー（P3 で置いた什器。仕様 5）', () => {
     site.state = { volume: null, plan: PLAN }
     fixtureStore.state = { fixtures: placed, unitIds: null }
     expect(textOf(htmlOf())).toContain(
-      '筆界0外形1通り芯5柱0（意味づけ未配線）コア3縦シャフト10廊下1什器3住戸8壁0（意味づけ未配線）開口0（意味づけ未配線）部屋32',
+      '筆界0外形1通り芯5柱0コア3縦シャフト10廊下1什器3住戸8壁0開口0部屋32',
     )
   })
 
@@ -137,7 +137,7 @@ describe('P4 の左メニュー（P3 で置いた什器。仕様 5）', () => {
     fixtureStore.state = { fixtures: placed, unitIds: null }
     const text = textOf(htmlOf())
     expect(text).toContain(
-      `${CAPTION}${NOTICE}筆界0外形0通り芯0柱0（意味づけ未配線）コア0縦シャフト0廊下0什器3住戸0壁0（意味づけ未配線）開口0（意味づけ未配線）部屋0`,
+      `${CAPTION}${NOTICE}筆界0外形0通り芯0柱0コア0縦シャフト0廊下0什器3住戸0壁0開口0部屋0`,
     )
   })
 
@@ -152,7 +152,7 @@ describe('P4 の本体（仕様 4）', () => {
     for (const plan of [null, PLAN]) {
       site.state = { volume: null, plan }
       const text = textOf(htmlOf())
-      expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('P4 積算 — 単価と数量')
+      expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('積算 — 単価と数量')
       expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('工事原価（概算）')
     }
   })
@@ -170,7 +170,7 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     unitPriceRef: 'carpenter',
     amountYen: 675000,
     provisional: true,
-    source: '出典なし・仮置き（G22）',
+    source: '出典なし・仮置き',
     basis: '床版と同じ面積（支保工は含めない）',
     origin: '自動',
   }
@@ -194,7 +194,7 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     estimateStore.state = { lines: [formwork], persisted: true }
     const text = textOf(htmlOf())
     expect(text).toContain('型枠（床版の下面）')
-    expect(text).toContain('出典: 出典なし・仮置き（G22）')
+    expect(text).toContain('出典: 出典なし・仮置き')
     expect(text).toContain('90 m²')
     expect(text).toContain('675,000')
   })

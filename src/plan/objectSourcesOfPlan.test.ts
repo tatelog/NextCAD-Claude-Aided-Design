@@ -182,14 +182,14 @@ describe('objectSourcesOfPlan（種類ごとの入力。仕様 1〜5・7）', ()
     }
   })
 
-  it('柱・壁・開口は、結果がそろっていても件数 0 のまま（入力に含めない）で、「意味づけ未配線」の注記が付く', () => {
+  it('柱・壁・開口は、結果がそろっていても件数 0 のまま（入力に含めない）で、注記は付かない', () => {
     const rows = countObjects(objectSourcesOfPlan(MID))
     for (const kind of NOTED) {
       const row = rows.find((r) => r.kind === kind)
       expect(row?.count, kind).toBe(0)
-      expect(row?.note, kind).toBe('意味づけ未配線')
+      expect(row?.note, kind).toBeUndefined()
     }
-    expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual(NOTED)
+    expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual([])
   })
 })
 
@@ -265,11 +265,11 @@ describe('objectSourcesOfPlan（結果が無いとき。仕様 6）', () => {
     expect(objectSourcesOfPlan(undefined)).toEqual(EMPTY)
   })
 
-  it('件数は全部 0（12 種類）で、注記が付くのは柱・壁・開口だけ', () => {
+  it('件数は全部 0（12 種類）で、注記は付かない', () => {
     const rows = countObjects(objectSourcesOfPlan(null))
     expect(rows).toHaveLength(12)
     expect(rows.map((r) => r.count)).toEqual(new Array(12).fill(0))
-    expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual(NOTED)
+    expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual([])
   })
 
   it('どの種類を選んでも、中身は空で「なし」と出す', () => {
@@ -450,10 +450,10 @@ describe('objectSourcesOfFootprint（P2 に無いもの・中身。仕様 12〜1
     expect(s.rooms).toEqual([])
   })
 
-  it('柱・壁・開口は 0 件のまま「意味づけ未配線」の注記が付き、ほかの種類には付かない', () => {
+  it('柱・壁・開口は 0 件のまま、どの種類にも注記は付かない', () => {
     const rows = countObjects(objectSourcesOfFootprint(SQUARE, PARCEL))
     expect(rows).toHaveLength(12)
-    expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual(NOTED)
+    expect(rows.filter((r) => r.note !== undefined).map((r) => r.kind)).toEqual([])
   })
 
   it('筆界・外形の中身は、1 件ずつ「中身: 未配線」（意味づけの結果とレイヤーが付く）', () => {

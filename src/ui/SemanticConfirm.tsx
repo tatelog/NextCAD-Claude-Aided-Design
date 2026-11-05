@@ -41,7 +41,7 @@ const MARK_COLORS: Record<ConfirmStatus, { color: string; background: string }> 
 }
 const statusMark = (s: ConfirmStatus) => ({ ...MARK_COLORS[s], fontSize: 11, padding: '0 6px', borderRadius: 4 }) as const
 
-export function SemanticConfirm({ rows, onSelectKind, onConfirm, legend = '意味づけの確認（G14）' }: SemanticConfirmProps) {
+export function SemanticConfirm({ rows, onSelectKind, onConfirm, legend = '意味づけの確認' }: SemanticConfirmProps) {
   const counts = countByStatus(rows)
   // select の値は、選択肢に出した種類か空（未分類）のどちらか。それ以外は受けない
   const choose = (id: string, value: string) => {

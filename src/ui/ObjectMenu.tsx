@@ -132,7 +132,7 @@ export function ObjectMenu({
               : `${g.floor}：${g.names.map((name) => `${name} ${firstFloorCounts?.find((c) => c.name === name)?.count ?? 0}`).join('、')}`}
           </div>
         ))}
-        <div style={{ color: '#a33', fontSize: 11 }}>1F は、基準階の区画に 1F の名前を付けた数（1F 専用の平面はまだ無い）</div>
+        <div style={{ color: '#a33', fontSize: 11 }}>1F は、基準階の区画に 1F の名前を付けた数</div>
       </div>
       {detail ? (
         <section aria-label={`${detail.label}の中身`} style={{ marginTop: 12 }}>

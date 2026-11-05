@@ -212,12 +212,8 @@ async function loadLocalLayers(
   selectedRef: { current: string | null },
 ) {
   const missing: string[] = []
-  let roadCount = 0
-  let parcelCount = 0
-  let buildingCount = 0
   try {
     const roadsJson = (await loadLocal('roads-koto.json')) as { roads: { w: number; c: number; g: unknown }[] }
-    roadCount = roadsJson.roads.length
     map.addSource('roads', { type: 'geojson', data: { type: 'FeatureCollection', features: toRoadFeatures(roadsJson.roads) } })
     for (const w of ROAD_WIDTH_CLASSES) {
       map.addLayer({
@@ -240,7 +236,6 @@ async function loadLocalLayers(
       f.properties['筆UID'] = uid
       rememberParcelGeometry(uid, f.geometry, f.properties)
     }
-    parcelCount = parcels.features.length
     map.addSource('parcels', { type: 'geojson', data: parcels as GeoJSONSourceSpecification['data'], promoteId: '筆UID' })
     map.addLayer({
       id: 'parcels-fill',
@@ -266,7 +261,6 @@ async function loadLocalLayers(
   }
   try {
     const bldg = (await loadLocal('buildings-koto.geojson.gz')) as { features: unknown[] }
-    buildingCount = bldg.features.length
     map.addSource('bldg', { type: 'geojson', data: bldg as GeoJSONSourceSpecification['data'] })
     map.addLayer({
       id: 'bldg-3d',
@@ -282,8 +276,7 @@ async function loadLocalLayers(
   } catch {
     missing.push('建物')
   }
-  const parts = [`道路 ${roadCount.toLocaleString('ja-JP')} 本`, `筆 ${parcelCount.toLocaleString('ja-JP')} 筆`, `建物 ${buildingCount.toLocaleString('ja-JP')} 棟`]
-  onStatus(missing.length === 0 ? `表示中：${parts.join('、')}` : `未取得：${missing.join('、')}（public/local-data/ に置くと表示されます）`)
+  onStatus(missing.length === 0 ? '' : `未取得：${missing.join('、')}`)
 }
 
 // 選んだ筆の見た目（地図の塗り）を、選んだ筆に合わせる。前に選んだ筆の選択は外す。地図の筆がまだ読めていないときは見た目だけ変えない（次に地点を変えたときに合う）

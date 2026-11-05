@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
-import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
+import { PARCEL_BOUNDARY_NOTE } from '../data/sources'
 import { P1Map } from './P1Map'
+import { POSTAL_UNAVAILABLE_NOTICE } from '../geocode/postalNotice'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
 import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
@@ -24,6 +25,7 @@ import { ChatTile } from './ChatTile'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { usePanelTiles } from '../store/panelTiles'
+import { useDevTools } from '../store/devTools'
 
 // 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の内側の点（initialView の DEMO_SITE）
 const DEFAULT = DEMO_SITE
@@ -31,6 +33,7 @@ const DEFAULT = DEMO_SITE
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
 export function P1Site({ onNext }: { onNext?: () => void } = {}) {
+  const devShown = useDevTools((s) => s.shown)
   // 開き直すときは、店舗の今いる地点から始める（既定の地点に戻すと、確定のあとに確定し直しになる。統括の依頼 2026-11-06。1）
   const startSite = startSiteOf(useConfirmedSite.getState().currentSite, DEFAULT)
   const [lonText, setLonText] = useState(String(startSite.lon))
@@ -61,6 +64,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
+  const [postalNotice, setPostalNotice] = useState<string | null>(null)
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -162,13 +166,13 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
         <div style={{ margin: '0 0 8px' }}>
-          <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（P2 へ）</button>
-          {confirmed === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>まだ確定していない（P2 はダミーの筆界）</p> : null}
+          <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（ボリュームへ）</button>
+          {confirmed === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>まだ確定していない（ボリュームはダミーの筆界）</p> : null}
           {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
           {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
         </div>
@@ -202,20 +206,18 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               ))}
             </ul>
           )}
-          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: {sourceLabel('gsiAddress')}</p>
         </div>
-        <div aria-disabled="true" style={{ marginBottom: 12, opacity: 0.45 }}>
+        <div style={{ marginBottom: 12, opacity: 0.45 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
-            郵便番号（今回のハッカソンでは対象外）
-            <input disabled placeholder="例: 135-8383" style={{ width: '100%' }} />
+            郵便番号
+            <input placeholder="例: 135-8383" style={{ width: '100%' }} />
           </label>
-          <button type="button" disabled>
+          <button type="button" onClick={() => setPostalNotice(POSTAL_UNAVAILABLE_NOTICE)}>
             郵便番号で探す
           </button>
-          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>
-            郵便番号から住所を引くデータの出どころが未決のため、今回は止めています（README の「今回の対応範囲」を参照）。
-          </p>
+          {postalNotice ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>{postalNotice}</p> : null}
         </div>
+        <div style={devShown ? undefined : { display: 'none' }}>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
           <input value={lonText} onChange={(e) => moveSiteByText(e.target.value, latText)} style={{ width: '100%' }} />
@@ -228,6 +230,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           ズーム
           <input type="number" min={0} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(clampZoom(Number(e.target.value)))} style={{ width: '100%' }} />
         </label>
+        </div>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法規の値</h3>
           <dl style={{ margin: 0 }}>
@@ -239,17 +242,17 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             </dd>
             <dt>前面道路の幅員</dt>
             <dd>{parcelNoticeOf(parcel)}</dd>
-            <dt>真北</dt>
-            <dd>未算出（系番号は自治体で決まる。D-02 C4）</dd>
           </dl>
         </section>
         <section>
           <OrdinanceForm />
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
+          <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区のコード（例: 13108 は江東区）
             <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
           </label>
+          </div>
           <button type="button" onClick={fetchDistricts} disabled={loading}>
             {loading ? '取得中…' : 'この地点の用途地域を取る'}
           </button>
@@ -293,14 +296,16 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}。斜線・日影は urf に無い（条例で補う）。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>斜線・日影は urf に無い（条例で補う）。</p>
         </section>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
+          <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区の CityGML の zip（江東区 2025 年版）
             <input value={zipUrl} onChange={(e) => setZipUrl(e.target.value)} style={{ width: '100%' }} />
           </label>
+          </div>
           <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
             {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
           </button>
@@ -310,7 +315,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               周辺建物 {siteBuildings.length} 棟（基準点から半径 400 m 以内）。高さ不明 {siteBuildings.filter((b) => b.heightM === null).length} 棟は 3D に出ません。
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: {sourceLabel('plateau')}（建物データ）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>建物データ。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
         {!rightShown('claude-chat') ? null : (
           <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
