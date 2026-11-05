@@ -254,7 +254,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>積算 — 単価と数量</h2>
         {plan ? (
           <section style={{ marginBottom: 12, fontSize: 12 }}>
-            <strong>住戸タイプ別の内装（1 戸あたり × 戸数。G61）</strong>
+            <strong>住戸タイプ別の内装（1 戸あたり × 戸数）</strong>
             {(() => {
               const cells = plan.cells.map((c) => ({ id: c.id, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }))
               const rows = breakdownByUnitType(
@@ -299,7 +299,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
               <FixtureLayer cells={plan.cells} fixtures={fixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
             </svg>
             <figcaption style={{ fontSize: 12, color: '#666' }}>
-              平面の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。3LDK の洋室 3 室は未決のため、ここは 2 室。
+              平面の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。
             </figcaption>
           </figure>
         ) : null}
@@ -309,7 +309,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
               <polygon points={volume.footprint.map((p) => `${p.x},${-p.y}`).join(' ')} fill="rgba(47,122,79,0.12)" stroke="#2f7a4f" strokeWidth={planBox.w / 160} />
             </svg>
             <figcaption style={{ fontSize: 12, color: '#666' }}>
-              外形（ボリューム）。外壁と屋根は外装として拾う。室の内装の塗り分けは、平面で部屋を作ってから出す（未実装）。
+              外形（ボリューム）。外壁と屋根は外装として拾う。室の内装の塗り分けは、平面で部屋を作ってから出す。
             </figcaption>
           </figure>
         ) : (
@@ -451,7 +451,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
                 ))}
               </tbody>
             </table>
-            <p style={{ color: '#666', fontSize: 12 }}>直接仮設・共通仮設費・現場管理費・一般管理費は含めない（G19）。円単位の概算（G21）。</p>
+            <p style={{ color: '#666', fontSize: 12 }}>直接仮設・共通仮設費・現場管理費・一般管理費は含めない。円単位の概算。</p>
           </>
         ) : (
           <p style={{ color: '#a33' }}>{estimate && 'error' in estimate ? estimate.error : '—'}</p>
@@ -470,12 +470,6 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
             />
           ) : null}
         </div>
-        <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>未決</h3>
-        <ul style={{ margin: 0, paddingLeft: 18, color: '#666', fontSize: 12 }}>
-          <li>単価の置き場（G72、代表の答え待ち）</li>
-          <li>ユニットバス・什器の歩掛（出典なし。G22）</li>
-          <li>数量の拾い方は仮置き（D-02 C8）</li>
-        </ul>
         {!rightShown('claude-chat') ? null : (
           <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
             <h2>Claude（チャット）</h2>

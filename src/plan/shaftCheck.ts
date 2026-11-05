@@ -13,6 +13,6 @@ export function shaftFloorsOf(
 
 /** 検査の結果を画面の一行にする（G119）。食い違う階は 1 始まりの階の番号で出す */
 export function shaftNoteOf(result: AlignmentResult): string {
-  if (result.aligned) return '縦シャフトは上下階で一致（基準階の複製。G30）'
-  return `要確認: ${result.mismatchedFloors.map((f) => `${f + 1} 階`).join('、')}の縦シャフトが基準階と一致しない（G119）`
+  if (result.aligned) return '縦シャフトは上下階で一致（基準階の複製）'
+  return `要確認: ${result.mismatchedFloors.map((f) => `${f + 1} 階`).join('、')}の縦シャフトが基準階と一致しない`
 }

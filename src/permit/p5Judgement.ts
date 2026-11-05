@@ -69,7 +69,7 @@ export function legalCheckOfDoc(name: string, legal: LegalDocState): LegalDocChe
   if (name === '日影図') {
     if (legal.shadow === '適合') return { text: '日影 適合', tone: 'ok' }
     if (legal.shadow === '不適合') return { text: '日影 不適合', tone: 'warn' }
-    return { text: '日影 未判定（条例値が未決）', tone: 'warn' }
+    return { text: '日影 未判定（条例値が未入力）', tone: 'warn' }
   }
   return { text: '—', tone: 'none' }
 }

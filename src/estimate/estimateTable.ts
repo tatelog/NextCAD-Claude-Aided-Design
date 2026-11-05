@@ -33,7 +33,7 @@ export function manualLineOf(row: PriceRow, quantity: number): EstimateDetail {
     unitPriceRef: row.id,
     amountYen,
     provisional,
-    source: provisional ? '出典なし・仮置き（G22）' : row.source_ref,
+    source: provisional ? '出典なし・仮置き' : row.source_ref,
     basis: '手入力（利用者が数量を入れた）',
     origin: '手入力',
   }

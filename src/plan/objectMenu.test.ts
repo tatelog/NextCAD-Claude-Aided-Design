@@ -7,7 +7,7 @@
 // 仕様 2（件数）: 件数は P3 の自動作成の結果（筆界・外形・通り芯・コア・縦シャフト・廊下・住戸・部屋）と、P3 で置いた什器の一覧から、種類ごとに数える。
 //   什器の件数は一覧の数そのもので、区画なしの什器も 1 件と数える。
 // 仕様 3（空）: 結果が無い（空・未指定）ときは、どの種類も 0。
-// 仕様 4（意味づけ未配線）: 柱・壁・開口は P3 にデータが無い（意味づけは未配線）。P3 の結果がどうであれ件数は 0 で、「意味づけ未配線」と注記する。
+// 仕様 4（意味づけ未配線）: 柱・壁・開口は P3 にデータが無い（意味づけは未配線）。P3 の結果がどうであれ件数は 0 で、注記は付けない（統括の依頼 2026-11-06。画面整理 2）。
 // 仕様 5（注記の対象）: 注記が付くのは柱・壁・開口だけ。ほかの種類は、件数が 0 でも注記を付けない。
 // 仕様 6（純粋）: 入力を書き換えない。同じ入力には同じ出力。前の呼び出しに左右されない。
 // 今回やらない（未着手）: 種類の選択、選んだものの中身（区画・面積・部屋・壁と開口の数・意味づけの結果・レイヤー）の表示。
@@ -45,7 +45,6 @@ const D04 = [
 
 // データが無い（意味づけは未配線）種類
 const UNWIRED = ['column', 'wall', 'opening'] as const
-const NOTE = '意味づけ未配線'
 
 type Rows = ReturnType<typeof countObjects>
 const rowOf = (rows: Rows, kind: string) => rows.find((r) => r.kind === kind)
@@ -173,33 +172,33 @@ describe('countObjects（件数の数え方）', () => {
   })
 })
 
-describe('countObjects（意味づけ未配線の注記）', () => {
-  it('柱・壁・開口は、P3 の結果がそろっていても件数 0 で「意味づけ未配線」と注記する', () => {
+describe('countObjects（注記は付けない）', () => {
+  it('柱・壁・開口は、P3 の結果がそろっていても件数 0 で、注記は付かない', () => {
     const rows = countObjects(FULL)
     for (const kind of UNWIRED) {
       const row = rowOf(rows, kind)
       expect(row, kind).toBeDefined()
       expect(row?.count, kind).toBe(0)
-      expect(row?.note, kind).toBe(NOTE)
+      expect(row?.note, kind).toBeUndefined()
     }
   })
 
-  it('柱・壁・開口は、結果が空でも件数 0 で「意味づけ未配線」と注記する', () => {
+  it('柱・壁・開口は、結果が空でも件数 0 で、注記は付かない', () => {
     const rows = countObjects({})
     for (const kind of UNWIRED) {
       expect(rowOf(rows, kind)?.count, kind).toBe(0)
-      expect(rowOf(rows, kind)?.note, kind).toBe(NOTE)
+      expect(rowOf(rows, kind)?.note, kind).toBeUndefined()
     }
   })
 
-  it('注記が付くのは柱・壁・開口だけ（結果がそろっているとき）', () => {
+  it('注記は、どの種類にも付かない（結果がそろっているとき）', () => {
     const noted = countObjects(FULL).filter((r) => r.note !== undefined)
-    expect(noted.map((r) => r.kind)).toEqual(['column', 'wall', 'opening'])
+    expect(noted.map((r) => r.kind)).toEqual([])
   })
 
-  it('注記が付くのは柱・壁・開口だけ（件数が 0 の種類にも、他には注記を付けない）', () => {
+  it('注記は、結果が空のときも、どの種類にも付かない', () => {
     const noted = countObjects({}).filter((r) => r.note !== undefined)
-    expect(noted.map((r) => r.kind)).toEqual(['column', 'wall', 'opening'])
+    expect(noted.map((r) => r.kind)).toEqual([])
   })
 })
 

@@ -49,6 +49,6 @@ export function lotCenterOf(lot: readonly Point[]): Point {
 /** P1 の「前面道路の幅員」の下の注記（統括の依頼 2026-11-06。7）。選んだ筆があるときは、その筆の注記。筆が無いときだけ、ダミーの仮置きの文言 */
 export function parcelNoticeOf(parcel: Point[] | null): string {
   return parcel === null
-    ? '仮置き: 筆界はダミー（20 m × 30 m）。登記情報は使わない（約款未確認）。手描きの筆界は未実装（D-02 C4 は代表の決定待ち）'
+    ? '仮置き: 筆界はダミー（20 m × 30 m）。登記情報は使わない（約款未確認）。'
     : '筆界は選んだ筆（敷地で選んだ公図）。登記情報は使わない（約款未確認）'
 }

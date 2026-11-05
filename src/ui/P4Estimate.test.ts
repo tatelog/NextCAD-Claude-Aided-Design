@@ -51,10 +51,10 @@ const NOTICE = '自動作成の後に出ます'
 const CAPTION = '種類ごとの件数（平面の自動作成の結果）'
 // 一覧の行の文字（名前 + 件数 + 注記）を、並びどおりにつないだもの
 const ROWS_NO_PLAN =
-  '筆界0外形0通り芯0柱0（意味づけ未配線）コア0縦シャフト0廊下0什器0住戸0壁0（意味づけ未配線）開口0（意味づけ未配線）部屋0'
+  '筆界0外形0通り芯0柱0コア0縦シャフト0廊下0什器0住戸0壁0開口0部屋0'
 // 中廊下（4 スパン・8 区画）: 筆界 0・外形 1・通り芯 5・コア 3・縦シャフト 10・廊下 1・什器 0・住戸 8・部屋 32（P3 と同じ件数）
 const ROWS_WITH_PLAN =
-  '筆界0外形1通り芯5柱0（意味づけ未配線）コア3縦シャフト10廊下1什器0住戸8壁0（意味づけ未配線）開口0（意味づけ未配線）部屋32'
+  '筆界0外形1通り芯5柱0コア3縦シャフト10廊下1什器0住戸8壁0開口0部屋32'
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
@@ -129,7 +129,7 @@ describe('P4 の左メニュー（P3 で置いた什器。仕様 5）', () => {
     site.state = { volume: null, plan: PLAN }
     fixtureStore.state = { fixtures: placed, unitIds: null }
     expect(textOf(htmlOf())).toContain(
-      '筆界0外形1通り芯5柱0（意味づけ未配線）コア3縦シャフト10廊下1什器3住戸8壁0（意味づけ未配線）開口0（意味づけ未配線）部屋32',
+      '筆界0外形1通り芯5柱0コア3縦シャフト10廊下1什器3住戸8壁0開口0部屋32',
     )
   })
 
@@ -137,7 +137,7 @@ describe('P4 の左メニュー（P3 で置いた什器。仕様 5）', () => {
     fixtureStore.state = { fixtures: placed, unitIds: null }
     const text = textOf(htmlOf())
     expect(text).toContain(
-      `${CAPTION}${NOTICE}筆界0外形0通り芯0柱0（意味づけ未配線）コア0縦シャフト0廊下0什器3住戸0壁0（意味づけ未配線）開口0（意味づけ未配線）部屋0`,
+      `${CAPTION}${NOTICE}筆界0外形0通り芯0柱0コア0縦シャフト0廊下0什器3住戸0壁0開口0部屋0`,
     )
   })
 
@@ -170,7 +170,7 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     unitPriceRef: 'carpenter',
     amountYen: 675000,
     provisional: true,
-    source: '出典なし・仮置き（G22）',
+    source: '出典なし・仮置き',
     basis: '床版と同じ面積（支保工は含めない）',
     origin: '自動',
   }
@@ -194,7 +194,7 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     estimateStore.state = { lines: [formwork], persisted: true }
     const text = textOf(htmlOf())
     expect(text).toContain('型枠（床版の下面）')
-    expect(text).toContain('出典: 出典なし・仮置き（G22）')
+    expect(text).toContain('出典: 出典なし・仮置き')
     expect(text).toContain('90 m²')
     expect(text).toContain('675,000')
   })

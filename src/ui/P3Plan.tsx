@@ -1,5 +1,5 @@
 // P3 平面（D-04 P3、D-02 C6、A-03 G17）。柱割りの通り芯と、廊下の両側の住戸候補から住戸数を出す。
-// 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決（D-02 C6）。画面では利用者が入れた値だけで計算する。
+// 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決。画面では利用者が入れた値だけで計算する。
 import { useEffect, useMemo, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { checkSpan, gridLines } from '../plan/grid'
@@ -111,7 +111,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const placeSelectedFixture = useFixtures((s) => s.placeSelected)
   const removeFixtureById = useFixtures((s) => s.remove)
   const setFixtureUnitIds = useFixtures((s) => s.setUnitIds)
-  // 意味づけの確認（G14）: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
+  // 意味づけの確認: 描いた線のうち F5・F9 の線の種類と状態は店舗が持つ。種類は人が選ぶ（判定は未接続）
   // 外形と意味づけは P2 の線だけ（P3 の線は店舗に入るが、この欄の対象にはまだ入れない）
   const drawnAll = useDrawing((s) => s.entries)
   const drawnEntries = useMemo(() => p2Entries(drawnAll), [drawnAll])
@@ -335,7 +335,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const range = minText !== '' && maxText !== '' ? { minMm: Number(minText), maxMm: Number(maxText) } : null
   // 縦シャフトの上下階の一致（G119）。今は各階が基準階の複製（G30）なので、個別の階を持つときだけ食い違いが出る
   const shaftCheck = auto ? checkShaftAlignment(shaftFloorsOf(auto.shaftRects, storeyCount)) : null
-  let judge: string = '許容範囲は未決（D-02 C6）'
+  let judge: string = '許容範囲は未決'
   if (range && Number.isFinite(range.minMm) && Number.isFinite(range.maxMm)) {
     try {
       judge = checkSpan(Number(spanText), range)
@@ -554,7 +554,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           廊下の幅 (mm)
           <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
           {corridorDefaultOf(layoutText) && corridorText === String(corridorDefaultOf(layoutText)?.mm) ? (
-            <span style={{ display: 'block', fontSize: 11, color: '#a86b00' }}>既定の値は仮置き（出典は A-07 で確認）</span>
+            <span style={{ display: 'block', fontSize: 11, color: '#a86b00' }}>既定の値は仮置き</span>
           ) : null}
         </label>
         <label style={{ display: 'block', marginBottom: 4 }}>
@@ -606,7 +606,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           {auto ? (
             <>
               <p style={{ fontSize: 12, margin: '0 0 6px' }}>
-                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲。G99）: {unitTypeIds.length === 0 ? '未指定（列ごとの区画）' : auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '—'}`).join('、')}
+                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲）: {unitTypeIds.length === 0 ? '未指定（列ごとの区画）' : auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '—'}`).join('、')}
               </p>
               <p style={{ fontSize: 12, margin: '0 0 6px' }}>住戸数は間口 × 列幅から決まる。</p>
               {auto.provisionalSpans.length > 0 ? (
@@ -682,7 +682,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <>
             <p>
               住戸数（仮置きの区画）: <strong>{arcCut ? arcCut.inside.length : units.result.usable_count}</strong>
-              {arcCut ? '（円弧の外形の内に入る区画だけ数える。G5）' : ''}
+              {arcCut ? '（円弧の外形の内に入る区画だけ数える）' : ''}
               {units.result.plan_status === '成立' ? '' : '（不成立のため確定しない）'}
             </p>
             <p style={{ color: '#666', fontSize: 12 }}>
@@ -697,7 +697,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           </>
         ) : null}
         <p style={{ color: '#666', fontSize: 12 }}>
-          閉合は画面に未接続（意味判定は、ヘッダーの「意味づけを判定」で送る）。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
+          意味判定は、ヘッダーの「意味づけを判定」で送る。コアの枠: {core.rect ? '1 件（ev-1）を除外判定に使用' : '未入力（0 件）'}。
         </p>
         </PanelTile>
         )}
@@ -729,7 +729,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           </PanelTile>
         )}
         {!tileShown('semantic') ? null : (
-          <PanelTile title="意味づけの確認（G14）" onHide={() => hideTile('semantic')}>
+          <PanelTile title="意味づけの確認" onHide={() => hideTile('semantic')}>
             <SemanticConfirm
               rows={semanticRows}
               onSelectKind={(id, kind) => (kind === null ? clearSemanticKind(id) : setSemanticKind(id, kind))}
@@ -749,8 +749,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           </PanelTile>
         )}
         {!tileShown('feature-adjust') ? null : (
-          <PanelTile title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')}>
-            <h2>機能の調整（G43）</h2>
+          <PanelTile title="機能の調整" onHide={() => hideTile('feature-adjust')}>
+            <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P3" />
           </PanelTile>
         )}

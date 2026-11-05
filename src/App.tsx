@@ -453,7 +453,7 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="機能一覧（チェックで入・切。G43・G70）">
+                <Fold title="機能一覧（チェックで入・切）">
                   <MenuCheckRows
                     groups={featureMenuGroupsOf(featureShown)}
                     onToggle={(id, shown) => {
@@ -494,7 +494,7 @@ export function App() {
                     </div>
                   ))}
                 </Fold>
-                <Fold title="右パネルの項目（ボリュームの機能一覧。チェックで右パネルに出す。G43・G73・G74）">
+                <Fold title="右パネルの項目（ボリュームの機能一覧。チェックで右パネルに出す）">
                   <MenuCheckRows
                     groups={panelMenuGroupsOf(panelHidden, PANEL_TILES, modeHiddenTiles)}
                     onToggle={(id, shown) => {
@@ -507,7 +507,7 @@ export function App() {
                   />
                 </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
-                  全体図は、ボリュームと平面の描く物の範囲を映す。敷地の地図の上には出していない（地図の範囲と合わせる規則が未決）。
+                  全体図は、ボリュームと平面の描く物の範囲を映す。敷地の地図の上には出していない。
                 </p>
               </>
             )}

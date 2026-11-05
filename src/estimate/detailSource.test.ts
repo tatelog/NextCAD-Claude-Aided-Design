@@ -17,23 +17,23 @@ const SQUARE = [
 const STOREYS = { storey_count: 3, storey_height: 3000 }
 
 describe('明細の出典の欄（G22）', () => {
-  it('鉄筋の係数は「未確定（G22）」と出典なしを示す', () => {
-    expect(sourceOf('鉄筋（床版）', true)).toBe('未確定（G22）: 出典なし・仮置き')
+  it('鉄筋の係数は「未確定」と出典なしを示す', () => {
+    expect(sourceOf('鉄筋（床版）', true)).toBe('未確定: 出典なし・仮置き')
   })
 
-  it('仮置きの数量は「出典なし・仮置き（G22）」', () => {
-    expect(sourceOf('コンクリート（床版）', true)).toBe('出典なし・仮置き（G22）')
+  it('仮置きの数量は「出典なし・仮置き」', () => {
+    expect(sourceOf('コンクリート（床版）', true)).toBe('出典なし・仮置き')
   })
 
   it('仮置きでない数量は「計算（仮置きなし）」', () => {
     expect(sourceOf('屋根防水', false)).toBe('計算（仮置きなし）')
   })
 
-  it('床版の明細の鉄筋の行は、出典の欄に未確定（G22）を持ち、値は従来の 0.1 t/m³ のまま', () => {
+  it('床版の明細の鉄筋の行は、出典の欄に未確定を持ち、値は従来の 0.1 t/m³ のまま', () => {
     const q = structureQuantities(SQUARE, STOREYS)
     const lines = detailLinesOfStructure('slab-1', q, { coverMm: 30, joint: '重ね継手' })
     const rebar = lines.find((l) => l.item === '鉄筋（床版）')!
-    expect(rebar.source).toBe('未確定（G22）: 出典なし・仮置き')
+    expect(rebar.source).toBe('未確定: 出典なし・仮置き')
     expect(rebar.quantity).toBeCloseTo(q.concrete.quantity * REBAR_T_PER_M3, 10)
   })
 

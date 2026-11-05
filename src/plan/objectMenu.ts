@@ -42,8 +42,6 @@ export interface ObjectCountRow {
   note?: string
 }
 
-const UNWIRED_NOTE = '意味づけ未配線'
-
 // 並びと名前。source を持たない種類は、P3 にデータが無い（意味づけ未配線）。
 const MENU: readonly { kind: ObjectKind; label: string; source?: keyof ObjectSources }[] = [
   { kind: 'siteBoundary', label: '筆界', source: 'siteBoundaries' },
@@ -63,7 +61,7 @@ const MENU: readonly { kind: ObjectKind; label: string; source?: keyof ObjectSou
 /** 左メニューの行（種類ごと 1 行）を、P3 の結果から数える。入力は書き換えない。 */
 export function countObjects(sources: ObjectSources): ObjectCountRow[] {
   return MENU.map(({ kind, label, source }): ObjectCountRow => {
-    if (source === undefined) return { kind, label, count: 0, note: UNWIRED_NOTE }
+    if (source === undefined) return { kind, label, count: 0 }
     return { kind, label, count: sources[source]?.length ?? 0 }
   })
 }

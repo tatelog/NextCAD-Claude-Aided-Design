@@ -147,7 +147,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // 前面道路の辺は、今の敷地の辺の範囲に収めて使う（統括の依頼 2026-11-06 (b)）
   const edge = roadEdgeIndexOf(lot, roadEdge)
   const [roadWidth, setRoadWidth] = useState('6000')
-  // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
+  // 幅員の出どころ（仮置き）: 値は入力のまま、出どころの名前だけを持つ
   const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   // 離れ（西・南）の入力は空で始める。描いた外形は、離れを入れるまで動かない（t62 の直し）。既定（G104・G115）は入力欄の placeholder に出す
@@ -620,7 +620,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               <input type="number" min={1} step={500} value={roadWidth} onChange={(e) => setRoadWidth(e.target.value)} />
             </label>
             <label>
-              幅員の出どころ（G16。仮置き）
+              幅員の出どころ（仮置き）
               <select value={roadSource} onChange={(e) => setRoadSource(e.target.value as RoadWidthSource)}>
                 {ROAD_WIDTH_SOURCES.map((s) => (
                   <option key={s} value={s}>
@@ -655,19 +655,19 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 <dd>{setbackLabel(setback.west)}</dd>
               </dl>
             ) : (
-              <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
+              <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する）</p>
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
-            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
+            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。</p>
           </section>
           <section style={tileStyle('p2-numeric')}>
             <TileClose title="数値で線を入れる" onHide={() => hideTile('p2-numeric')} />
-            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（仮置き）</h3>
             <NumericLineForm />
           </section>
           <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay ? {} : { display: 'none' }) }}>
             <TileClose title="回転" onHide={() => hideTile('p2-rotate')} />
-            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり）</h3>
             <label>
               回転角 (°、反時計回り)
               <input type="number" value={rotateText} onChange={(e) => setRotateText(e.target.value)} />
@@ -717,8 +717,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             <ChatTile screen="P2" />
           </section>
           <section style={tileStyle('feature-adjust')}>
-            <TileClose title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')} />
-            <h2>機能の調整（G43）</h2>
+            <TileClose title="機能の調整" onHide={() => hideTile('feature-adjust')} />
+            <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P2" />
           </section>
           <section style={tileStyle('drawing-review')}>

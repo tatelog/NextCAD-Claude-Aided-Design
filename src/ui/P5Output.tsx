@@ -184,7 +184,7 @@ export function P5Output() {
                             )
                           }
                           if (i.label.startsWith('ロ')) return <li key={i.label}>{ICHI_NOTE}</li>
-                          return <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い。ハブ G28）</li>
+                          return <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い）</li>
                         })}
                       </ul>
                     </>
@@ -194,7 +194,7 @@ export function P5Output() {
             ) : null}
             {ready ? (
               <section style={{ marginBottom: 12, fontSize: 12 }}>
-                <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる。G28）</strong>
+                <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる）</strong>
                 <label style={{ display: 'block', margin: '6px 0' }}>
                   外壁開口部設備（防火設備か。イの入力）{' '}
                   <select value={fireDoor === null ? '' : fireDoor ? 'yes' : 'no'} onChange={(e) => setFireDoor(e.target.value === '' ? null : e.target.value === 'yes')}>
@@ -291,7 +291,7 @@ export function P5Output() {
               <button type="button" onClick={download} disabled={!valid}>
                 IFC を書き出す
               </button>
-              <p style={{ color: '#666', fontSize: 12 }}>IFC4 は円弧を曲線のまま、IFC2X3 は折れ線で書く（D-02 C9）。開口・什器・縦シャフトは未対応。</p>
+              <p style={{ color: '#666', fontSize: 12 }}>IFC4 は円弧を曲線のまま、IFC2X3 は折れ線で書く。開口・什器・縦シャフトは未対応。</p>
             </section>
           </>
         )}
@@ -402,7 +402,7 @@ export function P5Output() {
                     印刷・PDF に保存
                   </button>
                   <p style={{ color: '#666', fontSize: 12 }}>
-                    ブラウザの印刷で PDF にする。図枠の罫線の規定と書式一式は未決（D-02 C10）。
+                    ブラウザの印刷で PDF にする。図枠の罫線の規定と書式一式は未決。
                   </p>
                   <style>{`.permit-print{display:none}@media print{@page{size:${frame === 'A1' ? 'A1 landscape' : 'A3 landscape'};margin:12mm}body *{visibility:hidden}.permit-print,.permit-print *{visibility:visible}.permit-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff}}`}</style>
                 </section>
@@ -415,8 +415,8 @@ export function P5Output() {
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         {!rightShown('feature-adjust') ? null : (
-          <PanelTile title="機能の調整（G43）" onHide={() => usePanelTiles.getState().hideTile('feature-adjust')}>
-            <h2>機能の調整（G43）</h2>
+          <PanelTile title="機能の調整" onHide={() => usePanelTiles.getState().hideTile('feature-adjust')}>
+            <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P5" />
           </PanelTile>
         )}
