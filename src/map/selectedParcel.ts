@@ -43,6 +43,11 @@ export function geometryContains(geometry: unknown, lon: number, lat: number): b
   return false
 }
 
+/** 覚えた筆の形（UID から取り出す。覚えていなければ undefined） */
+export function geometryOfParcel(uid: string): unknown {
+  return geometries.get(uid)
+}
+
 /** 地図の筆の形を覚える（筆の読み込みのとき） */
 export function rememberParcelGeometry(uid: string, geometry: unknown, props?: ParcelProps): void {
   geometries.set(uid, geometry)
@@ -60,6 +65,7 @@ export function publishSelectedParcel(uid: string | null): void {
   const props = uid === null ? undefined : properties.get(uid)
   useSite.getState().setParcel(uid === null ? null : parcelRingOf(geometries.get(uid)))
   useSite.getState().setParcelInfo(props ? formatParcelInfo(props) : NO_PARCEL_TEXT)
+  useSite.getState().setParcelUid(uid !== null && geometries.has(uid) ? uid : null)
 }
 
 /** 地点から筆を選ぶ（地図の地点と、住所・座標で決めた地点の両方に使う）。地点を含む筆があればその平面を店舗へ、無ければ店舗の筆を null にする。選んだ筆の UID を返す */

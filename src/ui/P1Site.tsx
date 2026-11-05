@@ -1,18 +1,21 @@
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
 import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
 import { P1Map } from './P1Map'
-import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
 import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
 import { OrdinanceForm } from './OrdinanceForm'
-import { loadNeighborBuildings } from '../plateau/neighborBuildings'
+import { useConfirmedSite, isConfirmedStaleOf } from '../store/confirmedSite'
+import { districtStatusTextOf } from './districtFetch'
+import { geometryOfParcel } from '../map/selectedParcel'
+import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
+import { interiorPointOf } from '../map/interiorPoint'
 import { useUi } from '../store/ui'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
 import { PanelTile } from './PanelTile'
@@ -26,19 +29,19 @@ const DEFAULT = DEMO_SITE
 // 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
-export function P1Site() {
+export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const [lonText, setLonText] = useState(String(DEFAULT.lon))
   const [latText, setLatText] = useState(String(DEFAULT.lat))
   const [zoom, setZoom] = useState(DEMO_INITIAL_VIEW.zoom)
   // 地図の中心（表示の中央）。対象地点とは別で、ドラッグで動く。経緯度を入れたときは、その地点へ寄る
   const [center, setCenter] = useState<LonLat>({ lon: DEMO_INITIAL_VIEW.center[0], lat: DEMO_INITIAL_VIEW.center[1] })
   const [cityCode, setCityCode] = useState('13108')
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<DistrictLoad | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // 用途地域の取得（店舗が持つ。取っている間・失敗・結果。P1 から P2 へ移っても残る。統括の依頼 2026-11-06。1）
+  const { loading, data: result, error } = useConfirmedSite((s) => s.district)
+  const confirmed = useConfirmedSite((s) => s.confirmed)
+  const parcelUid = useSite((s) => s.parcelUid)
   const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
-  const [neighborLoading, setNeighborLoading] = useState(false)
-  const [neighborError, setNeighborError] = useState<string | null>(null)
+  const { loading: neighborLoading, error: neighborError } = useConfirmedSite((s) => s.buildings)
   // 住所検索（国土地理院の住所 API）。候補を選ぶと、その経緯度を対象地点にする
   const [addressText, setAddressText] = useState('')
   const [candidates, setCandidates] = useState<AddressCandidate[]>([])
@@ -57,6 +60,10 @@ export function P1Site() {
 
   // 対象地点（経緯度の入力が正しいとき）
   const site = useMemo(() => parseSitePoint(lonText, latText), [lonText, latText])
+  // 今いる地点を店舗へ（P2 の確定し直しの判定に使う）
+  useEffect(() => {
+    useConfirmedSite.getState().setCurrentSite(site)
+  }, [site])
 
   // 経緯度の入力で対象地点を決める。入力が正しければ、地図の中心もそこへ寄せる
   const moveSiteByText = (lonValue: string, latValue: string) => {
@@ -64,31 +71,19 @@ export function P1Site() {
     setLatText(latValue)
     const p = parseSitePoint(lonValue, latValue)
     if (p) setCenter(p)
-    setResult(null)
-    setError(null)
+    useConfirmedSite.getState().resetDistrict()
   }
 
   // 地図のクリックで対象地点を置く（中心は動かさない）
   const moveSiteByMap = (p: LonLat) => {
     setLonText(String(Number(p.lon.toFixed(6))))
     setLatText(String(Number(p.lat.toFixed(6))))
-    setResult(null)
-    setError(null)
+    useConfirmedSite.getState().resetDistrict()
   }
 
-  const fetchDistricts = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const r = await loadDistrictsAt({ lat: Number(latText), lon: Number(lonText), cityCode }, (url) => fetch(url))
-      setResult(r)
-      useSite.getState().setMatches(r.matches)
-    } catch (e) {
-      setResult(null)
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setLoading(false)
-    }
+  const fetchDistricts = () => {
+    if (site === null) return
+    void useConfirmedSite.getState().fetchDistrictAt(site, cityCode)
   }
 
   const runAddressSearch = async () => {
@@ -111,19 +106,27 @@ export function P1Site() {
     setCandidates([])
   }
 
-  const fetchNeighbors = async () => {
-    setNeighborLoading(true)
-    setNeighborError(null)
-    try {
-      const point = { lat: Number(latText), lon: Number(lonText) }
-      const list = await loadNeighborBuildings(point, zipUrl)
-      useSite.getState().setBuildings(list, point)
-    } catch (e) {
-      useSite.getState().setBuildings(null, null)
-      setNeighborError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setNeighborLoading(false)
-    }
+  const fetchNeighbors = () => {
+    void useConfirmedSite.getState().fetchBuildingsAt({ lat: Number(latText), lon: Number(lonText) }, zipUrl)
+  }
+
+  // この敷地で確定（統括の依頼 2026-11-06。1）: 選んだ筆（無ければダミー）と、筆の中の点を一つにして店舗に固定し、その地点の用途地域と周辺建物を取り、P2 へ移る
+  const confirmSite = () => {
+    if (site === null) return
+    const uid = useSite.getState().parcelUid
+    const geometry = uid === null ? undefined : geometryOfParcel(uid)
+    const center = (geometry === undefined ? null : interiorPointOf(geometry)) ?? site
+    moveSiteByText(String(center.lon), String(center.lat))
+    useConfirmedSite.getState().confirm({
+      parcelUid: geometry === undefined ? null : uid,
+      lot: geometry === undefined ? null : parcelRingOf(geometry),
+      frame: geometry === undefined ? null : parcelFrameOf(geometry),
+      center: { lat: center.lat, lon: center.lon },
+      roadEdge: useConfirmedSite.getState().confirmed?.roadEdge ?? 0,
+    })
+    void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
+    void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)
+    onNext?.()
   }
 
   // 周辺建物の輪郭（経度・緯度）。地図に重ねる。3D は地図の傾きで見る（LOD1）ので、別の 3D 画面は持たない
@@ -156,6 +159,12 @@ export function P1Site() {
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
+        <div style={{ margin: '0 0 8px' }}>
+          <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（P2 へ）</button>
+          {confirmed === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>まだ確定していない（P2 はダミーの筆界）</p> : null}
+          {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
+          {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
+        </div>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
         <div style={{ marginBottom: 12 }}>
@@ -237,6 +246,7 @@ export function P1Site() {
           <button type="button" onClick={fetchDistricts} disabled={loading}>
             {loading ? '取得中…' : 'この地点の用途地域を取る'}
           </button>
+          {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
           {error && <p style={{ color: '#a33' }}>{error}</p>}
           {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
           {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
