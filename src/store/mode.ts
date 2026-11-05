@@ -4,6 +4,7 @@
 import { create } from 'zustand'
 import { modesOfScreen, rightBarItems, SCREEN_MODES, type ScreenModesConfig } from '../app/screenModes'
 import { usePanelTiles } from './panelTiles'
+import { useSelection } from './selection'
 
 export type WorkMode = 'system' | 'chat' | 'drawing'
 
@@ -13,9 +14,11 @@ export interface ModeState {
   setMode: (mode: WorkMode) => void
 }
 
-export const useMode = create<ModeState>((set) => ({
+export const useMode = create<ModeState>((set, get) => ({
   mode: 'system',
   setMode: (mode) => {
+    // モードを変えたら、選んでいた線は外す（前のモードの選択を、チャットの文脈に残さない。G159）
+    if (get().mode !== mode) useSelection.getState().clearSelection()
     set({ mode })
     const tiles = SCREEN_MODES.modes.find((m) => m.id === mode)?.rightTiles ?? []
     for (const id of tiles) usePanelTiles.getState().showTile(id)
