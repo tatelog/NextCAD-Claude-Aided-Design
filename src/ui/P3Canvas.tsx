@@ -10,11 +10,18 @@ import { arcPreviewMm, arcToolStep, ARC_TOOL_START, type ArcToolState } from '..
 import type { Stroke } from '../model/schema'
 import { p3Entries, useDrawing } from '../store/drawing'
 import { useUi } from '../store/ui'
+import { useMode } from '../store/mode'
+import { useSelection } from '../store/selection'
+import { isTapMove, segmentPickAt, strokeColorOf } from '../canvas/segmentPick'
 import { P3_H, P3_MM_PER_PX, P3_VIEWPORT, P3_W, p3ArcStroke, p3MmToPx, p3PxToMm } from './p3CanvasGeometry'
 import { p3StrokeOfTrail } from './p3TrailStroke'
 
 // 表示の原点（画面の中央）
 const OX = P3_VIEWPORT.originPx.x
+/** チャットのモードのタップと動いたを分ける距離（px）（G159） */
+const CHAT_TAP_PX = 6
+/** タップで線を選ぶときの当たりの距離（px）（G159） */
+const SELECT_PX = 8
 const OY = P3_VIEWPORT.originPx.y
 
 
@@ -31,6 +38,10 @@ export function P3Canvas() {
   const segments = useMemo(() => p3Entries(drawn).flatMap((e) => e.segments), [drawn])
   const nodes = useMemo(() => p3Entries(drawn).flatMap((e) => e.nodes), [drawn])
   const [trail, setTrail] = useState<{ x: number; y: number }[] | null>(null)
+  // チャットのモードのタップの途中（G159）。動かさずに離したら選ぶ
+  const chatTapRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
+  // 選んでいる線（色を変える。G159）
+  const selectedIds = useSelection((s) => s.segmentIds)
   /** 二点の円弧の道具の状態（t81）。道具を外したら一点目の待ちに戻る */
   const arcRef = useRef<ArcToolState>(ARC_TOOL_START)
   const arcTwoPoint = useUi((s) => s.arcTwoPoint)
@@ -44,9 +55,10 @@ export function P3Canvas() {
     const g = c?.getContext('2d')
     if (!c || !g) return
     g.clearRect(0, 0, P3_W, P3_H)
-    g.strokeStyle = '#1f2a44'
     g.lineWidth = 2
     for (const s of segments) {
+      // 選んだ線は色を変える（G159）
+      g.strokeStyle = strokeColorOf('#1f2a44', selectedIds.includes(s.id))
       // 曲線（spline）は制御点、円弧（arc）は弦誤差で折った点列を通す。直線は両端を結ぶ（t82）
       const pts = polylineOfSegment(s)
       g.beginPath()
@@ -65,7 +77,7 @@ export function P3Canvas() {
       for (const p of trail.slice(1)) g.lineTo(p.x, p.y)
       g.stroke()
     }
-  }, [segments, trail])
+  }, [segments, trail, selectedIds])
 
   const local = (e: { clientX: number; clientY: number }) => {
     const r = ref.current!.getBoundingClientRect()
@@ -80,6 +92,11 @@ export function P3Canvas() {
 
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = local(e)
+    // チャットのモード（G159）: 線は描かず、動かさずに離したらタップで選ぶ（onUp）
+    if (useMode.getState().mode === 'chat') {
+      chatTapRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
+      return
+    }
     if (arcOn()) {
       // 二点の円弧（t81）: 押した点（端点へ吸着した位置）で一点目・二点目・中心を決める
       const step = arcToolStep(arcRef.current, { type: 'click', point: p3PxToMm(strokeStartPx(nodes, p, P3_VIEWPORT)) })
@@ -93,6 +110,11 @@ export function P3Canvas() {
 
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = local(e)
+    // チャットのモードのタップ: 動いた距離が閾値を超えたら、タップではない（描かない）
+    if (chatTapRef.current && chatTapRef.current.pointerId === e.pointerId) {
+      if (isTapMove(e.clientX - chatTapRef.current.x, e.clientY - chatTapRef.current.y, CHAT_TAP_PX)) chatTapRef.current.moved = true
+      return
+    }
     if (arcOn()) {
       // 二点の円弧（t81）: 動かした位置で、中心線上の中心を決める（確定は押したとき）
       arcRef.current = arcToolStep(arcRef.current, { type: 'move', point: p3PxToMm(p) }).state
@@ -112,9 +134,26 @@ export function P3Canvas() {
     if (stroke) addStroke(stroke)
     setTrail(null)
   }
-  const onUp = finishTrail
+  const onUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const t = chatTapRef.current
+    if (t && t.pointerId === e.pointerId) {
+      chatTapRef.current = null
+      // 動かさずに離したら、いちばん近い線を選ぶ（もう一度で外れる）
+      if (!t.moved) {
+        const hit = segmentPickAt(segments, p3PxToMm(local(e)), SELECT_PX * P3_MM_PER_PX)
+        if (hit !== null) useSelection.getState().toggleSegment(hit)
+      }
+      return
+    }
+    finishTrail()
+  }
   // キャンバスの外へ出たら、そこまでの軌跡を線にする（離した位置がキャンバスの外でも線を消さない。統括の依頼 2026-11-05）
   const onLeave = () => {
+    // チャットのモードのタップは、外へ出たら取りやめる（選ばない）
+    if (chatTapRef.current) {
+      chatTapRef.current = null
+      return
+    }
     if (arcOn()) {
       setTrail(null)
       return
