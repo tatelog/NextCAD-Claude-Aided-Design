@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { requiredPermitDocuments, type PermitInput } from './permitRequired'
+import documentsJson from './permitDocuments.json'
 
 // 仕様（建築基準法施行規則 第1条の3、法6条・20条、D-03 T-11 図書ルール）から書いたテスト。
 // 板状の RC 造共同住宅を基準の案件にし、1 項目ずつ条件を変える。
@@ -299,6 +300,15 @@ describe('原文（施行規則・施行令・法）で確かめた条件', () =
     const { required, notRequired } = requiredPermitDocuments({ ...plateRc, usage: '事務所' })
     expect(required).not.toContain(FIRE_CODE)
     expect(notRequired.map((n) => n.name)).toContain(FIRE_CODE)
+  })
+
+  it('消防の図書の細目（施行令10条・29条・29条の2）は、条文の数値のまま図書マスタに入っている', () => {
+    const details = (id: string) => (documentsJson as { documents: { id: string; details?: string[] }[] }).documents.find((d) => d.id === id)?.details ?? []
+    expect(details('D33').join('\n')).toContain('延べ面積150㎡以上')
+    expect(details('D33').join('\n')).toContain('延べ面積500㎡以上')
+    expect(details('D34').join('\n')).toContain('水平距離は50m以下')
+    expect(details('D35').join('\n')).toContain('水平距離は50m以下')
+    expect(details('D35').join('\n')).toContain('100mm以上')
   })
 
   it('消防法9条の市町村条例に関する図書（表二(六十四)）は、区の条例を確かめるまで要確認になる', () => {
