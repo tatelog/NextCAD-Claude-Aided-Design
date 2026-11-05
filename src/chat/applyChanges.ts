@@ -3,13 +3,19 @@
 import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
 import { kindName, type Assignment } from '../plan/semanticConfirm'
+import { addNumericLine } from '../input/numericLine'
+import { parsePriceCsv, serializePriceCsv } from '../estimate/priceCsv'
+import { changedRowsOf, usePriceTable } from '../store/priceTable'
 import type { Change } from './claudeReply'
 
-/** 変更の前の図面の状態（Undo に使う） */
+/** 変更の前の図面の状態（Undo に使う）。線（entries）も戻す（G143。一指示＝一 Undo） */
 export interface ChangeSnapshot {
   storeyCount: number
   storeyHeightMm: number
   assignments: Record<string, Assignment>
+  entries: ReturnType<typeof useDrawing.getState>['entries']
+  /** 単価表の CSV（積算の操作を戻すため） */
+  csv: string
 }
 
 export interface AppliedBatch {
@@ -23,7 +29,13 @@ export interface AppliedBatch {
 
 export function snapshotOfState(): ChangeSnapshot {
   const d = useDrawing.getState()
-  return { storeyCount: d.storeyCount, storeyHeightMm: d.storeyHeightMm, assignments: useSemantic.getState().assignments }
+  return {
+    storeyCount: d.storeyCount,
+    storeyHeightMm: d.storeyHeightMm,
+    assignments: useSemantic.getState().assignments,
+    entries: d.entries,
+    csv: usePriceTable.getState().csv,
+  }
 }
 
 /** 変更の説明（人が読める文。右側でまとめて確認する。G14） */
@@ -35,6 +47,12 @@ export function describeChange(c: Change): string {
       return `階高を ${c.mm} mm にする`
     case 'setKind':
       return `線 ${c.segmentId} の種類を ${kindName(c.kind)} にする`
+    case 'addLine':
+      return `線を ${c.lengthMm} mm 足す（始点 ${c.start.x}, ${c.start.y}、角度 ${c.angleDeg}°）`
+    case 'setUnitPrice':
+      return `単価 ${c.id} を ${c.unit_price} 円にする（印を残す）`
+    case 'setFactor':
+      return `歩掛 ${c.id} を ${c.factor} にする（印を残す）`
   }
 }
 
@@ -66,13 +84,31 @@ export function applyChangeBatch(changes: readonly Change[]): AppliedBatch {
           skipped.push(text)
         }
         break
+      case 'addLine':
+        addNumericLine(c.start, c.lengthMm, c.angleDeg)
+        summary.push(text)
+        break
+      case 'setUnitPrice':
+      case 'setFactor': {
+        // 単価・歩掛の変更（印を残す）。無い行は反映せず、スキップとして返す
+        const patch = c.op === 'setUnitPrice' ? { unit_price: c.unit_price } : { factor: c.factor }
+        const next = changedRowsOf(parsePriceCsv(usePriceTable.getState().csv), c.id, patch)
+        if (next === null) {
+          skipped.push(text)
+          break
+        }
+        usePriceTable.getState().setCsv(serializePriceCsv(next))
+        summary.push(text)
+        break
+      }
     }
   }
   return { before, summary, skipped }
 }
 
-/** 変更の前の状態に戻す（Undo） */
+/** 変更の前の状態に戻す（Undo）。一つの指示の操作列は、この一回で戻る（G143） */
 export function restoreSnapshot(s: ChangeSnapshot): void {
-  useDrawing.setState({ storeyCount: s.storeyCount, storeyHeightMm: s.storeyHeightMm })
+  useDrawing.setState({ storeyCount: s.storeyCount, storeyHeightMm: s.storeyHeightMm, entries: s.entries })
   useSemantic.setState({ assignments: s.assignments })
+  usePriceTable.getState().setCsv(s.csv)
 }

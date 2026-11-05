@@ -21,9 +21,52 @@ import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
-import { DUMMY_SITE_MM, useDrawing } from '../store/drawing'
+import { DUMMY_SITE_MM, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
+import { strokeToSegments } from '../canvas/strokeToSegments'
+import { useMode } from '../store/mode'
+import { usePending } from '../store/pending'
+import { recordWorkLog } from '../app/workLogStore'
+import { pendingLogEntry } from '../app/pendingJudgments'
+import { judgeSegments } from '../worker/judge'
+import { appWorkerUrl } from '../worker/workerUrl'
+import { HOLD_JUDGE_MS, holdJudgeDecision, rekeyBySegmentOrder } from '../worker/drawingHold'
+import type { Kind } from '../plan/semantic'
+
+/** 押さえている間の判定（Drawing モード。t69）。送った線（仮の id）と、Claude の候補を持つ */
+interface HoldState {
+  pointerId: number
+  timer: number
+  provisionalIds: string[]
+  results: Map<string, { kind: Kind; confidence: number }>
+  /** 判定の応答が届いたか */
+  judged: boolean
+  /** 離したか（離した線の id を持つ） */
+  released: boolean
+  strokeId: string | null
+  applied: boolean
+}
+
+/** 離したあと、押さえている間の候補を確定した線に対応づけて店舗に入れる（線の数が違えば入れない） */
+function applyHeldSuggestions(hold: HoldState): void {
+  if (hold.applied || hold.strokeId === null || hold.results.size === 0) return
+  hold.applied = true
+  const committed = useDrawing
+    .getState()
+    .entries.flatMap((en) => en.segments)
+    .filter((s) => s.stroke_id === hold.strokeId)
+    .map((s) => s.id)
+  const map = rekeyBySegmentOrder(hold.provisionalIds, committed)
+  if (map === null) return
+  // 判定の一回分として入れる（作業ログに残り、直前の一回を戻せる。G14・G97）
+  const items: { id: string; kind: Kind; confidence: number }[] = []
+  for (const [provisional, id] of map) {
+    const r = hold.results.get(provisional)
+    if (r) items.push({ id, kind: r.kind, confidence: r.confidence })
+  }
+  useSemantic.getState().applyJudgementBatch(items, 'P2')
+}
 
 interface PointerTrack {
   id: number
@@ -106,6 +149,8 @@ export function DrawingCanvas() {
   }, [segments])
 
   const drawingRef = useRef<{ pointerId: number; pointerType: string; points: Point[] } | null>(null)
+  // 押さえている間の判定（Drawing モード。t69）
+  const holdRef = useRef<HoldState | null>(null)
   /** つまみ（外形の角・辺の中点）をつまんでいる最中。つまんでいる間は線を描かない（G65） */
   const handleDragRef = useRef<HandleDrag | null>(null)
   const pointersRef = useRef<Map<number, PointerTrack>>(new Map())
@@ -178,6 +223,82 @@ export function DrawingCanvas() {
         handleDragRef.current?.view ?? null,
         layerById,
       )
+
+    // 押さえ続けた線を、判定に送る（Drawing モード。G108・G112）。送るのは描いている線だけで、チャットの文は送らない
+    const runHoldJudge = (pointerId: number) => {
+      const hold = holdRef.current
+      const d = drawingRef.current
+      if (!hold || hold.pointerId !== pointerId || !d || d.pointerId !== pointerId) return
+      const vp = viewportRef.current
+      const ui = useUi.getState()
+      const stroke: Stroke = {
+        id: crypto.randomUUID(),
+        points: d.points.map((q) => ({ px: q.x, py: q.y })),
+        view_scale: vp.mmPerPx,
+        view_origin: { px: vp.originPx.x, py: vp.originPx.y },
+        stage: 'F4',
+        pen_mode: ui.penMode,
+        created_at: new Date().toISOString(),
+        pen_input: toPenInput(d.pointerType),
+      }
+      const gridMm = ui.inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : null
+      const { entries } = useDrawing.getState()
+      // 確定（addStroke）と同じ分け方で仮の線分を作る。送った線の id を、離したあとの線に対応づける
+      const provisional = strokeToSegments(
+        stroke,
+        entries.flatMap((en) => en.nodes),
+        segmentOptionsOf(stroke, gridMm),
+        entries.flatMap((en) => en.segments),
+      ).segments
+      const decision = holdJudgeDecision({
+        heldMs: HOLD_JUDGE_MS,
+        segmentCount: provisional.length,
+        enabled: useFeatures.getState().on.classifyClaude,
+        workerUrl: appWorkerUrl(),
+      })
+      if (decision.kind !== 'send') return
+      hold.provisionalIds = provisional.map((s) => s.id)
+      void judgeSegments(
+        {
+          segments: provisional.map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 } })),
+          workerUrl: appWorkerUrl(),
+          enabled: true,
+          fetchImpl: (url, init) => fetch(url, init),
+        },
+        {
+          suggest: (id, kind, confidence) => {
+            hold.results.set(id, { kind, confidence })
+          },
+          addPending: (error) => {
+            const at = new Date().toISOString()
+            usePending.getState().add({ id: `judge-${Date.now()}`, label: '意味づけの判定', error, at })
+            recordWorkLog(pendingLogEntry(error, at))
+          },
+        },
+      ).then(() => {
+        hold.judged = true
+        if (hold.released) applyHeldSuggestions(hold)
+      })
+    }
+
+    // Drawing モードで線を描き始めたら、押さえ続けた時間を計る（閾値に届いたら判定を送る）
+    const startHoldJudge = (pointerId: number) => {
+      if (useMode.getState().mode !== 'drawing') return
+      if (holdRef.current) window.clearTimeout(holdRef.current.timer)
+      const timer = window.setTimeout(() => runHoldJudge(pointerId), HOLD_JUDGE_MS)
+      holdRef.current = { pointerId, timer, provisionalIds: [], results: new Map(), judged: false, released: false, strokeId: null, applied: false }
+    }
+
+    // 離したら、確定した線の id を押さえている間の判定に結びつける。応答がまだなら、届いたときに入れる
+    const releaseHold = (pointerId: number, strokeId: string) => {
+      const hold = holdRef.current
+      if (!hold || hold.pointerId !== pointerId) return
+      window.clearTimeout(hold.timer)
+      holdRef.current = null
+      hold.released = true
+      hold.strokeId = strokeId
+      if (hold.judged) applyHeldSuggestions(hold)
+    }
 
     const onDown = (e: PointerEvent) => {
       const p = local(e)
@@ -254,6 +375,7 @@ export function DrawingCanvas() {
         pointerType: e.pointerType,
         points: [strokeStartPx(nodes, p, viewportRef.current)],
       }
+      startHoldJudge(e.pointerId)
       repaint()
     }
 
@@ -356,6 +478,7 @@ export function DrawingCanvas() {
       }
       // 入力スナップのグリッドは、見ている拡大率の段の入力側（gridSteps）。表示グリッドのオン・オフとは別に切れる
       addStroke(stroke, ui.inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : null)
+      releaseHold(e.pointerId, stroke.id)
     }
 
     const onWheel = (e: WheelEvent) => {

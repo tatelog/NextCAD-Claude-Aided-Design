@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useChat, type ChatTransport } from './chat'
 import { useDrawing } from './drawing'
 import { useSemantic } from './semantic'
+import { ChatPendingError } from '../chat/chatTransport'
 
 const drawingWithS1 = [{ id: 'e1', segments: [{ id: 's1' }] }] as unknown as ReturnType<typeof useDrawing.getState>['entries']
 const reply = (r: unknown): ChatTransport => async () => r
@@ -78,6 +79,20 @@ describe('変更と戻す（仕様 4・5）', () => {
     expect(useChat.getState().undo).toBeNull()
     useChat.getState().undoLast('P2')
     expect(useDrawing.getState().storeyCount).toBe(3)
+  })
+})
+
+describe('保留（仕様 9）', () => {
+  it('Worker が保留（再試行でも型に合わない）と返したら、保留と注記する。図面は変えない', async () => {
+    useChat.setState({
+      transport: async () => {
+        throw new ChatPendingError('返答を保留（再試行しても型に合わない）')
+      },
+    })
+    await useChat.getState().send('直して', 'P2')
+    expect(useChat.getState().notice).toContain('保留')
+    expect(useDrawing.getState().storeyCount).toBe(3)
+    expect(useChat.getState().undo).toBeNull()
   })
 })
 

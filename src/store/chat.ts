@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { recordWorkLog } from '../app/workLogStore'
 import { applyChangeBatch, restoreSnapshot, type ChangeSnapshot } from '../chat/applyChanges'
 import { parseClaudeReply } from '../chat/claudeReply'
+import { ChatPendingError } from '../chat/chatTransport'
 
 export type ChatRole = 'user' | 'claude' | 'system'
 
@@ -21,6 +22,8 @@ export interface ChatMessage {
 export type ChatTransport = (history: readonly ChatMessage[]) => Promise<unknown>
 
 export const UNCONNECTED_NOTICE = '未接続: Claude の返信の仕組みが未設定です（Worker の設定が入るまで図面は変わりません）'
+/** Worker が保留と返したとき（再試行でも型に合わない）。型に合わない返答（下の注記）と区別する */
+export const PENDING_NOTICE = '保留: Claude の返答を、再試行でも型に合わせられませんでした。図面は変えていません。'
 
 export interface ChatState {
   messages: ChatMessage[]
@@ -81,8 +84,8 @@ export const useChat = create<ChatState>((set, get) => {
             logWork(screen, 'Claude の変更', applied.summary.join('、'))
           }
         }
-      } catch {
-        set({ notice: '返答を読めませんでした。図面は変えていません。' })
+      } catch (e) {
+        set({ notice: e instanceof ChatPendingError ? PENDING_NOTICE : '返答を読めませんでした。図面は変えていません。' })
       } finally {
         set({ sending: false })
       }

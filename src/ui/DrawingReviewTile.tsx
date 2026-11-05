@@ -13,12 +13,22 @@ export function DrawingReviewTile() {
   const setKind = useSemantic((s) => s.setKind)
   const clearKind = useSemantic((s) => s.clearKind)
   const rows = useMemo(() => confirmRows(entries.flatMap((e) => e.segments), assignments), [entries, assignments])
+  // 直前の判定の一回分を戻す（G14・G97）。戻せる状態のときだけ出す
+  const judgementUndo = useSemantic((s) => s.judgementUndo)
+  const undoJudgement = useSemantic((s) => s.undoJudgementBatch)
   return (
-    <SemanticConfirm
-      legend="候補の確認（Drawing）"
-      rows={rows}
-      onSelectKind={(id, kind) => (kind === null ? clearKind(id) : setKind(id, kind))}
-      onConfirm={setKind}
-    />
+    <>
+      <SemanticConfirm
+        legend="候補の確認（Drawing）"
+        rows={rows}
+        onSelectKind={(id, kind) => (kind === null ? clearKind(id) : setKind(id, kind))}
+        onConfirm={setKind}
+      />
+      {judgementUndo !== null ? (
+        <button type="button" onClick={() => undoJudgement('P2')}>
+          判定を戻す（直前の一回）
+        </button>
+      ) : null}
+    </>
   )
 }

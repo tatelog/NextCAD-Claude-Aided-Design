@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useObjectTable } from '../store/objectTable'
 import { useEstimateLines } from '../store/estimateLines'
+import { usePriceTable } from '../store/priceTable'
 import { useComponentFire } from '../store/componentFire'
 import {
   detailLinesOfObjects,
@@ -48,13 +49,6 @@ import { usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { ChatTile } from './ChatTile'
 
-const SAMPLE = [
-  'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
-  'cross,造作,内装,壁クロス,m2,1200,,利用者入力（出典を書く）,false,v1',
-  'carpenter,労務,躯体,型枠大工,人,25000,0.3,利用者入力（出典を書く）,false,v1',
-  'tile,造作,外装,外壁タイル,m2,8000,,,false,v1',
-].join('\n')
-
 const yen = (n: number) => `${n.toLocaleString('ja-JP')} 円`
 // P4 の平面の什器の印は読み取りのみ（押しても置かず、外さない）。FixtureLayer の押しのハンドラは必須なので、何もしない関数を渡す
 const NO_OP = () => undefined
@@ -70,7 +64,9 @@ const ROOM_FILL: Record<RoomKind, string> = {
 }
 
 export function P4Estimate() {
-  const [csv, setCsv] = useState(SAMPLE)
+  // 単価表は店舗が持つ（チャットの積算の操作と同じ表。t55）
+  const csv = usePriceTable((s) => s.csv)
+  const setCsv = usePriceTable((s) => s.setCsv)
   const [quantities, setQuantities] = useState<Record<string, string>>({})
 
   const parsed = useMemo<{ rows: PriceRow[] } | { error: string }>(() => {
