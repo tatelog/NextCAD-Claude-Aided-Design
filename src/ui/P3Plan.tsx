@@ -15,7 +15,10 @@ import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect, type CoreRectText } from '../plan/coreRect'
 import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
 import { outlineDimensions } from '../plan/outlineDimensions'
-import { confirmRows, targetSegmentsOf } from '../plan/semanticConfirm'
+import { confirmRows, countByStatus, targetSegmentsOf } from '../plan/semanticConfirm'
+import { nextGateOf, p3NextIssuesOf, type CheckIssue } from '../plan/nextCheck'
+import { NextCheckPanel } from './NextCheckPanel'
+import { recordWorkLog } from '../app/workLogStore'
 import { DRAW_OPTIONS, p2Entries, useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
 import { useSemantic } from '../store/semantic'
@@ -59,7 +62,7 @@ import { masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
 /** 住戸タイプのマスタ（T-08。候補 14 型。未確認の値は仮置き） */
 const UNIT_TYPES = masterOf(unitTypeCandidates)
 
-export function P3Plan() {
+export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [widthText, setWidthText] = useState('20000')
   const [depthText, setDepthText] = useState('12000')
   // 廊下幅の既定は廊下タイプから（G135。中廊下 1,600 mm の仮置き）。既定の無い層は 2,000 mm のまま
@@ -314,6 +317,36 @@ export function P3Plan() {
 
   const W = Number(widthText)
   const D = Number(depthText)
+
+  // 次へ（D-04 P3。G158）: 押したとき、通り・住戸数・住戸の定義・縦シャフト・廊下幅・要確認を確かめる。問題が無ければ進む。あれば一覧を出し、直すか、このまま進むかを選ぶ（止めない）
+  const [nextIssues, setNextIssues] = useState<CheckIssue[] | null>(null)
+  const p3Issues = (): CheckIssue[] =>
+    p3NextIssuesOf({
+      spanJudge: judge,
+      unitCount: units.cells ? units.cells.cells.length : 0,
+      unitError: units.error,
+      shaftAligned: shaftCheck ? shaftCheck.aligned : null,
+      corridorMm: Number(corridorText),
+      reviewCount: countByStatus(semanticRows).needs_review,
+      provisionalSpanCount: auto ? auto.provisionalSpans.length : 0,
+    })
+  const clickNextP3 = () => {
+    const issues = p3Issues()
+    if (nextGateOf(issues) === 'go') onNext?.()
+    else setNextIssues(issues)
+  }
+  const goNextP3Anyway = (issues: readonly CheckIssue[]) => {
+    recordWorkLog({
+      at: new Date().toISOString(),
+      screen: 'P3',
+      action: '次へ（要確認として残した）',
+      target: issues.map((i) => `${i.area}: ${i.text}`).join(' / '),
+      who: 'human',
+    })
+    setNextIssues(null)
+    onNext?.()
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 320px`, height: '100%' }}>
       <ObjectMenu
@@ -637,6 +670,19 @@ export function P3Plan() {
         </p>
         </PanelTile>
         )}
+        <section style={{ marginBottom: 10 }}>
+          <button type="button" onClick={clickNextP3}>
+            次へ（P4 積算）
+          </button>
+          {nextIssues !== null ? (
+            <NextCheckPanel
+              issues={nextIssues}
+              goLabel="このまま進む（要確認として残す）"
+              onStay={() => setNextIssues(null)}
+              onGoAnyway={() => goNextP3Anyway(nextIssues)}
+            />
+          ) : null}
+        </section>
         {!tileShown('milestone') ? null : (
           <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
             <section style={{ marginBottom: 10 }}>

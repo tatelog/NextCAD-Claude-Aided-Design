@@ -63,7 +63,8 @@ export function p3NextIssuesOf(input: P3NextInput): CheckIssue[] {
   const issues: CheckIssue[] = []
   if (input.spanJudge === '無理') issues.push({ area: '通り', text: '通りが範囲に入らない（無理な通り）' })
   if (input.unitCount === 0) issues.push({ area: '住戸数', text: '住戸が無い（戸数と間取りパターンを入れて、自動で作る）' })
-  if (input.unitError !== null) issues.push({ area: '住戸の定義', text: input.unitError })
+  // 住戸の定義のエラーの中身（検証の文字）は出さない。入力の数値を直す案内に置き換える（画面の一覧は読めることを優先）
+  if (input.unitError !== null) issues.push({ area: '住戸の定義', text: '住戸の定義が閉じない（入力の数値を確かめてください）' })
   if (input.shaftAligned === false) issues.push({ area: '縦シャフト', text: '縦シャフトの上下階が揃わない' })
   if (!(input.corridorMm > 0)) issues.push({ area: '廊下幅', text: '廊下幅が正しくない（0 より大きい数）' })
   if (input.reviewCount > 0) issues.push({ area: '要確認', text: `意味づけの要確認が ${input.reviewCount} 件` })
