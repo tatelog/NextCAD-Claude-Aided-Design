@@ -43,6 +43,7 @@ import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import type { RoomKind } from '../plan/rooms'
 import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
+import { cutFloorAreasOf } from '../volume/cutVolume'
 import { FixtureLayer } from './FixtureLayer'
 import { FixtureSummary } from './FixtureSummary'
 import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
@@ -84,7 +85,23 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   const itemNameOfRef = (ref: string): string => ('rows' in parsed ? parsed.rows.find((r) => r.id === ref)?.item : undefined) ?? ref
 
   // P2 の外形から拾った数量（外壁・屋根）。P2 で外形が閉じていれば入る
-  const volume = useSite((s) => s.volume)
+  // 外形は P2 が渡したもの。階数・階高は今の店舗の値、切り取った階の面積はそこから計算する（統括の依頼 2026-11-06。依頼 B。チャットで階数が変わっても古い値を使わない）
+  const publishedVolume = useSite((s) => s.volume)
+  const slopeBoundaries = useSite((s) => s.slopeBoundaries)
+  const storeysNow = useDrawing((s) => s.storeyCount)
+  const heightNow = useDrawing((s) => s.storeyHeightMm)
+  const volume = useMemo(
+    () =>
+      publishedVolume
+        ? {
+            footprint: publishedVolume.footprint,
+            storey_count: storeysNow,
+            storey_height: heightNow,
+            floor_areas_mm2: cutFloorAreasOf(publishedVolume.footprint, slopeBoundaries, { storey_count: storeysNow, storey_height: heightNow }),
+          }
+        : null,
+    [publishedVolume, slopeBoundaries, storeysNow, heightNow],
+  )
   // 外形の 2D（SVG は y を下へ向けるので、y を反転して表示する）
   const planBox = useMemo(() => {
     if (!volume) return { x0: 0, y0: 0, w: 1, h: 1 }

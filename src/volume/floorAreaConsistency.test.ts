@@ -99,3 +99,19 @@ describe('屋根防水は 1 階の切り取り後の面積（依頼 A）', () =>
     expect(roof?.quantity).toBeCloseTo((20_000 * 30_000) / 1_000_000, 6)
   })
 })
+
+// 階数を P2 を開かずに変えたとき（統括の依頼 2026-11-06。依頼 B）: 切り取った階の面積は、外形・境界・今の階数から、その場で計算する。
+import { cutFloorAreasOf } from './cutVolume'
+
+describe('切り取った階の面積は、今の階数から計算する（依頼 B）', () => {
+  it('階数が変わると、階の面積の数も変わる（古い階数の値を使わない）', () => {
+    const five = cutFloorAreasOf(rect, [west], { storey_count: 5, storey_height: 3_000 })
+    expect(five).toHaveLength(5)
+    expect(five).toEqual(volumeAfterSlope({ footprint: rect, storey_count: 5, storey_height: 3_000 }, [west], 1).floor_areas_mm2)
+  })
+
+  it('境界が無いときは、外形の面積を各階に持つ（押し出しと同じ）', () => {
+    const two = cutFloorAreasOf(rect, null, { storey_count: 2, storey_height: 3_000 })
+    expect(two).toEqual([20_000 * 30_000, 20_000 * 30_000])
+  })
+})

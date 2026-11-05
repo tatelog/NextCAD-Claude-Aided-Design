@@ -13,6 +13,16 @@ export interface CutVolume {
   floor_area_ratio: number
 }
 
+/** 切り取った階ごとの面積（mm²）を、外形・境界・今の階数から計算する（統括の依頼 2026-11-06。依頼 B）。
+ * 境界が無いときは、外形の面積を各階に持つ（押し出しと同じ）。P4・P5 が、階数を P2 を開かずに変えても古い値を使わないために使う */
+export function cutFloorAreasOf(
+  footprint: readonly { x: number; y: number }[],
+  boundaries: readonly SlopeBoundary[] | null,
+  storeys: { storey_count: number; storey_height: number },
+): number[] {
+  return volumeAfterSlope({ footprint: footprint.map((p) => ({ x: p.x, y: p.y })), ...storeys }, boundaries ?? [], 1).floor_areas_mm2
+}
+
 /** P5 の延床面積（統括の依頼 2026-11-06。依頼 5a）: 切り取った階の面積の和。階の面積が無い・階数が合わないときは、押し出しの延床面積のまま */
 export function grossFloorAreaMm2(extrudeGrossMm2: number, floorAreasMm2: readonly number[] | undefined, storeyCount: number): number {
   if (floorAreasMm2 === undefined || floorAreasMm2.length !== storeyCount) return extrudeGrossMm2

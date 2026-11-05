@@ -320,11 +320,12 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   }, [shadowJudge])
   // 外形と階を P4 に渡す（数量の自動拾い）
   useEffect(() => {
-    // 切り取った階の面積も渡す（P4 の床版・P5 の延べ面積にそろえる。統括の依頼 2026-11-06。依頼 5a）
-    useSite.getState().setVolume(
-      volume ? { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height, floor_areas_mm2: cut?.floor_areas_mm2 } : null,
-    )
-  }, [volume, cut])
+    useSite.getState().setVolume(volume ? { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height } : null)
+  }, [volume])
+  // 斜線の規則（切り取りの境界）を P4・P5 に渡す。切り取った階の面積は、P4・P5 が今の階数から計算する（統括の依頼 2026-11-06。依頼 B）
+  useEffect(() => {
+    useSite.getState().setSlopeBoundaries(legal.boundaries)
+  }, [legal])
 
   const farJudgement = cut ? judgeFar(cut.floor_area_ratio, farLimit === '' ? undefined : Number(farLimit)) : '—'
 
