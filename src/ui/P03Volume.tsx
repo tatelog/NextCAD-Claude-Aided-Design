@@ -9,6 +9,7 @@ import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type Road
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
+import { setbackInitialOf } from '../volume/setbackDefaults'
 import { setbackLabel } from '../plan/dimensionLabel'
 import { setbackLines } from '../volume/setbackLines'
 import { placeBySetback } from '../volume/placeBySetback'
@@ -121,8 +122,10 @@ export function P03Volume() {
   // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
   const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
-  const [westText, setWestText] = useState('')
-  const [southText, setSouthText] = useState('')
+  // 離れ（西・南）の初期値は既定（G104・G115・t62）。前面道路の辺なら 0 mm、それ以外は 500 mm。長方形でない敷地は空欄（描いた位置のまま）
+  const setbackInit = setbackInitialOf(DUMMY_PARCEL, roadEdge)
+  const [westText, setWestText] = useState(() => (setbackInit === null ? '' : String(setbackInit.westMm)))
+  const [southText, setSouthText] = useState(() => (setbackInit === null ? '' : String(setbackInit.southMm)))
   // 基準線（ハブ A-03 G59・統括の依頼 t52）: 描いた外形（外壁の中心線）を、内側へ寄せるか、中心線から量（外へ正）だけずらす。既定は中心線・ずらし 0
   const [baselineSide, setBaselineSide] = useState<BaselineSide>('中心線')
   const [baselineOffsetText, setBaselineOffsetText] = useState('0')
