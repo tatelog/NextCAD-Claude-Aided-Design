@@ -165,7 +165,13 @@ export function Volume3D({
   const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
   const geometry = useMemo(() => {
     // 段状に切った形は、つまみを動かしていない間だけ出す（動かしている間は外形の押し出しで仮の形を見せる）
-    if (floors && floors.length > 0 && !knobPreview) return toGeometry(stackedMesh(floors, storeyHeightMm))
+    if (floors && floors.length > 0 && !knobPreview) {
+      try {
+        return toGeometry(stackedMesh(floors, storeyHeightMm))
+      } catch {
+        // 段状の形が作れないときは、外形の押し出しで出す（画面を落とさない。壊れた階の理由は stackedMesh の floorProblemOf）
+      }
+    }
     const build = (fp: Point[], storeys: number) => toGeometry(buildVolumeMesh({ footprint: fp, storey_count: storeys, storey_height: storeyHeightMm }))
     // 仮の形が立体にならないとき（丸めで外形が崩れたとき）は、実際の形のまま見せる
     if (shownFootprint !== footprint || shownStoreyCount !== storeyCount) {
