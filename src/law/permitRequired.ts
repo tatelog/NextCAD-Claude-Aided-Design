@@ -49,6 +49,8 @@ interface DocDef {
   name: string
   when: Cond
   notApplicableReason?: string
+  /** 当たらなくても要らないとは決めず、要確認に残す。階数・面積・区域で条件が変わる図書を勝手に対象から外さない（代表の指示 2026-11-06） */
+  keepAsCheck?: boolean
 }
 
 type Verdict = { kind: 'yes' } | { kind: 'no' } | { kind: 'unknown'; reason: string }
@@ -136,7 +138,9 @@ export function requiredPermitDocuments(input: PermitInput): PermitJudgement {
   for (const doc of documents) {
     const verdict = evaluate(doc.when, input)
     if (verdict.kind === 'yes') judgement.required.push(doc.name)
-    else if (verdict.kind === 'no') {
+    else if (verdict.kind === 'no' && doc.keepAsCheck) {
+      judgement.needsCheck.push({ name: doc.name, reason: `要らない見込み（${reasonOf(doc, input)}）。階数・面積・区域で変わるため人が確かめる` })
+    } else if (verdict.kind === 'no') {
       judgement.notRequired.push({ name: doc.name, reason: reasonOf(doc, input) })
     } else judgement.needsCheck.push({ name: doc.name, reason: verdict.reason })
   }

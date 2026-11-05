@@ -67,9 +67,24 @@ describe('ボリュームから作る判定の入力', () => {
     expect(permitInputFromVolume(block(5), project).areaAbove31M2).toBe(0)
   })
 
-  it('11階・3m（31m超の部分は1階分の400㎡）は政令の除外で、非常用の昇降機の図書は要らない', () => {
+  // 仕様（代表の指示 2026-11-06）: 階数・面積で変わる図書は、勝手に対象から外さず、要確認と同じ扱いにする。
+  it('11階・3m（31m超の部分は1階分の400㎡）は政令の除外に当たるが、要らないとは決めず要確認に残す', () => {
     const r = requiredPermitDocuments(permitInputFromVolume(block(11, 3_000), project))
     expect(r.required).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+    expect(r.notRequired.map((n) => n.name)).not.toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+    expect(r.needsCheck.map((n) => n.name)).toContain('非常用の昇降機の図書（法34条2項、高さ31m超）')
+  })
+
+  it('5階のボリュームでも、非常コンセント・連結送水管・日影図は要らないとは決めず、要確認に残す', () => {
+    const r = requiredPermitDocuments(permitInputFromVolume(block(5), project))
+    for (const name of [
+      '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）',
+      '連結送水管の図（消防法施行令29条）',
+      '日影図',
+    ]) {
+      expect(r.notRequired.map((n) => n.name)).not.toContain(name)
+      expect(r.needsCheck.map((n) => n.name)).toContain(name)
+    }
   })
 
   it('15階・3.2m（31m超の部分は6階分の2400㎡）は、第2号の除外に当たらず、第3号の判断が要るので非常用の昇降機の図書は要確認', () => {
