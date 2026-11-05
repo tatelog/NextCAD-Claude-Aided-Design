@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
-import { DEMO_INITIAL_VIEW } from '../map/initialView'
+import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
 import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
 import { P1Map } from './P1Map'
 import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
@@ -21,8 +21,8 @@ import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { usePanelTiles } from '../store/panelTiles'
 
-// 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の重心。江東区の zip の範囲内
-const DEFAULT = { lon: 139.829826, lat: 35.667401 }
+// 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の内側の点（initialView の DEMO_SITE）
+const DEFAULT = DEMO_SITE
 // 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
@@ -45,6 +45,8 @@ export function P1Site() {
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
+  // 選んだ筆の情報の文（店舗の選択と同じ。含む筆が無ければ「この地点を含む筆は無い」）
+  const parcelInfo = useSite((s) => s.parcelInfo)
   const showNeighbors = useUi((s) => s.showNeighbors)
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
@@ -153,6 +155,7 @@ export function P1Site() {
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
+        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
         <div style={{ marginBottom: 12 }}>
