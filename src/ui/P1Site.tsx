@@ -6,6 +6,7 @@ import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
 import { PARCEL_BOUNDARY_NOTE, sourceLabel } from '../data/sources'
 import { P1Map } from './P1Map'
+import { POSTAL_UNAVAILABLE_NOTICE } from '../geocode/postalNotice'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
 import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
@@ -61,6 +62,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
+  const [postalNotice, setPostalNotice] = useState<string | null>(null)
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -204,17 +206,15 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           )}
           <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>出典: {sourceLabel('gsiAddress')}</p>
         </div>
-        <div aria-disabled="true" style={{ marginBottom: 12, opacity: 0.45 }}>
+        <div style={{ marginBottom: 12, opacity: 0.45 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
-            郵便番号（今回のハッカソンでは対象外）
-            <input disabled placeholder="例: 135-8383" style={{ width: '100%' }} />
+            郵便番号
+            <input placeholder="例: 135-8383" style={{ width: '100%' }} />
           </label>
-          <button type="button" disabled>
+          <button type="button" onClick={() => setPostalNotice(POSTAL_UNAVAILABLE_NOTICE)}>
             郵便番号で探す
           </button>
-          <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>
-            郵便番号から住所を引くデータの出どころが未決のため、今回は止めています（README の「今回の対応範囲」を参照）。
-          </p>
+          {postalNotice ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>{postalNotice}</p> : null}
         </div>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
