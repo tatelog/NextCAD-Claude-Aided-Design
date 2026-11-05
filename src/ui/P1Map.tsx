@@ -1,16 +1,20 @@
 // P1 の地図（MapLibre GL JS）。基図は国土地理院の標準地図（彩度を下げる）。
 // 道路・筆・建物（LOD1）は、利用者が準備して public/local-data/ に置いたファイルを読む。無ければ「未取得」と出す（同梱しない）。
 import { useEffect, useRef } from 'react'
-import { Map as MaplibreMap, NavigationControl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import { Map as MaplibreMap, NavigationControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { GSI_BASEMAP_ATTRIBUTION, GSI_BASEMAP_TILES, gsiBasemapLayer } from '../map/basemap'
 import { ROAD_WIDTH_CLASSES } from '../map/roadStyle'
 import { DEMO_INITIAL_VIEW, DEMO_PARCEL_UID } from '../map/initialView'
 import { formatParcelInfo, parcelUid } from '../map/parcelInfo'
 import { decodeLocalJson } from '../map/localData'
+import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
 import type { LonLat } from '../map/viewport'
 
 const LOCAL_DATA = '/local-data/'
+
+// 本番の Worker は、dist に出したファイルを読む（t93）。開発は MapLibre の既定（隣の -dev の Worker）のまま
+if (import.meta.env.PROD) setWorkerUrl(MAPLIBRE_WORKER_URL)
 
 type Props = {
   center: LonLat
