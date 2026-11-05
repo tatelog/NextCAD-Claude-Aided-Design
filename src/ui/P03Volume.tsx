@@ -67,7 +67,7 @@ import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { DrawingReviewTile } from './DrawingReviewTile'
 import { NextCheckPanel } from './NextCheckPanel'
 import { nextGateOf, p2NextIssuesOf, type CheckIssue } from '../plan/nextCheck'
-import { floorProblemOf } from '../volume/mesh'
+import { brokenFloorsOf } from '../volume/mesh'
 import { recordWorkLog } from '../app/workLogStore'
 import { usePanelTiles } from '../store/panelTiles'
 import { isRightItemShown, useActiveMode } from '../store/mode'
@@ -259,17 +259,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   }, [volume, legal])
   const stackedFloors = useMemo(() => floorsAll.filter((b) => b.footprint.length >= 3), [floorsAll])
   // 立体にできない階（点が残っているのに壊れた階。斜線で全部切り取られた階は、壊れた階ではない）。次へのときの確かめに渡す
-  const brokenFloors = useMemo(
-    () =>
-      volume
-        ? floorsAll.flatMap((b, i) => {
-            if (b.footprint.length === 0) return []
-            const reason = floorProblemOf(b, volume.storey_height)
-            return reason === null ? [] : [{ floor: i + 1, reason }]
-          })
-        : [],
-    [floorsAll, volume],
-  )
+  // 点が 0 の階は brokenFloorsOf が除く（全部削られた階は出さない）
+  const brokenFloors = useMemo(() => (volume ? brokenFloorsOf(floorsAll, volume.storey_height) : []), [floorsAll, volume])
   // 地面に落ちる日影（時刻の太陽の位置から、切り取った階ごとの影の形）。太陽が地平線の上のときだけ
   const sunShadow = useMemo(
     () =>

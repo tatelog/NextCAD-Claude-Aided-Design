@@ -8,6 +8,38 @@ export interface CheckIssue {
   text: string
 }
 
+import type { FloorProblemKind } from '../volume/mesh'
+
+/** 立体にできない階（階の番号は 1 始まり） */
+export interface BrokenFloor {
+  floor: number
+  kind: FloorProblemKind
+}
+
+/** 階の番号を、一行の言い方にする。続いた番号は「9〜11」、飛んだ番号は「9・11」（統括の依頼 2026-11-06） */
+export function floorRangeTextOf(floors: readonly number[]): string {
+  const sorted = [...new Set(floors)].sort((a, b) => a - b)
+  const runs: [number, number][] = []
+  for (const n of sorted) {
+    const last = runs[runs.length - 1]
+    if (last && last[1] + 1 === n) last[1] = n
+    else runs.push([n, n])
+  }
+  return `${runs.map(([a, b]) => (a === b ? `${a}` : `${a}〜${b}`)).join('・')} 階`
+}
+
+/** 立体にできない階の一覧。種類ごとに一行（階の番号は範囲にまとめる）。直す手がかりを一文で言う */
+export function brokenFloorIssuesOf(broken: readonly BrokenFloor[]): CheckIssue[] {
+  const cut = broken.filter((b) => b.kind === 'fewPoints' || b.kind === 'area').map((b) => b.floor)
+  const failed = broken.filter((b) => b.kind === 'coordinate' || b.kind === 'top').map((b) => b.floor)
+  const issues: CheckIssue[] = []
+  if (cut.length > 0)
+    issues.push({ area: '段状の形', text: `${floorRangeTextOf(cut)}は、斜線で削られて床が線か点しか残らないので、3D に出せない。外形を広げるか、階数を減らす。` })
+  if (failed.length > 0) issues.push({ area: '段状の形', text: `${floorRangeTextOf(failed)}は、形の計算に失敗した（座標か高さが数でない）。外形を描き直す。` })
+  if (broken.some((b) => b.kind === 'height')) issues.push({ area: '段状の形', text: '階高が正しくない。1 mm 以上の数を入れる。' })
+  return issues
+}
+
 /** 次へを押したときの動き: 問題が無ければ進む、あれば見直す（止めはしない。選ぶのは利用者） */
 export function nextGateOf(issues: readonly CheckIssue[]): 'go' | 'review' {
   return issues.length === 0 ? 'go' : 'review'
@@ -25,19 +57,20 @@ export interface P2NextInput {
   /** 日影の表示（判定できないときの理由を含む） */
   shadowText: string
   /** 立体にできなかった階（階の番号は 1 始まり） */
-  brokenFloors: readonly { floor: number; reason: string }[]
+  brokenFloors: readonly BrokenFloor[]
 }
 
 /** P2（外形・斜線・日影・段状の形）の問題 */
 export function p2NextIssuesOf(input: P2NextInput): CheckIssue[] {
   const issues: CheckIssue[] = []
+  // 並び（統括の依頼 2026-11-06）: 外形 → 段状の形 → 斜線 → 日影。一覧の見出しは area が付くので、文の中で見出しを重ねない
   if (!input.closed) issues.push({ area: '外形', text: input.closureText })
-  if (input.slope === '超過') issues.push({ area: '斜線', text: '斜線: 超過（外形が斜線の外に出ている）' })
+  issues.push(...brokenFloorIssuesOf(input.brokenFloors))
+  if (input.slope === '超過') issues.push({ area: '斜線', text: '超過（外形が斜線の外に出ている）' })
   // 外形が閉じていないときは、斜線と日影は判定できない（閉合の一件で伝える。同じことを二度出さない）
   if (input.closed && input.slope === null) issues.push({ area: '斜線', text: '判定する規則が無い（用途地域と容積率を入れる）' })
   if (input.shadow === '不適合') issues.push({ area: '日影', text: input.shadowText })
   if (input.shadow === null && input.closed) issues.push({ area: '日影', text: input.shadowText })
-  for (const b of input.brokenFloors) issues.push({ area: '段状の形', text: `${b.floor} 階は立体にできない（${b.reason}）` })
   return issues
 }
 

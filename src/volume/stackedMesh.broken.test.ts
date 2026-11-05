@@ -3,7 +3,7 @@
 // 仕様 2（壊れた階は飛ばす）: 点が 3 つ未満・座標が数でない・面積が 0 の階は、立体にしない。その理由を階の番号つきで返す。残りの階は描く。
 // 仕様 3（全部壊れても落ちない）: 全部の階が壊れていても、例外にせず、三角形は空。
 import { describe, expect, it } from 'vitest'
-import { floorProblemOf, stackedMesh } from './mesh'
+import { brokenFloorsOf, floorProblemOf, stackedMesh } from './mesh'
 import type { Point } from '../geom/viewport'
 
 const H = 3000
@@ -44,5 +44,15 @@ describe('壊れた階（仕様 1〜3）', () => {
     const broken = [{ footprint: [{ x: 0, y: 0 }], heightMm: H }, { footprint: [], heightMm: 2 * H }]
     expect(() => stackedMesh(broken, H)).not.toThrow()
     expect(stackedMesh(broken, H).triangles).toHaveLength(0)
+  })
+
+  // 仕様 22（削られた階を集める。統括の依頼 2026-11-06）: 全部削られて点が 0 の階は出さない。点が残る壊れた階は、階の番号つきで出す。
+  it('仕様 22: 点が 0 の階は出さず、点が残る壊れた階は階の番号と種類つきで出す', () => {
+    const floors = [
+      { footprint: [], heightMm: H },
+      { footprint: [{ x: 0, y: 0 }, { x: 1000, y: 0 }], heightMm: 2 * H },
+      { footprint: rect(8_000, 16_000), heightMm: 3 * H },
+    ]
+    expect(brokenFloorsOf(floors, H)).toEqual([{ floor: 2, kind: 'fewPoints' }])
   })
 })
