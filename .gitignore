@@ -6,6 +6,9 @@
 .env.*
 !.env.example
 .envrc
+# 手元の Worker（wrangler dev）の秘密の設定。API キーが入る（G155）
+.dev.vars
+.dev.vars.*
 secrets/
 *_token.json
 credentials.json
@@ -16,6 +19,8 @@ build/
 # 作業用。労務単価の CSV など、公開リポジトリに置けないものが入る
 _workspace/
 .wrangler/
+# 画面確認のスクリーンショットなど（検証用）
+.playwright-mcp/
 __pycache__/
 .venv/
 .DS_Store
