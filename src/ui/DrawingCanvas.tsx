@@ -28,6 +28,7 @@ import { viewOfLot } from '../plan/lotView'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
 import { strokeToSegments } from '../canvas/strokeToSegments'
+import { strokeStageOf } from '../plan/strokeStage'
 import { useMode } from '../store/mode'
 import { usePending } from '../store/pending'
 import { recordWorkLog } from '../app/workLogStore'
@@ -255,7 +256,7 @@ export function DrawingCanvas() {
         points: d.points.map((q) => ({ px: q.x, py: q.y })),
         view_scale: vp.mmPerPx,
         view_origin: { px: vp.originPx.x, py: vp.originPx.y },
-        stage: 'F4',
+        stage: strokeStageOf(useMode.getState().mode),
         pen_mode: ui.penMode,
         created_at: new Date().toISOString(),
         pen_input: toPenInput(d.pointerType),
@@ -512,7 +513,7 @@ export function DrawingCanvas() {
         points: d.points.map((q) => ({ px: q.x, py: q.y })),
         view_scale: vp.mmPerPx,
         view_origin: { px: vp.originPx.x, py: vp.originPx.y },
-        stage: 'F4',
+        stage: strokeStageOf(useMode.getState().mode),
         pen_mode: ui.penMode,
         created_at: new Date().toISOString(),
         pen_input: toPenInput(d.pointerType),
