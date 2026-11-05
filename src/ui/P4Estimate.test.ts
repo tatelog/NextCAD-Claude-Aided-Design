@@ -222,3 +222,12 @@ describe('P4 の数量の内訳（表から読む。仕様 6・ハブ A-03 G86�
     expect(textOf(htmlOf())).toContain('自動 90 m²')
   })
 })
+
+// 仕様 7（暗い表示でも読める。統括の依頼 2026-11-05）: 数量の内訳の表は、背景色（白）を明示する。文字色だけで地に任せない。
+describe('数量の内訳の表の地（仕様 7）', () => {
+  it('数量の内訳の表は、背景色（白）を明示する', () => {
+    const table = htmlOf().match(/<table style="[^"]*font-size:13px[^"]*">/)
+    expect(table).not.toBeNull()
+    expect(table![0]).toMatch(/background(-color)?:#fff\b/)
+  })
+})
