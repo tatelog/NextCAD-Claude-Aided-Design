@@ -2,9 +2,15 @@
 // 地点（経度・緯度）を含む筆を探して選ぶ。地図の読み込みと選択（P1Map）から使う。店舗の値は画面の中だけで、保存しない。
 import { useSite } from '../store/site'
 import { parcelRingOf } from './parcelPlane'
+import { formatParcelInfo, type ParcelProps } from './parcelInfo'
 
 // 筆の UID → 筆の形（GeoJSON の geometry）
 const geometries = new Map<string, unknown>()
+// 筆の UID → 筆の属性（選んだ筆の情報の文に使う）
+const properties = new Map<string, ParcelProps>()
+
+/** 含む筆が無いとき（と、筆の情報を覚えていない筆を選んだとき）の、選んだ筆の文 */
+export const NO_PARCEL_TEXT = 'この地点を含む筆は無い（P2 はダミーの筆界）'
 
 type Ring = readonly (readonly number[])[]
 
@@ -38,8 +44,9 @@ export function geometryContains(geometry: unknown, lon: number, lat: number): b
 }
 
 /** 地図の筆の形を覚える（筆の読み込みのとき） */
-export function rememberParcelGeometry(uid: string, geometry: unknown): void {
+export function rememberParcelGeometry(uid: string, geometry: unknown, props?: ParcelProps): void {
   geometries.set(uid, geometry)
+  if (props) properties.set(uid, props)
 }
 
 /** 地点（経度・緯度）を含む筆の UID。覚えている筆の中に、地点を含むものが無ければ null */
@@ -48,9 +55,11 @@ export function parcelUidAt(lon: number, lat: number): string | null {
   return null
 }
 
-/** 選んだ筆の平面を店舗へ渡す。uid が null、覚えていない、形が読めないときは null（P2 はダミーの筆に戻す） */
+/** 選んだ筆の平面と情報の文を店舗へ渡す。uid が null、覚えていない、形が読めないときは平面を null（P2 はダミーの筆に戻す）。情報の文は、筆の情報があればその文、無ければ NO_PARCEL_TEXT */
 export function publishSelectedParcel(uid: string | null): void {
+  const props = uid === null ? undefined : properties.get(uid)
   useSite.getState().setParcel(uid === null ? null : parcelRingOf(geometries.get(uid)))
+  useSite.getState().setParcelInfo(props ? formatParcelInfo(props) : NO_PARCEL_TEXT)
 }
 
 /** 地点から筆を選ぶ（地図の地点と、住所・座標で決めた地点の両方に使う）。地点を含む筆があればその平面を店舗へ、無ければ店舗の筆を null にする。選んだ筆の UID を返す */

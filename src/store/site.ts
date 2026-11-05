@@ -40,6 +40,9 @@ interface SiteState {
   /** 選んだ筆（P1 の公図）の平面（mm、原点は筆の重心）。P2 の斜線・日影の基準に使う。筆を選んでいない・筆のファイルが無いときは null（P2 はダミーの筆を使う） */
   parcel: Point[] | null
   setParcel: (parcel: Point[] | null) => void
+  /** 選んだ筆の情報の文（P1 の表示に出す）。含む筆が無いときは「この地点を含む筆は無い」。決まるまでは null */
+  parcelInfo: string | null
+  setParcelInfo: (parcelInfo: string | null) => void
 }
 
 export const useSite = create<SiteState>((set) => ({
@@ -60,4 +63,6 @@ export const useSite = create<SiteState>((set) => ({
   setPlan: (plan) => set({ plan }),
   parcel: null,
   setParcel: (parcel) => set({ parcel }),
+  parcelInfo: null,
+  setParcelInfo: (parcelInfo) => set({ parcelInfo }),
 }))

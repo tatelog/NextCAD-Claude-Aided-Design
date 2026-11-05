@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { GSI_BASEMAP_ATTRIBUTION, GSI_BASEMAP_TILES, gsiBasemapLayer } from '../map/basemap'
 import { ROAD_WIDTH_CLASSES } from '../map/roadStyle'
 import { DEMO_INITIAL_VIEW, DEMO_PARCEL_UID } from '../map/initialView'
-import { formatParcelInfo, parcelUid } from '../map/parcelInfo'
+import { parcelUid } from '../map/parcelInfo'
 import { decodeLocalJson } from '../map/localData'
 import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
 import type { LonLat } from '../map/viewport'
@@ -117,7 +117,7 @@ export function P1Map(props: Props) {
       })
       syncNeighbors(map, latest.current.neighborRings)
       syncSite(map, latest.current.site)
-      void loadLocalLayers(map, latest.current.onStatus, latest.current.onInfo, selectedRef)
+      void loadLocalLayers(map, latest.current.onStatus, selectedRef)
     })
 
     map.on('click', (e) => {
@@ -192,10 +192,6 @@ function syncNeighbors(map: MaplibreMap, rings: [number, number][][]) {
 
 // 点にある筆・建物・道路の情報（筆を優先）
 function infoAt(map: MaplibreMap, point: Point): string | null {
-  const parcels = map.queryRenderedFeatures(point, { layers: ['parcels-fill'] })
-  if (parcels.length > 0) {
-    return formatParcelInfo(parcels[0]!.properties as Record<string, string>)
-  }
   const bldg = map.queryRenderedFeatures(point, { layers: ['bldg-3d'] })
   if (bldg.length > 0) return `建物の高さ ${bldg[0]!.properties.h} m`
   const roads = map.queryRenderedFeatures(point, { layers: ROAD_WIDTH_CLASSES.map((w) => `roads-w${w.k}`) })
@@ -210,7 +206,6 @@ function infoAt(map: MaplibreMap, point: Point): string | null {
 async function loadLocalLayers(
   map: MaplibreMap,
   onStatus: (s: string) => void,
-  onInfo: (s: string) => void,
   selectedRef: { current: string | null },
 ) {
   const missing: string[] = []
@@ -240,7 +235,7 @@ async function loadLocalLayers(
     for (const f of parcels.features) {
       const uid = parcelUid(f.properties as { 地図名: string; 筆ID: string })
       f.properties['筆UID'] = uid
-      rememberParcelGeometry(uid, f.geometry)
+      rememberParcelGeometry(uid, f.geometry, f.properties)
     }
     parcelCount = parcels.features.length
     map.addSource('parcels', { type: 'geojson', data: parcels as GeoJSONSourceSpecification['data'], promoteId: '筆UID' })
@@ -258,7 +253,6 @@ async function loadLocalLayers(
     const demo = parcels.features.find((f) => f.properties['筆UID'] === DEMO_PARCEL_UID)
     if (demo) {
       selectedRef.current = DEMO_PARCEL_UID
-      onInfo(formatParcelInfo(demo.properties))
       selectDemoParcel(map)
       publishSelectedParcel(DEMO_PARCEL_UID)
     }

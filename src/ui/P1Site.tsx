@@ -45,6 +45,8 @@ export function P1Site() {
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState<string | null>(null)
   const siteBuildings = useSite((s) => s.buildings)
+  // 選んだ筆の情報の文（店舗の選択と同じ。含む筆が無ければ「この地点を含む筆は無い」）
+  const parcelInfo = useSite((s) => s.parcelInfo)
   const showNeighbors = useUi((s) => s.showNeighbors)
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
@@ -153,6 +155,7 @@ export function P1Site() {
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
+        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
         <div style={{ marginBottom: 12 }}>
