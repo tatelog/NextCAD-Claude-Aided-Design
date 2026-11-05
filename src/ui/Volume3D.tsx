@@ -1,6 +1,7 @@
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
+import { lotPlateTrianglesOf, LOT_LIFT_MM } from './volumeScene'
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Line, OrbitControls } from '@react-three/drei'
@@ -112,7 +113,10 @@ function SetbackLabels({ lines, labels }: { lines: SetbackLine[]; labels: Record
 }
 
 interface Volume3DProps {
-  footprint: Point[]
+  /** 外形（閉じているとき）。閉じていなければ null（敷地と周辺建物だけを見せる。統括の依頼 2026-11-06。4） */
+  footprint: Point[] | null
+  /** 確定した敷地の筆（平面）。外形の前から地面に出す */
+  lot?: Point[] | null
   /** 地面に落ちる影（任意）。太陽の位置から作る */
   shadow?: Point[][] | null
   /** 周辺建物（任意）。底面と高さ（mm）。敷地の立体とは別の色で置く */
@@ -137,6 +141,7 @@ interface Volume3DProps {
 
 export function Volume3D({
   footprint,
+  lot,
   shadow,
   neighbors,
   storeyCount,
@@ -161,9 +166,10 @@ export function Volume3D({
   const labelRefs = useRef<Record<string, HTMLDivElement | null>>({})
   // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
   const [knobPreview, setKnobPreview] = useState<KnobPreview | null>(null)
-  const shownFootprint = knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
+  const shownFootprint = footprint === null ? null : knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
   const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
   const geometry = useMemo(() => {
+    if (footprint === null || shownFootprint === null) return null
     // 段状に切った形は、つまみを動かしていない間だけ出す（動かしている間は外形の押し出しで仮の形を見せる）
     if (floors && floors.length > 0 && !knobPreview) {
       try {
@@ -184,8 +190,16 @@ export function Volume3D({
     return build(footprint, storeyCount)
   }, [footprint, shownFootprint, storeyCount, shownStoreyCount, storeyHeightMm, floors, knobPreview])
   // 仮の形を作り直すたびに、古い形の GPU の領域を解放する
-  useEffect(() => () => geometry.dispose(), [geometry])
-  const ground = useMemo(() => groundSize(footprint), [footprint])
+  useEffect(() => () => geometry?.dispose(), [geometry])
+  // 敷地の面と輪郭（外形の前から。外形と同じ平面の座標）
+  const lotPlate = useMemo(() => (lot ? toGeometry({ triangles: lotPlateTrianglesOf(lot) }) : null), [lot])
+  const lotLine = useMemo(() => {
+    if (!lot || lot.length < 3) return null
+    return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(p.x * MM_TO_M, LOT_LIFT_MM * MM_TO_M, p.y * MM_TO_M)))
+  }, [lot])
+  // 地面の大きさは、外形（無ければ敷地）から。どちらも無ければ地面は出さない
+  const groundSource = footprint ?? lot ?? null
+  const ground = useMemo(() => (groundSource && groundSource.length > 0 ? groundSize(groundSource) : null), [groundSource])
 
   const [faceRequest, setFaceRequest] = useState<FaceRequest | null>(null)
 
@@ -203,19 +217,35 @@ export function Volume3D({
       <color attach="background" args={['#f4f4f2']} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[30, 50, 20]} intensity={0.8} />
-      <mesh geometry={geometry}>
-        <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} />
-      </mesh>
+      {geometry && (
+        <mesh geometry={geometry}>
+          <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {lotPlate && (
+        <mesh geometry={lotPlate}>
+          <meshStandardMaterial color="#e9e1c9" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {lotLine && (
+        <lineLoop geometry={lotLine}>
+          <lineBasicMaterial color="#3a4a5a" />
+        </lineLoop>
+      )}
       {neighborGeo && (
         <mesh geometry={neighborGeo}>
           <meshStandardMaterial color="#d8d4c8" side={THREE.DoubleSide} />
         </mesh>
       )}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ground.cx, 0, ground.cz]}>
-        <planeGeometry args={[ground.width, ground.depth]} />
-        <meshStandardMaterial color="#e6e3dc" />
-      </mesh>
-      <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
+      {ground && (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ground.cx, 0, ground.cz]}>
+            <planeGeometry args={[ground.width, ground.depth]} />
+            <meshStandardMaterial color="#e6e3dc" />
+          </mesh>
+          <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
+        </>
+      )}
       {setbackLines?.map((l) => (
         <SetbackDimension key={l.side} line={l} />
       ))}
@@ -225,7 +255,7 @@ export function Volume3D({
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
         </mesh>
       )}
-      {(onRotate || onStoreyCount) && (
+      {(onRotate || onStoreyCount) && footprint !== null && (
         <VolumeKnobs
           footprint={footprint}
           storeyCount={storeyCount}
