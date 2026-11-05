@@ -81,9 +81,11 @@ import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOpt
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborNoteOf, neighborVolumesInFrame } from '../volume/neighborFrame'
 import { sunSiteOf } from '../plan/sunSite'
+import { useDevTools } from '../store/devTools'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
+  const devShown = useDevTools((s) => s.shown)
   // P2 の敷地: 確定した敷地の筆（P1 の「この敷地で確定」）。確定していなければダミー（統括の依頼 2026-11-06。1）
   const confirmed = useConfirmedSite((s) => s.confirmed)
   const currentSite = useConfirmedSite((s) => s.currentSite)
@@ -660,12 +662,12 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。</p>
           </section>
-          <section style={tileStyle('p2-numeric')}>
+          <section style={{ ...tileStyle('p2-numeric'), ...(devShown ? {} : { display: 'none' }) }}>
             <TileClose title="数値で線を入れる" onHide={() => hideTile('p2-numeric')} />
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（仮置き）</h3>
             <NumericLineForm />
           </section>
-          <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay ? {} : { display: 'none' }) }}>
+          <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay && devShown ? {} : { display: 'none' }) }}>
             <TileClose title="回転" onHide={() => hideTile('p2-rotate')} />
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり）</h3>
             <label>
@@ -716,7 +718,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             <h2>Claude（チャット）</h2>
             <ChatTile screen="P2" />
           </section>
-          <section style={tileStyle('feature-adjust')}>
+          <section style={{ ...tileStyle('feature-adjust'), ...(devShown ? {} : { display: 'none' }) }}>
             <TileClose title="機能の調整" onHide={() => hideTile('feature-adjust')} />
             <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P2" />

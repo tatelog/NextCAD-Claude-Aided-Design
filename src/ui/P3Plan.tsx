@@ -61,11 +61,13 @@ import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 import unitTypeCandidates from '../plan/unitTypeCandidates.json'
 import { masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
+import { useDevTools } from '../store/devTools'
 
 /** 住戸タイプのマスタ（T-08。候補 14 型。未確認の値は仮置き） */
 const UNIT_TYPES = masterOf(unitTypeCandidates)
 
 export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
+  const devShown = useDevTools((s) => s.shown)
   const [widthText, setWidthText] = useP3Field('widthText')
   const [depthText, setDepthText] = useP3Field('depthText')
   // 廊下幅の既定は廊下タイプから（G135。中廊下 1,600 mm の仮置き）。既定の無い層は 2,000 mm のまま
@@ -748,7 +750,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             <ChatTile screen="P3" />
           </PanelTile>
         )}
-        {!tileShown('feature-adjust') ? null : (
+        {!tileShown('feature-adjust') || !devShown ? null : (
           <PanelTile title="機能の調整" onHide={() => hideTile('feature-adjust')}>
             <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P3" />

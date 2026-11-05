@@ -24,6 +24,7 @@ import { SCREEN_MODES } from '../app/screenModes'
 import { usePanelTiles } from '../store/panelTiles'
 import { PanelTile } from './PanelTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { useDevTools } from '../store/devTools'
 
 const KIND_COLOR: Record<JudgementKind, string> = { 要る: '#1f2a44', 要らない: '#666', 要確認: '#a86b00' }
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
@@ -41,6 +42,7 @@ function YesNo({ label, value, onChange }: { label: string; value: boolean; onCh
 }
 
 export function P5Output() {
+  const devShown = useDevTools((s) => s.shown)
   const [schema, setSchema] = useState<IfcSchema>('IFC4')
   const [wallText, setWallText] = useState('200')
   const [fireZone, setFireZone] = useState<FireZone>('なし')
@@ -414,7 +416,7 @@ export function P5Output() {
         )}
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        {!rightShown('feature-adjust') ? null : (
+        {!rightShown('feature-adjust') || !devShown ? null : (
           <PanelTile title="機能の調整" onHide={() => usePanelTiles.getState().hideTile('feature-adjust')}>
             <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P5" />

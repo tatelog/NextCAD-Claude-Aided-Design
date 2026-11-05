@@ -25,6 +25,7 @@ import { ChatTile } from './ChatTile'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { usePanelTiles } from '../store/panelTiles'
+import { useDevTools } from '../store/devTools'
 
 // 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の内側の点（initialView の DEMO_SITE）
 const DEFAULT = DEMO_SITE
@@ -32,6 +33,7 @@ const DEFAULT = DEMO_SITE
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
 export function P1Site({ onNext }: { onNext?: () => void } = {}) {
+  const devShown = useDevTools((s) => s.shown)
   // 開き直すときは、店舗の今いる地点から始める（既定の地点に戻すと、確定のあとに確定し直しになる。統括の依頼 2026-11-06。1）
   const startSite = startSiteOf(useConfirmedSite.getState().currentSite, DEFAULT)
   const [lonText, setLonText] = useState(String(startSite.lon))
@@ -216,6 +218,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           </button>
           {postalNotice ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>{postalNotice}</p> : null}
         </div>
+        <div style={devShown ? undefined : { display: 'none' }}>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
           <input value={lonText} onChange={(e) => moveSiteByText(e.target.value, latText)} style={{ width: '100%' }} />
@@ -228,6 +231,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           ズーム
           <input type="number" min={0} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(clampZoom(Number(e.target.value)))} style={{ width: '100%' }} />
         </label>
+        </div>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法規の値</h3>
           <dl style={{ margin: 0 }}>
@@ -246,10 +250,12 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         <section>
           <OrdinanceForm />
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
+          <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区のコード（例: 13108 は江東区）
             <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
           </label>
+          </div>
           <button type="button" onClick={fetchDistricts} disabled={loading}>
             {loading ? '取得中…' : 'この地点の用途地域を取る'}
           </button>
@@ -297,10 +303,12 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         </section>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
+          <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区の CityGML の zip（江東区 2025 年版）
             <input value={zipUrl} onChange={(e) => setZipUrl(e.target.value)} style={{ width: '100%' }} />
           </label>
+          </div>
           <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
             {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
           </button>

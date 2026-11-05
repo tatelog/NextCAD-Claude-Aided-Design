@@ -40,6 +40,7 @@ import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
 import { useUndoKeys } from './ui/useUndoKeys'
 import { SCREENS, type ScreenId } from './app/screenTabs'
+import { useDevTools } from './store/devTools'
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
 
@@ -50,6 +51,9 @@ export function App() {
   // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
   useUndoKeys()
   const [screen, setScreen] = useState<ScreenId>('P2')
+  // 開発用の道具（☰ の切替。既定は隠す）
+  const devShown = useDevTools((s) => s.shown)
+  const setDevShown = useDevTools((s) => s.setShown)
   // 案件名（敷地名）。画面の中だけで持つ（保存のときだけ書き出す）
   const [project, setProject] = useState('')
   // 開発用: ?seed=square で、20 m × 30 m の閉じた外形を描いた状態から始める（画面の確認用。本番ビルドには入らない）
@@ -345,6 +349,9 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
+                <label style={{ display: 'block', margin: '0 0 8px', fontSize: 12 }}>
+                  <input type="checkbox" checked={devShown} onChange={(e) => setDevShown(e.target.checked)} /> 開発用の道具を出す（経緯度・ズーム・区のコード・CityGML・数値入力・回転・機能の調整の欄）
+                </label>
                 <Fold title="機能一覧（チェックで入・切）">
                   <MenuCheckRows
                     groups={featureMenuGroupsOf(featureShown)}
