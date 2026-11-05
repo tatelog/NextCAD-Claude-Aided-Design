@@ -7,6 +7,7 @@ import { spanDimensions } from '../plan/spanDimension'
 import { mmLabel } from '../plan/dimensionLabel'
 import { milestoneSummary } from '../plan/milestone'
 import { candidateCells, type CorridorLayout } from '../plan/candidateCells'
+import { missingDimensionOf, missingTargetOf, plainErrorTextOf } from '../plan/inputProblem'
 import { corridorDefaultOf } from '../plan/corridorDefaults'
 import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
@@ -117,7 +118,23 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const semanticRows = useMemo(() => confirmRows(targetSegmentsOf(drawnAll), assignments), [drawnAll, assignments])
 
   // 目標の戸数から、スパン数と建物の寸法を決め、幅・奥行・スパンの入力に入れる（EV は全階停止として縦の数を出す）
+  // 画面の寸法の入力（mm）。空の欄は 0 になり、足りない項目として一文にする
+  const dimensionsOf = () => ({
+    widthMm: Number(widthText),
+    depthMm: Number(depthText),
+    corridorMm: Number(corridorText),
+    unitDepthMm: Number(unitDepthText),
+    spanMm: Number(spanText),
+  })
+
   const runAuto = () => {
+    // 足りない入力は、一文で言う（ZodError の JSON は出さない。依頼 2b）
+    const problem = missingTargetOf(Number(targetText)) ?? missingDimensionOf(dimensionsOf())
+    if (problem !== null) {
+      setAuto(null)
+      setAutoError(problem)
+      return
+    }
     try {
       const g = generateAutoPlan({
         targetPerFloor: Number(targetText),
@@ -144,7 +161,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       setAutoError(null)
     } catch (e) {
       setAuto(null)
-      setAutoError(e instanceof Error ? e.message : String(e))
+      setAutoError(plainErrorTextOf(e))
     }
   }
 
@@ -189,6 +206,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const core = parseCoreRect(coreText)
 
   const units = useMemo(() => {
+    // 足りない寸法は、一文で言う（依頼 2b）
+    const problem = missingDimensionOf(dimensionsOf())
+    if (problem !== null) return { cells: null, result: null, error: problem as string | null }
     try {
       const c = candidateCells({
         width_mm: Number(widthText),
@@ -213,7 +233,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       })
       return { cells: c, result: r, error: null as string | null }
     } catch (e) {
-      return { cells: null, result: null, error: e instanceof Error ? e.message : String(e) }
+      return { cells: null, result: null, error: plainErrorTextOf(e) }
     }
   }, [widthText, depthText, corridorText, unitDepthText, spanText, layoutText, core.rect])
 
