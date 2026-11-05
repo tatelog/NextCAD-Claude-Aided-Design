@@ -28,7 +28,7 @@ import {
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
-import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
+import { lotAreaMm2, lotOf } from '../plan/lot'
 import { objectTableOf, type ObjectRow } from '../plan/objectTable'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { p4CanGoNext } from './p4NextGate'
@@ -119,6 +119,9 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   const drawnAll = useDrawing((s) => s.entries)
   const drawnEntries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const assignments = useSemantic((s) => s.assignments)
+  // 敷地の面積: 地図で選んだ筆（無ければダミー）。P2 の敷地と同じ値（統括の依頼 2026-11-06）
+  const parcel = useSite((s) => s.parcel)
+  const siteAreaMm2 = useMemo(() => lotAreaMm2(lotOf(parcel)), [parcel])
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
   const fixtureUnitIds = useFixtures((s) => s.unitIds)
@@ -144,7 +147,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
       rows.push(
         slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2),
         exteriorRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2?.[0]),
-        siteRow(volume.footprint, DUMMY_PARCEL_MM2),
+        siteRow(volume.footprint, siteAreaMm2),
       )
     }
     if (plan) {
@@ -163,7 +166,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
     const kinds = Object.fromEntries(segments.map((s) => [s.id, assignments[s.id]?.kind ?? null]))
     rows.push(sashRow(segments, kinds))
     return rows
-  }, [plan, fixtures, volume, drawnEntries, assignments])
+  }, [plan, fixtures, volume, drawnEntries, assignments, siteAreaMm2])
   // 左の一覧の件数（G78）は、この表の行から数える（別の集計表は作らない）
   const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
   const objectRows = useObjectTable((s) => s.rows)

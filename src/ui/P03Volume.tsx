@@ -75,19 +75,20 @@ import { SCREEN_MODES } from '../app/screenModes'
 import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
-import { DUMMY_PARCEL, DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
+import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf } from '../plan/lot'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
-// 周辺建物は P1 の基準点を、ダミー筆界の中心（20 m × 30 m の中心）に合わせて置く（筆界が入るまでの仮）
-const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
+  // P2 の敷地: 地図で選んだ筆（P1 の公図）の平面。無ければダミー（統括の依頼 2026-11-06）
+  const parcel = useSite((s) => s.parcel)
+  const lot = lotOf(parcel)
   // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
   const drawnAll = useDrawing((s) => s.entries)
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
   const closure = useMemo(() => findClosedOutline(segments), [segments])
-  // 左メニュー（G55）の入力: 外形（閉じた輪郭）と仮の筆界（ダミー）から。P1 の筆界が入るまでの仮
-  const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, DUMMY_PARCEL), [closure])
+  // 左メニュー（G55）の入力: 外形（閉じた輪郭）と敷地（選んだ筆、無ければダミー）から
+  const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, lot), [closure, lot])
   // 左の一覧の件数（G78）: 閉じた外形と仮の筆界の行から数える（別の集計表は作らない）
   const countSources = useMemo(
     () => sourcesOfTable(objectTableOf({ ...emptyObjectTableInput(), outline: closure.footprint, siteBoundary: true })),
@@ -112,8 +113,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const showMiniMap = useUi((s) => s.showMiniMap)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
-    () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, PARCEL_CENTER_MM) : []),
-    [siteBuildings, sitePoint],
+    () => (siteBuildings && sitePoint ? neighborVolumes(siteBuildings, sitePoint, lotCenterOf(lot)) : []),
+    [siteBuildings, sitePoint, lot],
   )
 
   const [farLimit, setFarLimit] = useState('')
@@ -126,12 +127,14 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   }, [solarTime])
   const [zone, setZone] = useState<Zone>('住居系')
   const [roadEdge, setRoadEdge] = useState(0)
+  // 前面道路の辺は、今の敷地の辺の範囲に収めて使う（統括の依頼 2026-11-06 (b)）
+  const edge = roadEdgeIndexOf(lot, roadEdge)
   const [roadWidth, setRoadWidth] = useState('6000')
   // 幅員の出どころ（G16。仮置き）: 値は入力のまま、出どころの名前だけを持つ
   const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   // 離れ（西・南）の入力は空で始める。描いた外形は、離れを入れるまで動かない（t62 の直し）。既定（G104・G115）は入力欄の placeholder に出す
-  const setbackInit = setbackInitialOf(DUMMY_PARCEL, roadEdge)
+  const setbackInit = setbackInitialOf(lot, edge)
   const [westText, setWestText] = useState('')
   const [southText, setSouthText] = useState('')
   // 基準線（ハブ A-03 G59・統括の依頼 t52）: 描いた外形（外壁の中心線）を、内側へ寄せるか、中心線から量（外へ正）だけずらす。既定は中心線・ずらし 0
@@ -139,7 +142,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const [baselineOffsetText, setBaselineOffsetText] = useState('0')
 
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
-  // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
+  // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは敷地の前面道路の辺から
   const [aligned, setAligned] = useState(false)
   // 回転（G71）: 右パネルの角度（°）と刻み。「回す」で外形を重心のまわりに回し、store に確定する
   const [rotateText, setRotateText] = useState('0')
@@ -171,8 +174,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     transform(() => rotateOutline(snapshot, deg))
   }
   const roadDeg = (() => {
-    const a = DUMMY_PARCEL[roadEdge]!
-    const b = DUMMY_PARCEL[(roadEdge + 1) % DUMMY_PARCEL.length]!
+    const a = lot[edge]!
+    const b = lot[(edge + 1) % lot.length]!
     return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
   })()
 
@@ -192,8 +195,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     const base = aligned ? roundFootprintMm(alignToDirection(baseline.footprint, roadDeg)) : baseline.footprint
     const sb = setbackInputsOf(westText, southText)
     if (sb === null) return base
-    return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: sb.westMm, south: sb.southMm }))
-  }, [baseline, westText, southText, aligned, roadDeg])
+    return roundFootprintMm(placeBySetback(base, lot, { west: sb.westMm, south: sb.southMm }))
+  }, [baseline, westText, southText, aligned, roadDeg, lot])
 
   // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
   const extruded = useMemo<ExtrudeResult | null>(() => {
@@ -205,7 +208,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const baselineError = baseline !== null && !baseline.ok ? baseline.reason : null
   const volumeError = baselineError ?? (extruded && !extruded.ok ? extruded.reason : null)
 
-  // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
+  // 法定の斜線を、敷地（選んだ筆、無ければダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
   const siteMatches = useSite((s) => s.matches)
   const siteRule = useMemo(() => (siteMatches ? siteRuleFromDistricts(siteMatches) : null), [siteMatches])
@@ -218,27 +221,27 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
       return { boundaries: [], pending: ['容積率の限度（上限）が未入力'] }
     }
     return legalBoundaries({
-      footprint: DUMMY_PARCEL,
-      roadEdgeIndex: roadEdge,
+      footprint: lot,
+      roadEdgeIndex: edge,
       roadWidthMm: Number(roadWidth) || 0,
       zone: effectiveZone,
       farPercent: effectiveFar,
     })
-  }, [effectiveFar, effectiveZone, roadEdge, roadWidth])
+  }, [effectiveFar, effectiveZone, edge, roadWidth, lot])
 
   const cut = useMemo(() => {
     if (!volume) return null
     return volumeAfterSlope(
       { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height },
       legal.boundaries,
-      DUMMY_PARCEL_MM2,
+      lotAreaMm2(lot),
     )
-  }, [volume, legal])
+  }, [volume, legal, lot])
 
   // 敷地との離れ（敷地が矩形のときだけ。G67）
-  const setback = useMemo(() => (volume ? setbackFromRectParcel(DUMMY_PARCEL, volume.footprint) : null), [volume])
+  const setback = useMemo(() => (volume ? setbackFromRectParcel(lot, volume.footprint) : null), [volume, lot])
   // 離れの寸法線（G67）。3D の地面に出す。寸法線の表示をオフにしたら出さない
-  const setbackLinesOfVolume = useMemo(() => (volume ? setbackLines(DUMMY_PARCEL, volume.footprint) : null), [volume])
+  const setbackLinesOfVolume = useMemo(() => (volume ? setbackLines(lot, volume.footprint) : null), [volume, lot])
   // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
   const roadSlope = useMemo(() => {
     const road = legal.boundaries.filter((b) => b.kind === 'road')
@@ -292,7 +295,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     })
     if (!ordinance.ok) return { text: ordinance.reason, result: null as '適合' | '不適合' | null }
     const judgment = judgeShadow({
-      lot: DUMMY_PARCEL,
+      lot,
       buildings: stackedFloors,
       rule: ordinance.rule,
       lat: 35.67,
@@ -303,7 +306,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     const drawingText = shadowDrawingSummary(
       shadowDrawing({
         structure: 'RC',
-        lot: DUMMY_PARCEL,
+        lot,
         buildings: stackedFloors,
         rule: ordinance.rule,
         lat: 35.67,
@@ -314,7 +317,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     if (judgment.result === '適合') return { text: `適合（確認済みの条例の値で判定）／${drawingText}`, result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）／${drawingText}`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -394,7 +397,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             全部消す
           </button>
         </span>
-        <span className="p03-note">議論用・未確定。筆界はダミー（20 m × 30 m）。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
+        <span className="p03-note">議論用・未確定。{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
         {siteBuildings && (
           <span className="p03-note">周辺建物の底面 {neighbors.length} 件（P1 の地点を敷地中心に仮配置。高さ不明は表示しない）</span>
         )}
@@ -581,8 +584,14 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               </select>
             </label>
             <label>
-              前面道路の辺（0〜3）
-              <input type="number" min={0} max={3} value={roadEdge} onChange={(e) => setRoadEdge(Math.min(3, Math.max(0, Math.floor(Number(e.target.value) || 0))))} />
+              前面道路の辺（0〜{lot.length - 1}）
+              <select value={edge} onChange={(e) => setRoadEdge(Number(e.target.value))}>
+                {roadEdgeOptionsOf(lot).map((i) => (
+                  <option key={i} value={i}>
+                    {i}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               前面道路の幅員 (mm)
@@ -599,7 +608,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               </select>
             </label>
             <p className="muted">採用: {roadWidthNote(roadSource, Number(roadWidth) || 0)}</p>
-            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ（筆界のダミーから）</h3>
+            <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ{parcel === null ? '（筆界のダミーから）' : '（選んだ筆から）'}</h3>
+            {setbackNoteOf(lot) && <p className="muted">{setbackNoteOf(lot)}</p>}
             <button type="button" onClick={() => setAligned((v) => !v)} disabled={!closure.closed}>
               {aligned ? '向きを戻す' : '道路に平行に合わせる'}
             </button>

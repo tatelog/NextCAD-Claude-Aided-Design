@@ -9,7 +9,7 @@ export interface Setback {
   west: number
 }
 
-function isAxisRectangle(poly: readonly Point[]): boolean {
+export function isAxisRectangle(poly: readonly Point[]): boolean {
   if (poly.length !== 4) return false
   const xs = [...new Set(poly.map((p) => p.x))]
   const ys = [...new Set(poly.map((p) => p.y))]
