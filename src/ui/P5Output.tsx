@@ -130,7 +130,7 @@ export function P5Output() {
                 <input value={wallText} onChange={(e) => setWallText(e.target.value)} style={{ width: 120, marginLeft: 8 }} />
               </label>
               <label style={{ display: 'block', marginBottom: 6 }}>
-                防火地域の区分（敷地の地点を人が選ぶ。自動の接続は未了）
+                防火地域の区分（敷地の地点を人が選ぶ）
                 <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
                   <option value="なし">なし</option>
                   <option value="防火">防火地域</option>

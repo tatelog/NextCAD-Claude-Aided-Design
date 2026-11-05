@@ -98,7 +98,7 @@ const rectEntries = (kind: ObjectKind, rects: readonly Rect[] | undefined): Obje
   (rects ?? []).map((r) => entry(kind, r.id, [sizeLine(r)]))
 
 const unwiredEntries = (kind: ObjectKind, items: readonly unknown[] | undefined): ObjectDetailEntry[] =>
-  (items ?? []).map((_, i) => entry(kind, i + 1, [`中身: ${UNWIRED}`]))
+  (items ?? []).map((_, i) => entry(kind, i + 1, []))
 
 function entriesOf(kind: ObjectKind, s: ObjectDetailSources): ObjectDetailEntry[] {
   switch (kind) {
