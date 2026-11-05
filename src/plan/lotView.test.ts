@@ -82,3 +82,33 @@ describe('描く画面の初めの表示（仕様 21〜24）', () => {
     expect(viewOfLot(point, W, H)).toEqual(viewOfLot(lotOf(null), W, H))
   })
 })
+
+// 仕様（統括の依頼 2026-11-06。3: 作図画面の初めの表示を、確定した筆の半分くらいに合わせ、すぐ隣の周辺建物が見えるようにする）:
+// 仕様 3a: 確定した筆は、画面の大きい方の辺の半分くらいに収まる。
+// 仕様 3b: 筆のすぐ外（30 m 先）の点（隣の建物）が、画面の中に見える。
+import { viewOfSite } from './lotView'
+
+describe('確定した筆の初めの表示（仕様 3a・3b）', () => {
+  const SQUARE80: Point[] = [
+    { x: 0, y: 0 },
+    { x: 80_000, y: 0 },
+    { x: 80_000, y: 80_000 },
+    { x: 0, y: 80_000 },
+  ]
+
+  it('仕様 3a: 筆は画面の大きい方の辺の半分くらい（縦 800×600 なら、縦が 300 px 前後）', () => {
+    const v = viewOfSite(SQUARE80, 800, 600)
+    const top = mmToPx(v, { x: 0, y: 80_000 })
+    const bottom = mmToPx(v, { x: 0, y: 0 })
+    expect(Math.abs(bottom.y - top.y)).toBeCloseTo(300, 0)
+  })
+
+  it('仕様 3b: 筆のすぐ外（30 m 先）の点が、画面の中に見える', () => {
+    const v = viewOfSite(SQUARE80, 800, 600)
+    const neighbor = mmToPx(v, { x: 110_000, y: 40_000 })
+    expect(neighbor.x).toBeGreaterThanOrEqual(0)
+    expect(neighbor.x).toBeLessThanOrEqual(800)
+    expect(neighbor.y).toBeGreaterThanOrEqual(0)
+    expect(neighbor.y).toBeLessThanOrEqual(600)
+  })
+})
