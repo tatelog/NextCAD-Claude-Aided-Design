@@ -2,6 +2,8 @@
 // 固定の部分を先頭に置き、呼び出しのキャッシュが効くようにする（G144）。件数は設定値（実測で決める）。決定論。
 export const CHAT_RECENT_OPS = 10
 export const CHAT_EXCERPT_MAX = 20
+/** 案件の要約の文字数の上限（仮置き。実測で決める。G144） */
+export const CHAT_MEMORY_MAX_CHARS = 1200
 
 export interface ChatContextInput {
   /** 今の画面（P1〜P5 など） */

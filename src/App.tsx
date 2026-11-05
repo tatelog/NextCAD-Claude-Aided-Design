@@ -31,6 +31,9 @@ import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
 import { judgeSegments, judgeText } from './worker/judge'
 import { appWorkerUrl } from './worker/workerUrl'
+import { useChat } from './store/chat'
+import { chatTransportOf, contextInputOf } from './chat/chatTransport'
+import { CHAT_MODEL_DEFAULT } from './chat/chatRequest'
 import { pendingLogEntry } from './app/pendingJudgments'
 import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
@@ -94,6 +97,30 @@ export function App() {
   }, [])
   // 線が変わるたびに、作業履歴の行を状態つきで書く（G68。戻せるように）
   useEffect(() => startLineLog(), [])
+  // チャットの返信（t55）: Worker の URL があり、意味づけがオンのときだけ Worker の /chat につなぐ。無ければ未接続のまま（図面は変わらない）
+  const chatOn = useFeatures((s) => s.on.classifyClaude)
+  useEffect(() => {
+    if (!WORKER_URL || !chatOn) {
+      useChat.getState().setTransport(null)
+      return
+    }
+    useChat.getState().setTransport(
+      chatTransportOf({
+        workerUrl: WORKER_URL,
+        model: CHAT_MODEL_DEFAULT,
+        fetchImpl: (url, init) => fetch(url, init),
+        contextOf: () =>
+          contextInputOf({
+            screen,
+            mode: useMode.getState().mode,
+            rows: recentWorkLog(200),
+            entries: useDrawing.getState().entries,
+            assignments: useSemantic.getState().assignments,
+            selectedSegmentIds: [],
+          }),
+      }),
+    )
+  }, [chatOn, screen])
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
   // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
   const pendingCount = usePending((s) => s.items.length)
