@@ -6,7 +6,6 @@ import { P1Site } from './ui/P1Site'
 import { P3Plan } from './ui/P3Plan'
 import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
-import { PracticeScreen } from './ui/PracticeScreen'
 import { useDrawing } from './store/drawing'
 import { targetSegmentsOf } from './plan/semanticConfirm'
 import { useFixtures } from './store/fixtures'
@@ -40,17 +39,7 @@ import { useSemantic } from './store/semantic'
 import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
 import { useLayers } from './store/layers'
 import { useUndoKeys } from './ui/useUndoKeys'
-
-const SCREENS = [
-  { id: 'P1', name: '敷地' },
-  { id: 'P2', name: 'ボリューム' },
-  { id: 'P3', name: '平面' },
-  { id: 'P4', name: '積算' },
-  { id: 'P5', name: '出力' },
-  { id: 'K', name: '練習' },
-] as const
-
-type ScreenId = (typeof SCREENS)[number]['id']
+import { SCREENS, type ScreenId } from './app/screenTabs'
 
 const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a4', borderRadius: 6, background: '#fff', color: '#1f2a44', cursor: 'pointer', whiteSpace: 'nowrap' } as const
 
@@ -316,7 +305,6 @@ export function App() {
         {screen === 'P3' && <P3Plan onNext={() => go('P4')} />}
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}
-        {screen === 'K' && <PracticeScreen />}
         {panel !== null && (
           <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, ...(panel === 'menu' ? { left: 0 } : { width: 320 }), background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'log' && (
