@@ -11,6 +11,7 @@ import { useDrawing } from './store/drawing'
 import { targetSegmentsOf } from './plan/semanticConfirm'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
+import { useConfirmedSite } from './store/confirmedSite'
 import { workLogToCsv } from './app/workLogCsv'
 import { p3Stroke } from './plan/p3Stroke'
 import { buildSaveData } from './app/saveData'
@@ -202,6 +203,8 @@ export function App() {
       fixtures: useFixtures.getState().fixtures,
       unitPriceTexts: useFixtures.getState().unitPriceTexts,
       firstFloorNames: useFirstFloor.getState().names,
+      // 確定した敷地（統括の依頼 2026-11-06。8）
+      confirmedSite: useConfirmedSite.getState().confirmed,
       savedAt: new Date(),
     })
   }

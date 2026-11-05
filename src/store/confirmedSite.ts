@@ -37,6 +37,8 @@ const errorTextOf = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 interface ConfirmedState {
   confirmed: ConfirmedSite | null
+  /** 前面道路の辺（P2 で選ぶ。確定の前から持つ。確定すると、確定のまとめに入る。統括の依頼 2026-11-06。6） */
+  roadEdge: number
   district: FetchState<DistrictLoad>
   buildings: FetchState<PlateauBuilding[]>
   confirm: (c: ConfirmedSite) => void
@@ -55,6 +57,7 @@ interface ConfirmedState {
 
 export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   confirmed: null,
+  roadEdge: 0,
   district: IDLE,
   buildings: IDLE,
   // 確定したときは、今いる地点も確定の中心にする（確定の処理は P1 を離れるので、P1 は今いる地点を更新できない。統括の依頼 2026-11-06。不具合の直し）
@@ -62,7 +65,7 @@ export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   clear: () => set({ confirmed: null }),
   setRoadEdge: (roadEdge) => {
     const c = get().confirmed
-    if (c !== null) set({ confirmed: { ...c, roadEdge } })
+    set({ roadEdge, confirmed: c !== null ? { ...c, roadEdge } : null })
   },
   fetchDistrictAt: async (point, cityCode) => {
     const id = districtGate.begin()

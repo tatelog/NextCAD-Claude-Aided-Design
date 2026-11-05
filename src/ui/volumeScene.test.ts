@@ -41,3 +41,43 @@ describe('敷地の面（仕様 4d）', () => {
     expect(LOT_LIFT_MM).toBeGreaterThan(0)
   })
 })
+
+// 仕様（統括の依頼 2026-11-06。B: 外形が無いとき、確定した敷地（と周辺建物）の範囲が画面に収まるように、カメラを置く）:
+// 仕様 B1: 範囲の点は、枠の球（中心 target・半径 radiusM）に入り、カメラは球が縦の視野に入る距離に置く。
+// 仕様 B2: 範囲が無ければ、枠は無い（null）。
+// 仕様 B3: 目標は範囲の中心（平面の x・z）。
+import { sceneFrameOf } from './volumeScene'
+
+describe('範囲に合わせるカメラ（仕様 B1〜B3）', () => {
+  const FOV = 40
+  const BIG: Point[] = [
+    { x: -40_000, y: -30_000 },
+    { x: 60_000, y: -30_000 },
+    { x: 60_000, y: 70_000 },
+    { x: -40_000, y: 70_000 },
+  ]
+
+  it('仕様 B1: 範囲の点は球に入り、カメラは球が縦の視野に入る距離にある', () => {
+    const frame = sceneFrameOf([BIG], FOV)!
+    expect(frame).not.toBeNull()
+    for (const p of BIG) {
+      const dx = p.x / 1000 - frame.target[0]
+      const dz = p.y / 1000 - frame.target[2]
+      expect(Math.hypot(dx, dz)).toBeLessThanOrEqual(frame.radiusM + 1e-6)
+    }
+    expect(frame.distanceM * Math.sin((FOV / 2) * (Math.PI / 180))).toBeGreaterThanOrEqual(frame.radiusM)
+    const [px, py, pz] = frame.position
+    const [tx, ty, tz] = frame.target
+    expect(Math.hypot(px - tx, py - ty, pz - tz)).toBeCloseTo(frame.distanceM, 6)
+  })
+
+  it('仕様 B2: 範囲が無ければ、枠は無い', () => {
+    expect(sceneFrameOf([], FOV)).toBeNull()
+  })
+
+  it('仕様 B3: 目標は範囲の中心（x・z）', () => {
+    const frame = sceneFrameOf([BIG], FOV)!
+    expect(frame.target[0]).toBeCloseTo(10, 6)
+    expect(frame.target[2]).toBeCloseTo(20, 6)
+  })
+})

@@ -8,6 +8,16 @@ import { useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
 import { useFirstFloor } from '../store/firstFloor'
 import { useSemantic } from '../store/semantic'
+import { useConfirmedSite, type ConfirmedSite } from '../store/confirmedSite'
+
+// 確定した敷地（統括の依頼 2026-11-06。8）。形が合わなければ例外（読む前の画面は変えない）
+const ConfirmedSchema = z.object({
+  parcelUid: z.string().nullable(),
+  lot: z.array(z.object({ x: z.number(), y: z.number() })).nullable(),
+  frame: z.object({ lon0: z.number(), lat0: z.number(), kx: z.number(), ky: z.number(), cx: z.number(), cy: z.number() }).nullable(),
+  center: z.object({ lat: z.number(), lon: z.number() }),
+  roadEdge: z.number().int().min(0),
+})
 
 const EntrySchema = z.object({
   stroke: StrokeSchema,
@@ -35,6 +45,8 @@ const SaveSchema = z.object({
   revision: z.number().int().min(0).optional(),
   // 区画に付けた 1F の名前（G75）。名前の無い古い保存には無い
   firstFloorNames: z.record(z.string(), z.string()).optional(),
+  // 確定した敷地。確定の項目が無い古い保存には無い
+  confirmedSite: ConfirmedSchema.optional(),
 })
 
 export interface LoadedProject {
@@ -49,6 +61,8 @@ export interface LoadedProject {
   revision: number
   /** 区画に付けた 1F の名前（区画の id → 名前） */
   firstFloorNames: Record<string, string>
+  /** 確定した敷地（無ければ null） */
+  confirmedSite: ConfirmedSite | null
 }
 
 /** 保存の JSON（すでに JSON.parse 済みの値）を読む。形が合わなければ例外。 */
@@ -64,6 +78,7 @@ export function parseSaveData(json: unknown): LoadedProject {
     unitPriceTexts: d.unitPriceTexts ?? {},
     revision: d.revision ?? 0,
     firstFloorNames: d.firstFloorNames ?? {},
+    confirmedSite: d.confirmedSite ?? null,
   }
 }
 
@@ -73,4 +88,6 @@ export function applyLoadedProject(p: LoadedProject): void {
   useFixtures.setState({ fixtures: p.fixtures, unitPriceTexts: p.unitPriceTexts })
   useFirstFloor.setState({ names: p.firstFloorNames })
   useSemantic.getState().clear()
+  // 読んだ保存の確定した敷地に入れ替える。今いる地点も確定の中心にそろえる（P2 がダミーに戻らない）
+  useConfirmedSite.setState({ confirmed: p.confirmedSite, roadEdge: p.confirmedSite?.roadEdge ?? 0, currentSite: p.confirmedSite ? p.confirmedSite.center : null })
 }

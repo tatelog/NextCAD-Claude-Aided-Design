@@ -15,6 +15,7 @@ import { useConfirmedSite, isConfirmedStaleOf } from '../store/confirmedSite'
 import { districtStatusTextOf } from './districtFetch'
 import { geometryOfParcel } from '../map/selectedParcel'
 import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
+import { parcelNoticeOf } from '../plan/lot'
 import { interiorPointOf } from '../map/interiorPoint'
 import { useUi } from '../store/ui'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
@@ -40,6 +41,8 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const { loading, data: result, error } = useConfirmedSite((s) => s.district)
   const confirmed = useConfirmedSite((s) => s.confirmed)
   const parcelUid = useSite((s) => s.parcelUid)
+  // 選んだ筆（地図で選んだもの）。注記に使う
+  const parcel = useSite((s) => s.parcel)
   const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
   const { loading: neighborLoading, error: neighborError } = useConfirmedSite((s) => s.buildings)
   // 住所検索（国土地理院の住所 API）。候補を選ぶと、その経緯度を対象地点にする
@@ -122,7 +125,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       lot: geometry === undefined ? null : parcelRingOf(geometry),
       frame: geometry === undefined ? null : parcelFrameOf(geometry),
       center: { lat: center.lat, lon: center.lon },
-      roadEdge: useConfirmedSite.getState().confirmed?.roadEdge ?? 0,
+      roadEdge: useConfirmedSite.getState().roadEdge,
     })
     void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
     void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)
@@ -231,7 +234,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
                 : '未取得（地点を入れて「この地点の用途地域を取る」）'}
             </dd>
             <dt>前面道路の幅員</dt>
-            <dd>仮置き: 筆界はダミー（20 m × 30 m）。登記情報は使わない（約款未確認）。手描きの筆界は未実装（D-02 C4 は代表の決定待ち）</dd>
+            <dd>{parcelNoticeOf(parcel)}</dd>
             <dt>真北</dt>
             <dd>未算出（系番号は自治体で決まる。D-02 C4）</dd>
           </dl>
