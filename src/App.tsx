@@ -307,7 +307,6 @@ export function App() {
           onChange={(e) => setProject(e.target.value)}
           style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', minWidth: 200 }}
         />
-        <span style={{ fontSize: 11, color: '#c8412a', border: '1px solid #c8412a', borderRadius: 3, padding: '0 6px' }}>議論用・未確定</span>
         <span style={{ flex: 1 }} />
         <button
           type="button"

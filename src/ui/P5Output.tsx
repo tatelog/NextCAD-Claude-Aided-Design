@@ -328,7 +328,7 @@ export function P5Output() {
                 <div className="permit-print">
                   <h2 style={{ fontSize: 18, margin: '0 0 4px' }}>建築確認申請 図書一覧</h2>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>
-                    議論用・未確定 ／ 申請者: {applicant.trim() === '' ? '未記入' : applicant} ／ 図枠: {frame}
+                    申請者: {applicant.trim() === '' ? '未記入' : applicant} ／ 図枠: {frame}
                   </p>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>{applicabilityTextOf(judgement)}</p>
                   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>

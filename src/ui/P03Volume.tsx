@@ -416,7 +416,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         </span>
         {confirmed === null ? <span className="p03-note">まだ確定していない（P1 の「この敷地で確定」。今はダミーの筆界）。</span> : null}
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（P1 で地点か筆を変えた）。</span> : null}
-        <span className="p03-note">議論用・未確定。{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
+        <span className="p03-note">{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
         {siteBuildings && (
           <span className="p03-note">{neighborNoteOf(neighbors.length, confirmed?.frame != null)}</span>
         )}
