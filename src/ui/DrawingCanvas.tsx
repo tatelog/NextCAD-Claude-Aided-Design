@@ -32,7 +32,6 @@ import { pendingLogEntry } from '../app/pendingJudgments'
 import { judgeSegments } from '../worker/judge'
 import { appWorkerUrl } from '../worker/workerUrl'
 import { HOLD_JUDGE_MS, holdJudgeDecision, rekeyBySegmentOrder } from '../worker/drawingHold'
-import { suggestDrawnSegment } from '../worker/drawingBand'
 import type { Kind } from '../plan/semantic'
 
 /** 押さえている間の判定（Drawing モード。t69）。送った線（仮の id）と、Claude の候補を持つ */
@@ -60,10 +59,13 @@ function applyHeldSuggestions(hold: HoldState): void {
     .map((s) => s.id)
   const map = rekeyBySegmentOrder(hold.provisionalIds, committed)
   if (map === null) return
+  // 判定の一回分として入れる（作業ログに残り、直前の一回を戻せる。G14・G97）
+  const items: { id: string; kind: Kind; confidence: number }[] = []
   for (const [provisional, id] of map) {
     const r = hold.results.get(provisional)
-    if (r) suggestDrawnSegment(id, r.kind, r.confidence)
+    if (r) items.push({ id, kind: r.kind, confidence: r.confidence })
   }
+  useSemantic.getState().applyJudgementBatch(items, 'P2')
 }
 
 interface PointerTrack {
