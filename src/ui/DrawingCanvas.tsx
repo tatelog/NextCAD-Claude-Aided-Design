@@ -24,6 +24,7 @@ import type { Node, Segment, Stroke } from '../model/schema'
 import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { useSite } from '../store/site'
 import { lotOf } from '../plan/lot'
+import { viewOfLot } from '../plan/lotView'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
 import { strokeToSegments } from '../canvas/strokeToSegments'
@@ -123,6 +124,9 @@ function arcPreviewPx(state: ArcToolState, vp: Viewport, hover: Point | null): P
 /** つまみで動かした先の吸着。入力スナップがオンなら見ている拡大率の段の入力側（gridSteps）、オフなら整数 mm（座標は整数 mm のまま） */
 const handleSnapMm = (vp: Viewport): number => (useUi.getState().inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : 1)
 
+// 初期表示を合わせた敷地（未合わせは undefined）。画面を離れて戻っても、同じ筆なら動かさない
+let fittedLot: readonly Point[] | undefined
+
 export function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewport = useDrawing((s) => s.viewport)
@@ -183,19 +187,18 @@ export function DrawingCanvas() {
     arcRef.current = ARC_TOOL_START
   }, [arcTwoPoint])
 
-  // 初期表示: ダミー筆界が収まるように原点と倍率を置く（一度だけ）
+  // 初期表示: 選んだ筆（無ければダミー 20 m × 30 m）が収まるように原点と倍率を置く。最初の一回は従来どおり（合わせ済みなら動かさない）
+  // 筆が変わったら、その筆に合わせ直す（統括の依頼 2026-11-06。1 件目）
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    const siteW = 20_000
-    const siteH = 30_000
-    const mmPerPx = Math.max(siteW / (rect.width * 0.6), siteH / (rect.height * 0.8))
-    fitViewport({
-      originPx: { x: (rect.width - siteW / mmPerPx) / 2, y: rect.height - (rect.height - siteH / mmPerPx) / 2 },
-      mmPerPx,
-    })
-  }, [fitViewport])
+    if (!(rect.width > 0 && rect.height > 0)) return
+    const view = viewOfLot(lot, rect.width, rect.height)
+    if (fittedLot === undefined) fitViewport(view)
+    else if (fittedLot !== lot) setViewport(view)
+    fittedLot = lot
+  }, [lot, fitViewport, setViewport])
 
   // 状態が変わるたびに描き直す
   useEffect(() => {

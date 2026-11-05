@@ -29,14 +29,6 @@ type Snapshot = StrokeEntry[]
 /** Undo の上限（D-02 C1 仮置き: 最大 100 件） */
 const UNDO_LIMIT = 100
 
-/** ダミーの筆界（実案件の値ではない）。P01/P02 ができるまでの仮置き: 20 m × 30 m */
-export const DUMMY_SITE_MM: { x: number; y: number }[] = [
-  { x: 0, y: 0 },
-  { x: 20_000, y: 0 },
-  { x: 20_000, y: 30_000 },
-  { x: 0, y: 30_000 },
-]
-
 export interface DrawingState {
   viewport: Viewport
   entries: StrokeEntry[]
