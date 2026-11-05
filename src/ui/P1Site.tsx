@@ -242,8 +242,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             </dd>
             <dt>前面道路の幅員</dt>
             <dd>{parcelNoticeOf(parcel)}</dd>
-            <dt>真北</dt>
-            <dd>未算出（系番号は自治体で決まる。D-02 C4）</dd>
           </dl>
         </section>
         <section>
