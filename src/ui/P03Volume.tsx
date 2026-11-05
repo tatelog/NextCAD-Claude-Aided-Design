@@ -375,6 +375,7 @@ export function P03Volume() {
                 footprint={volume.footprint}
                 shadow={showShadow ? sunShadow : null}
                 neighbors={showNeighbors ? neighbors : []}
+                floors={stackedFloors}
                 setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}

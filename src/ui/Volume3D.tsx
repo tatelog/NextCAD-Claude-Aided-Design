@@ -6,7 +6,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Line, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
-import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
+import { buildVolumeMesh, stackedMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
 import { cameraForFace, type Face } from './viewFaces'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
@@ -117,6 +117,8 @@ interface Volume3DProps {
   shadow?: Point[][] | null
   /** 周辺建物（任意）。底面と高さ（mm）。敷地の立体とは別の色で置く */
   neighbors?: { footprint: Point[]; heightMm: number }[]
+  /** 段状に切った階（階ごとの床の形と天端の高さ mm）。あれば、階ごとに積んだ形を出す（D-04 P2）。無ければ外形を押し出す */
+  floors?: { footprint: Point[]; heightMm: number }[]
   storeyCount: number
   storeyHeightMm: number
   /** ホーム（既定の向きに戻す）を押した回数。変わると視点を戻す。 */
@@ -145,6 +147,7 @@ export function Volume3D({
   rotationStep = 'free',
   onStoreyCount,
   setbackLines,
+  floors,
 }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
@@ -161,6 +164,8 @@ export function Volume3D({
   const shownFootprint = knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
   const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
   const geometry = useMemo(() => {
+    // 段状に切った形は、つまみを動かしていない間だけ出す（動かしている間は外形の押し出しで仮の形を見せる）
+    if (floors && floors.length > 0 && !knobPreview) return toGeometry(stackedMesh(floors, storeyHeightMm))
     const build = (fp: Point[], storeys: number) => toGeometry(buildVolumeMesh({ footprint: fp, storey_count: storeys, storey_height: storeyHeightMm }))
     // 仮の形が立体にならないとき（丸めで外形が崩れたとき）は、実際の形のまま見せる
     if (shownFootprint !== footprint || shownStoreyCount !== storeyCount) {
@@ -171,7 +176,7 @@ export function Volume3D({
       }
     }
     return build(footprint, storeyCount)
-  }, [footprint, shownFootprint, storeyCount, shownStoreyCount, storeyHeightMm])
+  }, [footprint, shownFootprint, storeyCount, shownStoreyCount, storeyHeightMm, floors, knobPreview])
   // 仮の形を作り直すたびに、古い形の GPU の領域を解放する
   useEffect(() => () => geometry.dispose(), [geometry])
   const ground = useMemo(() => groundSize(footprint), [footprint])

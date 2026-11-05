@@ -36,3 +36,21 @@ export function buildVolumeMesh(input: ExtrudeInput): VolumeMesh {
 
   return { total_height: h, triangles }
 }
+
+/**
+ * 段状に切った階を、階ごとに積み上げた立体にする（D-04 P2「段状に切った後のボリューム」）。
+ * 各階は、床の形（その階の天端での切り口）を、その階の高さ（storeyHeightMm）だけ押し出し、天端の高さ（heightMm）まで積む。
+ */
+export function stackedMesh(floors: readonly { footprint: readonly Point2[]; heightMm: number }[], storeyHeightMm: number): VolumeMesh {
+  const triangles: VolumeMesh['triangles'] = []
+  for (const f of floors) {
+    const base = f.heightMm - storeyHeightMm
+    const one = buildVolumeMesh({ footprint: [...f.footprint], storey_count: 1, storey_height: storeyHeightMm })
+    for (const tri of one.triangles) {
+      triangles.push(tri.map((v) => ({ x: v.x, y: v.y, z: v.z + base })) as VolumeMesh['triangles'][number])
+    }
+  }
+  return { total_height: floors.length > 0 ? floors[floors.length - 1]!.heightMm : 0, triangles }
+}
+
+type Point2 = { x: number; y: number }
