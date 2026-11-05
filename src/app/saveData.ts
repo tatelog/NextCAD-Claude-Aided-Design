@@ -11,6 +11,10 @@ export interface SaveInput {
   savedAt: Date
   /** P3 で置いた什器の一覧（店舗の fixtures）。省略・空なら、保存のデータに fixtures の項目を付けない */
   fixtures?: readonly Fixture[]
+  /** 利用者が P4 で入れた単価（品目ごとの入力の文字）。空の入力は保存しない（G20・G72） */
+  unitPriceTexts?: Readonly<Record<string, string>>
+  /** 区画に付けた 1F の名前（区画の id → 名前）。無ければ項目ごと付けない（G75） */
+  firstFloorNames?: Readonly<Record<string, string>>
 }
 
 export interface SaveData {
@@ -21,12 +25,17 @@ export interface SaveData {
   storeyHeightMm: number
   /** P3 で置いた什器の一覧（置いた順。id・品目・区画の id）。什器が無いときは項目ごと無い */
   fixtures?: readonly Fixture[]
+  /** 利用者が入れた単価の入力（空の入力は保存しない） */
+  unitPriceTexts?: Record<string, string>
+  /** 区画に付けた 1F の名前（区画の id → 名前） */
+  firstFloorNames?: Record<string, string>
 }
 
 export function buildSaveData(input: SaveInput): SaveData {
   const name = input.projectName.trim()
   // 保存のデータは元の一覧と別物にする（保存のあとで店舗の一覧が変わっても変わらない）
   const fixtures = (input.fixtures ?? []).map((f) => ({ id: f.id, item: f.item, unitId: f.unitId }))
+  const unitPriceTexts = Object.fromEntries(Object.entries(input.unitPriceTexts ?? {}).filter(([, text]) => text !== ''))
   return {
     projectName: name === '' ? '敷地名（案件）未入力' : name,
     savedAt: input.savedAt.toISOString(),
@@ -34,5 +43,7 @@ export function buildSaveData(input: SaveInput): SaveData {
     storeyCount: input.storeyCount,
     storeyHeightMm: input.storeyHeightMm,
     ...(fixtures.length > 0 ? { fixtures } : {}),
+    ...(Object.keys(unitPriceTexts).length > 0 ? { unitPriceTexts } : {}),
+    ...(input.firstFloorNames && Object.keys(input.firstFloorNames).length > 0 ? { firstFloorNames: { ...input.firstFloorNames } } : {}),
   }
 }

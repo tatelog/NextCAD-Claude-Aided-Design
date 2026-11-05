@@ -1,20 +1,52 @@
 // P4 積算（D-04 P4、D-02 C8、A-03 G19・G21・G22・G63）。単価は利用者が出典つきの CSV で置く（G20）。
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useObjectTable } from '../store/objectTable'
+import { useEstimateLines } from '../store/estimateLines'
+import { useComponentFire } from '../store/componentFire'
+import {
+  detailLinesOfObjects,
+  exteriorRow,
+  interiorRow,
+  planExteriorRow,
+  sashRow,
+  siteRow,
+  slabObjectRow,
+} from '../estimate/estimateObjects'
+import type { RebarCondition } from '../estimate/rebarCondition'
+import { estimateDetailsOf } from '../estimate/estimateDetails'
+import { isLaborItem } from '../estimate/laborConversion'
+import {
+  autoQuantityOfPrice,
+  manualQuantityOfPrice,
+  quantityLinesOfTable,
+  refreshManualLines,
+  withManualQuantity,
+  withOriginLines,
+} from '../estimate/estimateTable'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
-import { effectiveQuantity } from '../estimate/autoQuantity'
 import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
-import { buildingExteriorQuantities } from '../estimate/quantities'
-import { roomFinishTotals } from '../estimate/roomQuantities'
+import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
+import { objectTableOf, type ObjectRow } from '../plan/objectTable'
+import { useDrawing } from '../store/drawing'
+import { useSemantic } from '../store/semantic'
+import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
 import type { ObjectKind } from '../plan/objectMenu'
-import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
+import { noticeOfPlan, objectSourcesOfPlan, tableInputOfPlan } from '../plan/objectSourcesOfPlan'
+import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import type { RoomKind } from '../plan/rooms'
 import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
 import { FixtureLayer } from './FixtureLayer'
 import { FixtureSummary } from './FixtureSummary'
-import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
+import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
+import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { usePanelTiles } from '../store/panelTiles'
+import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
 
 const SAMPLE = [
   'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
@@ -63,6 +95,9 @@ export function P4Estimate() {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
+  // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
+  const drawnEntries = useDrawing((s) => s.entries)
+  const assignments = useSemantic((s) => s.assignments)
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
   const fixtures = useFixtures((s) => s.fixtures)
   const fixtureUnitIds = useFixtures((s) => s.unitIds)
@@ -73,48 +108,136 @@ export function P4Estimate() {
     () => fixtureCostLines(estimateFixtureCost(fixtures, parseUnitPrices(fixtureUnitPriceTexts))),
     [fixtures, fixtureUnitPriceTexts],
   )
-  const autoQuantities = useMemo(() => {
-    const out: { item: string; category: string; quantity: number }[] = []
-    if (volume) {
-      const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
-      out.push(q.exterior_wall, q.roof)
-    }
-    if (plan) {
-      const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
-      out.push(t.floor, t.ceiling, t.wall_cloth)
-    }
-    return out
-  }, [volume, plan])
-  const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
-
+  // 鉄筋の被り厚と継手（G86。仮の条件。係数は仮置き）
+  const rebar = useComponentFire((s) => s.rebar)
+  const setRebar = useComponentFire((s) => s.setRebar)
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
+  // 住戸をグループとして数える（G58）。自動作成の結果からオブジェクト表の行を作り、表（SQLite）に書いて、表から読む
+  const derivedObjectRows = useMemo(() => {
+    const rows: ObjectRow[] = objectTableOf(tableInputOfPlan(plan, fixtures))
+    // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
+    if (volume) {
+      rows.push(
+        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height),
+        exteriorRow(volume.footprint, volume.storey_count, volume.storey_height),
+        siteRow(volume.footprint, DUMMY_PARCEL_MM2),
+      )
+    }
+    if (plan) {
+      rows.push(
+        interiorRow(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM }),
+        planExteriorRow({
+          corridor: plan.corridor,
+          cores: plan.cores,
+          cells: plan.cells,
+          outline: { W: plan.widthMm, D: plan.depthMm },
+          storeyCount: plan.ev.storey_count,
+        }),
+      )
+    }
+    const segments = drawnEntries.flatMap((e) => e.segments)
+    const kinds = Object.fromEntries(segments.map((s) => [s.id, assignments[s.id]?.kind ?? null]))
+    rows.push(sashRow(segments, kinds))
+    return rows
+  }, [plan, fixtures, volume, drawnEntries, assignments])
+  // 左の一覧の件数（G78）は、この表の行から数える（別の集計表は作らない）
+  const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
+  const objectRows = useObjectTable((s) => s.rows)
+  // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
+  const detailLines = useMemo(() => detailLinesOfObjects(derivedObjectRows, rebar), [derivedObjectRows, rebar])
+  const objectPersisted = useObjectTable((s) => s.persisted)
+  useEffect(() => {
+    void useObjectTable.getState().init()
+  }, [])
+  useEffect(() => {
+    useObjectTable.getState().setRows(derivedObjectRows)
+  }, [derivedObjectRows, objectPersisted])
+  // 見積の明細（G86）: 数量の明細に単価の参照と金額を付けて、表（SQLite の estimate_line）に書く。単価の表が読めないときは参照を付けない（未参照）
+  const estimateLinesPersisted = useEstimateLines((s) => s.persisted)
+  // 数量の内訳（G86）: 見積の明細の表から読む（表が正本。自動で拾った値は、表に書いてから出る）
+  const estimateLines = useEstimateLines((s) => s.lines)
+  useEffect(() => {
+    void useEstimateLines.getState().init()
+  }, [])
+  useEffect(() => {
+    const store = useEstimateLines.getState()
+    const prices = 'rows' in parsed ? parsed.rows : []
+    // 自動の行は入れ替える。手入力の行は、単価の表に合わせて金額を取り直して残す（G86）
+    store.setLines(withOriginLines(refreshManualLines(store.lines, prices), '自動', estimateDetailsOf(detailLines, prices)))
+  }, [detailLines, parsed, estimateLinesPersisted])
 
+  // 工事原価（G86）: 見積の明細の表の行から数量を出し、単価を当てて合計する。手入力は自動より優先し、歩掛の労務も表の行に入っている
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
-    const lines = parsed.rows
-      .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
-      .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
-      return estimateCost(parsed.rows, lines, fixtureAmountLines)
+      return estimateCost(parsed.rows, quantityLinesOfTable(estimateLines, parsed.rows), fixtureAmountLines)
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities, autoList, fixtureAmountLines])
+  }, [parsed, estimateLines, fixtureAmountLines])
+
+  // 左のオブジェクト一覧の開閉（G55）。描画（システム）のモードは折りたたんで始める。モードが変わると既定に戻る
+  const activeMode = useActiveMode('P4')
+  const menuFold = useObjectMenuFold(`P4-${activeMode}`, objectMenuFoldedByDefault(activeMode, 'plan'))
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P4 はチャットだけ
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P4', hiddenTiles, id)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 360px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
+        countSources={countSources}
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
         caption="種類ごとの件数（P3 の自動作成の結果）"
         notice={noticeOfPlan(plan)}
+        objectRows={objectRows}
+        folded={menuFold.folded}
+        onToggleFold={menuFold.toggle}
       />
       <div style={{ padding: 16, overflow: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
+        {plan ? (
+          <section style={{ marginBottom: 12, fontSize: 12 }}>
+            <strong>住戸タイプ別の内装（1 戸あたり × 戸数。G61）</strong>
+            {(() => {
+              const cells = plan.cells.map((c) => ({ id: c.id, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }))
+              const rows = breakdownByUnitType(
+                cells.map((c) => ({ id: c.id, type: plan.unitType })),
+                roomsByUnit(plan.rooms, cells),
+                { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM },
+              )
+              return rows.length === 0 ? (
+                <p>住戸がまだありません</p>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
+                  <thead>
+                    <tr>
+                      <th align="left">住戸タイプ</th>
+                      <th align="right">戸数</th>
+                      <th align="right">1 戸あたり 床 ㎡</th>
+                      <th align="right">合計 床 ㎡</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.type}>
+                        <td>{r.type}</td>
+                        <td align="right">{r.count}</td>
+                        <td align="right">{r.perUnit.floorM2.toFixed(2)}</td>
+                        <td align="right">{r.total.floorM2.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+          </section>
+        ) : null}
         {plan ? (
           <figure style={{ margin: '0 0 12px' }}>
             <svg viewBox={`-500 -500 ${plan.widthMm + 1000} ${plan.depthMm + 1000}`} style={{ width: '100%', maxWidth: 480, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>
@@ -143,34 +266,60 @@ export function P4Estimate() {
         )}
         <section style={{ margin: '0 0 12px' }}>
           <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>数量の内訳（区分別・自動で拾えたもの）</h3>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '0 0 6px', fontSize: 12 }}>
+            <label>
+              鉄筋の被り厚（mm。仮の条件）{' '}
+              <select value={rebar.coverMm} onChange={(e) => setRebar({ coverMm: Number(e.target.value) })}>
+                {[30, 40, 50].map((mm) => (
+                  <option key={mm} value={mm}>
+                    {mm}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              継手（仮の条件）{' '}
+              <select value={rebar.joint} onChange={(e) => setRebar({ joint: e.target.value as RebarCondition['joint'] })}>
+                <option value="重ね継手">重ね継手</option>
+                <option value="カプラー">カプラー</option>
+              </select>
+            </label>
+          </div>
           <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
             <thead>
               <tr>
                 <th align="left">区分</th>
                 <th align="left">品目</th>
                 <th align="right">数量</th>
+                <th align="left">単価（参照）</th>
+                <th align="right">金額（円）</th>
               </tr>
             </thead>
             <tbody>
               {CATEGORY_ORDER.map((cat) => {
-                const rows = autoQuantities.filter((q) => q.category === cat)
+                const rows = estimateLines.filter((q) => q.category === cat)
                 return rows.length === 0 ? (
                   <tr key={cat}>
                     <td>{cat}</td>
-                    <td colSpan={2} style={{ color: '#666' }}>
+                    <td colSpan={4} style={{ color: '#666' }}>
                       未拾い（この区分の数量は、対応するオブジェクトを作ってから）
                     </td>
                   </tr>
                 ) : (
                   rows.map((q) => (
-                    <tr key={q.item}>
+                    <tr key={q.lineId}>
                       <td>{cat}</td>
                       <td>
                         {q.item}
                         {' '}
                         <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
+                        {q.origin === '手入力' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>手入力</span> : null}
+                        <div style={{ fontSize: 11, color: '#666' }}>出典: {q.source}</div>
                       </td>
-                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} m²</td>
+                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
+                      {/* 対応のある労務で単価の参照が無い行は「単価未設定」（単価は利用者が置く。G20・G136）。isLaborUnset と同じ判定 */}
+                      <td>{q.unitPriceRef ?? (isLaborItem(q.item) ? '単価未設定' : '未参照')}</td>
+                      <td align="right">{q.amountYen === null ? '—' : q.amountYen.toLocaleString('ja-JP')}</td>
                     </tr>
                   ))
                 )
@@ -207,13 +356,21 @@ export function P4Estimate() {
                   <td>{r.source_ref.trim() === '' || r.provisional ? '未確定（出典なし）' : r.source_ref}</td>
                   <td align="right">
                     <input
-                      value={quantities[r.id] ?? ''}
-                      onChange={(e) => setQuantities({ ...quantities, [r.id]: e.target.value })}
+                      value={quantities[r.id] ?? String(manualQuantityOfPrice(estimateLines, r.id) ?? '')}
+                      onChange={(e) => {
+                        const text = e.target.value
+                        setQuantities({ ...quantities, [r.id]: text })
+                        // 手入力の数量は表に書く（工事原価と数量の内訳は表から読む）。空・数でない文字は、その単価の手入力を外す
+                        const store = useEstimateLines.getState()
+                        store.setLines(withManualQuantity(store.lines, r, text))
+                      }}
                       style={{ width: 90, textAlign: 'right' }}
                     />
                     {(() => {
-                      const eq = effectiveQuantity(r, quantities[r.id] ?? '', autoList)
-                      return eq && eq.source === '自動' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(eq.quantity).toLocaleString('ja-JP')} m²</span> : null
+                      const auto = autoQuantityOfPrice(estimateLines, r.id)
+                      return manualQuantityOfPrice(estimateLines, r.id) === null && auto !== null ? (
+                        <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(auto).toLocaleString('ja-JP')} m²</span>
+                      ) : null
                     })()}
                   </td>
                 </tr>
@@ -254,6 +411,12 @@ export function P4Estimate() {
           <li>ユニットバス・什器の歩掛（出典なし。G22）</li>
           <li>数量の拾い方は仮置き（D-02 C8）</li>
         </ul>
+        {!rightShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P4" />
+          </PanelTile>
+        )}
       </aside>
     </div>
   )

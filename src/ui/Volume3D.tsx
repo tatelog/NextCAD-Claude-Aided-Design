@@ -3,7 +3,7 @@
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
+import { Html, Line, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, type VolumeMesh } from '../volume/mesh'
@@ -11,6 +11,7 @@ import { triangulatePolygon } from '../geom/triangulate'
 import { cameraForFace, type Face } from './viewFaces'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
 import type { RotationStep } from '../volume/rotation'
+import type { SetbackLine } from '../volume/setbackLines'
 
 const FACE_LABELS: { face: Face; label: string }[] = [
   { face: 'top', label: '上' },
@@ -81,6 +82,21 @@ function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeo
   return geometry
 }
 
+// 敷地からの離れの寸法線（G67）: 平面の mm を three の m に直し、地面の少し上に線を引き、中ほどに表記（m・小数 2 桁）を置く
+function SetbackDimension({ line }: { line: SetbackLine }) {
+  const a: [number, number, number] = [line.from.x * MM_TO_M, 0.02, line.from.y * MM_TO_M]
+  const b: [number, number, number] = [line.to.x * MM_TO_M, 0.02, line.to.y * MM_TO_M]
+  const mid: [number, number, number] = [(a[0] + b[0]) / 2, 0.1, (a[2] + b[2]) / 2]
+  return (
+    <>
+      <Line points={[a, b]} color="#1f5f8b" lineWidth={2} />
+      <Html position={mid} center style={{ pointerEvents: 'none', fontSize: 12, color: '#1f5f8b', background: 'rgba(255,255,255,0.85)', padding: '0 4px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+        {line.label}
+      </Html>
+    </>
+  )
+}
+
 interface Volume3DProps {
   footprint: Point[]
   /** 地面に落ちる影（任意）。太陽の位置から作る */
@@ -99,6 +115,8 @@ interface Volume3DProps {
   rotationStep?: RotationStep
   /** 3D の上面の高さのつまみ（G65）を離したとき: 新しい階数（1 以上・上限 30）。渡さなければ高さのつまみは出さない。 */
   onStoreyCount?: (n: number) => void
+  /** 敷地からの離れの寸法線（G67）。渡さなければ出さない（寸法線の表示をオフにしたとき） */
+  setbackLines?: SetbackLine[] | null
 }
 
 export function Volume3D({
@@ -112,6 +130,7 @@ export function Volume3D({
   onRotate,
   rotationStep = 'free',
   onStoreyCount,
+  setbackLines,
 }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
@@ -170,6 +189,9 @@ export function Volume3D({
         <meshStandardMaterial color="#e6e3dc" />
       </mesh>
       <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
+      {setbackLines?.map((l) => (
+        <SetbackDimension key={l.side} line={l} />
+      ))}
       {shadowGeo && (
         <mesh geometry={shadowGeo}>
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />

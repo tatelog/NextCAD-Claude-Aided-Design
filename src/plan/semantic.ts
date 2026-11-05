@@ -1,6 +1,6 @@
 // P3 線の意味判定（D-02 C2、D-03 T-03、A-03 G8・G9・G13・G14）。
 // Claude の出力は JSON スキーマで強制し、外れた出力は全体を弾く。その判断は決定論の幾何検証で裏を取る。
-// 実効信頼度の式は未決（D-02 C2）のため、ここでは作らない。二段閾値は仮置き（G10）で、この関数には持たせない。
+// 実効信頼度（G131）は effectiveConfidence.ts に置く。二段閾値は仮置き（G10）で、reviewThreshold.ts に持たせる。
 import { z } from 'zod'
 import type { Point } from '../geom/viewport'
 

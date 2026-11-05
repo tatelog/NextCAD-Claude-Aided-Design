@@ -13,6 +13,8 @@ export interface SemanticConfirmProps {
   onSelectKind: (segmentId: string, kind: Kind | null) => void
   /** 要確認の行の「この種類で確定」を押した。種類は変えない */
   onConfirm: (segmentId: string, kind: Kind) => void
+  /** 欄の見出し。既定は意味づけの確認（G14）。候補の確認（Drawing。G124）は同じ欄の形で見出しだけ変える */
+  legend?: string
 }
 
 /** 件数を出す順 */
@@ -39,7 +41,7 @@ const MARK_COLORS: Record<ConfirmStatus, { color: string; background: string }> 
 }
 const statusMark = (s: ConfirmStatus) => ({ ...MARK_COLORS[s], fontSize: 11, padding: '0 6px', borderRadius: 4 }) as const
 
-export function SemanticConfirm({ rows, onSelectKind, onConfirm }: SemanticConfirmProps) {
+export function SemanticConfirm({ rows, onSelectKind, onConfirm, legend = '意味づけの確認（G14）' }: SemanticConfirmProps) {
   const counts = countByStatus(rows)
   // select の値は、選択肢に出した種類か空（未分類）のどちらか。それ以外は受けない
   const choose = (id: string, value: string) => {
@@ -52,8 +54,8 @@ export function SemanticConfirm({ rows, onSelectKind, onConfirm }: SemanticConfi
   }
   return (
     <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
-      <legend style={{ fontSize: 12 }}>意味づけの確認（G14）</legend>
-      <p style={note}>判定（Claude）は未接続。種類は人が選ぶ。</p>
+      <legend style={{ fontSize: 12 }}>{legend}</legend>
+      <p style={note}>判定（Claude）は、ヘッダーの「意味づけを判定」で送る。結果は要確認の提案として入る。種類は人が選ぶ。</p>
       <ul aria-label="意味づけの件数" style={countList}>
         {STATUS_ORDER.map((s) => (
           <li key={s}>

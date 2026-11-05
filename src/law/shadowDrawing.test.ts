@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { shadowDrawing, shadowDrawingSummary } from './shadowDrawing'
+import { pointInPolygon } from './shadowRegulation'
 import { shadowRuleFor } from './shadowRule'
 
 // 仕様（ユーザー指示「日影図の作成もボリューム模型作成時に。RC限定で今回はやっていい」、法56条の2、
@@ -9,6 +10,8 @@ import { shadowRuleFor } from './shadowRule'
 // - 冬至日の真太陽時 8:00〜16:00 を 10分刻み（48 点）で見る。
 // - 切り取った階（複数の建物）も、判定と同じく全部を影にする。
 // - 同じ入力からは同じ図が出る（決定論）。
+// - 判定と同じ建物だけを影にする（測定面の高さ以下の階は影を作らない）。（t38）
+// - 要約の点数と最大は、規制の測定点と同じ敷地の外側の格子で数える（建物の下や敷地の中は数えない）。（t38）
 
 const WINTER_SOLSTICE = new Date(Date.UTC(2026, 11, 22))
 const LAT = 35.67
@@ -103,6 +106,11 @@ describe('日影図（RC 造に限る）', () => {
   it('同じ入力からは同じ図が出る（決定論）', () => {
     expect(shadowDrawing(input())).toEqual(shadowDrawing(input()))
   })
+
+  it('判定と同じ建物だけを影にする（測定面の高さ以下の階は影を作らない）', () => {
+    const lowFloor = { footprint: square(0, 0, 10_000), heightMm: 3_000 }
+    expect(shadowDrawing(input({ buildings: [lowFloor, building14] }))).toEqual(shadowDrawing(input()))
+  })
 })
 
 describe('日影図の要約（P2 の判定文に出す）', () => {
@@ -111,6 +119,16 @@ describe('日影図の要約（P2 の判定文に出す）', () => {
     expect(text).toContain('日影図')
     expect(text).toMatch(/格子 \d+ 点/)
     expect(text).toMatch(/最大 \d+\.\d h/)
+  })
+
+  it('点数と最大は、敷地の外側の格子で数える（建物の下や敷地の中は数えない）', () => {
+    const result = shadowDrawing(input())
+    if (result.status !== 'ok') throw new Error(result.status)
+    const outside = result.cells.filter((c) => !pointInPolygon(c, lot40))
+    const outsideMax = outside.reduce((m, c) => Math.max(m, c.hours), 0)
+    const allMax = result.cells.reduce((m, c) => Math.max(m, c.hours), 0)
+    expect(allMax).toBeGreaterThan(outsideMax)
+    expect(shadowDrawingSummary(result)).toBe(`日影図: 影が落ちる格子 ${outside.length} 点、最大 ${outsideMax.toFixed(1)} h（格子 2 m）`)
   })
 
   it('RC 造以外は、理由をそのまま出す', () => {

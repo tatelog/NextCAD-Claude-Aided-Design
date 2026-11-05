@@ -17,10 +17,10 @@ describe('機能の一覧（仕様 1・4）', () => {
     expect(count('計算')).toBe(3)
   })
 
-  it('つながっている項目は 13 個。意味づけ（Claude）だけ未接続（Worker の配備待ち）', () => {
+  it('つながっている項目は 14 個。意味づけ（Claude）もつながる（ヘッダーの「意味づけを判定」で Worker に送り、結果は要確認の提案として入る）', () => {
     const connected = FEATURE_ITEMS.filter((i) => i.connected).map((i) => i.key)
-    expect(connected).toHaveLength(13)
-    expect(connected).not.toContain('classifyClaude')
+    expect(connected).toHaveLength(14)
+    expect(connected).toContain('classifyClaude')
   })
 })
 

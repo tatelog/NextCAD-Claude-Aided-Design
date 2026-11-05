@@ -6,11 +6,16 @@ import { useEffect, useMemo, useRef } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
+import { polylineOfSegment } from '../canvas/arcSegment'
+import { arcFromTwoPoints } from '../input/arc'
+import { addArcResultStroke } from '../input/numericLine'
+import { arcToolStep, ARC_TOOL_START, type ArcToolState } from '../input/twoPointArcTool'
 import { useFeatures } from '../store/features'
 import { layerOfSegment, visibleSegments, type LayerName } from '../plan/layers'
 import { segmentStyle, type LineStyle } from '../plan/lineStyle'
 import { useLayers } from '../store/layers'
 import { useSemantic } from '../store/semantic'
+import { changedIds } from '../volume/changedIds'
 import { applyPinch, classifyPointerDown, pinchStep, wheelZoomFactor } from '../input/gesture'
 import { gridStepFor } from '../input/gridSteps'
 import { nextTap, type TapRecord } from '../input/tap'
@@ -51,6 +56,19 @@ const HANDLE_COLOR = '#1f2a44'
 const HANDLE_INVALID_COLOR = '#c8412a'
 
 const toPenInput = (type: string): Stroke['pen_input'] => (type === 'pen' ? 'pen' : type === 'touch' ? 'touch' : 'mouse')
+
+/**
+ * 二点の円弧の道具（t70）の途中の形（画面 px）。一点目だけなら、一点目から今のポインタまでの弦。
+ * 中心を決める途中なら、中心線上の今の中心でできる円弧。道具の途中でなければ null（描きかけの線の描画に任せる）
+ */
+function arcPreviewPx(state: ArcToolState, vp: Viewport, hover: Point | null): Point[] | null {
+  if (state.phase === 'first') return null
+  if (state.phase === 'second') {
+    const a = mmToPx(vp, state.p1)
+    return [a, hover ?? a]
+  }
+  return arcFromTwoPoints(state.p1, state.p2, state.offsetMm).points.map((q) => mmToPx(vp, q))
+}
 
 /** つまみで動かした先の吸着。入力スナップがオンなら見ている拡大率の段の入力側（gridSteps）、オフなら整数 mm（座標は整数 mm のまま） */
 const handleSnapMm = (vp: Viewport): number => (useUi.getState().inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : 1)
@@ -95,8 +113,16 @@ export function DrawingCanvas() {
   const lastTapRef = useRef<TapRecord | null>(null)
   /** ポインタの今の位置（画面 px）。押していなくても持つ。無ければ null（端点の輪を出さない） */
   const hoverRef = useRef<Point | null>(null)
+  /** 二点の円弧の道具（t70）の状態。曲線モードで二点の円弧を選んでいるときだけ動く */
+  const arcRef = useRef<ArcToolState>(ARC_TOOL_START)
   const viewportRef = useRef(viewport)
   viewportRef.current = viewport
+
+  // 二点の円弧の道具を外したら、途中の一点目・二点目は捨てる（t70）
+  const arcTwoPoint = useUi((s) => s.arcTwoPoint)
+  useEffect(() => {
+    arcRef.current = ARC_TOOL_START
+  }, [arcTwoPoint])
 
   // 初期表示: ダミー筆界が収まるように原点と倍率を置く（一度だけ）
   useEffect(() => {
@@ -122,7 +148,7 @@ export function DrawingCanvas() {
       shownSegments,
       nodes,
       footprint,
-      drawingRef.current?.points ?? null,
+      drawingRef.current?.points ?? arcPreviewPx(arcRef.current, viewportRef.current, hoverRef.current),
       displayGrid,
       useFeatures.getState().on.endpointRing ? hoverRef.current : null,
       handleDragRef.current?.view ?? null,
@@ -146,7 +172,7 @@ export function DrawingCanvas() {
         shownSegments,
         nodes,
         footprint,
-        drawingRef.current?.points ?? null,
+        drawingRef.current?.points ?? arcPreviewPx(arcRef.current, viewportRef.current, hoverRef.current),
         displayGrid,
         useFeatures.getState().on.endpointRing ? hoverRef.current : null,
         handleDragRef.current?.view ?? null,
@@ -211,6 +237,16 @@ export function DrawingCanvas() {
         repaint()
         return
       }
+      // 二点の円弧（t70）: 曲線モードで二点の円弧の道具が選ばれているときは、押した点（端点へ吸着した位置）で一点目・二点目・中心を決める
+      if (useUi.getState().penMode === 'curve' && useUi.getState().arcTwoPoint) {
+        const vp = viewportRef.current
+        const step = arcToolStep(arcRef.current, { type: 'click', point: pxToMm(vp, strokeStartPx(nodes, p, vp)) })
+        arcRef.current = step.state
+        if (step.commit) addArcResultStroke(step.commit)
+        hoverRef.current = p
+        repaint()
+        return
+      }
       // 既存の端点の近く（24 px 以内）で押したら、その端点から描き始める。近い端点は輪で示す（G37）
       hoverRef.current = p
       drawingRef.current = {
@@ -228,6 +264,10 @@ export function DrawingCanvas() {
         // 押していないポインタ（マウス・ペンのホバー）。近づいた端点だけ輪で示す（G37）
         if (pointersRef.current.size === 0) {
           hoverRef.current = p
+          // 二点の円弧の道具（t70）: 動かした位置で、中心線上の中心を決める（確定は押したとき）
+          if (useUi.getState().penMode === 'curve' && useUi.getState().arcTwoPoint) {
+            arcRef.current = arcToolStep(arcRef.current, { type: 'move', point: pxToMm(viewportRef.current, p) }).state
+          }
           repaint()
         }
         return
@@ -290,8 +330,13 @@ export function DrawingCanvas() {
       if (hd && hd.pointerId === e.pointerId) {
         handleDragRef.current = null
         const moved = hd.view.valid && hd.view.footprint.some((q, i) => q.x !== hd.from[i]!.x || q.y !== hd.from[i]!.y)
-        if (moved) transform((es) => moveOutlineVertices(es, hd.from, hd.view.footprint))
-        else repaint()
+        if (moved) {
+          const before = useDrawing.getState().entries.flatMap((en) => en.segments)
+          transform((es) => moveOutlineVertices(es, hd.from, hd.view.footprint))
+          // つまみで動かした線は、動かしたあとに Claude が判定し直す（G114）。判定の結果がある線だけ、要確認の印を付ける
+          const after = useDrawing.getState().entries.flatMap((en) => en.segments)
+          useSemantic.getState().markNeedsReview(changedIds(before, after))
+        } else repaint()
         return
       }
       const d = drawingRef.current
@@ -461,19 +506,12 @@ function paint(
     ctx.setLineDash(style.dash)
     ctx.beginPath()
     for (const s of list) {
-      const pts = s.curve === 'spline' && s.curve_params ? (s.curve_params.control_points as Point[]) : null
-      if (pts && pts.length > 1) {
-        pts.forEach((p, i) => {
-          const q = mmToPx(vp, p)
-          if (i === 0) ctx.moveTo(q.x, q.y)
-          else ctx.lineTo(q.x, q.y)
-        })
-        continue
-      }
-      const a = mmToPx(vp, { x: s.x1, y: s.y1 })
-      const b = mmToPx(vp, { x: s.x2, y: s.y2 })
-      ctx.moveTo(a.x, a.y)
-      ctx.lineTo(b.x, b.y)
+      // 曲線（spline）は制御点、円弧（arc）は弦誤差で折った点列を通す。直線は両端を結ぶ（t82）
+      polylineOfSegment(s).forEach((p, i) => {
+        const q = mmToPx(vp, p)
+        if (i === 0) ctx.moveTo(q.x, q.y)
+        else ctx.lineTo(q.x, q.y)
+      })
     }
     ctx.stroke()
   }

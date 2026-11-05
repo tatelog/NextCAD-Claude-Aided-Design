@@ -59,6 +59,13 @@ vi.mock('./FixturePalette', async (importOriginal) => {
     },
   }
 })
+// 描画では店舗が初期の状態を返すので、今のモードだけここで渡す（左メニューの開閉の既定と、右パネルの項目に効く）
+const modeShell = vi.hoisted(() => ({ mode: 'system' }))
+vi.mock('../store/mode', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../store/mode')>()
+  const screenModes = await import('../app/screenModes')
+  return { ...actual, useActiveMode: (screen: string) => actual.activeModeOf(screenModes.SCREEN_MODES, modeShell.mode, screen) }
+})
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>()
   return {
@@ -79,9 +86,14 @@ function itemOf(label: string): FixtureItem {
 
 const kitchen = itemOf('キッチン')
 const toilet = itemOf('便器')
+// 押されている什器の道具のボタンの数。P3 の画面には直線・曲線の道具も出る（G152）ので、品目の名前のボタンだけを数える
+const pressedFixtureButtons = (html: string): number =>
+  [...html.matchAll(/<button[^>]*aria-pressed="true"[^>]*>([\s\S]*?)<\/button>/g)].filter((m) =>
+    FIXTURE_ITEMS.some((i) => m[1]!.replace(/<[^>]*>/g, '').includes(i.label)),
+  ).length
 
-// P3 の画面の既定の入力（幅 20000・奥行 12000・廊下 2000・住戸の奥行 6000・スパン 3000・中廊下）での、区画の候補
-const CELLS = candidateCells({ width_mm: 20000, depth_mm: 12000, corridor_mm: 2000, unit_depth_mm: 6000, span_mm: 3000, layout: '中廊下' }).cells
+// P3 の画面の既定の入力（幅 20000・奥行 12000・廊下 1600（中廊下の既定。G135）・住戸の奥行 6000・スパン 3000・中廊下）での、区画の候補
+const CELLS = candidateCells({ width_mm: 20000, depth_mm: 12000, corridor_mm: 1600, unit_depth_mm: 6000, span_mm: 3000, layout: '中廊下' }).cells
 const first = CELLS[0]!
 const second = CELLS[1]!
 const centerOf = (c: { x0: number; y0: number; x1: number; y1: number }) => ({ x: (c.x0 + c.x1) / 2, y: (c.y0 + c.y1) / 2 })
@@ -130,12 +142,12 @@ describe('P3 の画面に什器の道具が出る（仕様 1）', () => {
   it('品目を選んでいなければ、選びは null で渡り、どのボタンも押されていない', () => {
     const html = htmlOf()
     expect(paletteProps().selectedItem).toBeNull()
-    expect(html).not.toContain('aria-pressed="true"')
+    expect(pressedFixtureButtons(html)).toBe(0)
   })
 
   it('品目を選んでいれば、その品目のボタンだけが押された状態で描かれる', () => {
     fx.state.selectedItem = toilet
-    expect(htmlOf().match(/aria-pressed="true"/g)).toHaveLength(1)
+    expect(pressedFixtureButtons(htmlOf())).toBe(1)
   })
 })
 

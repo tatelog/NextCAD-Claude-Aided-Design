@@ -6,6 +6,7 @@ import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from '../plan/fixtures'
 import { MAX_STOREYS } from '../volume/knobs3d'
 import { useDrawing } from '../store/drawing'
 import { useFixtures } from '../store/fixtures'
+import { useFirstFloor } from '../store/firstFloor'
 import { useSemantic } from '../store/semantic'
 
 const EntrySchema = z.object({
@@ -28,6 +29,12 @@ const SaveSchema = z.object({
   storeyHeightMm: z.number().int().positive(),
   // 什器が無い古い保存には無い
   fixtures: z.array(FixtureSchema).optional(),
+  // 単価の入力が無い古い保存には無い（利用者が入れた単価。文字だけ）
+  unitPriceTexts: z.record(z.string(), z.string()).optional(),
+  // 版番号（G32）。版の無い古い保存は 0 として読む
+  revision: z.number().int().min(0).optional(),
+  // 区画に付けた 1F の名前（G75）。名前の無い古い保存には無い
+  firstFloorNames: z.record(z.string(), z.string()).optional(),
 })
 
 export interface LoadedProject {
@@ -37,6 +44,11 @@ export interface LoadedProject {
   storeyCount: number
   storeyHeightMm: number
   fixtures: Fixture[]
+  unitPriceTexts: Record<string, string>
+  /** 版番号（保存のたびに 1 増える。版の無い古い保存は 0） */
+  revision: number
+  /** 区画に付けた 1F の名前（区画の id → 名前） */
+  firstFloorNames: Record<string, string>
 }
 
 /** 保存の JSON（すでに JSON.parse 済みの値）を読む。形が合わなければ例外。 */
@@ -49,12 +61,16 @@ export function parseSaveData(json: unknown): LoadedProject {
     storeyCount: d.storeyCount,
     storeyHeightMm: d.storeyHeightMm,
     fixtures: (d.fixtures ?? []).map((f) => ({ id: f.id, item: f.item as FixtureItem, unitId: f.unitId })),
+    unitPriceTexts: d.unitPriceTexts ?? {},
+    revision: d.revision ?? 0,
+    firstFloorNames: d.firstFloorNames ?? {},
   }
 }
 
 /** 読んだ案件を、画面の状態に入れる。Undo・Redo の履歴と種類（意味づけ）は、保存していないので空に戻す。 */
 export function applyLoadedProject(p: LoadedProject): void {
   useDrawing.setState({ entries: p.entries, past: [], redoStack: [], storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fitted: false })
-  useFixtures.setState({ fixtures: p.fixtures })
+  useFixtures.setState({ fixtures: p.fixtures, unitPriceTexts: p.unitPriceTexts })
+  useFirstFloor.setState({ names: p.firstFloorNames })
   useSemantic.getState().clear()
 }

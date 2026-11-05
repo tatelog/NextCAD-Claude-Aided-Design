@@ -24,6 +24,8 @@ export interface PenToolbarProps {
 export function PenToolbar({ placement }: PenToolbarProps) {
   const penMode = useUi((s) => s.penMode)
   const setPenMode = useUi((s) => s.setPenMode)
+  const arcTwoPoint = useUi((s) => s.arcTwoPoint)
+  const setArcTwoPoint = useUi((s) => s.setArcTwoPoint)
   const setToolbarPlacement = useUi((s) => s.setToolbarPlacement)
   const freePosition = useUi((s) => s.freePosition)
   const setFreePosition = useUi((s) => s.setFreePosition)
@@ -78,6 +80,20 @@ export function PenToolbar({ placement }: PenToolbarProps) {
           <ToolIcon name="curve" />
           <span>曲線</span>
         </button>
+        {/* 二点の円弧（t70）は曲線モードの中の道具。押すと、二点を押してから中心線上を動かして中心を決める */}
+        {penMode === 'curve' && (
+          <button
+            type="button"
+            aria-label="円弧（二点）"
+            title="円弧（二点）"
+            className={arcTwoPoint ? 'is-active' : undefined}
+            aria-pressed={arcTwoPoint}
+            onClick={() => setArcTwoPoint(!arcTwoPoint)}
+          >
+            <ToolIcon name="curve" />
+            <span>円弧（二点）</span>
+          </button>
+        )}
       </span>
       <span className="pen-toolbar-group">
         <button type="button" aria-label="Undo" title="Undo" onClick={undo} disabled={!canUndo}>

@@ -1,0 +1,197 @@
+[
+  {
+    "id": "1R-A",
+    "svg": "1R-A.svg",
+    "json": "1R-A.json"
+  },
+  {
+    "id": "1R-B",
+    "svg": "1R-B.svg",
+    "json": "1R-B.json"
+  },
+  {
+    "id": "1R-C",
+    "svg": "1R-C.svg",
+    "json": "1R-C.json"
+  },
+  {
+    "id": "1K-A",
+    "svg": "1K-A.svg",
+    "json": "1K-A.json"
+  },
+  {
+    "id": "1K-B",
+    "svg": "1K-B.svg",
+    "json": "1K-B.json"
+  },
+  {
+    "id": "1K-C",
+    "svg": "1K-C.svg",
+    "json": "1K-C.json"
+  },
+  {
+    "id": "1DK-A",
+    "svg": "1DK-A.svg",
+    "json": "1DK-A.json"
+  },
+  {
+    "id": "1DK-B",
+    "svg": "1DK-B.svg",
+    "json": "1DK-B.json"
+  },
+  {
+    "id": "1DK-C",
+    "svg": "1DK-C.svg",
+    "json": "1DK-C.json"
+  },
+  {
+    "id": "1LDK-A",
+    "svg": "1LDK-A.svg",
+    "json": "1LDK-A.json"
+  },
+  {
+    "id": "1LDK-B",
+    "svg": "1LDK-B.svg",
+    "json": "1LDK-B.json"
+  },
+  {
+    "id": "1LDK-C",
+    "svg": "1LDK-C.svg",
+    "json": "1LDK-C.json"
+  },
+  {
+    "id": "2K-A",
+    "svg": "2K-A.svg",
+    "json": "2K-A.json"
+  },
+  {
+    "id": "2K-B",
+    "svg": "2K-B.svg",
+    "json": "2K-B.json"
+  },
+  {
+    "id": "2K-C",
+    "svg": "2K-C.svg",
+    "json": "2K-C.json"
+  },
+  {
+    "id": "2DK-A",
+    "svg": "2DK-A.svg",
+    "json": "2DK-A.json"
+  },
+  {
+    "id": "2DK-B",
+    "svg": "2DK-B.svg",
+    "json": "2DK-B.json"
+  },
+  {
+    "id": "2DK-C",
+    "svg": "2DK-C.svg",
+    "json": "2DK-C.json"
+  },
+  {
+    "id": "2LDK-A",
+    "svg": "2LDK-A.svg",
+    "json": "2LDK-A.json"
+  },
+  {
+    "id": "2LDK-B",
+    "svg": "2LDK-B.svg",
+    "json": "2LDK-B.json"
+  },
+  {
+    "id": "2LDK-C",
+    "svg": "2LDK-C.svg",
+    "json": "2LDK-C.json"
+  },
+  {
+    "id": "3K-A",
+    "svg": "3K-A.svg",
+    "json": "3K-A.json"
+  },
+  {
+    "id": "3K-B",
+    "svg": "3K-B.svg",
+    "json": "3K-B.json"
+  },
+  {
+    "id": "3K-C",
+    "svg": "3K-C.svg",
+    "json": "3K-C.json"
+  },
+  {
+    "id": "3DK-A",
+    "svg": "3DK-A.svg",
+    "json": "3DK-A.json"
+  },
+  {
+    "id": "3DK-B",
+    "svg": "3DK-B.svg",
+    "json": "3DK-B.json"
+  },
+  {
+    "id": "3DK-C",
+    "svg": "3DK-C.svg",
+    "json": "3DK-C.json"
+  },
+  {
+    "id": "3LDK-A",
+    "svg": "3LDK-A.svg",
+    "json": "3LDK-A.json"
+  },
+  {
+    "id": "3LDK-B",
+    "svg": "3LDK-B.svg",
+    "json": "3LDK-B.json"
+  },
+  {
+    "id": "3LDK-C",
+    "svg": "3LDK-C.svg",
+    "json": "3LDK-C.json"
+  },
+  {
+    "id": "4K-A",
+    "svg": "4K-A.svg",
+    "json": "4K-A.json"
+  },
+  {
+    "id": "4K-B",
+    "svg": "4K-B.svg",
+    "json": "4K-B.json"
+  },
+  {
+    "id": "4K-C",
+    "svg": "4K-C.svg",
+    "json": "4K-C.json"
+  },
+  {
+    "id": "4DK-A",
+    "svg": "4DK-A.svg",
+    "json": "4DK-A.json"
+  },
+  {
+    "id": "4DK-B",
+    "svg": "4DK-B.svg",
+    "json": "4DK-B.json"
+  },
+  {
+    "id": "4DK-C",
+    "svg": "4DK-C.svg",
+    "json": "4DK-C.json"
+  },
+  {
+    "id": "4LDK-A",
+    "svg": "4LDK-A.svg",
+    "json": "4LDK-A.json"
+  },
+  {
+    "id": "4LDK-B",
+    "svg": "4LDK-B.svg",
+    "json": "4LDK-B.json"
+  },
+  {
+    "id": "4LDK-C",
+    "svg": "4LDK-C.svg",
+    "json": "4LDK-C.json"
+  }
+]

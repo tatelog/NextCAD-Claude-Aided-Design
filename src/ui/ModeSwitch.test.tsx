@@ -1,0 +1,43 @@
+// 仕様（ハブ A-03 G100・G125。代表「かな」2026-11-05 の仮決め。設計グリルの依頼）:
+// 仕様 1（置き場）: モードの切替は、ヘッダー右端に三つ並べる（仮決め。部品は ModeSwitch）。
+// 仕様 2（並び）: 画面で使えるモードを、表の順にボタンで出す。名前は表（screenModes の name）から出す。
+// 仕様 3（今のモード）: 今のモードのボタンは押されている（aria-pressed="true"）。ほかは押されていない。
+// 仕様 4（一つだけの画面）: 使えるモードが一つだけの画面（P5）は、切替を出さない。
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+import { ModeSwitch } from './ModeSwitch'
+
+// 描画の結果から、ボタンの名前と押されているかを取り出す
+function buttonsOf(html: string): { name: string; pressed: boolean }[] {
+  return [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map((m) => ({
+    name: m[2]!,
+    pressed: /aria-pressed="true"/.test(m[1]!),
+  }))
+}
+
+const render = (screen: string, activeMode: string) =>
+  buttonsOf(renderToStaticMarkup(createElement(ModeSwitch, { screen, activeMode, onPick: () => undefined })))
+
+describe('モードの切替（G125・代表の仮決め）', () => {
+  it('仕様 1・2: P2 は System・Chat・Drawing の三つを表の順に出す', () => {
+    expect(render('P2', 'system').map((b) => b.name)).toEqual(['System', 'Chat', 'Drawing'])
+  })
+
+  it('仕様 2: P1 と P4 は System・Chat の二つ', () => {
+    expect(render('P1', 'system').map((b) => b.name)).toEqual(['System', 'Chat'])
+    expect(render('P4', 'system').map((b) => b.name)).toEqual(['System', 'Chat'])
+  })
+
+  it('仕様 3: 今のモードのボタンだけ押されている', () => {
+    expect(render('P3', 'drawing')).toEqual([
+      { name: 'System', pressed: false },
+      { name: 'Chat', pressed: false },
+      { name: 'Drawing', pressed: true },
+    ])
+  })
+
+  it('仕様 4: 使えるモードが一つだけの P5 は、切替を出さない', () => {
+    expect(render('P5', 'system')).toEqual([])
+  })
+})

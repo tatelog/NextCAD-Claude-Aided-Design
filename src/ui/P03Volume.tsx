@@ -9,8 +9,11 @@ import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type Road
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
+import { setbackLabel } from '../plan/dimensionLabel'
+import { setbackLines } from '../volume/setbackLines'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignToDirection } from '../volume/alignToRoad'
+import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
 import { rotateOutline } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
@@ -21,9 +24,25 @@ import { shadowOf } from '../volume/shadow'
 import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
-import { shadowRuleFor } from '../law/shadowRule'
+import { SHADOW_KEYS, shadowRuleFromOrdinance } from '../law/shadowOrdinance'
+import { ordinanceStatus } from '../law/ordinance'
+import { confirmMeasurement } from '../law/measurementConfirm'
+import { ICHI_NOTE } from '../law/fireIchi'
+import { useOrdinance } from '../store/ordinance'
 import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
+import { suggestMeasurement } from '../law/shadowSuggest'
+import type { HeightDistrict } from '../law/shadowMeasure'
+
+/** 高度地区の区分（人が入れる。測定面の候補に使う） */
+const HEIGHT_DISTRICTS: readonly HeightDistrict[] = ['第一種', '第二種', '第三種', '指定なし']
+
+/** 測定面の候補の一行（都条例の別表第一。提案で、判定には使わない） */
+function measurementHintOf(site: { zone: string; farPercent: number | null } | null, height: HeightDistrict | ''): string {
+  if (!site) return '用途地域が決まっていない（P1 で取得する）'
+  const r = suggestMeasurement({ zone: site.zone, farPercent: site.farPercent, heightDistrict: height === '' ? null : height })
+  return r.ok ? `${r.measurement.measurementM} m（別表第一 ${r.measurement.band}）` : `決められない（${r.reason}）`
+}
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
 import { judgeFar } from '../volume/farCheck'
@@ -35,17 +54,21 @@ import { Volume3D } from './Volume3D'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
+import { sourcesOfTable } from '../plan/objectCountsOfTable'
+import { emptyObjectTableInput, objectTableOf } from '../plan/objectTable'
 import { ObjectMenu } from './ObjectMenu'
+import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
+import { TileClose } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { FeatureAdjustTile } from './FeatureAdjustTile'
+import { DrawingReviewTile } from './DrawingReviewTile'
+import { usePanelTiles } from '../store/panelTiles'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
-const DUMMY_PARCEL_MM2 = 20_000 * 30_000
-// 筆界のダミー（反時計回り。辺 0 は下の辺）。P1 の筆界が入るまでの仮の敷地
-const DUMMY_PARCEL = [
-  { x: 0, y: 0 },
-  { x: 20_000, y: 0 },
-  { x: 20_000, y: 30_000 },
-  { x: 0, y: 30_000 },
-]
+import { DUMMY_PARCEL, DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 // 周辺建物は P1 の基準点を、ダミー筆界の中心（20 m × 30 m の中心）に合わせて置く（筆界が入るまでの仮）
 const PARCEL_CENTER_MM = { x: 10_000, y: 15_000 }
@@ -56,6 +79,11 @@ export function P03Volume() {
   const closure = useMemo(() => findClosedOutline(segments), [segments])
   // 左メニュー（G55）の入力: 外形（閉じた輪郭）と仮の筆界（ダミー）から。P1 の筆界が入るまでの仮
   const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, DUMMY_PARCEL), [closure])
+  // 左の一覧の件数（G78）: 閉じた外形と仮の筆界の行から数える（別の集計表は作らない）
+  const countSources = useMemo(
+    () => sourcesOfTable(objectTableOf({ ...emptyObjectTableInput(), outline: closure.footprint, siteBoundary: true })),
+    [closure],
+  )
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
@@ -71,6 +99,7 @@ export function P03Volume() {
   const siteBuildings = useSite((s) => s.buildings)
   const showShadow = useUi((s) => s.showShadow)
   const showNeighbors = useUi((s) => s.showNeighbors)
+  const showDimensions = useUi((s) => s.showDimensions)
   const showMiniMap = useUi((s) => s.showMiniMap)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
@@ -79,6 +108,7 @@ export function P03Volume() {
   )
 
   const [farLimit, setFarLimit] = useState('')
+  const [heightDistrict, setHeightDistrict] = useState<HeightDistrict | ''>('')
   // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は江東区の点（35.67N, 139.86E）
   const [solarTime, setSolarTime] = useState('12:00')
   const sun = useMemo(() => {
@@ -93,6 +123,9 @@ export function P03Volume() {
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   const [westText, setWestText] = useState('')
   const [southText, setSouthText] = useState('')
+  // 基準線（ハブ A-03 G59・統括の依頼 t52）: 描いた外形（外壁の中心線）を、内側へ寄せるか、中心線から量（外へ正）だけずらす。既定は中心線・ずらし 0
+  const [baselineSide, setBaselineSide] = useState<BaselineSide>('中心線')
+  const [baselineOffsetText, setBaselineOffsetText] = useState('0')
 
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
   // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは筆界のダミーの辺から
@@ -102,6 +135,17 @@ export function P03Volume() {
   const [rotateStep, setRotateStep] = useState<RotationStep>('free')
   // 機能のオンオフ（G70）: 回転の表示と操作、つまみ、斜線と日影の再計算
   const featureOn = useFeatures((s) => s.on)
+  // 右パネルの節を閉じる（ハブ A-03 G73）。閉じた節は display: none で残し、入力の値は保つ
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const { hideTile } = usePanelTiles.getState()
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。表に無い・使えないモードの項目は出さない
+  const activeMode = useActiveMode('P2')
+  const tileStyle = (id: string) => ({
+    position: 'relative' as const,
+    ...(isRightItemShown(SCREEN_MODES, activeMode, 'P2', hiddenTiles, id) ? {} : { display: 'none' as const }),
+  })
+  // 左のオブジェクト一覧の開閉（G55）。描画（システム）と 3D は折りたたんで始める。画面・モード・表示が変わると既定に戻る
+  const menuFold = useObjectMenuFold(`P2-${activeMode}-${view}`, objectMenuFoldedByDefault(activeMode, view))
   const rotateDeg = snapAngle(Number(rotateText), rotateStep)
   // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
   const knobSnapshotRef = useRef<typeof entries | null>(null)
@@ -121,15 +165,25 @@ export function P03Volume() {
     return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
   })()
 
-  const placedFootprint = useMemo(() => {
+  // 基準線（G59・t52）: 描いた外形（中心線）を、内側または中心線からの量で動かした線にする。数でない量は 0
+  const baselineOffset = Number(baselineOffsetText)
+  const baselineOpts = useMemo(
+    () => ({ side: baselineSide, offsetMm: Number.isFinite(baselineOffset) ? baselineOffset : 0, wallThicknessMm: DEFAULT_WALL_THICKNESS_MM }),
+    [baselineSide, baselineOffset],
+  )
+  const baseline = useMemo(() => {
     if (!closure.closed || closure.footprint === null) return null
+    return baselineOutline(closure.footprint, baselineOpts)
+  }, [closure, baselineOpts])
+  const placedFootprint = useMemo(() => {
+    if (baseline === null || !baseline.ok) return null
     // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
-    const base = aligned ? roundFootprintMm(alignToDirection(closure.footprint, roadDeg)) : closure.footprint
+    const base = aligned ? roundFootprintMm(alignToDirection(baseline.footprint, roadDeg)) : baseline.footprint
     const w = Number(westText)
     const s = Number(southText)
     if (westText === '' || southText === '' || !Number.isFinite(w) || !Number.isFinite(s)) return base
     return roundFootprintMm(placeBySetback(base, DUMMY_PARCEL, { west: w, south: s }))
-  }, [closure, westText, southText, aligned, roadDeg])
+  }, [baseline, westText, southText, aligned, roadDeg])
 
   // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
   const extruded = useMemo<ExtrudeResult | null>(() => {
@@ -137,7 +191,9 @@ export function P03Volume() {
     return extrudeOrReason({ footprint: placedFootprint, storey_count: storeyCount, storey_height: storeyHeightMm })
   }, [closure, placedFootprint, storeyCount, storeyHeightMm])
   const volume = extruded?.ok ? extruded.volume : null
-  const volumeError = extruded && !extruded.ok ? extruded.reason : null
+  // 基準線で外形が消えるときは、その理由を出す（黙って 3D を消さない）
+  const baselineError = baseline !== null && !baseline.ok ? baseline.reason : null
+  const volumeError = baselineError ?? (extruded && !extruded.ok ? extruded.reason : null)
 
   // 法定の斜線を、筆界（ダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
@@ -171,6 +227,8 @@ export function P03Volume() {
 
   // 敷地との離れ（敷地が矩形のときだけ。G67）
   const setback = useMemo(() => (volume ? setbackFromRectParcel(DUMMY_PARCEL, volume.footprint) : null), [volume])
+  // 離れの寸法線（G67）。3D の地面に出す。寸法線の表示をオフにしたら出さない
+  const setbackLinesOfVolume = useMemo(() => (volume ? setbackLines(DUMMY_PARCEL, volume.footprint) : null), [volume])
   // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
   const roadSlope = useMemo(() => {
     const road = legal.boundaries.filter((b) => b.kind === 'road')
@@ -197,19 +255,28 @@ export function P03Volume() {
         : null,
     [stackedFloors, sun],
   )
-  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す
+  const ordinanceEntries = useOrdinance((s) => s.entries)
+  const setOrdinanceEntry = useOrdinance((s) => s.setEntry)
+  const confirmOrdinance = useOrdinance((s) => s.confirm)
+  const heightStatus = ordinanceStatus(ordinanceEntries, SHADOW_KEYS.height)
+  // 測定面の候補（G87）。表から出す提案。確定するまで判定には使わない
+  const candidate = siteRule
+    ? suggestMeasurement({ zone: siteRule.zone, farPercent: siteRule.farPercent, heightDistrict: heightDistrict === '' ? null : heightDistrict })
+    : { ok: false as const, reason: '用途地域が決まっていない' }
+  // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す。規制値は確認済みの条例の値だけ（G15）
   const shadowJudge = useMemo(() => {
     // 再計算をオフにしているときは、判定を計算せずに止めていると出す（G70）
     if (!featureOn.shadowRecalc) return { text: '再計算を止めている（機能のオンオフ）', result: null as '適合' | '不適合' | null }
-    const rule = shadowRuleFor(zone, 2)
     if (!volume) {
       return { text: volumeError ? `立体を作れないので判定できない（${volumeError}）` : '外形が閉じると判定する', result: null as '適合' | '不適合' | null }
     }
-    if (rule === null) return { text: '対象外（この用途地域の規制値は未確認）', result: null }
+    // 規制値は、人が確認した条例の値だけで置く（G15）。未確認・未入力なら判定しない
+    const ordinance = shadowRuleFromOrdinance(zone, ordinanceEntries)
+    if (!ordinance.ok) return { text: ordinance.reason, result: null as '適合' | '不適合' | null }
     const judgment = judgeShadow({
       lot: DUMMY_PARCEL,
       buildings: stackedFloors,
-      rule,
+      rule: ordinance.rule,
       lat: 35.67,
       lon: 139.86,
       date: new Date(Date.UTC(2026, 11, 22)),
@@ -220,16 +287,16 @@ export function P03Volume() {
         structure: 'RC',
         lot: DUMMY_PARCEL,
         buildings: stackedFloors,
-        rule,
+        rule: ordinance.rule,
         lat: 35.67,
         lon: 139.86,
         date: new Date(Date.UTC(2026, 11, 22)),
       }),
     )
-    if (judgment.result === '適合') return { text: `適合（条例の値は要確認）／${drawingText}`, result: '適合' as const }
+    if (judgment.result === '適合') return { text: `適合（確認済みの条例の値で判定）／${drawingText}`, result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）／${drawingText}`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc])
+  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -280,9 +347,15 @@ export function P03Volume() {
         )}
       </header>
       <div className="p03-body">
-        {view === 'plan' && (
-          <ObjectMenu sources={objectSources} selectedKind={selectedKind} onSelect={setSelectedKind} caption="種類ごとの件数（外形と仮の筆界）" />
-        )}
+        <ObjectMenu
+          sources={objectSources}
+          countSources={countSources}
+          selectedKind={selectedKind}
+          onSelect={setSelectedKind}
+          caption="種類ごとの件数（外形と仮の筆界）"
+          folded={menuFold.folded}
+          onToggleFold={menuFold.toggle}
+        />
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
@@ -292,6 +365,7 @@ export function P03Volume() {
                 footprint={volume.footprint}
                 shadow={showShadow ? sunShadow : null}
                 neighbors={showNeighbors ? neighbors : []}
+                setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
                 homeToken={homeToken}
@@ -316,16 +390,30 @@ export function P03Volume() {
           </div>
         )}
         <aside className="p03-side">
-          <section>
-            <h2>外形</h2>
+          <section style={tileStyle('p2-outline')}>
+            <TileClose title="外形" onHide={() => hideTile('p2-outline')} />
+            <h2>外形（基準線: {baselineLabelOf(baselineOpts)}）</h2>
             <dl>
               <dt>線分</dt>
               <dd>{segments.length} 本</dd>
               <dt>閉合</dt>
               <dd className={closure.closed ? 'ok' : 'ng'}>{closureLabel}</dd>
             </dl>
+            <label>
+              基準線
+              <select value={baselineSide} onChange={(e) => setBaselineSide(e.target.value as BaselineSide)}>
+                <option value="中心線">外壁の中心線（既定）</option>
+                <option value="内側">内側の面（壁厚 200 mm の半分だけ内へ）</option>
+              </select>
+            </label>
+            <label>
+              中心線からずらす (mm・外へ正、内へ負)
+              <input type="number" step={10} value={baselineOffsetText} onChange={(e) => setBaselineOffsetText(e.target.value)} />
+            </label>
+            {baselineError ? <p className="ng">{baselineError}</p> : null}
           </section>
-          <section>
+          <section style={tileStyle('p2-storey')}>
+            <TileClose title="階数・階高" onHide={() => hideTile('p2-storey')} />
             <h2>階数・階高</h2>
             <label>
               階数
@@ -348,7 +436,8 @@ export function P03Volume() {
               />
             </label>
           </section>
-          <section>
+          <section style={tileStyle('p2-volume')}>
+            <TileClose title="ボリューム" onHide={() => hideTile('p2-volume')} />
             <h2>ボリューム</h2>
             {volume && cut ? (
               <dl>
@@ -369,7 +458,14 @@ export function P03Volume() {
                     : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
                 </dd>
                 <dt>日影</dt>
-                <dd>{shadowJudge.text}</dd>
+                <dd>
+                  {shadowJudge.text}
+                  {ORDINANCE_KEYS.map((k) => (
+                    <div key={k}>
+                      <OrdinanceStatusLine itemKey={k} />
+                    </div>
+                  ))}
+                </dd>
                 <dt>容積率</dt>
                 <dd>
                   {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
@@ -393,6 +489,31 @@ export function P03Volume() {
             ) : (
               <p className="muted">PLATEAU の用途地域が一つに決まらない（P1 で取得していない、または複数）。下の入力を使う。</p>
             )}
+            <label>
+              高度地区の区分（人が入れる。測定面の候補に使う）
+              <select value={heightDistrict} onChange={(e) => setHeightDistrict(e.target.value as HeightDistrict | '')}>
+                <option value="">未入力</option>
+                {HEIGHT_DISTRICTS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">測定面の候補（都条例の別表第一。表から出す提案）: {measurementHintOf(siteRule, heightDistrict)}</p>
+            <p className="muted">
+              <button
+                type="button"
+                disabled={!candidate.ok}
+                onClick={() => confirmMeasurement(candidate, { setEntry: setOrdinanceEntry, confirm: confirmOrdinance })}
+              >
+                候補を測定面に確定
+              </button>{' '}
+              {heightStatus.status === '確認済み'
+                ? `測定面は確定済み（${heightStatus.value} m）。判定に使っている`
+                : '測定面が未確定のため、日影は判定しない（候補を確定するか、人が値を入れて確認する）'}
+            </p>
+            <p className="muted">防火（令 136 条の 2）: {ICHI_NOTE}</p>
             <label>
               用途地域
               <select value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
@@ -437,13 +558,13 @@ export function P03Volume() {
             {setback ? (
               <dl>
                 <dt>北</dt>
-                <dd>{setback.north.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.north)}</dd>
                 <dt>東</dt>
-                <dd>{setback.east.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.east)}</dd>
                 <dt>南</dt>
-                <dd>{setback.south.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.south)}</dd>
                 <dt>西</dt>
-                <dd>{setback.west.toLocaleString('ja-JP')} mm</dd>
+                <dd>{setbackLabel(setback.west)}</dd>
               </dl>
             ) : (
               <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する。G67）</p>
@@ -451,11 +572,13 @@ export function P03Volume() {
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
             <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。北側は真北の配線が未実装。</p>
           </section>
-          <section>
+          <section style={tileStyle('p2-numeric')}>
+            <TileClose title="数値で線を入れる" onHide={() => hideTile('p2-numeric')} />
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>数値で線を入れる（D-04 数値入力。仮置き）</h3>
             <NumericLineForm />
           </section>
-          <section style={featureOn.rotateDisplay ? undefined : { display: 'none' }}>
+          <section style={{ ...tileStyle('p2-rotate'), ...(featureOn.rotateDisplay ? {} : { display: 'none' }) }}>
+            <TileClose title="回転" onHide={() => hideTile('p2-rotate')} />
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>回転（重心のまわり、G71）</h3>
             <label>
               回転角 (°、反時計回り)
@@ -491,6 +614,20 @@ export function P03Volume() {
             <button type="button" disabled={!volume} title="P04 柱割り作図はまだ無い">
               確定して P04 へ
             </button>
+          </section>
+          <section style={tileStyle('claude-chat')}>
+            <TileClose title="Claude（チャット）" onHide={() => hideTile('claude-chat')} />
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P2" />
+          </section>
+          <section style={tileStyle('feature-adjust')}>
+            <TileClose title="機能の調整（G43）" onHide={() => hideTile('feature-adjust')} />
+            <h2>機能の調整（G43）</h2>
+            <FeatureAdjustTile screen="P2" />
+          </section>
+          <section style={tileStyle('drawing-review')}>
+            <TileClose title="候補の確認（Drawing）" onHide={() => hideTile('drawing-review')} />
+            <DrawingReviewTile />
           </section>
         </aside>
       </div>

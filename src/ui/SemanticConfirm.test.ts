@@ -91,12 +91,12 @@ describe('SemanticConfirm（節と注記。仕様 1・2）', () => {
     expect(findAll(tree, isTag('legend')).map(textOf)).toEqual(['意味づけの確認（G14）'])
   })
 
-  it('節の中に「判定（Claude）は未接続。種類は人が選ぶ」が出る', () => {
-    expect(textOf(render({ rows: SIX }))).toContain('判定（Claude）は未接続。種類は人が選ぶ')
+  it('節の中に「判定（Claude）は、ヘッダーの「意味づけを判定」で送る。」が出る', () => {
+    expect(textOf(render({ rows: SIX }))).toContain('判定（Claude）は、ヘッダーの「意味づけを判定」で送る。結果は要確認の提案として入る。種類は人が選ぶ')
   })
 
   it('線が無くても、注記は出る', () => {
-    expect(textOf(render({ rows: [] }))).toContain('判定（Claude）は未接続。種類は人が選ぶ')
+    expect(textOf(render({ rows: [] }))).toContain('判定（Claude）は、ヘッダーの「意味づけを判定」で送る。結果は要確認の提案として入る。種類は人が選ぶ')
   })
 })
 
@@ -267,7 +267,7 @@ describe('SemanticConfirm（描ける。仕様 8）', () => {
   it('サーバー側の描画で例外が出ず、節の名前・注記・件数・状態・ボタンが出る', () => {
     const html = renderToStaticMarkup(createElement(SemanticConfirm, { rows: SIX, onSelectKind: () => undefined, onConfirm: () => undefined }))
     expect(html).toContain('意味づけの確認（G14）')
-    expect(html).toContain('判定（Claude）は未接続。種類は人が選ぶ')
+    expect(html).toContain('判定（Claude）は、ヘッダーの「意味づけを判定」で送る。結果は要確認の提案として入る。種類は人が選ぶ')
     expect(html).toContain('未分類 2 件')
     expect(html).toContain('要確認 1 件')
     expect(html).toContain('確定 3 件')

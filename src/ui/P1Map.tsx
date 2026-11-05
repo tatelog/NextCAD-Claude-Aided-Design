@@ -1,0 +1,286 @@
+// P1 の地図（MapLibre GL JS）。基図は国土地理院の標準地図（彩度を下げる）。
+// 道路・筆・建物（LOD1）は、利用者が準備して public/local-data/ に置いたファイルを読む。無ければ「未取得」と出す（同梱しない）。
+import { useEffect, useRef } from 'react'
+import { Map as MaplibreMap, NavigationControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { GSI_BASEMAP_ATTRIBUTION, GSI_BASEMAP_TILES, gsiBasemapLayer } from '../map/basemap'
+import { ROAD_WIDTH_CLASSES } from '../map/roadStyle'
+import { DEMO_INITIAL_VIEW, DEMO_PARCEL_UID } from '../map/initialView'
+import { formatParcelInfo, parcelUid } from '../map/parcelInfo'
+import { decodeLocalJson } from '../map/localData'
+import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
+import type { LonLat } from '../map/viewport'
+
+const LOCAL_DATA = '/local-data/'
+
+// 本番の Worker は、dist に出したファイルを読む（t93）。開発は MapLibre の既定（隣の -dev の Worker）のまま
+if (import.meta.env.PROD) setWorkerUrl(MAPLIBRE_WORKER_URL)
+
+type Props = {
+  center: LonLat
+  zoom: number
+  site: LonLat | null
+  // 周辺建物の輪郭（経度・緯度の環の配列）。表示する
+  neighborRings: [number, number][][]
+  onSiteClick: (p: LonLat) => void
+  onInfo: (text: string) => void
+  onStatus: (text: string) => void
+  onView: (center: LonLat, zoom: number) => void
+}
+
+type Latest = Props
+
+// 置かれたファイルを読む（gzip でも、展開済みの JSON でもよい）
+async function loadLocal(name: string): Promise<unknown> {
+  const res = await fetch(LOCAL_DATA + name)
+  if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`)
+  return decodeLocalJson(new Uint8Array(await res.arrayBuffer()))
+}
+
+// 道路の JSON（{ roads: [{ w, c, g }] }）を、GeoJSON の線にする。g が入れ子なら複数の線
+function toRoadFeatures(roads: { w: number; c: number; g: unknown }[]) {
+  return roads.map((r) => {
+    const multi = Array.isArray((r.g as unknown[])[0]) && Array.isArray(((r.g as unknown[])[0] as unknown[])[0])
+    return {
+      type: 'Feature' as const,
+      properties: { w: r.w, c: r.c },
+      geometry: multi
+        ? { type: 'MultiLineString' as const, coordinates: r.g as number[][][] }
+        : { type: 'LineString' as const, coordinates: r.g as number[][] },
+    }
+  })
+}
+
+export function P1Map(props: Props) {
+  const elRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<MaplibreMap | null>(null)
+  const latest = useRef<Latest>(props)
+  latest.current = props
+  const selectedRef = useRef<string | null>(null)
+
+  // 地図は一度だけ作る
+  useEffect(() => {
+    if (!elRef.current) return
+    const map = new MaplibreMap({
+      container: elRef.current,
+      style: {
+        version: 8,
+        sources: {
+          'gsi-basemap': {
+            type: 'raster',
+            tiles: [...GSI_BASEMAP_TILES],
+            tileSize: 256,
+            maxzoom: 18,
+            attribution: GSI_BASEMAP_ATTRIBUTION,
+          },
+        },
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e9e6dd' } }, gsiBasemapLayer()],
+      },
+      center: [latest.current.center.lon, latest.current.center.lat],
+      zoom: latest.current.zoom,
+      pitch: DEMO_INITIAL_VIEW.pitch,
+      bearing: DEMO_INITIAL_VIEW.bearing,
+      maxPitch: 85,
+    })
+    map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
+    mapRef.current = map
+    const resize = new ResizeObserver(() => map.resize())
+    resize.observe(elRef.current)
+
+    map.on('load', () => {
+      map.addSource('neighbors', { type: 'geojson', data: emptyFc() })
+      map.addSource('site', { type: 'geojson', data: emptyFc() })
+      map.addLayer({
+        id: 'neighbors',
+        type: 'fill',
+        source: 'neighbors',
+        paint: { 'fill-color': '#46505c', 'fill-opacity': 0.45 },
+      })
+      map.addLayer({
+        id: 'site',
+        type: 'circle',
+        source: 'site',
+        paint: { 'circle-radius': 7, 'circle-color': 'rgba(211,51,51,0.25)', 'circle-stroke-color': '#d33', 'circle-stroke-width': 2 },
+      })
+      syncNeighbors(map, latest.current.neighborRings)
+      syncSite(map, latest.current.site)
+      void loadLocalLayers(map, latest.current.onStatus, latest.current.onInfo, selectedRef)
+    })
+
+    map.on('click', (e) => {
+      const { onInfo, onSiteClick } = latest.current
+      onSiteClick({ lon: e.lngLat.lng, lat: e.lngLat.lat })
+      const parcel = map.queryRenderedFeatures(e.point, { layers: ['parcels-fill'] })[0]
+      if (parcel) {
+        // 筆を選び直す（前に選んだ筆の選択は外す）
+        if (selectedRef.current !== null) map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: false })
+        selectedRef.current = String(parcel.id)
+        map.setFeatureState({ source: 'parcels', id: selectedRef.current }, { selected: true })
+      }
+      const info = infoAt(map, e.point)
+      if (info) onInfo(info)
+    })
+    map.on('mouseenter', 'parcels-fill', () => (map.getCanvas().style.cursor = 'pointer'))
+    map.on('mouseleave', 'parcels-fill', () => (map.getCanvas().style.cursor = ''))
+    map.on('moveend', () => {
+      const c = map.getCenter()
+      latest.current.onView({ lon: c.lng, lat: c.lat }, map.getZoom())
+    })
+
+    return () => {
+      resize.disconnect()
+      map.remove()
+      mapRef.current = null
+    }
+  }, [])
+
+  // 対象地点の表示
+  useEffect(() => {
+    const map = mapRef.current
+    if (map && map.isStyleLoaded()) syncSite(map, props.site)
+  }, [props.site])
+
+  // 周辺建物の表示
+  useEffect(() => {
+    const map = mapRef.current
+    if (map && map.isStyleLoaded()) syncNeighbors(map, props.neighborRings)
+  }, [props.neighborRings])
+
+  // 外から来た中心・ズーム（入力、住所候補、＋－）に地図を合わせる。地図の操作で変わった分は合わせない
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const c = map.getCenter()
+    const same = Math.abs(c.lng - props.center.lon) < 1e-7 && Math.abs(c.lat - props.center.lat) < 1e-7
+    if (!same || Math.abs(map.getZoom() - props.zoom) > 1e-6) {
+      map.easeTo({ center: [props.center.lon, props.center.lat], zoom: props.zoom, duration: 300 })
+    }
+  }, [props.center, props.zoom])
+
+  return <div ref={elRef} style={{ position: 'absolute', inset: 0 }} aria-label="地図" />
+}
+
+function emptyFc() {
+  return { type: 'FeatureCollection' as const, features: [] }
+}
+
+function syncSite(map: MaplibreMap, site: LonLat | null) {
+  const src = map.getSource('site') as GeoJSONSource | undefined
+  if (!src) return
+  src.setData(
+    site
+      ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } }] }
+      : emptyFc(),
+  )
+}
+
+function syncNeighbors(map: MaplibreMap, rings: [number, number][][]) {
+  const src = map.getSource('neighbors') as GeoJSONSource | undefined
+  if (!src) return
+  src.setData({
+    type: 'FeatureCollection',
+    features: rings.map((ring) => ({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } })),
+  })
+}
+
+// 点にある筆・建物・道路の情報（筆を優先）
+function infoAt(map: MaplibreMap, point: Point): string | null {
+  const parcels = map.queryRenderedFeatures(point, { layers: ['parcels-fill'] })
+  if (parcels.length > 0) {
+    return formatParcelInfo(parcels[0]!.properties as Record<string, string>)
+  }
+  const bldg = map.queryRenderedFeatures(point, { layers: ['bldg-3d'] })
+  if (bldg.length > 0) return `建物の高さ ${bldg[0]!.properties.h} m`
+  const roads = map.queryRenderedFeatures(point, { layers: ROAD_WIDTH_CLASSES.map((w) => `roads-w${w.k}`) })
+  if (roads.length > 0) {
+    const w = ROAD_WIDTH_CLASSES.find((x) => x.k === roads[0]!.properties.w)
+    return `道路の幅員区分：${w ? w.label : '不明'}`
+  }
+  return null
+}
+
+// 道路・筆・建物を、利用者が置いたファイルから読んで、地図に重ねる
+async function loadLocalLayers(
+  map: MaplibreMap,
+  onStatus: (s: string) => void,
+  onInfo: (s: string) => void,
+  selectedRef: { current: string | null },
+) {
+  const missing: string[] = []
+  let roadCount = 0
+  let parcelCount = 0
+  let buildingCount = 0
+  try {
+    const roadsJson = (await loadLocal('roads-koto.json')) as { roads: { w: number; c: number; g: unknown }[] }
+    roadCount = roadsJson.roads.length
+    map.addSource('roads', { type: 'geojson', data: { type: 'FeatureCollection', features: toRoadFeatures(roadsJson.roads) } })
+    for (const w of ROAD_WIDTH_CLASSES) {
+      map.addLayer({
+        id: `roads-w${w.k}`,
+        type: 'line',
+        source: 'roads',
+        filter: ['==', ['get', 'w'], w.k],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': w.color, 'line-width': ['interpolate', ['linear'], ['zoom'], 13, w.px * 0.5, 17, w.px] },
+      }, 'neighbors')
+    }
+  } catch {
+    missing.push('道路')
+  }
+  try {
+    const parcels = (await loadLocal('koto-parcels.geojson')) as { features: { properties: Record<string, string> }[] }
+    // 筆の識別子（地図名と筆IDの組）を、筆ごとに付ける
+    for (const f of parcels.features) f.properties['筆UID'] = parcelUid(f.properties as { 地図名: string; 筆ID: string })
+    parcelCount = parcels.features.length
+    map.addSource('parcels', { type: 'geojson', data: parcels as GeoJSONSourceSpecification['data'], promoteId: '筆UID' })
+    map.addLayer({
+      id: 'parcels-fill',
+      type: 'fill',
+      source: 'parcels',
+      paint: {
+        'fill-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#f5b301', '#9fc1d6'],
+        'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 0.6, 0.15],
+      },
+    }, 'neighbors')
+    map.addLayer({ id: 'parcels-line', type: 'line', source: 'parcels', paint: { 'line-color': '#3a4a5a', 'line-width': 0.9 } }, 'neighbors')
+    // デモの筆を、最初から選択した状態で出す（情報欄にも）
+    const demo = parcels.features.find((f) => f.properties['筆UID'] === DEMO_PARCEL_UID)
+    if (demo) {
+      selectedRef.current = DEMO_PARCEL_UID
+      onInfo(formatParcelInfo(demo.properties))
+      selectDemoParcel(map)
+    }
+  } catch {
+    missing.push('筆')
+  }
+  try {
+    const bldg = (await loadLocal('buildings-koto.geojson.gz')) as { features: unknown[] }
+    buildingCount = bldg.features.length
+    map.addSource('bldg', { type: 'geojson', data: bldg as GeoJSONSourceSpecification['data'] })
+    map.addLayer({
+      id: 'bldg-3d',
+      type: 'fill-extrusion',
+      source: 'bldg',
+      paint: {
+        'fill-extrusion-color': ['interpolate', ['linear'], ['get', 'h'], 0, '#c9d6df', 20, '#8fb3cc', 60, '#4f83a8', 120, '#1f5f8b'],
+        'fill-extrusion-height': ['get', 'h'],
+        'fill-extrusion-base': 0,
+        'fill-extrusion-opacity': 0.9,
+      },
+    })
+  } catch {
+    missing.push('建物')
+  }
+  const parts = [`道路 ${roadCount.toLocaleString('ja-JP')} 本`, `筆 ${parcelCount.toLocaleString('ja-JP')} 筆`, `建物 ${buildingCount.toLocaleString('ja-JP')} 棟`]
+  onStatus(missing.length === 0 ? `表示中：${parts.join('、')}` : `未取得：${missing.join('、')}（public/local-data/ に置くと表示されます）`)
+}
+
+// デモの筆（DEMO_PARCEL_ID）を、最初から選択した状態にする
+function selectDemoParcel(map: MaplibreMap) {
+  const apply = () => {
+    if (!map.getSource('parcels') || !map.isSourceLoaded('parcels')) return false
+    map.setFeatureState({ source: 'parcels', id: DEMO_PARCEL_UID }, { selected: true })
+    return true
+  }
+  if (!apply()) map.once('idle', apply)
+}
