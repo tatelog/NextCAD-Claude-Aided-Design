@@ -122,7 +122,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       lot: geometry === undefined ? null : parcelRingOf(geometry),
       frame: geometry === undefined ? null : parcelFrameOf(geometry),
       center: { lat: center.lat, lon: center.lon },
-      roadEdge: useConfirmedSite.getState().confirmed?.roadEdge ?? 0,
+      roadEdge: useConfirmedSite.getState().roadEdge,
     })
     void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
     void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)

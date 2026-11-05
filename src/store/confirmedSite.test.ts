@@ -58,3 +58,18 @@ describe('確定の直後（仕様 1g2）', () => {
     expect(isConfirmedStaleOf(s.confirmed, '筆A', s.currentSite)).toBe(false)
   })
 })
+
+// 統括の依頼 2026-11-06。6: 前面道路の辺は P2 の手入力のまま。確定の前に P2 で選んだ番号も、確定のまとめに入る。
+describe('前面道路の辺（仕様 6a・6b）', () => {
+  it('仕様 6a: 確定の前に P2 で選んだ辺の番号を持ち、確定のまとめに使える', () => {
+    useConfirmedSite.getState().setRoadEdge(3)
+    expect(useConfirmedSite.getState().roadEdge).toBe(3)
+  })
+
+  it('仕様 6b: 確定の後に選び直せば、確定の辺の番号も変わる', () => {
+    useConfirmedSite.getState().confirm(confirmed({ roadEdge: 0 }))
+    useConfirmedSite.getState().setRoadEdge(2)
+    expect(useConfirmedSite.getState().roadEdge).toBe(2)
+    expect(useConfirmedSite.getState().confirmed?.roadEdge).toBe(2)
+  })
+})

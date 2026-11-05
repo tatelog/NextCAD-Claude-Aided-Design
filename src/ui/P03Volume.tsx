@@ -140,10 +140,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     return solarPosition({ lat: sunSite.lat, lon: sunSite.lon, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
   }, [solarTime, sunSite])
   const [zone, setZone] = useState<Zone>('住居系')
-  // 前面道路の辺（確定していれば確定の店舗が持つ。確定していなければ画面の中だけ）
-  const [roadEdgeLocal, setRoadEdgeLocal] = useState(0)
-  const roadEdge = confirmed?.roadEdge ?? roadEdgeLocal
-  const setRoadEdge = (n: number) => (confirmed !== null ? useConfirmedSite.getState().setRoadEdge(n) : setRoadEdgeLocal(n))
+  // 前面道路の辺（P2 で選ぶ。店舗が持つので、確定の前に選んでも確定のまとめに入る。統括の依頼 2026-11-06。6）
+  const roadEdge = useConfirmedSite((s) => s.roadEdge)
+  const setRoadEdge = (n: number) => useConfirmedSite.getState().setRoadEdge(n)
   // 前面道路の辺は、今の敷地の辺の範囲に収めて使う（統括の依頼 2026-11-06 (b)）
   const edge = roadEdgeIndexOf(lot, roadEdge)
   const [roadWidth, setRoadWidth] = useState('6000')
