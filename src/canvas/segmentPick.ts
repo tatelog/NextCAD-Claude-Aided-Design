@@ -6,6 +6,9 @@ import { polylineOfSegment } from './arcSegment'
 /** 選んだ線の色（選んでいない線は元の色） */
 export const SELECTED_COLOR = '#e0662b'
 
+/** チャットのタップで線を選ぶ許容（画面の px）。見えている線から指で少し外れても選べるように 12 px（統括の依頼 2026-11-06。1）。動いたかの判定（6 px）とは別 */
+export const CHAT_PICK_PX = 12
+
 /** 選んだ線の色を決める */
 export function strokeColorOf(base: string, selected: boolean): string {
   return selected ? SELECTED_COLOR : base

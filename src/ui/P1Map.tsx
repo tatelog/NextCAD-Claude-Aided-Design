@@ -11,6 +11,7 @@ import { decodeLocalJson } from '../map/localData'
 import { MAPLIBRE_WORKER_URL } from '../map/workerUrl'
 import type { LonLat } from '../map/viewport'
 import { publishSelectedParcel, rememberParcelGeometry, selectParcelAt } from '../map/selectedParcel'
+import { layerBeforeOf } from '../map/layerBefore'
 
 const LOCAL_DATA = '/local-data/'
 
@@ -224,7 +225,7 @@ async function loadLocalLayers(
         filter: ['==', ['get', 'w'], w.k],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': w.color, 'line-width': ['interpolate', ['linear'], ['zoom'], 13, w.px * 0.5, 17, w.px] },
-      }, 'neighbors')
+      }, neighborsBefore(map))
     }
   } catch {
     missing.push('道路')
@@ -247,8 +248,8 @@ async function loadLocalLayers(
         'fill-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#f5b301', '#9fc1d6'],
         'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 0.6, 0.15],
       },
-    }, 'neighbors')
-    map.addLayer({ id: 'parcels-line', type: 'line', source: 'parcels', paint: { 'line-color': '#3a4a5a', 'line-width': 0.9 } }, 'neighbors')
+    }, neighborsBefore(map))
+    map.addLayer({ id: 'parcels-line', type: 'line', source: 'parcels', paint: { 'line-color': '#3a4a5a', 'line-width': 0.9 } }, neighborsBefore(map))
     // デモの筆を、最初から選択した状態で出す（情報欄にも）
     const demo = parcels.features.find((f) => f.properties['筆UID'] === DEMO_PARCEL_UID)
     if (demo) {
@@ -288,6 +289,11 @@ function showSelectedParcel(map: MaplibreMap | null, selectedRef: { current: str
     if (uid !== null) map.setFeatureState({ source: 'parcels', id: uid }, { selected: true })
   }
   selectedRef.current = uid
+}
+
+// 道路・筆の層を足す位置（基準の層 neighbors の前）。neighbors がまだ地図に無ければ、基準を付けずに足す（統括の依頼 2026-11-06。3）
+function neighborsBefore(map: MaplibreMap): string | undefined {
+  return layerBeforeOf(map.getStyle()?.layers.map((l) => l.id) ?? [], 'neighbors')
 }
 
 // デモの筆（DEMO_PARCEL_ID）を、最初から選択した状態にする
