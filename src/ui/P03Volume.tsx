@@ -42,7 +42,7 @@ const HEIGHT_DISTRICTS: readonly HeightDistrict[] = ['第一種', '第二種', '
 
 /** 測定面の候補の一行（都条例の別表第一。提案で、判定には使わない） */
 function measurementHintOf(site: { zone: string; farPercent: number | null } | null, height: HeightDistrict | ''): string {
-  if (!site) return '用途地域が決まっていない（P1 で取得する）'
+  if (!site) return '用途地域が決まっていない（敷地で取得する）'
   const r = suggestMeasurement({ zone: site.zone, farPercent: site.farPercent, heightDistrict: height === '' ? null : height, ward: PROJECT_WARD })
   return r.ok ? `${r.measurement.measurementM} m（別表第一 ${r.measurement.band}）` : `決められない（${r.reason}）`
 }
@@ -393,7 +393,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   return (
     <div className="p03">
       <header className="p03-toolbar">
-        <strong>P03 ボリューム作図</strong>
+        <strong>ボリューム作図</strong>
         {placement === 'top' && <PenToolbar placement="top" />}
         <span className="p03-mode">
           表示:
@@ -414,8 +414,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             全部消す
           </button>
         </span>
-        {confirmed === null ? <span className="p03-note">まだ確定していない（P1 の「この敷地で確定」。今はダミーの筆界）。</span> : null}
-        {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（P1 で地点か筆を変えた）。</span> : null}
+        {confirmed === null ? <span className="p03-note">まだ確定していない（敷地の「この敷地で確定」。今はダミーの筆界）。</span> : null}
+        {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
         <span className="p03-note">{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
         {siteBuildings && (
           <span className="p03-note">{neighborNoteOf(neighbors.length, confirmed?.frame != null)}</span>
@@ -565,10 +565,10 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             </label>
             {siteRule ? (
               <p className="muted">
-                PLATEAU（P1 で取得）から: 区分 {siteRule.zone}、容積率の限度 {siteRule.farPercent === null ? '未取得' : `${siteRule.farPercent} %`}
+                PLATEAU（敷地で取得）から: 区分 {siteRule.zone}、容積率の限度 {siteRule.farPercent === null ? '未取得' : `${siteRule.farPercent} %`}
               </p>
             ) : (
-              <p className="muted">PLATEAU の用途地域が一つに決まらない（P1 で取得していない、または複数）。下の入力を使う。</p>
+              <p className="muted">PLATEAU の用途地域が一つに決まらない（敷地で取得していない、または複数）。下の入力を使う。</p>
             )}
             <label>
               高度地区の区分（人が入れる。測定面の候補に使う）
@@ -700,7 +700,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           </section>
           <section>
             <button type="button" onClick={clickNext}>
-              次へ（P3 平面）
+              次へ（平面）
             </button>
             {nextIssues !== null ? (
               <NextCheckPanel

@@ -60,7 +60,7 @@ describe('前面道路の辺（仕様 15・16）', () => {
 
 describe('注記（仕様 17・18）', () => {
   it('仕様 17: 筆界の注記は、選んだ筆とダミーで言い分ける', () => {
-    expect(lotNoteOf(L_SHAPE)).toBe('筆界は選んだ筆（P1 の公図）')
+    expect(lotNoteOf(L_SHAPE)).toBe('筆界は選んだ筆（敷地で選んだ公図）')
     expect(lotNoteOf(null)).toBe('筆界はダミー（20 m × 30 m）')
   })
 

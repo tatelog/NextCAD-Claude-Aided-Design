@@ -27,8 +27,8 @@ export function panelMenuGroupsOf(
   const rowOf = (t: { id: string; title: string }): MenuRow => ({ id: t.id, title: t.title, shown: !hidden[t.id] && !hiddenByMode.includes(t.id) })
   const isMode = (id: string) => MODE_TILE_IDS.includes(id)
   return [
-    { heading: 'P2（ボリューム）', rows: tiles.filter((t) => t.id.startsWith('p2-')).map(rowOf) },
-    { heading: 'P3（平面）', rows: tiles.filter((t) => !t.id.startsWith('p2-') && !isMode(t.id)).map(rowOf) },
+    { heading: 'ボリューム', rows: tiles.filter((t) => t.id.startsWith('p2-')).map(rowOf) },
+    { heading: '平面', rows: tiles.filter((t) => !t.id.startsWith('p2-') && !isMode(t.id)).map(rowOf) },
     { heading: '共通', rows: tiles.filter((t) => isMode(t.id)).map(rowOf) },
   ]
 }

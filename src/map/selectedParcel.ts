@@ -10,7 +10,7 @@ const geometries = new Map<string, unknown>()
 const properties = new Map<string, ParcelProps>()
 
 /** 含む筆が無いとき（と、筆の情報を覚えていない筆を選んだとき）の、選んだ筆の文 */
-export const NO_PARCEL_TEXT = 'この地点を含む筆は無い（P2 はダミーの筆界）'
+export const NO_PARCEL_TEXT = 'この地点を含む筆は無い（ボリュームはダミーの筆界）'
 
 type Ring = readonly (readonly number[])[]
 

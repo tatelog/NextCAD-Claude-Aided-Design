@@ -112,12 +112,12 @@ export function P5Output() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', height: '100%' }}>
       <div style={{ padding: 16, maxWidth: 720 }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P5 出力</h2>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>出力</h2>
         {outlineReason ? (
-          <p style={{ color: '#a33' }}>{outlineReason}（P2 で外形を閉じてください。IFC と判定はそれまで出しません）</p>
+          <p style={{ color: '#a33' }}>{outlineReason}（ボリュームで外形を閉じてください。IFC と判定はそれまで出しません）</p>
         ) : (
           <p style={{ fontSize: 12, color: '#444' }}>
-            P2 の外形から作る（階数 {storeys}・階高 {height.toLocaleString('ja-JP')} mm・高さ {heightM.toFixed(2)} m・延べ面積 {grossM2.toFixed(1)} ㎡）
+            ボリュームの外形から作る（階数 {storeys}・階高 {height.toLocaleString('ja-JP')} mm・高さ {heightM.toFixed(2)} m・延べ面積 {grossM2.toFixed(1)} ㎡）
           </p>
         )}
 
@@ -139,7 +139,7 @@ export function P5Output() {
                 <input value={wallText} onChange={(e) => setWallText(e.target.value)} style={{ width: 120, marginLeft: 8 }} />
               </label>
               <label style={{ display: 'block', marginBottom: 6 }}>
-                防火地域の区分（P1 の地点を人が選ぶ。自動の接続は未了）
+                防火地域の区分（敷地の地点を人が選ぶ。自動の接続は未了）
                 <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
                   <option value="なし">なし</option>
                   <option value="防火">防火地域</option>
@@ -150,7 +150,7 @@ export function P5Output() {
 
             {ready ? (
               <p style={{ fontSize: 12, color: '#444', margin: '0 0 12px' }}>
-                号区分（大規模の判定。P2 の外形の延べ面積と高さで数える。RC・共同住宅・区域内は仮置き）:{' '}
+                号区分（大規模の判定。ボリュームの外形の延べ面積と高さで数える。RC・共同住宅・区域内は仮置き）:{' '}
                 {(() => {
                   const labels = classLabelsOf({
                     structure: 'RC',

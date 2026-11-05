@@ -16,7 +16,7 @@ export interface FixtureSummaryProps {
   onUnitPriceChange?: (item: FixtureItem, text: string) => void
 }
 
-const HEADING = '什器（P3 で置いたもの）'
+const HEADING = '什器（平面で置いたもの）'
 const UNPRICED = '単価: 未確定'
 const PROVISIONAL_MARK = '未確定（出典なし）'
 

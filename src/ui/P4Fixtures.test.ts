@@ -1,5 +1,5 @@
-// 仕様（ハブ A-03 G69、D-04 P3・P4）: P3 で置いた什器を P4 の数量に結ぶ。P4 に「什器（P3 で置いたもの）」の欄を出す。文言は仮置き。
-// 仕様 1（欄）: P4 に、見出し「什器（P3 で置いたもの）」の欄が出る。什器を置いていなければ、5 品目とも 0 台。
+// 仕様（ハブ A-03 G69、D-04 P3・P4）: P3 で置いた什器を P4 の数量に結ぶ。P4 に「什器（平面で置いたもの）」の欄を出す。文言は仮置き。
+// 仕様 1（欄）: P4 に、見出し「什器（平面で置いたもの）」の欄が出る。什器を置いていなければ、5 品目とも 0 台。
 // 仕様 2（種類ごと）: 店舗の什器を、品目ごとの台数で出す。どの行にも「単価: 未確定」が付く。
 // 仕様 3（区画なし）: 店舗が知っている区画（P3 の区画の候補）に無い区画の什器は、落とさず「区画なし」に数える。区画なしが無ければ、その行は出ない。
 // 仕様 4（工事原価に入れない）: 什器は、単価が決まるまで、工事原価（概算）の合計に入れない。右パネルの金額は、什器の有無で変わらない。注記で明記する。
@@ -68,7 +68,7 @@ const AUTO_WALL = {
   origin: '自動',
 }
 
-const HEADING = '什器（P3 で置いたもの）'
+const HEADING = '什器（平面で置いたもの）'
 const UNPRICED = '単価: 未確定'
 const ZERO_ROWS = `キッチン0 台${UNPRICED}ユニットバス0 台${UNPRICED}洗面0 台${UNPRICED}便器0 台${UNPRICED}収納0 台${UNPRICED}`
 
@@ -83,7 +83,7 @@ beforeEach(() => {
 })
 
 describe('P4 の什器の欄（仕様 1・2）', () => {
-  it('見出し「什器（P3 で置いたもの）」の欄が出る', () => {
+  it('見出し「什器（平面で置いたもの）」の欄が出る', () => {
     expect(textOf(htmlOf())).toContain(HEADING)
   })
 
@@ -157,7 +157,7 @@ describe('P4 の本体（仕様 5）', () => {
     fx.state = { fixtures: [fixture('fixture-1', kitchen, 'L0')], unitIds: ['L0'] }
     const text = textOf(htmlOf())
     expect(text).toContain(HEADING)
-    expect(text).toContain('P4 積算 — 単価と数量')
+    expect(text).toContain('積算 — 単価と数量')
     expect(text).toContain('工事原価（概算）')
     expect(text).toContain('数量の内訳（区分別・自動で拾えたもの）')
   })

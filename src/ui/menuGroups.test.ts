@@ -1,5 +1,5 @@
 // 仕様（ハブ A-03 G43・G73・G74。メニューの「右パネルの項目」を、P2 の機能一覧として、行ごとに SVG のチェックで出す。統括の依頼 t51、2026-11-04）:
-// 仕様 1（グループ）: 見出しは P2（ボリューム）が先、P3（平面）が後。P2 の行は P2 の 5 つ、P3 の行は 6 つ。
+// 仕様 1（グループ）: 見出しは ボリュームが先、平面が後。P2 の行は P2 の 5 つ、P3 の行は 6 つ。
 // 仕様 2（チェック）: 閉じていないタイルの行はチェックが入る（shown）。閉じたタイルの行はチェックが入らない（G73 の × と同じ状態）。
 // 仕様 3（順）: 行の並びは右パネルの一覧の順。
 // 仕様 4（描画）: 行の右側に SVG のチェックを出す。チェックのある行だけ、チェックの印（data-check="on"）を持つ。
@@ -16,7 +16,7 @@ const count = (html: string, pattern: RegExp): number => (html.match(pattern) ??
 describe('右パネルの項目の一覧（仕様 1〜3）', () => {
   it('見出しは P2、P3、共通（モードの項目。G95）の順', () => {
     const groups = panelMenuGroupsOf({})
-    expect(groups.map((g) => g.heading)).toEqual(['P2（ボリューム）', 'P3（平面）', '共通'])
+    expect(groups.map((g) => g.heading)).toEqual(['ボリューム', '平面', '共通'])
   })
 
   it('P2 の行は 5 つ、P3 の行は 6 つ、共通の行は 3 つ（合わせて右パネルの一覧と同じ 14 行。候補の確認は共通。G124）', () => {
@@ -69,8 +69,8 @@ describe('右パネルの項目の描画（仕様 4）', () => {
   it('グループの見出しを出す（P2 → P3 の順）', () => {
     const groups = panelMenuGroupsOf({})
     const html = renderToStaticMarkup(createElement(MenuCheckRows, { groups, onToggle: () => undefined }))
-    expect(html.indexOf('P2（ボリューム）')).toBeGreaterThanOrEqual(0)
-    expect(html.indexOf('P2（ボリューム）')).toBeLessThan(html.indexOf('P3（平面）'))
+    expect(html.indexOf('ボリューム')).toBeGreaterThanOrEqual(0)
+    expect(html.indexOf('ボリューム')).toBeLessThan(html.indexOf('平面'))
   })
 })
 

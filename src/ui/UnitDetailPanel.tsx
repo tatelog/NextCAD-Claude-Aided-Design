@@ -103,7 +103,7 @@ export function UnitDetailPanel({ detail, onClose, storeyCount, ceilingMm, rooms
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button type="button" onClick={onClose}>
-          この住戸を直す（P3 に戻る）
+          この住戸を直す（平面に戻る）
         </button>
         <button
           type="button"

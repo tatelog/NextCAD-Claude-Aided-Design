@@ -180,7 +180,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const takeFromOutline = () => {
     const closure = findClosedOutline(p2Entries(useDrawing.getState().entries).flatMap((e) => e.segments))
     if (!closure.closed) {
-      setOutlineMessage('P2 で外形を閉じてください')
+      setOutlineMessage('ボリュームで外形を閉じてください')
       return
     }
     const dims = outlineDimensions(closure.footprint, DRAW_OPTIONS.axisSnapDeg)
@@ -195,7 +195,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       return
     }
     if (!dims) {
-      setOutlineMessage('P2 の外形は矩形ではないので、幅と奥行きは手で入れてください')
+      setOutlineMessage('ボリュームの外形は矩形ではないので、幅と奥行きは手で入れてください')
       return
     }
     setWidthText(String(dims.widthMm))
@@ -383,7 +383,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         countSources={countSources}
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
-        caption="種類ごとの件数（P3 の自動作成の結果）"
+        caption="種類ごとの件数（平面の自動作成の結果）"
         firstFloorCounts={firstFloorCountsOf(firstFloorNames)}
         objectRows={objectRows}
         folded={menuFold.folded}
@@ -491,7 +491,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </div>
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P3 平面（柱割り・住戸数）</h2>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>
         {Object.keys(hiddenTiles).length > 0 ? (
           <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
             閉じた項目:{' '}
@@ -545,7 +545,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <input value={depthText} onChange={(e) => setDepthText(e.target.value)} style={{ width: '100%' }} />
         </label>
         <button type="button" onClick={takeFromOutline} style={{ marginBottom: 4 }}>
-          P2 の外形から幅・奥行きを取る（矩形のみ）
+          ボリュームの外形から幅・奥行きを取る（矩形のみ）
         </button>
         {outlineMessage ? <p style={{ color: '#a33', fontSize: 12, margin: '0 0 4px' }}>{outlineMessage}</p> : null}
         </PanelTile>
@@ -588,7 +588,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
           <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
           <p style={{ margin: '0 0 6px', fontSize: 12 }}>
-            階数・階高は P2 の値を使う（{storeyCount} 階・階高 {storeyHeightMm} mm）
+            階数・階高はボリュームの値を使う（{storeyCount} 階・階高 {storeyHeightMm} mm）
           </p>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
             EV の基数（全階停止）
@@ -703,7 +703,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         )}
         <section style={{ marginBottom: 10 }}>
           <button type="button" onClick={clickNextP3}>
-            次へ（P4 積算）
+            次へ（積算）
           </button>
           {nextIssues !== null ? (
             <NextCheckPanel

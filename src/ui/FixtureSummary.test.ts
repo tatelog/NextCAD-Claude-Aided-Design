@@ -1,6 +1,6 @@
-// 仕様（ハブ A-03 G69、D-04 P3・P4）: P3 で置いた什器は P4 の数量に結ぶ。P4 に「什器（P3 で置いたもの）」の欄を出す。文言は仮置き。
+// 仕様（ハブ A-03 G69、D-04 P3・P4）: P3 で置いた什器は P4 の数量に結ぶ。P4 に「什器（平面で置いたもの）」の欄を出す。文言は仮置き。
 // props: fixtures（置いた什器）、unitIds（いま P3 にある区画の id。省略できる）。状態は持たない。
-// 仕様 1（欄）: 見出し「什器（P3 で置いたもの）」の欄を出す。
+// 仕様 1（欄）: 見出し「什器（平面で置いたもの）」の欄を出す。
 // 仕様 2（種類ごと）: 5 品目それぞれ 1 行で、名前・件数（台）・「単価: 未確定」を、品目の並び（キッチン・ユニットバス・洗面・便器・収納）で出す。
 //   置いていない品目は 0 台。
 // 仕様 3（区画なし）: 区画なしの件数があれば、最後に「区画なし」の行（件数つき）を足す。無ければ出さない。
@@ -66,10 +66,10 @@ const rowsOf = (tree: ReactNode): string[][] =>
   findAll(findAll(tree, isTag('tbody'))[0], isTag('tr')).map((tr) => findAll(tr, isTag('td')).map(textOf))
 
 const UNPRICED = '単価: 未確定'
-const HEADING = '什器（P3 で置いたもの）'
+const HEADING = '什器（平面で置いたもの）'
 
 describe('FixtureSummary（欄。仕様 1）', () => {
-  it('見出し「什器（P3 で置いたもの）」の欄（section）を出す', () => {
+  it('見出し「什器（平面で置いたもの）」の欄（section）を出す', () => {
     const tree = render()
     expect(tree.type).toBe('section')
     expect(tree.props).toMatchObject({ 'aria-label': HEADING })

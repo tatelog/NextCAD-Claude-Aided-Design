@@ -1,6 +1,6 @@
 // 仕様: P4 の左にも左メニューを出す（ハブ A-03 G55、D-04 共通部品「左メニュー」。P2 の 2D 平面、P3、P4 に出す）。文言は仮置き。
 // 代表の決定（G55）: 「図面のとき左メニューは必須。オブジェクトが何で、どんな内容が入っているかを可視化する。」
-// 仕様 1（共通部品）: P4 の左に、P3 と同じ左メニュー（見出し「オブジェクト」、説明文「種類ごとの件数（P3 の自動作成の結果）」）を出す。
+// 仕様 1（共通部品）: P4 の左に、P3 と同じ左メニュー（見出し「オブジェクト」、説明文「種類ごとの件数（平面の自動作成の結果）」）を出す。
 //   左の列の幅は帯の幅（OBJECT_MENU_WIDTH = 180）で、その右に今までの本体と右パネル（360）が並ぶ。
 // 仕様 2（P3 の自動作成の前）: store の plan が無いとき、件数は全部 0 で、「自動作成の後に出ます」と注記する。
 // 仕様 3（P3 の自動作成の後）: plan があるとき、P3 の自動作成の結果から、P3 と同じ件数を出す（objectSourcesOfPlan）。注記は出さない。
@@ -48,7 +48,7 @@ const PLAN = generateAutoPlan({
 })
 
 const NOTICE = '自動作成の後に出ます'
-const CAPTION = '種類ごとの件数（P3 の自動作成の結果）'
+const CAPTION = '種類ごとの件数（平面の自動作成の結果）'
 // 一覧の行の文字（名前 + 件数 + 注記）を、並びどおりにつないだもの
 const ROWS_NO_PLAN =
   '筆界0外形0通り芯0柱0（意味づけ未配線）コア0縦シャフト0廊下0什器0住戸0壁0（意味づけ未配線）開口0（意味づけ未配線）部屋0'
@@ -75,7 +75,7 @@ beforeEach(() => {
 })
 
 describe('P4 の左メニュー（共通部品。仕様 1）', () => {
-  it('左に、見出し「オブジェクト」と説明文「種類ごとの件数（P3 の自動作成の結果）」が出る', () => {
+  it('左に、見出し「オブジェクト」と説明文「種類ごとの件数（平面の自動作成の結果）」が出る', () => {
     const text = textOf(htmlOf())
     expect(text).toContain(`オブジェクト${CAPTION}`)
   })
@@ -89,7 +89,7 @@ describe('P4 の左メニュー（共通部品。仕様 1）', () => {
     // 「オブジェクト」だけでは、本体の既存の文言（「対応するオブジェクトを作ってから」）にも当たるので、見出しと説明文で探す
     const menu = text.indexOf(`オブジェクト${CAPTION}`)
     expect(menu).toBeGreaterThanOrEqual(0)
-    expect(menu).toBeLessThan(text.indexOf('P4 積算'))
+    expect(menu).toBeLessThan(text.indexOf('積算 — 単価と数量'))
   })
 
   it('種類を選んでいないので、中身の欄は出ない', () => {
@@ -152,7 +152,7 @@ describe('P4 の本体（仕様 4）', () => {
     for (const plan of [null, PLAN]) {
       site.state = { volume: null, plan }
       const text = textOf(htmlOf())
-      expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('P4 積算 — 単価と数量')
+      expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('積算 — 単価と数量')
       expect(text, `plan=${plan === null ? 'なし' : 'あり'}`).toContain('工事原価（概算）')
     }
   })
