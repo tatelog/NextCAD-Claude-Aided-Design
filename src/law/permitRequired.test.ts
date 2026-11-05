@@ -42,9 +42,7 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
         '構造詳細図',
         '使用構造材料一覧表',
         '施工方法等計画書',
-        '令第73条・第77条・第77条の2・第79条の確認に必要な図書',
         '建築設備の図書',
-        '建築設備の概要書（別記第八号様式）',
         '界壁に関する図書（法30条・表二(十二)）',
       ]),
     )
@@ -117,10 +115,9 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
   it('適用条件が未確認の図書は要不要を決めず、要確認として分けて返す', () => {
     const { required, needsCheck } = requiredPermitDocuments(plateRc)
     const unresolved = [
-      '防火区画の図書（法26条・表二(七)）',
-      '住宅用防災機器の図書（消防法9条の2・表二(六十五)）',
-      '道路・隣地・北側の高さ制限に関する図書（表二(二十八)）',
-      '表五の計算書（未精査）',
+      '令第73条・第77条・第77条の2・第79条の確認に必要な図書',
+      '表五の計算書（特例・検証法を使う場合）',
+      '消防法9条の市町村条例に関する図書（表二(六十四)）',
       '表二のその他の行（未精査）',
     ]
     for (const name of unresolved) {
@@ -151,7 +148,6 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
 
 describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
   const NON_ELEVATOR = '非常用の昇降機の図書（法34条2項、高さ31m超）'
-  const HIGH_FIRE = '消防用設備等の図書（高層建築物・消防法令）'
   const OUTLET = '非常コンセント設備の図（消防法施行令29条の2、地階を除く階数11以上）'
 
   it('高さ31mを超えると、非常用の昇降機の図書と構造計算書が要る', () => {
@@ -174,17 +170,6 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
     const { required, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 31 })
     expect(required).not.toContain(NON_ELEVATOR)
     expect(notRequired.map((n) => n.name)).toContain(NON_ELEVATOR)
-  })
-
-  it('高さ31mを超えると、消防用設備等の図書が要る（消防法8条の2 の高層建築物）', () => {
-    const { required } = requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 })
-    expect(required).toContain(HIGH_FIRE)
-  })
-
-  it('高さ31m以下なら、高層建築物の消防用設備等の図書は要らない', () => {
-    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, heightM: 14 })
-    expect(required).not.toContain(HIGH_FIRE)
-    expect(notRequired.map((n) => n.name)).toContain(HIGH_FIRE)
   })
 
   it('地上11階以上では、非常コンセント設備の図が要る（消防法施行令29条の2）', () => {
@@ -230,5 +215,140 @@ describe('高さ31m（法34条2項・令81条・消防法8条の2）', () => {
   it('日影規制区域内で高さ31mなら、日影図が要る（高さ10m以下の理由は当たらない）', () => {
     const { required } = requiredPermitDocuments({ ...plateRc, inShadowRegulationArea: true, heightM: 31 })
     expect(required).toContain('日影図')
+  })
+})
+
+// 仕様（2026-11-05 取得の原文）: 施行規則 表一・表二・表五、施行令10条・29条・29条の2、法20条・26条・56条。
+// 原文で決まる条件は要る・要らないで返す。特例や条例など入力がないものは要確認にして、要るとは決めない。
+describe('原文（施行規則・施行令・法）で確かめた条件', () => {
+  const SPECIAL_RC = '令第73条・第77条・第77条の2・第79条の確認に必要な図書'
+  const TABLE5 = '表五の計算書（特例・検証法を使う場合）'
+  const FIREWALL = '防火壁・防火床の図書（法26条・表二(七)）'
+  const HEIGHT_LIMIT = '道路・隣地・北側の高さ制限に関する図書（表二(二十八)）'
+  const FIRE_CODE = '消防用設備等の図書（消防法17条・表二(六十七)）'
+  const BYLAW = '消防法9条の市町村条例に関する図書（表二(六十四)）'
+
+  it('表二(一)RC の令73条等の確認図書は、特例を使うか未入力のときは要確認になり、要るとは決めない', () => {
+    const { required, needsCheck } = requiredPermitDocuments(plateRc)
+    expect(required).not.toContain(SPECIAL_RC)
+    expect(needsCheck.map((n) => n.name)).toContain(SPECIAL_RC)
+  })
+
+  it('RC造以外では、令73条等の確認図書は要らない（RC造に限る）', () => {
+    const wood = requiredPermitDocuments({ ...plateRc, structure: 'W', storeys: 2, heightM: 8, totalFloorAreaM2: 150 })
+    expect(wood.notRequired.map((n) => n.name)).toContain(SPECIAL_RC)
+  })
+
+  it('表五の計算書は、特例や検証法を使うか未入力のとき要確認になる', () => {
+    const { required, needsCheck } = requiredPermitDocuments(plateRc)
+    expect(required).not.toContain(TABLE5)
+    expect(needsCheck.map((n) => n.name)).toContain(TABLE5)
+  })
+
+  it('防火壁・防火床（法26条）は、延べ面積1000㎡以下なら要らない', () => {
+    const { required, notRequired } = requiredPermitDocuments(plateRc)
+    expect(required).not.toContain(FIREWALL)
+    expect(notRequired.find((n) => n.name === FIREWALL)?.reason).toContain('1000㎡以下')
+  })
+
+  it('防火壁・防火床（法26条）は、延べ面積が1000㎡を超えると、耐火建築物か未入力のとき要確認になる', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, totalFloorAreaM2: 1_200 })
+    expect(required).not.toContain(FIREWALL)
+    expect(needsCheck.map((n) => n.name)).toContain(FIREWALL)
+  })
+
+  it('道路・隣地・北側の高さ制限の図書（表二(二十八)）は、法56条が建築物に適用されるので要る', () => {
+    expect(requiredPermitDocuments(plateRc).required).toContain(HEIGHT_LIMIT)
+  })
+
+  it('消防用設備等の図書は、共同住宅で延べ面積150㎡以上なら要る（施行令10条1項2号イ、別表第一（五）項）', () => {
+    expect(requiredPermitDocuments(plateRc).required).toContain(FIRE_CODE)
+    const exactly = requiredPermitDocuments({ ...plateRc, storeys: 2, totalFloorAreaM2: 150 })
+    expect(exactly.required).toContain(FIRE_CODE)
+  })
+
+  it('共同住宅で延べ面積150㎡未満かつ2階以下なら、消防用設備等の図書は要らない', () => {
+    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, storeys: 2, totalFloorAreaM2: 120 })
+    expect(required).not.toContain(FIRE_CODE)
+    expect(notRequired.map((n) => n.name)).toContain(FIRE_CODE)
+  })
+
+  it('共同住宅で延べ面積150㎡未満・3階以上は、3階以上の階の床面積が入力にないため要確認になる（施行令10条1項5号）', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, storeys: 3, totalFloorAreaM2: 120 })
+    expect(required).not.toContain(FIRE_CODE)
+    expect(needsCheck.map((n) => n.name)).toContain(FIRE_CODE)
+  })
+
+  it('消防用設備等の図書は高さでは決まらない（31m以下でも、31m超でも、共同住宅で延べ面積150㎡以上なら要る）', () => {
+    expect(requiredPermitDocuments({ ...plateRc, heightM: 14 }).required).toContain(FIRE_CODE)
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 10, heightM: 32 }).required).toContain(FIRE_CODE)
+  })
+
+  it('共同住宅以外の用途では、この消防用設備の図書は要らない（別表第一（五）項ロに当たらない）', () => {
+    const { required, notRequired } = requiredPermitDocuments({ ...plateRc, usage: '事務所' })
+    expect(required).not.toContain(FIRE_CODE)
+    expect(notRequired.map((n) => n.name)).toContain(FIRE_CODE)
+  })
+
+  it('消防法9条の市町村条例に関する図書（表二(六十四)）は、区の条例を確かめるまで要確認になる', () => {
+    const { required, needsCheck } = requiredPermitDocuments(plateRc)
+    expect(required).not.toContain(BYLAW)
+    expect(needsCheck.map((n) => n.name)).toContain(BYLAW)
+  })
+
+  const SHEET = '建築設備の概要書（別記第八号様式）'
+  const CERT = '認定書の写し（表四）'
+
+  it('建築設備があるだけでは概要書は要らず、昇降機か特定行政庁の指定設備の有無が決まるまで要確認になる（第4項ロ・令146条1項）', () => {
+    const { required, needsCheck } = requiredPermitDocuments(plateRc)
+    expect(required).not.toContain(SHEET)
+    expect(needsCheck.map((n) => n.name)).toContain(SHEET)
+  })
+
+  const HOUSING_FIRE = '住宅用防災機器の図書（消防法9条の2・表二(六十五)）'
+
+  it('住宅用防災機器の図書は、共同住宅なら要る（消防法9条の2の「住宅」に共同住宅の住戸を含む）', () => {
+    expect(requiredPermitDocuments(plateRc).required).toContain(HOUSING_FIRE)
+  })
+
+  it('戸建住宅など共同住宅以外の住宅用途は、住宅用防災機器の図書を要るとは決めず要確認にする', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, usage: '戸建住宅', storeys: 2, totalFloorAreaM2: 150 })
+    expect(required).not.toContain(HOUSING_FIRE)
+    expect(needsCheck.map((n) => n.name)).toContain(HOUSING_FIRE)
+  })
+
+  it('建築設備の概要書は、6条1項1・2号の建築物に昇降機があれば、建築設備を含まなくても要る（第4項ロ・法87条の4）', () => {
+    const { required } = requiredPermitDocuments({ ...plateRc, hasBuildingEquipment: false, hasElevator: true })
+    expect(required).toContain(SHEET)
+  })
+
+  it('平屋で延べ面積200㎡以下の建築物は、建築設備があっても概要書は要らない（6条1項3号は第4項ロに当たらない）', () => {
+    const { required, notRequired } = requiredPermitDocuments({
+      ...plateRc,
+      usage: '戸建住宅',
+      storeys: 1,
+      totalFloorAreaM2: 150,
+      hasBuildingEquipment: true,
+    })
+    expect(required).not.toContain(SHEET)
+    expect(notRequired.map((n) => n.name)).toContain(SHEET)
+  })
+
+  it('高さ31mを超えても、概要書の要否は高さでは決まらない。昇降機がなければ要確認になる（規則に31mの条件はない）', () => {
+    const { required, needsCheck } = requiredPermitDocuments({
+      ...plateRc,
+      storeys: 10,
+      heightM: 32,
+      hasBuildingEquipment: false,
+      hasElevator: false,
+    })
+    expect(required).not.toContain(SHEET)
+    expect(needsCheck.map((n) => n.name)).toContain(SHEET)
+  })
+
+  it('認定書の写し（表四）は、認定部材を用いても、建築主事が求めるかは未入力なので要確認になり、要るとは決めない', () => {
+    const { required, needsCheck } = requiredPermitDocuments({ ...plateRc, usesCertifiedParts: true })
+    expect(required).not.toContain(CERT)
+    expect(needsCheck.map((n) => n.name)).toContain(CERT)
   })
 })
