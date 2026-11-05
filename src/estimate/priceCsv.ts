@@ -87,3 +87,25 @@ export function parsePriceCsv(text: string): PriceRow[] {
     return parsed.data
   })
 }
+
+/** 単価表の行を CSV の文字にする（parsePriceCsv の逆。列の並びは REQUIRED）。値に , や引用符・改行があれば引用符で囲む */
+export function serializePriceCsv(rows: readonly PriceRow[]): string {
+  const cell = (v: string): string => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+  const lines = rows.map((r) =>
+    [
+      r.id,
+      r.kind,
+      r.category,
+      r.item,
+      r.unit,
+      String(r.unit_price),
+      r.factor === undefined ? '' : String(r.factor),
+      r.source_ref,
+      r.provisional ? 'true' : 'false',
+      r.version,
+    ]
+      .map(cell)
+      .join(','),
+  )
+  return [REQUIRED.join(','), ...lines].join('\n')
+}

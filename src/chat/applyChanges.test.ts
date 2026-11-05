@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
 import { applyChangeBatch, describeChange, restoreSnapshot, snapshotOfState } from './applyChanges'
+import { PRICE_CSV_SAMPLE } from '../store/priceTable'
 
 // 図面は線の id（s1）だけを持つ最小の形（種類の変更の確かめに使う）
 const drawingWithS1 = [{ id: 'e1', segments: [{ id: 's1' }] }] as unknown as ReturnType<typeof useDrawing.getState>['entries']
@@ -41,7 +42,8 @@ describe('戻す（仕様 2）', () => {
 
   it('snapshotOfState は、いまの図面の状態をそのまま返す', () => {
     // 仕様の変更（t55・G143）: 図面の状態に、線（entries）も含める（一指示＝一 Undo で線も戻すため）
-    expect(snapshotOfState()).toEqual({ storeyCount: 3, storeyHeightMm: 3000, assignments: {}, entries: drawingWithS1 })
+    // 仕様の変更（t55・G143）: 単価表（CSV）も含める（積算の操作も一指示＝一 Undo で戻すため）
+    expect(snapshotOfState()).toEqual({ storeyCount: 3, storeyHeightMm: 3000, assignments: {}, entries: drawingWithS1, csv: PRICE_CSV_SAMPLE })
   })
 })
 

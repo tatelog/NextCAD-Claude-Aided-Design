@@ -8,6 +8,9 @@ export const ChangeSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setStoreyCount'), count: z.number().int().min(1).max(30) }),
   z.object({ op: z.literal('setStoreyHeight'), mm: z.number().int().min(1) }),
   z.object({ op: z.literal('setKind'), segmentId: z.string().min(1), kind: z.enum(KINDS) }),
+  // 単価・歩掛を変える（G140。変えた値には provisional の印を残す。分岐は store/priceTable.ts の一か所）
+  z.object({ op: z.literal('setUnitPrice'), id: z.string().min(1), unit_price: z.number().int().min(0).max(1_000_000_000) }),
+  z.object({ op: z.literal('setFactor'), id: z.string().min(1), factor: z.number().positive().max(1000) }),
   // 数値の線を一本足す（G140。始点・長さ・角度で決まる。Worker の配備を待たずに作れる操作）
   z.object({
     op: z.literal('addLine'),
