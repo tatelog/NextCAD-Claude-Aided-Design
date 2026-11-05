@@ -7,10 +7,13 @@ export interface SelectionState {
   segmentIds: string[]
   setSegmentIds: (ids: readonly string[]) => void
   clearSelection: () => void
+  /** タップで選ぶ・外す。選んでいなければ末尾に入り、選んでいれば外れる（G159） */
+  toggleSegment: (id: string) => void
 }
 
 export const useSelection = create<SelectionState>((set) => ({
   segmentIds: [],
   setSegmentIds: (ids) => set({ segmentIds: [...new Set(ids)] }),
   clearSelection: () => set({ segmentIds: [] }),
+  toggleSegment: (id) => set((s) => ({ segmentIds: s.segmentIds.includes(id) ? s.segmentIds.filter((x) => x !== id) : [...s.segmentIds, id] })),
 }))
