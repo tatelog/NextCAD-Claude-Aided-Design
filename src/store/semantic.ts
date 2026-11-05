@@ -6,7 +6,7 @@
 import { create } from 'zustand'
 import type { Kind } from '../plan/semantic'
 import type { Assignment } from '../plan/semanticConfirm'
-import { reviewStatusOf } from '../plan/reviewThreshold'
+import { confidenceBandOf } from '../plan/confidenceBand'
 
 export interface SemanticState {
   /** 線の id → 意味づけ。種類を持つ線だけが入る */
@@ -48,9 +48,12 @@ export const useSemantic = create<SemanticState>((set) => ({
     }),
   suggest: (segmentId, kind, confidence) =>
     set((s) => {
+      // 0.5 未満と数でない値は、種類を入れずに人が選ぶ（D-02 の閾値の行・G82）
+      const band = confidenceBandOf(confidence)
+      if (band === 'human') return s
       const current = s.assignments[segmentId]
       if (current !== undefined && current.by === 'human') return s
-      return { assignments: { ...s.assignments, [segmentId]: { kind, status: reviewStatusOf(confidence), by: 'claude' } } }
+      return { assignments: { ...s.assignments, [segmentId]: { kind, status: band === 'confirmed' ? 'confirmed' : 'needs_review', by: 'claude' } } }
     }),
   clear: () => set({ assignments: {} }),
 }))

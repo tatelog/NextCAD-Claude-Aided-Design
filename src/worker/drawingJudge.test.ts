@@ -6,7 +6,9 @@
 // 仕様 5（種類）: 種類は 7 種（KINDS）に限る。列挙外が返ったら保留（G113）。
 // 仕様 6（対応づけ）: 押さえている間に送った候補は、離したあとの線（同じ数）に順番で対応づける。数が違うときは対応づけない。
 import { describe, expect, it, beforeEach } from 'vitest'
-import { drawingBandOf, suggestDrawnSegment, DRAWING_CONFIRM_MIN, DRAWING_REVIEW_MIN } from './drawingBand'
+import { suggestDrawnSegment } from './drawingBand'
+// 帯は W1 と同じ一つの関数（t69 の直し。決定 G82）
+import { confidenceBandOf as drawingBandOf, CONFIRM_MIN as DRAWING_CONFIRM_MIN, REVIEW_MIN as DRAWING_REVIEW_MIN } from '../plan/confidenceBand'
 import { HOLD_JUDGE_MS, holdJudgeDecision, rekeyBySegmentOrder } from './drawingHold'
 import { judgeSegments, type JudgeOutcome } from './judge'
 import { useSemantic } from '../store/semantic'

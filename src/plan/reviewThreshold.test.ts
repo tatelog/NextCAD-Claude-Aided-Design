@@ -1,7 +1,8 @@
-// 仕様（ハブ A-03 G10・G14、D-04 「要確認の印」）: Claude の提案の確信度が低い線には「要確認」の印を付ける。閾値は仮置き（G10 で測ってから決める）。
-// 仕様 1: 確信度が閾値（0.85・仮置き。ハブ G10 の二段閾値の上段）以上なら、提案は確定（confirmed）として入る。閾値より低ければ要確認（needs_review）。
-// 仕様 2: 閾値ちょうどは確定。数でない・0 から 1 の外は、安全側に要確認にする。
-// 仕様 3: 店舗に入れた提案は、この判定に従う（誰が＝Claude）。人が確定した線は上書きしない。
+// 仕様（ハブ A-03 G10・G14・G82、D-04 「要確認の印」。決定に合わせる直し 2026-11-05）: Claude の提案の確信度で、確定・要確認・人が選ぶ、を分ける。閾値は仮置き（G10）。
+// 仕様 1: 確信度が 0.85 以上なら確定（印なし）。0.5 以上 0.85 未満は要確認（needs_review）。
+// 仕様 2: 閾値ちょうどは上の帯。数でない値は人が選ぶ（null）。0 から 1 の外は、安全側に要確認。
+// 仕様 3: 0.5 未満の提案は、種類を入れずに人が選ぶ（店舗に入らない）。確定と要確認は、誰が＝Claude で入る。人が確定した線は上書きしない。
+// 注: 旧の仕様（0.5 未満も要確認として入る）は決定と違っていたため、期待値を直した（G10 の行・G82）。
 import { beforeEach, describe, expect, it } from 'vitest'
 import { REVIEW_THRESHOLD, reviewStatusOf } from './reviewThreshold'
 import { useSemantic } from '../store/semantic'
@@ -18,8 +19,8 @@ describe('提案の確認状態（仕様 1・2）', () => {
     expect(reviewStatusOf(0.5)).toBe('needs_review')
   })
 
-  it('数でない・範囲の外は、安全側に要確認', () => {
-    expect(reviewStatusOf(Number.NaN)).toBe('needs_review')
+  it('数でない値は人が選ぶ（null）。0〜1 の外は、安全側に要確認', () => {
+    expect(reviewStatusOf(Number.NaN)).toBeNull()
     expect(reviewStatusOf(1.5)).toBe('needs_review')
     expect(reviewStatusOf(-0.1)).toBe('needs_review')
   })
@@ -30,11 +31,11 @@ describe('店舗に入る提案（仕様 3）', () => {
     useSemantic.getState().clear()
   })
 
-  it('確信度が高い提案は確定、低い提案は要確認。どちらも誰が＝Claude', () => {
+  it('確信度が高い提案は確定、0.5 未満の提案は店舗に入らない（人が選ぶ）', () => {
     useSemantic.getState().suggest('hi', 'wall', 0.95)
     useSemantic.getState().suggest('lo', 'wall', 0.4)
     const a = useSemantic.getState().assignments
     expect(a.hi).toEqual({ kind: 'wall', status: 'confirmed', by: 'claude' })
-    expect(a.lo).toEqual({ kind: 'wall', status: 'needs_review', by: 'claude' })
+    expect(a.lo).toBeUndefined()
   })
 })
