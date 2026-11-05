@@ -61,3 +61,11 @@ export function sceneFrameOf(polygonsMm: readonly (readonly Point[])[], fovDeg: 
     position: [cx + ox!, oy!, cz + oz!],
   }
 }
+
+/** 範囲に合わせるカメラの近い平面と遠い平面（m）。範囲の点は、この間に必ず入る（既定の遠い平面 1000 m では、範囲が切れて空に見えた。統括の依頼 2026-11-06） */
+export function clipPlanesOf(frame: SceneFrame): { near: number; far: number } {
+  return {
+    near: Math.max(0.01, (frame.distanceM - frame.radiusM) * 0.5),
+    far: (frame.distanceM + frame.radiusM) * 2,
+  }
+}
