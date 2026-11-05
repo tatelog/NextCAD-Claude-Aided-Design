@@ -49,9 +49,9 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
     )
   })
 
-  it('委任状・誓約書・構造計算書・認定書の写しは、条件がなければ要らない', () => {
+  it('委任状・誓約書・認定書の写しは、条件がなければ要らない', () => {
     const { required, notRequired } = requiredPermitDocuments(plateRc)
-    for (const name of ['委任状', '誓約書（建築物等情報モデル図書申請）', '構造計算書（表三）', '認定書の写し（表四）']) {
+    for (const name of ['委任状', '誓約書（建築物等情報モデル図書申請）', '認定書の写し（表四）']) {
       expect(required).not.toContain(name)
       expect(notRequired.map((n) => n.name)).toContain(name)
     }
@@ -62,11 +62,38 @@ describe('要る図書の判定（施行規則 第1条の3・表一・表二(一
     expect(required).toContain('構造計算書（表三）')
   })
 
-  it('高さ20mちょうどのRC造は、構造計算を選ばなければ構造計算書は要らない', () => {
-    const plain = requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20 })
+  // 仕様（建築基準法 第20条第1項、e-Gov の現行本文 2026-11-06 取得）: 3号は、6条1項1号・2号の建築物（2階以上か延べ面積200㎡超）で、
+  // イ（許容応力度計算などの構造計算）かロ（1号・2号の基準）に適合すること。仕様規定だけで済むのは4号（それ以外の建築物）に限る。
+  it('RC造で2階以上なら、高さ20m以下でも構造計算書が要る（法20条1項3号）', () => {
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20 }).required).toContain('構造計算書（表三）')
+    expect(requiredPermitDocuments(plateRc).required).toContain('構造計算書（表三）')
+  })
+
+  it('平屋で延べ面積200㎡以下（法20条1項4号）は、構造計算を行わなければ構造計算書は要らない見込み。要らないとは決めず要確認に残す', () => {
+    const plain = requiredPermitDocuments({ ...plateRc, storeys: 1, heightM: 4, totalFloorAreaM2: 150 })
     expect(plain.required).not.toContain('構造計算書（表三）')
-    const calc = requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20, structuralCalc: true })
+    expect(plain.notRequired.map((n) => n.name)).not.toContain('構造計算書（表三）')
+    expect(plain.needsCheck.find((n) => n.name === '構造計算書（表三）')?.reason).toContain('平屋')
+    const calc = requiredPermitDocuments({ ...plateRc, storeys: 1, heightM: 4, totalFloorAreaM2: 150, structuralCalc: true })
     expect(calc.required).toEqual(expect.arrayContaining(['構造計算書（表三）', '建築士法第20条第2項の証明書の写し']))
+  })
+
+  // 仕様（施行規則 第1条の3 第1項第四号、建築士法 第3条第1項・第20条の2。e-Gov の現行本文 2026-11-06 取得）:
+  // 建築士が構造計算で安全性を確かめた場合は、建築士法20条2項の証明書の写しが要る。ただし建築士法20条の2の適用がある場合
+  // （3条1項の建築物のうち法20条1項1号・2号のもの。RC造なら高さ20m超）は除く。
+  it('RC造で2階以上・高さ20m以下は、建築士法20条2項の証明書の写しが要る', () => {
+    expect(requiredPermitDocuments({ ...plateRc, storeys: 5, heightM: 20 }).required).toContain('建築士法第20条第2項の証明書の写し')
+    expect(requiredPermitDocuments(plateRc).required).toContain('建築士法第20条第2項の証明書の写し')
+  })
+
+  it('RC造で高さ20m超は、建築士法20条の2の適用で証明書の写しが除かれる。要らないとは決めず要確認に理由つきで残す', () => {
+    const j = requiredPermitDocuments({ ...plateRc, storeys: 7, heightM: 21 })
+    expect(j.required).not.toContain('建築士法第20条第2項の証明書の写し')
+    expect(j.notRequired.map((n) => n.name)).not.toContain('建築士法第20条第2項の証明書の写し')
+    const reason = j.needsCheck.find((n) => n.name === '建築士法第20条第2項の証明書の写し')?.reason ?? ''
+    expect(reason).toContain('20条の2')
+    // 「いずれか」が満たされている（2階以上）ときは、その中で外れた語（構造計算を行わない）は出さない。当たらなかった条件の語だけを並べる
+    expect(reason).not.toContain('構造計算を行わない')
   })
 
   it('日影規制区域内で高さ10mを超えると日影図が要る。10m以下や区域外は要らない', () => {
@@ -448,6 +475,21 @@ describe('階数・面積・区域で変わる5件は、要らないと決めず
     for (const input of inputs) {
       const { notRequired } = requiredPermitDocuments({ ...plateRc, ...input })
       for (const name of also) expect(notRequired.map((n) => n.name)).not.toContain(name)
+    }
+  })
+
+  it('構造計算書と証明書の写しも、どの入力でも「要らない」に入らない（階数・面積・高さで変わる）', () => {
+    const calcDocs = ['構造計算書（表三）', '建築士法第20条第2項の証明書の写し']
+    const inputs: Partial<PermitInput>[] = [
+      {},
+      { storeys: 1, heightM: 4, totalFloorAreaM2: 150 },
+      { storeys: 7, heightM: 21 },
+      { storeys: 20, heightM: 61 },
+      { storeys: 1, heightM: 4, totalFloorAreaM2: 150, structuralCalc: true },
+    ]
+    for (const input of inputs) {
+      const { notRequired } = requiredPermitDocuments({ ...plateRc, ...input })
+      for (const name of calcDocs) expect(notRequired.map((n) => n.name)).not.toContain(name)
     }
   })
 
