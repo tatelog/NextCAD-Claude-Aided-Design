@@ -2,6 +2,7 @@
 // 周辺建物（PLATEAU）の生データは含めない（外部データを同梱しない。実行時に取り直す）。
 // 什器（G69。仮置き）: P3 で置いた什器の一覧を fixtures として含める。什器が無いときは項目ごと付けない（今までと同じ形）。読み込みはまだ無い。
 import type { Fixture } from '../plan/fixtures'
+import type { ConfirmedSite } from '../store/confirmedSite'
 
 export interface SaveInput {
   projectName: string
@@ -15,6 +16,8 @@ export interface SaveInput {
   unitPriceTexts?: Readonly<Record<string, string>>
   /** 区画に付けた 1F の名前（区画の id → 名前）。無ければ項目ごと付けない（G75） */
   firstFloorNames?: Readonly<Record<string, string>>
+  /** 確定した敷地（P1 の「この敷地で確定」）。無ければ項目ごと付けない（統括の依頼 2026-11-06。8） */
+  confirmedSite?: ConfirmedSite | null
 }
 
 export interface SaveData {
@@ -29,6 +32,8 @@ export interface SaveData {
   unitPriceTexts?: Record<string, string>
   /** 区画に付けた 1F の名前（区画の id → 名前） */
   firstFloorNames?: Record<string, string>
+  /** 確定した敷地（筆・枠・中心・前面道路の辺）。周辺建物と用途地域は入れない（読み込みのあと取り直す） */
+  confirmedSite?: ConfirmedSite
 }
 
 export function buildSaveData(input: SaveInput): SaveData {
@@ -45,5 +50,6 @@ export function buildSaveData(input: SaveInput): SaveData {
     ...(fixtures.length > 0 ? { fixtures } : {}),
     ...(Object.keys(unitPriceTexts).length > 0 ? { unitPriceTexts } : {}),
     ...(input.firstFloorNames && Object.keys(input.firstFloorNames).length > 0 ? { firstFloorNames: { ...input.firstFloorNames } } : {}),
+    ...(input.confirmedSite ? { confirmedSite: input.confirmedSite } : {}),
   }
 }

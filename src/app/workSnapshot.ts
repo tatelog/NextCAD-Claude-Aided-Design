@@ -4,6 +4,7 @@ import { applyLoadedProject, parseSaveData } from './loadData'
 import type { Fixture } from '../plan/fixtures'
 import { useFixtures } from '../store/fixtures'
 import { useFirstFloor } from '../store/firstFloor'
+import { useConfirmedSite } from '../store/confirmedSite'
 
 export interface SnapshotState {
   entries: readonly unknown[]
@@ -63,6 +64,8 @@ export function restoreSnapshotJson(json: string, projectName: string): void {
     ...p,
     unitPriceTexts: useFixtures.getState().unitPriceTexts,
     firstFloorNames: useFirstFloor.getState().names,
+    // 作業履歴には確定した敷地を入れていないので、戻しても今の確定を残す
+    confirmedSite: useConfirmedSite.getState().confirmed,
     revision: 0,
     projectName,
     savedAt: new Date(),
