@@ -1,7 +1,7 @@
 // 確認申請の一式の中身（統括の依頼 2026-11-06。1-b）。フォルダ名とファイル名はここ（PACKAGE_LAYOUT）の一か所だけ。分け方は設計グリルで確認中。
 import type { PermitJudgement } from '../law/permitRequired'
 import { applicabilityTextOf } from '../permit/p5Judgement'
-import { DRAWING_KEY_OF_NAME, viewerRowsOf, type ViewerGroup } from '../permit/permitViewer'
+import { DRAWING_KEY_OF_NAME, DRAWING_MISSING_DEFAULT, viewerRowsOf, type ViewerGroup } from '../permit/permitViewer'
 
 export const PACKAGE_LAYOUT = {
   /** 直下: 表紙の役（判定の一覧） */
@@ -16,8 +16,8 @@ export const PACKAGE_LAYOUT = {
 export interface PackageInput {
   judgement: PermitJudgement
   docs: readonly { name: string; kind: string }[]
-  /** 配置図と各階平面図の SVG（図枠つき）。作れないものは null */
-  drawings: { site: string | null; floorPlan: string | null }
+  /** 配置図と各階平面図の SVG（図枠つき）。作れないものは null。作れないときの理由（無ければ既定の文）を添える */
+  drawings: { site: string | null; floorPlan: string | null; reasons?: { site: string; floorPlan: string } }
   /** IFC の文字。外形が閉じていなければ null */
   ifcText: string | null
   /** IFC のファイル名（例: model-ifc4.ifc） */
@@ -52,8 +52,9 @@ export function judgementTextOf(j: PermitJudgement, docs: PackageInput['docs']):
 /** 空欄の一覧.txt の中身。配置図と各階平面図が無ければ理由を出す。要る・要確認の書類は中身の種類つき。IFC が無ければその旨 */
 export function blankListTextOf(j: PermitJudgement, docs: PackageInput['docs'], ifcText: string | null, drawings: PackageInput['drawings']): string {
   const lines: string[] = []
-  if (drawings.site === null) lines.push('配置図：敷地を確定すると出せます')
-  if (drawings.floorPlan === null) lines.push('各階平面図：平面を作ると出せます')
+  const reasons = drawings.reasons ?? DRAWING_MISSING_DEFAULT
+  if (drawings.site === null) lines.push(`配置図：${reasons.site}`)
+  if (drawings.floorPlan === null) lines.push(`各階平面図：${reasons.floorPlan}`)
   for (const r of viewerRowsOf(j, docs)) {
     if (r.group === '要らない' || DRAWING_KEY_OF_NAME[r.name] !== undefined) continue
     lines.push(`${r.name}：${r.content}`)

@@ -14,6 +14,8 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> 
   'F2-3-13.階数（地上）': { field: 'F2-3-13', sub: '【ﾛ.階数】', bracket: 0 },
   'F2-4-08': { field: 'F2-4-08', sub: '【ｲ.地階を除く階数】', bracket: 0 },
   'F2-4-09.最高の高さ': { field: 'F2-4-09', sub: '【ｲ.最高の高さ】', bracket: 0 },
+  // 床面積の合計は、細目「ﾛ.合計」の段落の 3 つ目の括弧（(申請部分)(申請以外の部分)(合計) の順）
+  'F2-4-12': { field: 'F2-4-12', sub: '【ﾛ.合計】', bracket: 2 },
   'F2-6-01': { field: 'F2-6-01' },
   'F2-6-02': { field: 'F2-6-02' },
   'F2-6-03.最高の高さ': { field: 'F2-6-03', sub: '【ｲ.最高の高さ】' },
@@ -86,9 +88,13 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `細目の見出しが無い（${sub.heading}）` })
         continue
       }
-      const item = placeOf(sub.place ?? '', sub.heading, route.bracket)
+      const item = placeOf(sub.place ?? '', sub.heading, route.bracket, sub.unit)
       if (item === null) {
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（${sub.place}）` })
+        continue
+      }
+      if (item.kind === 'beforeUnit' && !hasUnitAfter(paragraphs[idx]!, sub.heading, item.unit ?? '')) {
+        unwritten.push({ fieldId: key, reason: `単位が無い（${item.unit ?? ''}）` })
         continue
       }
       if (item.kind === 'blanks' && bracketsOf(paragraphs[idx]!).length <= (item.bracket ?? 0)) {
@@ -102,9 +108,13 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       unwritten.push({ fieldId: key, reason: `入れ方が未対応（${t.place}）` })
       continue
     }
-    const item = placeOf(t.place, t.heading, route.bracket)
+    const item = placeOf(t.place, t.heading, route.bracket, t.unit)
     if (item === null) {
       unwritten.push({ fieldId: key, reason: `入れ方が未対応（${t.place}）` })
+      continue
+    }
+    if (item.kind === 'beforeUnit' && !hasUnitAfter(paragraphs[parentIdx]!, t.heading, item.unit ?? '')) {
+      unwritten.push({ fieldId: key, reason: `単位が無い（${item.unit ?? ''}）` })
       continue
     }
     if (item.kind === 'blanks' && bracketsOf(paragraphs[parentIdx]!).length <= (item.bracket ?? 0)) {
@@ -121,9 +131,21 @@ function bracketsOf(text: string): RegExpMatchArray[] {
   return [...text.matchAll(/[（(][　 ]*[）)]/g)]
 }
 
-/** 入れ方（対応表の place）を、書く指示の形にする。見出しの後ろ（afterHeading）と括弧（fillBlanks）だけ対応 */
-function placeOf(place: string, heading: string, bracket: number | undefined): Pick<FillInstruction, 'kind' | 'heading' | 'bracket'> | null {
+/** 入れ方（対応表の place）を、書く指示の形にする。見出しの後ろ（afterHeading）・括弧（fillBlanks）・単位の前（beforeUnit）に対応 */
+function placeOf(
+  place: string,
+  heading: string,
+  bracket: number | undefined,
+  unit: string | undefined,
+): Pick<FillInstruction, 'kind' | 'heading' | 'bracket' | 'unit'> | null {
   if (place === 'afterHeading') return { kind: 'after', heading }
   if (place === 'fillBlanks') return { kind: 'blanks', bracket: bracket ?? 0 }
+  if (place === 'beforeUnit' && unit !== undefined) return { kind: 'beforeUnit', heading, unit }
   return null
+}
+
+/** 見出しの後ろに単位があるか（見出しの中の同じ文字は数えない） */
+function hasUnitAfter(text: string, heading: string, unit: string): boolean {
+  const h = text.indexOf(heading)
+  return h >= 0 && unit !== '' && text.indexOf(unit, h + heading.length) >= 0
 }

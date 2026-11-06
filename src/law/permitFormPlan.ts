@@ -10,6 +10,8 @@ export interface TokyoSubitem {
   note?: string
   occurrence?: number
   inlineHeading?: string
+  /** place が beforeUnit のとき、単位（「階」「ｍ」）。値はその前に入る */
+  unit?: string
 }
 
 export interface TokyoSpec {
@@ -21,6 +23,8 @@ export interface TokyoSpec {
   absent?: boolean
   note?: string
   subitems?: TokyoSubitem[]
+  /** place が beforeUnit のとき、単位（「階」「ｍ」）。値はその前に入る */
+  unit?: string
 }
 
 export interface FormField {

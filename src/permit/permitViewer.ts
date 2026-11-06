@@ -1,5 +1,6 @@
 // 出力のビューア（1-a・1-c）の中身を作る。判定の結果はそのまま使い、判定は変えない（統括の依頼 2026-11-06）。
 import type { PermitJudgement } from '../law/permitRequired'
+import { SITE_MISSING_TEXT } from '../export/drawingSvg'
 
 export type ViewerGroup = '要る' | '要確認' | '要らない'
 
@@ -17,6 +18,12 @@ export const DRAWING_KEY_OF_NAME: Record<string, 'site' | 'floorPlan' | undefine
   配置図: 'site',
   各階平面図: 'floorPlan',
 }
+
+/** 図面が作れないときの既定の理由（渡されないときに使う）。配置図の理由は作図の結果で決まる */
+export const DRAWING_MISSING_DEFAULT = {
+  site: SITE_MISSING_TEXT.notConfirmed,
+  floorPlan: '平面を作ると出せます',
+} as const
 
 /** 左の一覧の先頭に出す、判定とモデルの項目 */
 export const FIXED_VIEWER_ITEMS = ['判定の一覧', 'IFC（BIM のモデル）'] as const

@@ -11,7 +11,8 @@ import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
 import { formValuesFromVolume } from '../law/permitFormValues'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
-import { floorPlanOf, siteLayoutOf } from '../export/drawingSvg'
+import { floorPlanOf, siteLayoutStateOf, siteMissingTextOf } from '../export/drawingSvg'
+import { DRAWING_MISSING_DEFAULT } from '../permit/permitViewer'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
@@ -119,7 +120,7 @@ export function P5Output() {
     const area = drawingAreaOf(size)
     // 縮尺は、作図の領域に収まるいちばん大きい標準の縮尺。図枠の縮尺の欄に「1/○○」と書く
     const sheet = (body: string, denominator: number): string => frameSvg({ size, values: { scale: `1/${denominator}` }, body }).svg
-    const siteLayout = siteLayoutOf({
+    const siteState = siteLayoutStateOf({
       lot: lotOfConfirmed(confirmedNow),
       footprint: outline.ok ? outline.footprint : null,
       neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
@@ -136,8 +137,10 @@ export function P5Output() {
             area,
           })
     return {
-      site: siteLayout === null ? null : sheet(siteLayout.body, siteLayout.denominator),
+      site: siteState.kind === 'ok' ? sheet(siteState.body, siteState.denominator) : null,
       floorPlan: floorLayout === null ? null : sheet(floorLayout.body, floorLayout.denominator),
+      // 作れないときの理由（縮尺が無い・敷地を確定していない で言い分ける）
+      reasons: { site: siteMissingTextOf(siteState) ?? DRAWING_MISSING_DEFAULT.site, floorPlan: DRAWING_MISSING_DEFAULT.floorPlan },
     }
   }, [frame, confirmedNow, buildingsNow, outline, planResult])
 
@@ -420,6 +423,7 @@ export function P5Output() {
                     docs={permitDocsJson.documents}
                     ifcText={ifcText}
                     drawingSvgs={drawingSvgs}
+                    drawingReasons={drawingSvgs.reasons}
                     checkOf={(name) => {
                       const c = legalCheckOfDoc(name, legal)
                       return c ? { text: c.text, color: TONE_COLOR[c.tone] } : null
