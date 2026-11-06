@@ -11,11 +11,11 @@ export function cameraForFace(face: Face, distance: number): { x: number; y: num
       return { x: 0, y: d, z: 0 }
     case 'bottom':
       return { x: 0, y: -d, z: 0 }
-    // 正面は南（−z）から北を見る向き。背面は北（+z）から南を見る向き（代表の依頼 2026-11-06。3）
+    // 正面は南（+z）から北（−z）を見る向き。背面は北（−z）から南を見る向き（北は −z。統括の判断 2026-11-06）
     case 'front':
-      return { x: 0, y: 0, z: -d }
-    case 'back':
       return { x: 0, y: 0, z: d }
+    case 'back':
+      return { x: 0, y: 0, z: -d }
     case 'right':
       return { x: d, y: 0, z: 0 }
     case 'left':

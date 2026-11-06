@@ -11,6 +11,7 @@ import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, stackedMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
 import { ViewCube } from './ViewCubePanel'
+import { planeMmToScene } from '../volume/sceneSpace'
 import type { CubeTarget, Dir } from './viewCube'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
 import type { RotationStep } from '../volume/rotation'
@@ -126,7 +127,7 @@ const MM_TO_M = 1 / 1000
 export function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
   const positions: number[] = []
   for (const tri of mesh.triangles) {
-    for (const v of tri) positions.push(v.x * MM_TO_M, v.z * MM_TO_M, v.y * MM_TO_M)
+    for (const v of tri) positions.push(...planeMmToScene(v.x, v.y, v.z))
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -146,7 +147,8 @@ function groundSize(footprint: readonly Point[]): { width: number; depth: number
     width: (maxX - minX + 2 * margin) * MM_TO_M,
     depth: (maxY - minY + 2 * margin) * MM_TO_M,
     cx: ((minX + maxX) / 2) * MM_TO_M,
-    cz: ((minY + maxY) / 2) * MM_TO_M,
+    // 北は −z（sceneSpace.ts）。地面の中心の z も、平面の y の符号を反対にする
+    cz: -((minY + maxY) / 2) * MM_TO_M,
   }
 }
 
@@ -155,7 +157,7 @@ function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeo
   const positions: number[] = []
   for (const shadow of shadows) {
     for (const [a, b, c] of triangulatePolygon(shadow)) {
-      for (const v of [a, b, c]) positions.push(v.x * MM_TO_M, 0.002, v.y * MM_TO_M)
+      for (const v of [a, b, c]) positions.push(...planeMmToScene(v.x, v.y, 2))
     }
   }
   const geometry = new THREE.BufferGeometry()
@@ -166,8 +168,8 @@ function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeo
 
 // 敷地からの離れの寸法線（G67）: 平面の mm を three の m に直し、地面の少し上に線を引く。両端と中点（表記を置く点）
 function setbackEnds(line: SetbackLine) {
-  const a: [number, number, number] = [line.from.x * MM_TO_M, 0.02, line.from.y * MM_TO_M]
-  const b: [number, number, number] = [line.to.x * MM_TO_M, 0.02, line.to.y * MM_TO_M]
+  const a: [number, number, number] = planeMmToScene(line.from.x, line.from.y, 20)
+  const b: [number, number, number] = planeMmToScene(line.to.x, line.to.y, 20)
   const mid: [number, number, number] = [(a[0] + b[0]) / 2, 0.1, (a[2] + b[2]) / 2]
   return { a, b, mid }
 }
@@ -283,7 +285,7 @@ export function Volume3D({
   }, [lot])
   const lotLine = useMemo(() => {
     if (!lot || lot.length < 3) return null
-    return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(p.x * MM_TO_M, LOT_LIFT_MM * MM_TO_M, p.y * MM_TO_M)))
+    return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(...planeMmToScene(p.x, p.y, LOT_LIFT_MM))))
   }, [lot])
   // 地面の大きさは、外形（無ければ敷地）から。どちらも無ければ地面は出さない
   const groundSource = footprint ?? lot ?? null

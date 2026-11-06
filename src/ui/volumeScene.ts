@@ -2,6 +2,7 @@
 import type { Point } from '../geom/viewport'
 import { triangulatePolygon } from '../geom/triangulate'
 import type { VolumeMesh } from '../volume/mesh'
+import { planeMmToScene } from '../volume/sceneSpace'
 
 /** 敷地の面を、地面より少し上に置く高さ（mm）。地面と重ならないように */
 export const LOT_LIFT_MM = 2
@@ -45,12 +46,13 @@ export function sceneFrameOf(polygonsMm: readonly (readonly Point[])[], fovDeg: 
   // 数でない点は無視する（統括の依頼 2026-11-06（急ぎ）。4）
   const pts = polygonsMm.flat().filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
   if (pts.length === 0) return null
-  const M = 1 / 1000
-  const xs = pts.map((p) => p.x * M)
-  const zs = pts.map((p) => p.y * M)
+  // 3D の位置（m）に直してから範囲を取る（北は −z。sceneSpace.ts）
+  const scene = pts.map((p) => planeMmToScene(p.x, p.y, 0))
+  const xs = scene.map((s) => s[0])
+  const zs = scene.map((s) => s[2])
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
   const cz = (Math.min(...zs) + Math.max(...zs)) / 2
-  const radiusM = Math.max(1, ...pts.map((p) => Math.hypot(p.x * M - cx, p.y * M - cz)))
+  const radiusM = Math.max(1, ...scene.map((s) => Math.hypot(s[0] - cx, s[2] - cz)))
   const distanceM = (radiusM / Math.sin((fovDeg / 2) * (Math.PI / 180))) * FRAME_MARGIN
   const len = Math.hypot(...DEFAULT_VIEW_OFFSET)
   const [ox, oy, oz] = DEFAULT_VIEW_OFFSET.map((v) => (v / len) * distanceM)
@@ -87,15 +89,15 @@ const INITIAL_VIEW_ELEVATION_DEG = 45
 /**
  * 初期の視点（代表の依頼 2026-11-06。2）。確定した敷地（筆）だけを範囲にし、南から北を向く正面から、上へ 45° 見下ろす向きに置く。
  * 外形が閉じているかどうかには関係なく使う（周辺建物は範囲に入れない）。敷地が無ければ null。
- * 三次元の座標: 平面の y は北（+z）、南は −z。
+ * 三次元の座標: 平面の y は北（−z）、南は +z（sceneSpace.ts）。
  */
 export function initialViewOf(lot: readonly Point[] | null, fovDeg: number): SceneFrame | null {
   if (!lot || lot.length === 0) return null
   const frame = sceneFrameOf([lot], fovDeg)
   if (!frame) return null
   const e = (INITIAL_VIEW_ELEVATION_DEG * Math.PI) / 180
-  // カメラは目標の南側・上側にある。方向は単位ベクトル（上 sin e、南 −cos e）
-  const dir: [number, number, number] = [0, Math.sin(e), -Math.cos(e)]
+  // カメラは目標の南側（+z）・上側にある。方向は単位ベクトル（上 sin e、南 cos e）
+  const dir: [number, number, number] = [0, Math.sin(e), Math.cos(e)]
   const d = frame.distanceM
   return {
     ...frame,
