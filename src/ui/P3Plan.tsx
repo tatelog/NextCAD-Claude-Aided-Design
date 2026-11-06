@@ -146,6 +146,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
 
   const placement = useUi(s => s.toolbarPlacement)
   const planViewport = useRef<HTMLDivElement>(null)
+  const [planSize, setPlanSize] = useState({width: 800, height: 600})
   const [planZoom, setPlanZoom] = useState(1)
   const [planDrawing, setPlanDrawing] = useState(false)
   const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
@@ -156,8 +157,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       event.preventDefault()
       setPlanZoom(z => Math.max(0.25, Math.min(8, z * (event.deltaY < 0 ? 1.1 : 1 / 1.1))))
     }
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setPlanSize({width:entry.contentRect.width,height:entry.contentRect.height})
+    })
+    observer.observe(element)
     element.addEventListener('wheel', wheel, {passive:false})
-    return () => element.removeEventListener('wheel', wheel)
+    return () => { observer.disconnect(); element.removeEventListener('wheel', wheel) }
   }, [inherited !== null])
   const runAuto = (allFloors = false) => {
     // 足りない入力は、一文で言う（ZodError の JSON は出さない。依頼 2b）
@@ -372,7 +377,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         onToggleFold={menuFold.toggle}
       />
       </div>
-      <div style={{ padding: 16, overflow: 'auto' }}>
+      <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
         <label>表示階 <select value={selectedFloor} onChange={(e) => floorState.select(Number(e.target.value))}>
           {Array.from({ length: storeyCount }, (_, i) => <option key={i} value={i + 1}>{i + 1}階</option>)}
         </select></label>
@@ -386,8 +391,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </div>
         <div style={{position:"relative"}}><PenToolbar placement={placement} /></div>
         {lines && units.cells ? (
-          <div ref={planViewport} style={{ position: 'relative', overflow:'auto', height:'70vh', border:'1px solid #ddd8cc' }}>
-          <div style={{position:'relative', width:`${planZoom * 100}%`, aspectRatio:`${W + 2500} / ${D + 2500}`}}>
+          <div ref={planViewport} style={{ position: 'relative', overflow:'auto', flex:1, minHeight:0, background:'#f4f4f2' }}>
+          <div style={{position:'relative', width:Math.max(1, Math.min(planSize.width, planSize.height * (W + 2500) / (D + 2500)) - 16) * planZoom, margin:'8px auto', aspectRatio:`${W + 2500} / ${D + 2500}`}}>
           <svg width="100%" height="100%" viewBox={`-500 -500 ${W + 2500} ${D + 2500}`} style={{display:'block', background:'#fff'}}>
             {showGrid ? (
               <g stroke="#e3e6df" strokeWidth={6}>
@@ -405,12 +410,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
                 <line x1={0} y1={D + 700} x2={W} y2={D + 700} />
                 <text x={W / 2} y={D + 1000} textAnchor="middle">{mmLabel(W)}</text>
                 <line x1={W + 700} y1={0} x2={W + 700} y2={D} />
-                <text x={W + 1000} y={D / 2} textAnchor="start">{mmLabel(D)}</text>
+                <text x={W + 1000} y={D / 2} textAnchor="middle" transform={`rotate(-90 ${W + 1000} ${D / 2})`}>{mmLabel(D)}</text>
                 {/* 通り芯のスパン（奥行き方向。右側の寸法の列） */}
                 {spanDimensions(auto ? lines : []).map((s) => (
                   <g key={`gs${s.fromMm}`}>
                     <line x1={W + 1700} y1={s.fromMm} x2={W + 1700} y2={s.toMm} />
-                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="start">{mmLabel(s.lengthMm)}</text>
+                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="middle" transform={`rotate(-90 ${W + 2000} ${(s.fromMm + s.toMm) / 2})`}>{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
                 {/* 住戸の幅（幅方向。下側の寸法の行）。住戸の区画の境界で測る */}
