@@ -15,7 +15,6 @@ import { districtStatusTextOf } from './districtFetch'
 import { geometryOfParcel, parcelPropsOf, parcelUidAt } from '../map/selectedParcel'
 import { chibanOf } from '../map/parcelInfo'
 import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
-import { parcelNoticeOf } from '../plan/lot'
 import { polygonAreaMm2 } from '../geom/polygon'
 import { interiorPointOf } from '../map/interiorPoint'
 import { useUi } from '../store/ui'
@@ -180,17 +179,70 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地選定</h2>
-        {inspected && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
+        {(inspected || result || site) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
           <strong>選択地点の情報</strong>
           <dl style={{ margin: '8px 0 0' }}>
-            <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected.address}</dd>
+            <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected?.address ?? (parcelUid ? chibanOf(parcelPropsOf(parcelUid) ?? {}) : null) ?? '未取得'}</dd>
             <dt>敷地面積（公図から算出）</dt><dd style={{ margin: '0 0 8px' }}>{parcel ? `${(polygonAreaMm2(parcel) / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} ㎡` : '未取得'}</dd>
-            <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（下欄参照）' : '未取得'}</dd>
+            <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（以下に併記）' : '未取得'}</dd>
             <dt>建蔽率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.buildingCoverageRatePercent != null ? `${siteDistrict.buildingCoverageRatePercent} %` : '未取得'}</dd>
             <dt>容積率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.floorAreaRatePercent != null ? `${siteDistrict.floorAreaRatePercent} %` : '未取得'}</dd>
-            <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
+            <dt>高さの上限</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.heightLimitM != null ? `${siteDistrict.heightLimitM} m` : '未取得'}</dd>
+            <dt>告示番号</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.notificationNumber ?? '未取得'}</dd>
+            <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected?.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
           </dl>
           <small>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</small>
+          <div style={devShown ? undefined : { display: 'none' }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            区のコード（例: 13108 は江東区）
+            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          </div>
+          <button type="button" onClick={fetchDistricts} disabled={loading}>
+            {loading ? '取得中…' : 'この地点の用途地域を取る'}
+          </button>
+          {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
+          {error && <p style={{ color: '#a33' }}>{error}</p>}
+          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
+          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
+          {result && result.matches.length > 1 && result.matches.map((m) => (
+            <dl key={m.id} style={{ margin: '6px 0' }}>
+              <dt>区分コード</dt>
+              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
+              <dt>容積率</dt>
+              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
+              <dt>建蔽率</dt>
+              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
+              <dt>高さの上限</dt>
+              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
+              <dt>告示番号</dt>
+              <dd>{m.notificationNumber ?? '未取得'}</dd>
+            </dl>
+          ))}
+          {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
+          {result && result.fireMatches.map((f) => (
+            <p key={f.id}>
+              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
+              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
+              {f.notificationNumber ? `、${f.notificationNumber}` : ''}
+              {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
+            </p>
+          ))}
+          {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
+          {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
+          {result && result.heightMatches.map((h) => (
+            <p key={h.id}>
+              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
+              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
+            </p>
+          ))}
+          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
+            <p style={{ color: '#a33' }}>
+              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
+            </p>
+          )}
+          <p style={{ color: '#666', fontSize: 12 }}>斜線・日影は urf に無い（条例で補う）。</p>
+
         </section>}
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
@@ -254,72 +306,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <input type="number" min={0} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(clampZoom(Number(e.target.value)))} style={{ width: '100%' }} />
         </label>
         </div>
-        <section>
-          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法規の値</h3>
-          <dl style={{ margin: 0 }}>
-            <dt>用途地域・建蔽率・容積率</dt>
-            <dd>
-              {siteDistrict
-                ? `建蔽率 ${siteDistrict.buildingCoverageRatePercent ?? '未取得'} %、容積率 ${siteDistrict.floorAreaRatePercent ?? '未取得'} %`
-                : '未取得（地点を入れて「この地点の用途地域を取る」）'}
-            </dd>
-            <dt>前面道路の幅員</dt>
-            <dd>{parcelNoticeOf(parcel)}</dd>
-          </dl>
-        </section>
-        <section>
-          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
-          <div style={devShown ? undefined : { display: 'none' }}>
-          <label style={{ display: 'block', marginBottom: 6 }}>
-            区のコード（例: 13108 は江東区）
-            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
-          </label>
-          </div>
-          <button type="button" onClick={fetchDistricts} disabled={loading}>
-            {loading ? '取得中…' : 'この地点の用途地域を取る'}
-          </button>
-          {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
-          {error && <p style={{ color: '#a33' }}>{error}</p>}
-          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
-          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
-          {result && result.matches.map((m) => (
-            <dl key={m.id} style={{ margin: '6px 0' }}>
-              <dt>区分コード</dt>
-              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
-              <dt>容積率</dt>
-              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
-              <dt>建蔽率</dt>
-              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
-              <dt>高さの上限</dt>
-              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
-              <dt>告示番号</dt>
-              <dd>{m.notificationNumber ?? '未取得'}</dd>
-            </dl>
-          ))}
-          {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
-          {result && result.fireMatches.map((f) => (
-            <p key={f.id}>
-              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
-              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
-              {f.notificationNumber ? `、${f.notificationNumber}` : ''}
-              {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
-            </p>
-          ))}
-          {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
-          {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
-          {result && result.heightMatches.map((h) => (
-            <p key={h.id}>
-              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
-              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
-            </p>
-          ))}
-          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
-            <p style={{ color: '#a33' }}>
-              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
-            </p>
-          )}
-          <p style={{ color: '#666', fontSize: 12 }}>斜線・日影は urf に無い（条例で補う）。</p>
-        </section>
         <section>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
           <div style={devShown ? undefined : { display: 'none' }}>
