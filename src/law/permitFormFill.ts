@@ -6,7 +6,8 @@ import { FLOOR_ROWS, faceRangesOf, locateHeadingOf, locateSubitemOf, type FormDe
 import { normalizeLabel } from '../export/docxRead'
 
 /** 値の行き先。sub は細目の見出し（対応表のまま）、bracket は括弧の番目（0 から）。 */
-const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; brackets?: number[]; before?: string }> = {
+/** 行き先。subPlace は、対応表に細目が無いとき（第三号など）に、細目の入れ方を route で決めるための値（対応表は変えない） */
+const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; brackets?: number[]; before?: string; subPlace?: string }> = {
   // 新築なので建物全体が申請部分。申請部分（1 番目）と合計（3 番目）に同じ値（統括の判断 2026-11-06）
   'F2-3-10': { field: 'F2-3-10', sub: '【ｲ.建築物全体】', brackets: [0, 2] },
   'F2-3-11': { field: 'F2-3-11', sub: '【ｲ.建築物全体】', brackets: [0, 2] },
@@ -35,6 +36,20 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; br
   'F2-3-13.構造': { field: 'F2-3-13', sub: '【ﾊ.構造】', before: '造' },
   'F2-3-06.敷地と接している部分の長さ': { field: 'F2-3-06', sub: '【ﾛ.敷地と接している部分の長さ】' },
   'F2-3-06.幅員': { field: 'F2-3-06', sub: '【ｲ.幅員】' },
+  // 用途地域等（ロ）: 列 1（括弧 0）。地域が一つのときだけ（値の決まり）
+  'F2-3-07.用途地域等': { field: 'F2-3-07', sub: '【ﾛ.用途地域等】', bracket: 0 },
+  // 第三号（建築計画概要書・本庁用）: 第二号と同じ値の欄を、第三号の欄で入れる（統括の依頼 2026-11-06）。細目は第三号の段落に合わせる
+  'F3-2-04': { field: 'F3-2-04' },
+  'F3-2-06.幅員': { field: 'F3-2-06', sub: '【イ.幅員】' },
+  'F3-2-06.敷地と接している部分の長さ': { field: 'F3-2-06', sub: '【ロ.敷地と接している部分の長さ】' },
+  'F3-2-07.敷地面積': { field: 'F3-2-07', sub: '【イ.敷地面積】', bracket: 0, subPlace: 'fillBlanks' },
+  'F3-2-07.用途地域等': { field: 'F3-2-07', sub: '【ロ.用途地域等】', bracket: 0, subPlace: 'fillBlanks' },
+  'F3-2-10': { field: 'F3-2-10', sub: '【イ.建築物全体】', brackets: [0, 2], subPlace: 'fillBlanks' },
+  'F3-2-11': { field: 'F3-2-11', sub: '【イ.建築物全体】', brackets: [0, 2], subPlace: 'fillBlanks' },
+  'F3-2-12': { field: 'F3-2-12', sub: '【イ.申請に係る建築物の数】', subPlace: 'afterHeading' },
+  'F3-2-13.最高の高さ': { field: 'F3-2-13', sub: '【イ.最高の高さ】', bracket: 0, subPlace: 'fillBlanks' },
+  'F3-2-13.階数（地上）': { field: 'F3-2-13', sub: '【ロ.階数】', bracket: 0, subPlace: 'fillBlanks' },
+  'F3-2-13.構造': { field: 'F3-2-13', sub: '【ハ.構造】', before: '造', subPlace: 'fillBlanks' },
   'F2-6-01': { field: 'F2-6-01' },
   'F2-6-02': { field: 'F2-6-02' },
   'F2-6-03.最高の高さ': { field: 'F2-6-03', sub: '【ｲ.最高の高さ】' },
@@ -136,7 +151,9 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
     }
     if (route.sub !== undefined) {
       // 細目は、後ろの見出し（inlineHeading）があればその名前で引く。段落の位置は見出し（heading）で探す
-      const sub: TokyoSubitem | undefined = (t.subitems ?? []).find((s) => normOf(s.inlineHeading ?? s.heading) === normOf(route.sub!))
+      const found = (t.subitems ?? []).find((s) => normOf(s.inlineHeading ?? s.heading) === normOf(route.sub!))
+      // 対応表に細目が無いときは、行き先の表の入れ方（subPlace）で細目を作る（第三号）
+      const sub: TokyoSubitem | undefined = found ?? (route.subPlace !== undefined ? { heading: route.sub!, in: 'paragraph', place: route.subPlace } : undefined)
       if (sub === undefined) {
         unwritten.push({ fieldId: key, reason: `細目が対応表に無い（${route.sub}）` })
         continue

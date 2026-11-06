@@ -8,7 +8,7 @@ import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { APP_STRUCTURE, APP_USAGE, permitInputFromVolume } from '../law/permitInput'
-import { AREA_REFERENCE_NOTE, FIFTH_OPEN_NOTE, NEW_BUILDING_NOTE, fifthSheetOf, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
+import { AREA_REFERENCE_NOTE, FIFTH_OPEN_NOTE, NEW_BUILDING_NOTE, THIRD_OPEN_NOTES, fifthSheetOf, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of, zoneNameOf } from '../law/permitFormValues'
 import { unwrittenNotesOf } from '../law/permitFormNotes'
 import { floorSheetRestNoteOf } from '../law/floorSheet'
 import { chibanOf } from '../map/parcelInfo'
@@ -114,9 +114,12 @@ export function P5Output() {
     const fire = fireLabelOf(
       districtForForm === null ? null : { functions: districtForForm.fireMatches.map((f) => f.function), unknownOwner: districtForForm.fireUnknownOwner.length },
     )
+    // 用途地域の名前（地点の用途地域が一つのときだけ）
+    const zoneName = districtForForm ? zoneNameOf(districtForForm.matches) : null
     return formValuesFromVolume(permitVolume, {
       structure: APP_STRUCTURE,
       usage: APP_USAGE,
+      ...(zoneName !== null ? { zoneName } : {}),
       siteAreaM2: siteAreaM2Of(lotForForm),
       ...(chiban !== null ? { chiban } : {}),
       ...(fire !== null ? { fire } : {}),
@@ -196,6 +199,8 @@ export function P5Output() {
         ...(formValues['F2-3-10'] !== undefined ? [NEW_BUILDING_NOTE] : []),
         // 第五面の未決（記号の表・枚数）は、書いたときに空欄の一覧に出す（調査の指摘 2026-11-06）
         ...(formValues['F2-5-07.床面積'] !== undefined ? [FIFTH_OPEN_NOTE] : []),
+        // 第三号だけの欄（人が入れる・別紙）。第三号が取り込まれているときに出す（統括の依頼 2026-11-06）
+        ...(formsNow.F3 !== undefined ? THIRD_OPEN_NOTES : []),
         // 内容の違う階の第五面は、別紙（統括の決定 2026-11-06。B）
         ...(permitVolume !== null && floorSheetRestNoteOf(fifthSheetOf(permitVolume).rest) !== null
           ? [floorSheetRestNoteOf(fifthSheetOf(permitVolume).rest)!]
