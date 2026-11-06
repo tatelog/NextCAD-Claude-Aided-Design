@@ -6,12 +6,16 @@ import type { Point } from '../geom/viewport'
 import { polygonAreaMm2 } from '../geom/polygon'
 import type { Volume } from '../volume/extrude'
 import type { RoadWidthSource } from '../volume/roadWidthSource'
+import { floorSheetOf, type FloorSheet } from './floorSheet'
 
 export interface FormValue {
   value: string
   /** 出典。幅員は、出どころの名前（数値指定・対岸指定・資料指定）がそのまま出典になる */
   from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規' | RoadWidthSource
 }
+
+/** 第五面（用途別床面積）の未決の点（空欄の一覧に出す）。記号の表の出どころと、階ごとに 1 枚（注②）の枚数が決まるまで */
+export const FIFTH_OPEN_NOTE = '第五面：用途の区分の記号は人が入れる（様式の注の別紙の表に従う。表はアプリに無い）'
 
 /** 新築として、申請部分と合計に同じ値を書いたことの一行（空欄の一覧に出す。統括の判断 2026-11-06） */
 export const NEW_BUILDING_NOTE = '新築として申請部分＝合計で記入'
@@ -26,6 +30,11 @@ const m = (mm: number) => (mm / 1_000).toFixed(2)
 export function siteAreaM2Of(lot: readonly Point[] | null): number | undefined {
   if (lot === null || lot.length < 3) return undefined
   return polygonAreaMm2(lot) / 1_000_000
+}
+
+/** 第五面のまとまり（ボリュームの各階の床面積から）。箱の形なので全階が同じ（統括の決定 2026-11-06。B） */
+export function fifthSheetOf(volume: Volume): FloorSheet {
+  return floorSheetOf(Array.from({ length: volume.storey_count }, (_, i) => ({ floor: i + 1, area: m2(volume.building_area_mm2) })))
 }
 
 /** 構造の記号を、様式に書く文字にする（造の前に入る。統括の依頼 2026-11-06。6）。知らない記号はそのまま */
@@ -84,8 +93,13 @@ export function formValuesFromVolume(
   v['F2-4-12'] = vol(m2(volume.gross_floor_area_mm2))
   // 各階の床面積（階ごと。箱の形なので、各階は建築面積と同じ。階の番号は欄の id の中の数）
   for (let f = 1; f <= volume.storey_count; f++) v[`F2-4-12.階別${f}`] = vol(m2(volume.building_area_mm2))
-  // 用途別床面積（第五面）: 延べ面積は、共同住宅の行の床面積（3 番目）。用途は案件の入力（下で入れる）
-  v['F2-5-07.延べ面積'] = vol(m2(volume.gross_floor_area_mm2))
+  // 第五面（用途別床面積）: 同じ内容の階を 1 枚にまとめ、2 欄に階を列記する（統括の決定 2026-11-06。B）。最初のまとまりだけを書く。
+  // 共同住宅の行の床面積（3 番目）は、そのまとまりの階の床面積（箱の形なので建築面積）。延べ床面積（第四面の 12 欄の合計）ではない
+  const sheet = fifthSheetOf(volume)
+  if (sheet.first !== null) {
+    v['F2-5-02'] = vol(sheet.first.label)
+    v['F2-5-07.床面積'] = vol(sheet.first.area)
+  }
   // 第二号様式 第六面（建築物独立部分別概要）
   v['F2-6-01'] = vol('1')
   v['F2-6-02'] = vol(m2(volume.gross_floor_area_mm2))

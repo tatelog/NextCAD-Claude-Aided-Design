@@ -8,8 +8,9 @@ import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { APP_STRUCTURE, APP_USAGE, permitInputFromVolume } from '../law/permitInput'
-import { AREA_REFERENCE_NOTE, NEW_BUILDING_NOTE, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
+import { AREA_REFERENCE_NOTE, FIFTH_OPEN_NOTE, NEW_BUILDING_NOTE, fifthSheetOf, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
 import { unwrittenNotesOf } from '../law/permitFormNotes'
+import { floorSheetRestNoteOf } from '../law/floorSheet'
 import { chibanOf } from '../map/parcelInfo'
 import { parcelPropsOf } from '../map/selectedParcel'
 import { requiredPermitDocuments } from '../law/permitRequired'
@@ -193,6 +194,12 @@ export function P5Output() {
           : []),
         // 新築として、申請部分と合計に同じ値を書いた（統括の判断 2026-11-06）
         ...(formValues['F2-3-10'] !== undefined ? [NEW_BUILDING_NOTE] : []),
+        // 第五面の未決（記号の表・枚数）は、書いたときに空欄の一覧に出す（調査の指摘 2026-11-06）
+        ...(formValues['F2-5-07.床面積'] !== undefined ? [FIFTH_OPEN_NOTE] : []),
+        // 内容の違う階の第五面は、別紙（統括の決定 2026-11-06。B）
+        ...(permitVolume !== null && floorSheetRestNoteOf(fifthSheetOf(permitVolume).rest) !== null
+          ? [floorSheetRestNoteOf(fifthSheetOf(permitVolume).rest)!]
+          : []),
         // 書けなかった欄（取り込んだ様式ごと）は、黙って抜かず、空欄の一覧に出す（統括の依頼 2026-11-06）
         ...unwrittenNotesOf(formsNow, formValues),
       ],

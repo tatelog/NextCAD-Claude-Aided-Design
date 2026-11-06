@@ -29,9 +29,10 @@ describe('用途別床面積（仕様 UG1・UG2）', () => {
     expect(formValuesFromVolume(block(5), { structure: 'RC' })['F2-5-07.用途']).toBeUndefined()
   })
 
-  it('UG2: 延べ面積は、ボリュームの延べ床面積（5 階 × 400 ㎡ = 2000.00）で入る', () => {
+  it('UG2: 第五面の床面積は、その階の床面積（各階は同じ形なので 400 ㎡）。延べ床面積（2000.00）は入らない', () => {
     const v = formValuesFromVolume(block(5), { structure: 'RC' })
-    expect(v['F2-5-07.延べ面積']).toEqual({ value: '2000.00', from: 'ボリューム' })
+    expect(v['F2-5-07.床面積']).toEqual({ value: '400.00', from: 'ボリューム' })
+    expect(v['F2-5-07.延べ面積']).toBeUndefined()
   })
 })
 
