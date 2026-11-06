@@ -8,10 +8,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { ModeSwitch } from './ModeSwitch'
 
-// 描画の結果から、ボタンの名前と押されているかを取り出す
+// 描画の結果から、ボタンの名前（aria-label。代表の依頼 2026-11-06 で文字を消し、名前は aria-label に入った）と押されているかを取り出す
 function buttonsOf(html: string): { name: string; pressed: boolean }[] {
-  return [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map((m) => ({
-    name: m[2]!,
+  return [...html.matchAll(/<button([^>]*)>[\s\S]*?<\/button>/g)].map((m) => ({
+    name: /aria-label="([^"]+)"/.exec(m[1]!)![1]!,
     pressed: /aria-pressed="true"/.test(m[1]!),
   }))
 }

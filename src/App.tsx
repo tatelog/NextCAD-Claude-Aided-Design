@@ -7,6 +7,9 @@ import { P3Plan } from './ui/P3Plan'
 import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
+import { HeaderIconButton } from './ui/HeaderIconButton'
+import { IconHistory, IconJudge, IconLoad, IconMenu, IconSave } from './ui/headerIcons'
+import { PendingIndicator, SaveDot } from './ui/HeaderStatus'
 import { targetSegmentsOf } from './plan/semanticConfirm'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
@@ -239,22 +242,16 @@ export function App() {
           style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', minWidth: 200 }}
         />
         <span style={{ flex: 1 }} />
-        <button
-          type="button"
-          style={button}
+        <HeaderIconButton
+          label="意味づけを判定"
+          icon={<IconJudge />}
           onClick={judgeNow}
           disabled={!featureOn.classifyClaude}
-          title={WORKER_URL ? 'F5・F9 の線を Claude の判定へ送る（結果は要確認の提案）' : '判定の接続先が未設定です。押すと、その旨を出します'}
-        >
-          意味づけを判定
-        </button>
+          title={WORKER_URL ? '意味づけを判定' : '意味づけを判定（判定の接続先が未設定です。押すと、その旨を出します）'}
+        />
         {judgeMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{judgeMessage}</span> : null}
-        <span title="Claude の判定で、再試行しても失敗したもの（保留の一覧）" style={{ fontSize: 12, color: '#5b6670' }}>
-          保留 {pendingCount}
-        </span>
-        <button type="button" style={button} onClick={() => fileInput.current?.click()}>
-          読み込み
-        </button>
+        <PendingIndicator count={pendingCount} />
+        <HeaderIconButton label="読み込み" icon={<IconLoad />} onClick={() => fileInput.current?.click()} />
         <input
           ref={fileInput}
           type="file"
@@ -268,10 +265,8 @@ export function App() {
           }}
         />
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
-        <span style={{ fontSize: 11, color: saveStatus === '保存済み' ? '#5b6670' : '#a86b00' }}>{saveStatus}</span>
-        <button type="button" style={button} onClick={save}>
-          保存
-        </button>
+        <SaveDot status={saveStatus} />
+        <HeaderIconButton label="保存" icon={<IconSave />} onClick={save} />
         <ModeSwitch
           screen={screen}
           activeMode={activeMode}
@@ -280,15 +275,9 @@ export function App() {
             record('モード', modeName(SCREEN_MODES, id))
           }}
         />
-        <button type="button" style={button} onClick={() => setPanel(panel === 'log' ? null : 'log')} aria-pressed={panel === 'log'}>
-          作業履歴
-        </button>
-        <button type="button" style={button} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} aria-pressed={panel === 'menu'} aria-label="メニュー" title="メニュー">
-          {/* ハンバーガー（ハブ A-03 G74）: 三本線 */}
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style={{ display: 'block' }}>
-            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-          </svg>
-        </button>
+        <HeaderIconButton label="作業履歴" icon={<IconHistory />} pressed={panel === 'log'} onClick={() => setPanel(panel === 'log' ? null : 'log')} />
+        {/* メニュー（ハブ A-03 G74）: ☰（三本線） */}
+        <HeaderIconButton label="メニュー" icon={<IconMenu />} pressed={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} />
       </header>
       <nav style={{ display: 'flex', gap: 6, padding: '6px 12px', borderBottom: '1px solid #ddd8cc', background: '#fff' }}>
         {SCREENS.map((s) => (

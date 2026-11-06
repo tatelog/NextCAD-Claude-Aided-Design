@@ -13,6 +13,56 @@ body,
   /* 地は白を明示する（暗い表示の既定の地に任せると、濃い文字が沈む。統括の依頼 2026-11-05） */
   background: #fff;
 }
+/* 共通ヘッダーのアイコンだけのボタン（代表の依頼 2026-11-06）。枠は無し。押せることは、指を置いた・押した時の背景の色で示す。選ばれているものは背景の色 */
+.hdr-btn {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #1f2a44;
+  cursor: pointer;
+}
+.hdr-btn:hover {
+  background: #ebe7dc;
+}
+.hdr-btn:active {
+  background: #ddd6c6;
+}
+.hdr-btn[aria-pressed='true'] {
+  background: #1f2a44;
+  color: #fff;
+}
+.hdr-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.hdr-btn:disabled:hover,
+.hdr-btn:disabled:active {
+  background: transparent;
+}
+.hdr-btn:focus-visible {
+  outline: 2px solid #1f2a44;
+  outline-offset: 2px;
+}
+.hdr-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.hdr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #5b6670;
+}
 .p03 {
   display: flex;
   flex-direction: column;
