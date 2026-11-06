@@ -7,14 +7,18 @@ import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
-import { permitInputFromVolume } from '../law/permitInput'
+import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
+import { formValuesFromVolume } from '../law/permitFormValues'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
-import { floorPlanBodyOf, siteLayoutBodyOf } from '../export/drawingSvg'
+import { floorPlanOf, siteLayoutOf } from '../export/drawingSvg'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import { PermitViewer } from './PermitViewer'
+import { PermitFormImport } from './PermitFormImport'
+import { PermitFormPlan } from './PermitFormPlan'
+import { usePermitForms } from '../store/permitForms'
 import permitDocsJson from '../law/permitDocuments.json'
 import { buildZip } from '../export/zipWriter'
 import { permitPackageFilesOf } from '../export/permitPackage'
@@ -91,6 +95,8 @@ export function P5Output() {
   const grossM2 = permitVolume ? permitVolume.gross_floor_area_mm2 / 1_000_000 : 0
   const heightM = volume ? volume.total_height / 1000 : 0
   const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
+  // 様式の欄に入れる値（ボリュームから決まるもの。案件の敷地面積は入力があるときだけ）
+  const formValues = useMemo(() => (permitVolume ? formValuesFromVolume(permitVolume, { structure: APP_STRUCTURE }) : {}), [permitVolume])
   const ready = volume !== null
   const valid = ready && wallOk
 
@@ -111,31 +117,32 @@ export function P5Output() {
   const drawingSvgs = useMemo(() => {
     const size = frameSizeOf(frame)
     const area = drawingAreaOf(size)
-    const sheet = (body: string | null): string | null => (body === null ? null : frameSvg({ size, values: {}, body }).svg)
-    const site = sheet(
-      siteLayoutBodyOf({
-        lot: lotOfConfirmed(confirmedNow),
-        footprint: outline.ok ? outline.footprint : null,
-        neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
-        area,
-      }),
-    )
-    const floorPlan =
+    // 縮尺は、作図の領域に収まるいちばん大きい標準の縮尺。図枠の縮尺の欄に「1/○○」と書く
+    const sheet = (body: string, denominator: number): string => frameSvg({ size, values: { scale: `1/${denominator}` }, body }).svg
+    const siteLayout = siteLayoutOf({
+      lot: lotOfConfirmed(confirmedNow),
+      footprint: outline.ok ? outline.footprint : null,
+      neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
+      area,
+    })
+    const floorLayout =
       planResult === null
         ? null
-        : sheet(
-            floorPlanBodyOf({
-              widthMm: planResult.widthMm,
-              depthMm: planResult.depthMm,
-              gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
-              units: planResult.cells,
-              area,
-            }),
-          )
-    return { site, floorPlan }
+        : floorPlanOf({
+            widthMm: planResult.widthMm,
+            depthMm: planResult.depthMm,
+            gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
+            units: planResult.cells,
+            area,
+          })
+    return {
+      site: siteLayout === null ? null : sheet(siteLayout.body, siteLayout.denominator),
+      floorPlan: floorLayout === null ? null : sheet(floorLayout.body, floorLayout.denominator),
+    }
   }, [frame, confirmedNow, buildingsNow, outline, planResult])
 
-  // 一式の中身（図面・IFC・書類一覧・空欄の一覧）。判定が無いときは null
+  // 一式の中身（図面・IFC・書類一覧・空欄の一覧・記入した様式）。判定が無いときは null
+  const filledNow = usePermitForms((s) => s.filled)
   const packageFiles = useMemo(() => {
     if (!judgement) return null
     return permitPackageFilesOf({
@@ -144,14 +151,15 @@ export function P5Output() {
       drawings: drawingSvgs,
       ifcText,
       ifcFileName: `model-${schema.toLowerCase()}.ifc`,
+      filledForms: Object.values(filledNow).filter((x): x is { fileName: string; bytes: Uint8Array } => x !== undefined),
     })
-  }, [judgement, drawingSvgs, ifcText, schema])
+  }, [judgement, drawingSvgs, ifcText, schema, filledNow])
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {
     if (!packageFiles) return
     const enc = new TextEncoder()
-    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: enc.encode(f.text) })))
+    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: f.bytes ?? enc.encode(f.text) })))
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
     const a = document.createElement('a')
     a.href = url
@@ -362,6 +370,15 @@ export function P5Output() {
 
         {tab === 'pdf' && (
           <>
+            <section style={{ marginBottom: 16 }}>
+              <PermitFormImport />
+            </section>
+
+            <section style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>取り込んだ様式の欄（アプリが何をするか）</h3>
+              <PermitFormPlan values={formValues} />
+            </section>
+
             <section style={{ marginBottom: 16 }}>
               <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>案件の項目（ボリュームから決まらない条件）</h3>
               <PermitProjectFields project={project} onChange={setProject} />

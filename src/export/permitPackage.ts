@@ -22,11 +22,16 @@ export interface PackageInput {
   ifcText: string | null
   /** IFC のファイル名（例: model-ifc4.ifc） */
   ifcFileName: string
+  /** 欄に値を入れて書き出した様式（docx）。01_申請書/ に、そのままのバイト列で入る。無ければ省く */
+  filledForms?: { fileName: string; bytes: Uint8Array }[]
 }
 
 export interface PackageFile {
   path: string
+  /** テキストのファイルの中身（バイト列のファイルは空） */
   text: string
+  /** バイト列のファイル（docx など）の中身 */
+  bytes?: Uint8Array
 }
 
 const GROUPS: readonly ViewerGroup[] = ['要る', '要確認', '要らない']
@@ -70,5 +75,8 @@ export function permitPackageFilesOf(input: PackageInput): PackageFile[] {
     files.push({ path: `${PACKAGE_LAYOUT.folders.drawing}/${PACKAGE_LAYOUT.drawingFiles.floorPlan}`, text: input.drawings.floorPlan })
   }
   if (input.ifcText !== null) files.push({ path: `${PACKAGE_LAYOUT.folders.bim}/${input.ifcFileName}`, text: input.ifcText })
+  for (const f of input.filledForms ?? []) {
+    files.push({ path: `${PACKAGE_LAYOUT.folders.form}/${f.fileName}`, text: '', bytes: f.bytes })
+  }
   return files
 }

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { PermitJudgement } from '../law/permitRequired'
 import { applicabilityTextOf } from '../permit/p5Judgement'
+import { fitSvgForView } from './fitSvgForView'
 import { DRAWING_KEY_OF_NAME, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
 
 const GROUPS: readonly ViewerGroup[] = ['要る', '要確認', '要らない']
@@ -79,7 +80,7 @@ export function PermitViewer({ judgement, docs, ifcText, drawingSvgs = { site: n
         {check ? <p style={{ fontSize: 12, color: check.color, margin: '0 0 4px' }}>{check.text}</p> : null}
         <p style={{ fontSize: 12, color: '#444' }}>{`中身: ${selectedRow.content}`}</p>
         {key === undefined ? null : svg !== null ? (
-          <div dangerouslySetInnerHTML={{ __html: svg }} />
+          <div style={{ width: '100%' }} dangerouslySetInnerHTML={{ __html: fitSvgForView(svg) }} />
         ) : (
           <p style={{ fontSize: 12, color: '#a33' }}>{key === 'site' ? '敷地を確定すると出せます。' : '平面を作ると出せます。'}</p>
         )}

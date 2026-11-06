@@ -53,7 +53,14 @@
     { "label": "1/100", "denominator": 100, "provisional": true, "use": "各階平面図・立面図・断面図" },
     { "label": "1/200", "denominator": 200, "provisional": true, "use": "各階平面図（住棟全体）" },
     { "label": "1/300", "denominator": 300, "provisional": true, "use": "配置図" },
-    { "label": "1/500", "denominator": 500, "provisional": true, "use": "付近見取図・配置図（敷地全体）" }
+    { "label": "1/500", "denominator": 500, "provisional": true, "use": "付近見取図・配置図（敷地全体）" },
+    { "label": "1/250", "denominator": 250, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" },
+    { "label": "1/400", "denominator": 400, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" },
+    { "label": "1/600", "denominator": 600, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" },
+    { "label": "1/1000", "denominator": 1000, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" },
+    { "label": "1/1200", "denominator": 1200, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" },
+    { "label": "1/1500", "denominator": 1500, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" },
+    { "label": "1/2000", "denominator": 2000, "provisional": true, "use": "作図の縮尺（収まるものを選ぶ）" }
   ],
   "scaleRule": {
     "source": "S01（施行規則 第1条の3 表一: 各図書に縮尺を明示する。数値は規定されていない）",

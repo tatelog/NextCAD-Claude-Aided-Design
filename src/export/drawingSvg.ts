@@ -44,17 +44,47 @@ const pathOf = (pts: readonly Pt[], t: (p: Pt) => Pt): string =>
     return `${q.x.toFixed(2)} ${q.y.toFixed(2)}`
   }).join(' L') + ' Z'
 
+/** 標準の縮尺（分母）。図枠の縮尺の候補（permitFrame.json）と合わせる */
+export const STANDARD_SCALES: readonly number[] = [100, 200, 250, 300, 400, 500, 600, 1000, 1200, 1500, 2000]
+
+/** 作図の領域に収まる、いちばん大きい（分母のいちばん小さい）標準の縮尺。どれも収まらなければ null */
+export function chooseScaleOf(wMm: number, hMm: number, area: Box): number | null {
+  const aw = area.x1 - area.x0
+  const ah = area.y1 - area.y0
+  for (const s of STANDARD_SCALES) {
+    if (wMm / s <= aw && hMm / s <= ah) return s
+  }
+  return null
+}
+
+/** 縮尺 1/s で、点群を作図領域の中央に置く変換（y は上向きを下向きに直す） */
+export function scaledTransformOf(points: readonly Pt[], area: Box, s: number): (p: Pt) => Pt {
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const w = (maxX - minX) / s
+  const h = (maxY - minY) / s
+  const ox = area.x0 + (area.x1 - area.x0 - w) / 2
+  const oy = area.y0 + (area.y1 - area.y0 - h) / 2
+  return (p) => ({ x: ox + (p.x - minX) / s, y: oy + (maxY - p.y) / s })
+}
+
 /** 配置図の中身。確定した筆界（破線）・外形（塗り）・周辺建物（灰）を、作図領域に収める。筆界も外形も無ければ null */
 export function siteLayoutBodyOf(input: {
   lot: readonly Pt[] | null
   footprint: readonly Pt[] | null
   neighbors: readonly (readonly Pt[])[]
   area: Box
+  /** 縮尺の分母。省略すると、作図の領域に合わせて縮める */
+  scale?: number
 }): string | null {
   if (input.lot === null && input.footprint === null) return null
   const all: Pt[] = [...(input.lot ?? []), ...(input.footprint ?? []), ...input.neighbors.flatMap((n) => [...n])]
   if (all.length < 3) return null
-  const t = fitTransformOf(all, input.area)
+  const t = input.scale === undefined ? fitTransformOf(all, input.area) : scaledTransformOf(all, input.area, input.scale)
   const parts: string[] = []
   for (const n of input.neighbors) {
     parts.push(`<path data-role="neighbor" d="${pathOf(n, t)}" fill="#e9e9e9" stroke="#888" stroke-width="0.25"/>`)
@@ -68,6 +98,37 @@ export function siteLayoutBodyOf(input: {
   return parts.join('')
 }
 
+/** 配置図を、収まるいちばん大きい標準の縮尺で作る。分母も返す（図枠の縮尺の欄に書く）。作れなければ null */
+export function siteLayoutOf(input: {
+  lot: readonly Pt[] | null
+  footprint: readonly Pt[] | null
+  neighbors: readonly (readonly Pt[])[]
+  area: Box
+}): { body: string; denominator: number } | null {
+  const all: Pt[] = [...(input.lot ?? []), ...(input.footprint ?? []), ...input.neighbors.flatMap((n) => [...n])]
+  if (all.length < 3) return null
+  const xs = all.map((p) => p.x)
+  const ys = all.map((p) => p.y)
+  const s = chooseScaleOf(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), input.area)
+  if (s === null) return null
+  const body = siteLayoutBodyOf({ ...input, scale: s })
+  return body === null ? null : { body, denominator: s }
+}
+
+/** 各階平面図を、収まるいちばん大きい標準の縮尺で作る。分母も返す。作れなければ null */
+export function floorPlanOf(input: {
+  widthMm: number
+  depthMm: number
+  gridLines: readonly number[]
+  units: readonly RectLike[]
+  area: Box
+}): { body: string; denominator: number } | null {
+  const s = chooseScaleOf(input.widthMm, input.depthMm, input.area)
+  if (s === null) return null
+  const body = floorPlanBodyOf({ ...input, scale: s })
+  return body === null ? null : { body, denominator: s }
+}
+
 /** 各階平面図の中身（基準階 1 枚）。外形の枠・通り芯（横の線）・住戸の区画（矩形）。住戸が無ければ null */
 export function floorPlanBodyOf(input: {
   widthMm: number
@@ -75,6 +136,8 @@ export function floorPlanBodyOf(input: {
   gridLines: readonly number[]
   units: readonly RectLike[]
   area: Box
+  /** 縮尺の分母。省略すると、作図の領域に合わせて縮める */
+  scale?: number
 }): string | null {
   if (input.units.length === 0) return null
   const corners: Pt[] = [
@@ -83,7 +146,7 @@ export function floorPlanBodyOf(input: {
     { x: input.widthMm, y: input.depthMm },
     { x: 0, y: input.depthMm },
   ]
-  const t = fitTransformOf(corners, input.area)
+  const t = input.scale === undefined ? fitTransformOf(corners, input.area) : scaledTransformOf(corners, input.area, input.scale)
   const rect = (x0: number, y0: number, x1: number, y1: number) => {
     const a = t({ x: x0, y: y1 })
     const b = t({ x: x1, y: y0 })
