@@ -125,3 +125,29 @@ describe('5a の確かめ: 住居系・前面道路 6 m・高さ 15 m（外形 =
     for (const piece of pieces) for (const p of piece) expect(p.y).toBeLessThanOrEqual(6_000 + 1e-6)
   })
 })
+
+// 実データの確かめ（統括の依頼 2026-11-06）: 準工業・前面道路 6 m（辺 0 が道路側と仮定）・容積率 200。
+// 道路斜線: 係数 1.5、距離 20 m。隣地斜線: 立ち上がり 31 m、係数 2.5（距離の上限なし）。
+// 天端 15 m の食い込みは、道路境界（道路側の辺の外 6 m）から 1.5 × (6 m + y) = 15 m を満たす y = 4 m まで。面積は 4 m × 20 m = 80 m²。
+describe('実データの確かめ: 準工業・前面道路 6 m・高さ 15 m（外形 = ダミー筆界）', () => {
+  const legal = legalBoundaries({ footprint: DUMMY_PARCEL, roadEdgeIndex: 0, roadWidthMm: 6_000, zone: '準工・工業系', farPercent: 200 })
+
+  it('規則の値: 道路は係数 1.5・距離 20 m、隣地は立ち上がり 31 m・係数 2.5（距離の上限なし）', () => {
+    const road = legal.boundaries.find((b) => b.kind === 'road')!
+    expect(road.coefficient).toBe(1.5)
+    expect(road.maxDistanceMm).toBe(20_000)
+    const adjacent = legal.boundaries.filter((b) => b.kind === 'adjacent')
+    expect(adjacent.length).toBe(3)
+    for (const a of adjacent) {
+      expect(a.coefficient).toBe(2.5)
+      expect(a.riseMm).toBe(31_000)
+      expect(a.maxDistanceMm).toBeUndefined()
+    }
+  })
+
+  it('天端 15 m の食い込みは 80 m²（道路側の辺から 4 m の帯。隣地は切らない）', () => {
+    const pieces = removedPiecesOf(DUMMY_PARCEL, legal.boundaries, 15_000)
+    expect(polyArea(pieces)).toBeCloseTo(80e6, -3)
+    for (const piece of pieces) for (const p of piece) expect(p.y).toBeLessThanOrEqual(4_000 + 1e-6)
+  })
+})
