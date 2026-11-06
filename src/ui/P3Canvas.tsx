@@ -31,7 +31,11 @@ const arcOn = () => {
   return u.penMode === 'curve' && u.arcTwoPoint
 }
 
-export function P3Canvas() {
+export function P3Canvas({ viewBox, overlay = false, drawing = true }: {
+  viewBox?: { x: number; y: number; width: number; height: number }
+  overlay?: boolean
+  drawing?: boolean
+} = {}) {
   const ref = useRef<HTMLCanvasElement | null>(null)
   // P3 の線は店舗の線（P3 の印つき）。表示・吸着・閉合は P3 の線だけを見る（P2 の外形は P3 の平面が別に描く）
   const drawn = useDrawing((s) => s.entries)
@@ -54,7 +58,15 @@ export function P3Canvas() {
     const c = ref.current
     const g = c?.getContext('2d')
     if (!c || !g) return
+    g.setTransform(1, 0, 0, 1, 0, 0)
     g.clearRect(0, 0, P3_W, P3_H)
+    if (viewBox) {
+      // 保存座標は従来どおり mm・上向き。図面の SVG は下向き。
+      const sx = P3_W / viewBox.width, sy = P3_H / viewBox.height
+      g.setTransform(P3_MM_PER_PX * sx, 0, 0, P3_MM_PER_PX * sy,
+        (-OX * P3_MM_PER_PX - viewBox.x) * sx,
+        (-OY * P3_MM_PER_PX - viewBox.y) * sy)
+    }
     g.lineWidth = 2
     for (const s of segments) {
       // 選んだ線は色を変える（G159）
@@ -77,11 +89,15 @@ export function P3Canvas() {
       for (const p of trail.slice(1)) g.lineTo(p.x, p.y)
       g.stroke()
     }
-  }, [segments, trail, selectedIds])
+  }, [segments, trail, selectedIds, viewBox])
 
   const local = (e: { clientX: number; clientY: number }) => {
     const r = ref.current!.getBoundingClientRect()
-    return { x: e.clientX - r.left, y: e.clientY - r.top }
+    const x = (e.clientX - r.left) / r.width
+    const y = (e.clientY - r.top) / r.height
+    return viewBox
+      ? { x: (viewBox.x + x * viewBox.width) / P3_MM_PER_PX + OX, y: (viewBox.y + y * viewBox.height) / P3_MM_PER_PX + OY }
+      : { x: x * P3_W, y: y * P3_H }
   }
 
   // 道具の途中の形（mm）を、画面の軌跡（px）にする
@@ -173,7 +189,7 @@ export function P3Canvas() {
           : '閉じていない（複数の輪）'
 
   return (
-    <div style={{ display: 'grid', gap: 6 }}>
+    <div style={overlay ? { position: 'absolute', inset: 0, pointerEvents: drawing ? 'auto' : 'none' } : { display: 'grid', gap: 6 }}>
       <canvas
         ref={ref}
         width={P3_W}
@@ -182,10 +198,10 @@ export function P3Canvas() {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerLeave={onLeave}
-        style={{ border: '1px solid #ddd8cc', background: '#fff', touchAction: 'none', width: P3_W, height: P3_H, maxWidth: '100%' }}
+        style={overlay ? { display: 'block', width: '100%', height: '100%', touchAction: 'none', cursor: drawing ? 'crosshair' : 'default' } : { border: '1px solid #ddd8cc', background: '#fff', touchAction: 'none', width: P3_W, height: P3_H, maxWidth: '100%' }}
         data-testid="p3-canvas"
       />
-      <p data-testid="p3-closure">閉合: {label}（線分 {segments.length} 本）</p>
+      {!overlay && <p data-testid="p3-closure">閉合: {label}（線分 {segments.length} 本）</p>}
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { inheritedFloors } from '../plan/inheritedFloors'
 import { useFloorPlans } from '../store/floorPlans'
 // P3 平面（D-04 P3、D-02 C6、A-03 G17）。柱割りの通り芯と、廊下の両側の住戸候補から住戸数を出す。
 // 区画の作り方は仮置き（candidateCells）。既定スパンと許容範囲は未決。画面では利用者が入れた値だけで計算する。
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { checkSpan, gridLines } from '../plan/grid'
 import { spanDimensions } from '../plan/spanDimension'
 import { mmLabel } from '../plan/dimensionLabel'
@@ -114,7 +114,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const showGrid = useUi((s) => s.showGrid)
   const showMiniMap = useUi((s) => s.showMiniMap)
   // ペンの道具の置き場は P2 と同じ店舗の値（上・左・独立。G52）
-  const placement = useUi((s) => s.toolbarPlacement)
   const [autoError, setAutoError] = useState<string | null>(null)
   // 左メニュー（G55）: 選んだ種類（1 つだけ。もう一度押すと外れる）
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
@@ -145,6 +144,21 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     spanMm: Number(spanText),
   })
 
+  const placement = useUi(s => s.toolbarPlacement)
+  const planViewport = useRef<HTMLDivElement>(null)
+  const [planZoom, setPlanZoom] = useState(1)
+  const [planDrawing, setPlanDrawing] = useState(false)
+  const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
+  useEffect(() => {
+    const element = planViewport.current
+    if (!element) return
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault()
+      setPlanZoom(z => Math.max(0.25, Math.min(8, z * (event.deltaY < 0 ? 1.1 : 1 / 1.1))))
+    }
+    element.addEventListener('wheel', wheel, {passive:false})
+    return () => element.removeEventListener('wheel', wheel)
+  }, [inherited !== null])
   const runAuto = (allFloors = false) => {
     // 足りない入力は、一文で言う（ZodError の JSON は出さない。依頼 2b）
     const problem = (targetText.trim() ? missingTargetOf(Number(targetText)) : null) ?? missingDimensionOf(dimensionsOf())
@@ -363,9 +377,18 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           {Array.from({ length: storeyCount }, (_, i) => <option key={i} value={i + 1}>{i + 1}階</option>)}
         </select></label>
         <p>{selectedFloor}階 · {auto ? 'この階の配置案' : '配置未作成'} · ボリュームの斜線処理後の外形</p>
+        <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:8}}>
+          <button type="button" aria-label="平面図を縮小" onClick={() => changeZoom(1 / 1.25)}>−</button>
+          <span>{Math.round(planZoom * 100)}%</span>
+          <button type="button" aria-label="平面図を拡大" onClick={() => changeZoom(1.25)}>＋</button>
+          <button type="button" onClick={() => setPlanZoom(1)}>全体表示</button>
+          <button type="button" aria-pressed={planDrawing} onClick={() => setPlanDrawing(v => !v)}>図面に描く</button>
+        </div>
+        <div style={{position:"relative"}}><PenToolbar placement={placement} /></div>
         {lines && units.cells ? (
-          <div style={{ position: 'relative' }}>
-          <svg width="100%" viewBox={`-500 -500 ${W + 2500} ${D + 2500}`} style={{ maxHeight: '70vh', background: '#fff', border: '1px solid #ddd8cc' }}>
+          <div ref={planViewport} style={{ position: 'relative', overflow:'auto', height:'70vh', border:'1px solid #ddd8cc' }}>
+          <div style={{position:'relative', width:`${planZoom * 100}%`, aspectRatio:`${W + 2500} / ${D + 2500}`}}>
+          <svg width="100%" height="100%" viewBox={`-500 -500 ${W + 2500} ${D + 2500}`} style={{display:'block', background:'#fff'}}>
             {showGrid ? (
               <g stroke="#e3e6df" strokeWidth={6}>
                 {Array.from({ length: Math.floor(W / 1000) + 1 }, (_, i) => (
@@ -436,6 +459,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               <path key={`outline-arc-${i}`} d={svgArcPath(arc)} fill="none" stroke="#1f5f8b" strokeWidth={20} />
             ))}
           </svg>
+          <P3Canvas overlay drawing={planDrawing} viewBox={{x:-500,y:-500,width:W+2500,height:D+2500}} />
+          </div>
           {showMiniMap && units.cells ? (() => {
             const rect = (r: { x0: number; y0: number; x1: number; y1: number }) => [
               { x: r.x0, y: r.y0 },
@@ -451,17 +476,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         ) : (
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}
-        <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>共通の作図メモ（階別配置とは別）</h3>
-        {/* ペンの道具は P2 と同じ店舗の置き場に従う（上・左・独立。G52）。道具の中身は直線・曲線・円弧（二点）（G152） */}
-        {placement === 'top' && <PenToolbar placement="top" />}
-        {/* 左と独立は、この枠の中に並べる（独立は枠を基準に浮かせる）。描く画面は幅いっぱいを保つ */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-start' }}>
-          {placement === 'left' && <PenToolbar placement="left" />}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <P3Canvas />
-          </div>
-          {placement === 'free' && <PenToolbar placement="free" />}
-        </div>
+
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>
