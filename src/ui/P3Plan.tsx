@@ -107,7 +107,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     floors:Array.from({length:storeyCount},()=>[{x:0,y:0},{x:appliedRectangle.widthMm,y:0},{x:appliedRectangle.widthMm,y:appliedRectangle.depthMm},{x:0,y:appliedRectangle.depthMm}])
   } : volumeInherited, [appliedRectangle,volumeInherited,storeyCount])
   const selectedFloor = Math.min(storeyCount, floorState.selected)
-  const floorOutline = inherited?.floors[selectedFloor - 1] ?? []
+  const floorOutline = useMemo(() => inherited?.floors[selectedFloor - 1] ?? [], [inherited, selectedFloor])
   const auto = floorState.source === sourceKey ? floorState.plans[selectedFloor] ?? null : null
   const setAuto = (plan: AutoPlan | null) => floorState.put(sourceKey, selectedFloor, plan)
   useEffect(() => {
@@ -321,7 +321,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       gridLines: auto ? lines ?? [] : [],
       fixtures,
     }
-  }, [widthText, depthText, lines, auto, core.rect, units.cells, fixtures, floorOutline])
+  }, [lines, auto, units.cells, fixtures, floorOutline])
   const derivedObjectRows = useMemo(() => objectTableOf(objectTableInput), [objectTableInput])
   const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
   const objectRows = useObjectTable((s) => s.rows)
