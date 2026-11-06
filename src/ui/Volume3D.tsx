@@ -238,6 +238,7 @@ class TileErrorBoundary extends Component<{ children: ReactNode; onError: () => 
 }
 
 interface Volume3DProps {
+  gridAngleDeg?: number
   /** 外形（閉じているとき）。閉じていなければ null（敷地と周辺建物だけを見せる。統括の依頼 2026-11-06。4） */
   footprint: Point[] | null
   /** 確定した敷地の筆（平面）。外形の前から地面に出す */
@@ -277,6 +278,7 @@ interface Volume3DProps {
 
 export function Volume3D({
   footprint,
+  gridAngleDeg = 0,
   lot,
   shadow,
   neighbors,
@@ -435,7 +437,7 @@ export function Volume3D({
           </mesh>
         </>
       )}
-      {ground && displayGrid && <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />}
+      {ground && displayGrid && <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} rotation={[0, -gridAngleDeg * Math.PI / 180, 0]} />}
       {showMap && mapTiles && mapTiles.length > 0 && (
         <TileErrorBoundary key={mapKey} onError={() => setMapFailed(true)}>
           <Suspense fallback={null}>

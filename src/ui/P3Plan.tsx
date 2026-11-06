@@ -200,6 +200,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         unitTypes: UNIT_TYPES,
         unitTypeIds: automaticTypes ? UNIT_TYPES.map(t=>t.id) : unitTypeIds,
         orderedTypes: !automaticTypes,
+        optimizeTypes: automaticTypes,
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),

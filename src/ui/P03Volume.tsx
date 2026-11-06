@@ -1,7 +1,7 @@
 import {boxOutline} from '../volume/boxOutline'
 import { visibleSlopeBoundaries, type SlopeVisibility } from './slopeVisibility'
 import { PlanningFramePanel } from './PlanningFramePanel'
-import { rotatePlanPoint } from '../map/planningFrame'
+import { alignEdgeAngle, rotatePlanPoint } from '../map/planningFrame'
 import type { ConfirmedSite } from '../store/confirmedSite'
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
@@ -473,7 +473,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           <HeaderIconButton label="斜線の面" icon={<IconSlope />} pressed={volumeSlope} onClick={() => setVolumeSlope(!volumeSlope)} />
         </span>
         <span className="p03-actions">
-          <button type="button" onClick={clear} disabled={segments.length === 0}>
+          <button type="button" onClick={() => { if (window.confirm("描いた線をすべて削除しますか？")) clear() }} disabled={segments.length === 0}>
             全部消す
           </button>
         </span>
@@ -497,6 +497,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
               <SceneErrorBoundary>
               <Volume3D
+                gridAngleDeg={confirmed?.lot && confirmed.lot.length > 1 ? -alignEdgeAngle(confirmed.lot, confirmed.planningEdge ?? (confirmed.lot.length > 7 ? 7 : 0)) : 0}
                 footprint={volume ? volume.footprint : null}
                 lot={parcel}
                 shadow={shadowOn ? sunShadow : null}
