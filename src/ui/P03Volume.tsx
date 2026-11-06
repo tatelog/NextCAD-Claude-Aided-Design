@@ -28,11 +28,12 @@ import { boundsOf } from './mapBounds'
 import { SHADOW_KEYS, shadowRuleFromOrdinance } from '../law/shadowOrdinance'
 import { PROJECT_WARD } from '../law/shadowRule'
 import { koutoAreaOf } from '../law/shadowKotoAreas'
+import { chomeNameOf } from '../map/parcelInfo'
 import { ordinanceStatus } from '../law/ordinance'
 import { confirmMeasurement } from '../law/measurementConfirm'
 import { ICHI_NOTE } from '../law/fireIchi'
 import { useOrdinance } from '../store/ordinance'
-import { siteRuleFromDistricts, zoneSelectStateOf } from '../law/siteRule'
+import { effectiveZoneOf, siteRuleFromDistricts, zoneSelectStateOf } from '../law/siteRule'
 import { suggestMeasurement } from '../law/shadowSuggest'
 import type { HeightDistrict } from '../law/shadowMeasure'
 
@@ -256,7 +257,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
   const siteMatches = useSite((s) => s.matches)
   const siteRule = useMemo(() => (siteMatches ? siteRuleFromDistricts(siteMatches) : null), [siteMatches])
-  const effectiveZone = siteRule?.zone ?? zone
+  const effectiveZone = effectiveZoneOf(siteRule, zone)
   // 欄は、計算に使う区分を示す（PLATEAU の区分が決まっていれば、その区分で押せない。統括の依頼 2026-11-06）
   const zoneSelect = zoneSelectStateOf(siteRule, zone)
   const inputFar = farLimit === '' ? null : Number(farLimit)
@@ -344,7 +345,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     }
     // 規制値は、人が確認した条例の値だけで置く（G15）。未確認・未入力なら判定しない
     // 文脈（高度地区・区）を基準の表へ渡す（t29）。高度地区が未入力なら渡さない（従来どおり）
-    const ordinance = shadowRuleFromOrdinance(zone, ordinanceEntries, {
+    const ordinance = shadowRuleFromOrdinance(effectiveZone, ordinanceEntries, {
       koudo: heightDistrict === '' ? undefined : heightDistrict === '第三種' ? '第三種' : 'その他',
       ward: PROJECT_WARD,
     })
@@ -372,7 +373,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     if (judgment.result === '適合') return { text: `適合（確認済みの条例の値で判定）／${drawingText}`, result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）／${drawingText}`, result: '不適合' as const }
-  }, [volume, volumeError, zone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot, sunSite])
+  }, [volume, volumeError, effectiveZone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot, sunSite])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -590,7 +591,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 <dd>
                   {shadowJudge.text}
                   {/* 江東区の一覧（K1・K2・町丁目の区域）。丁目は P2 にまだ渡っていないので、区域に当たるかは確かめられない（t34） */}
-                  <div className="muted">江東区の一覧: {koutoAreaOf(null).reason}</div>
+                  <div className="muted">江東区の一覧: {koutoAreaOf(parcelProps ? chomeNameOf(parcelProps) : null).reason}</div>
                   {ORDINANCE_KEYS.map((k) => (
                     <div key={k}>
                       <OrdinanceStatusLine itemKey={k} />
