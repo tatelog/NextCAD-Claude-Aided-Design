@@ -2,7 +2,7 @@
 // 描けないときは、渡された一覧の中身（fallback）に戻す。描画の中身は docx-preview に任せる。
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { renderAsync } from 'docx-preview'
-import { renderFailureTextOf } from './permitFormPreview'
+import { FORM_PAGE_NOTE, renderFailureTextOf } from './permitFormPreview'
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -52,7 +52,10 @@ export function DocxFormView({ fileName, bytes, fallback }: DocxFormViewProps) {
           <p style={{ fontSize: 12, color: '#a33' }}>{failure}</p>
         </>
       ) : (
-        <p style={{ fontSize: 12, color: '#444', margin: '0 0 4px' }}>{`${fileName}（記入した様式を、ページごとに出す）`}</p>
+        <>
+          <p style={{ fontSize: 12, color: '#444', margin: '0 0 4px' }}>{`${fileName}（記入した様式を、ページごとに出す）`}</p>
+          <p style={{ fontSize: 12, color: '#666', margin: '0 0 4px' }}>{FORM_PAGE_NOTE}</p>
+        </>
       )}
       <div ref={bodyRef} style={{ display: failure === null ? 'block' : 'none', maxHeight: '75vh', overflow: 'auto' }} />
     </div>

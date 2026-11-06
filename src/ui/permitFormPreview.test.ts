@@ -5,7 +5,7 @@
 // 仕様 DP4: 第二号と第三号は別々に見る。第三号だけ記入していても、第二号は一覧のまま。
 // 仕様 DP5: 描けなかったときの文は、例外の中身を含む。例外でない値も文にする（一覧へ戻すときに出す）。
 import { describe, expect, it } from 'vitest'
-import { docxViewKindOfName, previewPlanOf, renderFailureTextOf } from './permitFormPreview'
+import { docxViewKindOfName, FORM_PAGE_NOTE, previewPlanOf, renderFailureTextOf } from './permitFormPreview'
 
 const F2_NAME = '確認申請書（第二号様式）'
 const F3_NAME = '建築計画概要書（第三号様式）'
@@ -49,5 +49,12 @@ describe('描けなかったときの文（仕様 DP5）', () => {
   it('仕様 DP5: 例外の中身を含む文。例外でない値も文にする', () => {
     expect(renderFailureTextOf(new Error('boom'))).toContain('boom')
     expect(renderFailureTextOf('文字')).toContain('文字')
+  })
+})
+
+// 仕様（統括の判断 2026-11-06・BwC のメッセージ 1）: 描画の上に、区切りが Word のページと一致しない旨の一言を出す。
+describe('描画の上の一言（仕様 FV1）', () => {
+  it('仕様 FV1: 「画面の区切りは Word のページと一致しない（印刷は Word で開いて確かめる）」と出す', () => {
+    expect(FORM_PAGE_NOTE).toBe('画面の区切りは Word のページと一致しない（印刷は Word で開いて確かめる）')
   })
 })

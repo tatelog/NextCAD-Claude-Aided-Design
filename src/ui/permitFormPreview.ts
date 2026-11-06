@@ -39,3 +39,6 @@ export function renderFailureTextOf(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
   return `様式を描けませんでした（${msg}）。下の一覧で中身を見てください。`
 }
+
+/** 描画の上に出す一言（画面の区切りは Word のページと一致しない。統括の判断 2026-11-06） */
+export const FORM_PAGE_NOTE = '画面の区切りは Word のページと一致しない（印刷は Word で開いて確かめる）'
