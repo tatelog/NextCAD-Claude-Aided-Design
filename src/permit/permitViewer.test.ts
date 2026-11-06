@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import docsJson from '../law/permitDocuments.json'
 import type { PermitJudgement } from '../law/permitRequired'
-import { CONTENT_LABEL, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf } from './permitViewer'
+import { CONTENT_LABEL, FIXED_VIEWER_ITEMS, formKindOfName, ifcSummaryOf, rowContentOf, viewerRowsOf } from './permitViewer'
 
 const docs = (docsJson as unknown as { documents: { id: string; name: string; kind: string }[] }).documents
 const byKind = (kind: string) => docs.find((d) => d.kind === kind)!.name
@@ -68,5 +68,40 @@ describe('IFC の件数（仕様 V4）', () => {
 describe('ビューアの固定の項目（仕様 V5）', () => {
   it('V5: 左の一覧の先頭は「判定の一覧」と「IFC（BIM のモデル）」', () => {
     expect(FIXED_VIEWER_ITEMS).toEqual(['判定の一覧', 'IFC（BIM のモデル）'])
+  })
+})
+
+// 仕様（統括の判断 2026-11-06・BwC のメッセージ 3）: 記入した様式がある行の中身は、正しい状態を出す（記入後も「様式が未配置」は誤り）。
+describe('記入した様式の中身（仕様 V9）', () => {
+  const F2_NAME = '確認申請書（第二号様式）'
+  const F3_NAME = '建築計画概要書（第三号様式）'
+  const F8_NAME = '確認申請書（昇降機）（第八号様式・昇降機用）'
+  const F8E_NAME = '確認申請書（昇降機以外の建築設備）（第八号様式・昇降機以外の建築設備用）'
+
+  it('V9-1: 記入した様式の行の中身は「記入済み（一式の 01_申請書 に入る）」', () => {
+    const rows = viewerRowsOf({ ...JUDGEMENT, required: [F2_NAME], notRequired: [], needsCheck: [] }, docs)
+    expect(rowContentOf(rows[0]!, { F2: {} })).toBe(CONTENT_LABEL.formFilled)
+    expect(CONTENT_LABEL.formFilled).toBe('記入済み（一式の 01_申請書 に入る）')
+  })
+
+  it('V9-2: 記入していない様式の行は、従来の「様式が未配置（様式を置けば記入して出す）」のまま。別の様式を記入しても変えない', () => {
+    const rows = viewerRowsOf({ ...JUDGEMENT, required: [F2_NAME], notRequired: [], needsCheck: [] }, docs)
+    expect(rowContentOf(rows[0]!, {})).toBe(CONTENT_LABEL.form)
+    expect(rowContentOf(rows[0]!, { F3: {} })).toBe(CONTENT_LABEL.form)
+  })
+
+  it('V9-3: 様式以外（計算・図面・人が用意）の行は、記入の有無で中身を変えない', () => {
+    const rows = viewerRowsOf(JUDGEMENT, docs)
+    const calc = rows.find((r) => r.name === byKind('calc'))!
+    expect(rowContentOf(calc, { F2: {}, F3: {} })).toBe(calc.content)
+    expect(calc.content).toBe('人が用意する書類')
+  })
+
+  it('V9-4: 書類の名前から様式を区別する（第二号・第三号・第八号の 2 つ）。様式でない名前は null', () => {
+    expect(formKindOfName(F2_NAME)).toBe('F2')
+    expect(formKindOfName(F3_NAME)).toBe('F3')
+    expect(formKindOfName(F8_NAME)).toBe('F8')
+    expect(formKindOfName(F8E_NAME)).toBe('F8E')
+    expect(formKindOfName('配置図')).toBeNull()
   })
 })

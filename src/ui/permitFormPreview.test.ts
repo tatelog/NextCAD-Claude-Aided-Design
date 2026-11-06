@@ -5,7 +5,7 @@
 // 仕様 DP4: 第二号と第三号は別々に見る。第三号だけ記入していても、第二号は一覧のまま。
 // 仕様 DP5: 描けなかったときの文は、例外の中身を含む。例外でない値も文にする（一覧へ戻すときに出す）。
 import { describe, expect, it } from 'vitest'
-import { docxViewKindOfName, previewPlanOf, renderFailureTextOf } from './permitFormPreview'
+import { docxViewKindOfName, FORM_PAGE_NOTE, fitZoomOf, previewPlanOf, renderFailureTextOf } from './permitFormPreview'
 
 const F2_NAME = '確認申請書（第二号様式）'
 const F3_NAME = '建築計画概要書（第三号様式）'
@@ -49,5 +49,37 @@ describe('描けなかったときの文（仕様 DP5）', () => {
   it('仕様 DP5: 例外の中身を含む文。例外でない値も文にする', () => {
     expect(renderFailureTextOf(new Error('boom'))).toContain('boom')
     expect(renderFailureTextOf('文字')).toContain('文字')
+  })
+})
+
+// 仕様（統括の判断 2026-11-06・BwC のメッセージ 1）: 描画の上に、区切りが Word のページと一致しない旨の一言を出す。
+describe('描画の上の一言（仕様 FV1）', () => {
+  it('仕様 FV1: 「画面の区切りは Word のページと一致しない（印刷は Word で開いて確かめる）」と出す', () => {
+    expect(FORM_PAGE_NOTE).toBe('画面の区切りは Word のページと一致しない（印刷は Word で開いて確かめる）')
+  })
+})
+
+// 仕様（統括の判断 2026-11-06・BwC のメッセージ 2）: 描いた面を、表示の箱の幅に合わせて縮め、横に送らずに全体が見えるようにする。
+// 倍率は「箱の幅 ÷ 描く幅」（1 を超えない）。描く幅は、面と余白を含む幅。
+describe('表示の箱の幅に合わせる倍率（仕様 FZ1〜FZ4）', () => {
+  it('仕様 FZ1: 箱が描く幅より広いときは、倍率は 1（拡大しない）', () => {
+    expect(fitZoomOf(1000, 854)).toBe(1)
+  })
+
+  it('仕様 FZ2: 箱が狭いときは、箱の幅に収まる倍率にする（箱 ÷ 描く幅）', () => {
+    expect(fitZoomOf(433, 854)).toBeCloseTo(433 / 854, 6)
+  })
+
+  it('仕様 FZ3: 倍率を掛けた幅は、箱からはみ出さない', () => {
+    const box = 433
+    const natural = 854
+    expect(natural * fitZoomOf(box, natural)).toBeLessThanOrEqual(box + 1e-9)
+  })
+
+  it('仕様 FZ4: 幅が分からない（0・負・数でない）ときは 1（描画を止めない）', () => {
+    expect(fitZoomOf(0, 854)).toBe(1)
+    expect(fitZoomOf(433, 0)).toBe(1)
+    expect(fitZoomOf(-5, 854)).toBe(1)
+    expect(fitZoomOf(Number.NaN, 854)).toBe(1)
   })
 })

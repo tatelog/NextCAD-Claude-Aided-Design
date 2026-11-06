@@ -1,5 +1,6 @@
 // 出力のビューア（1-a・1-c）の中身を作る。判定の結果はそのまま使い、判定は変えない（統括の依頼 2026-11-06）。
 import type { PermitJudgement } from '../law/permitRequired'
+import type { FormKind } from '../law/permitFormKind'
 import { SITE_MISSING_TEXT } from '../export/drawingSvg'
 
 export type ViewerGroup = '要る' | '要確認' | '要らない'
@@ -7,6 +8,7 @@ export type ViewerGroup = '要る' | '要確認' | '要らない'
 /** 書類の中身の種類の文（一か所。言い換えはここだけ） */
 export const CONTENT_LABEL = {
   form: '様式が未配置（様式を置けば記入して出す）',
+  formFilled: '記入済み（一式の 01_申請書 に入る）',
   user: '人が用意する書類',
   site: '配置図（確定した敷地と周辺建物の輪郭）',
   floorPlan: '各階平面図（基準階 1 枚）',
@@ -69,4 +71,22 @@ export interface IfcSummary {
 export function ifcSummaryOf(text: string): IfcSummary {
   const entities = text.split('\n').filter((l) => /^#\d+=/.test(l)).length
   return { entities, bytes: new TextEncoder().encode(text).length }
+}
+
+/** 書類の名前から様式（FormKind）を決める。様式でなければ null（第八号は昇降機と昇降機以外の建築設備の 2 つ） */
+export function formKindOfName(name: string): FormKind | null {
+  if (name.includes('第二号様式')) return 'F2'
+  if (name.includes('第三号様式')) return 'F3'
+  if (name.includes('第八号様式')) {
+    if (name.includes('昇降機以外の建築設備')) return 'F8E'
+    if (name.includes('昇降機')) return 'F8'
+  }
+  return null
+}
+
+/** 行の中身。記入した様式がある行だけ「記入済み」に変える。他の行は中身のまま（統括の判断 2026-11-06） */
+export function rowContentOf(row: ViewerRow, filled: Partial<Record<FormKind, unknown>>): string {
+  if (row.content !== CONTENT_LABEL.form) return row.content
+  const kind = formKindOfName(row.name)
+  return kind !== null && filled[kind] !== undefined ? CONTENT_LABEL.formFilled : row.content
 }

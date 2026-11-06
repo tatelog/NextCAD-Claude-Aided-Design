@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { PermitJudgement } from '../law/permitRequired'
 import { applicabilityTextOf } from '../permit/p5Judgement'
 import { fitSvgForView } from './fitSvgForView'
-import { DRAWING_KEY_OF_NAME, DRAWING_MISSING_DEFAULT, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
+import { DRAWING_KEY_OF_NAME, DRAWING_MISSING_DEFAULT, FIXED_VIEWER_ITEMS, ifcSummaryOf, rowContentOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
 import type { FormKind } from '../law/permitFormKind'
 import { previewPlanOf, type FilledFormFile } from './permitFormPreview'
 import { DocxFormView } from './DocxFormView'
@@ -101,7 +101,7 @@ export function PermitViewer({
         <p style={{ fontSize: 12, color: '#444', margin: '0 0 4px' }}>{`区分: ${selectedRow.group}`}</p>
         {selectedRow.reason ? <p style={{ fontSize: 12, color: '#666', margin: '0 0 4px' }}>{selectedRow.reason}</p> : null}
         {check ? <p style={{ fontSize: 12, color: check.color, margin: '0 0 4px' }}>{check.text}</p> : null}
-        <p style={{ fontSize: 12, color: '#444' }}>{`中身: ${selectedRow.content}`}</p>
+        <p style={{ fontSize: 12, color: '#444' }}>{`中身: ${rowContentOf(selectedRow, filledForms)}`}</p>
         {docx.mode === 'docx' ? (
           <DocxFormView fileName={docx.fileName} bytes={docx.bytes} fallback={drawingBlock} />
         ) : (

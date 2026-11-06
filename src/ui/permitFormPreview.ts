@@ -39,3 +39,12 @@ export function renderFailureTextOf(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
   return `様式を描けませんでした（${msg}）。下の一覧で中身を見てください。`
 }
+
+/** 描画の上に出す一言（画面の区切りは Word のページと一致しない。統括の判断 2026-11-06） */
+export const FORM_PAGE_NOTE = '画面の区切りは Word のページと一致しない（印刷は Word で開いて確かめる）'
+
+/** 描いた面を表示の箱の幅に合わせる倍率（統括の判断 2026-11-06）。箱 ÷ 描く幅。1 を超えない。幅が分からない（0・負・数でない）ときは 1 */
+export function fitZoomOf(boxWidth: number, naturalWidth: number): number {
+  if (!Number.isFinite(boxWidth) || !Number.isFinite(naturalWidth) || boxWidth <= 0 || naturalWidth <= 0) return 1
+  return Math.min(1, boxWidth / naturalWidth)
+}
