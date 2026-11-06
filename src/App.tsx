@@ -292,14 +292,14 @@ export function App() {
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
         <SaveDot status={saveStatus} />
         <HeaderIconButton label="保存" icon={<IconSave />} onClick={save} />
-        <ModeSwitch
+        {screen !== 'P2' && <ModeSwitch
           screen={screen}
           activeMode={activeMode}
           onPick={(id) => {
             useMode.getState().setMode(id as WorkMode)
             record('モード', modeName(SCREEN_MODES, id))
           }}
-        />
+        />}
         <HeaderIconButton label="作業履歴" icon={<IconHistory />} pressed={panel === 'log'} onClick={() => setPanel(panel === 'log' ? null : 'log')} />
         {/* メニュー（ハブ A-03 G74）: ☰（三本線） */}
         <HeaderIconButton label="メニュー" icon={<IconMenu />} pressed={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} />
