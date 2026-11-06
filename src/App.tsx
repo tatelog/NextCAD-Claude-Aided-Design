@@ -243,18 +243,6 @@ export function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#fff', borderBottom: '1px solid #ddd8cc', flexShrink: 0, overflowX: 'auto' }}>
-        <HeaderIconButton label="元に戻す" title="元に戻す（描画・Ctrl+Z）" icon={<ToolIcon name="undo" />} disabled={!canUndo} onClick={() => useDrawing.getState().undo()} />
-        <HeaderIconButton label="やり直す" title="やり直す（描画・Ctrl+Y）" icon={<ToolIcon name="redo" />} disabled={!canRedo} onClick={() => useDrawing.getState().redo()} />
-        <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
-        <ModeSwitch
-          screen={screen}
-          activeMode={activeMode}
-          onPick={(id) => {
-            useMode.getState().setMode(id as WorkMode)
-            record('モード', modeName(SCREEN_MODES, id))
-          }}
-        />
-        <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
         <input
           aria-label="案件名（敷地名）"
           placeholder="敷地名（案件）"
@@ -262,7 +250,8 @@ export function App() {
           onChange={(e) => setProject(e.target.value)}
           style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', width: 220, flex: '0 0 220px', boxSizing: 'border-box' }}
         />
-      <nav aria-label="画面切り替え" style={{ display: 'flex', flexShrink: 0, gap: 6, marginLeft: 24, whiteSpace: 'nowrap' }}>
+        <span aria-hidden="true" style={{color:"#b4b7bd"}}>｜</span>
+      <nav aria-label="画面切り替え" style={{ display: 'flex', flexShrink: 0, gap: 6, whiteSpace: 'nowrap' }}>
         {SCREENS.map((s) => (
           <button
             key={s.id}
@@ -276,7 +265,20 @@ export function App() {
           </button>
         ))}
       </nav>
-        <span style={{ flex: 1 }} />
+        <span aria-hidden="true" style={{color:"#b4b7bd", marginLeft:"auto", paddingLeft:24}}>｜｜</span>
+        <HeaderIconButton label="元に戻す" title="元に戻す（描画・Ctrl+Z）" icon={<ToolIcon name="undo" />} disabled={!canUndo} onClick={() => useDrawing.getState().undo()} />
+        <HeaderIconButton label="やり直す" title="やり直す（描画・Ctrl+Y）" icon={<ToolIcon name="redo" />} disabled={!canRedo} onClick={() => useDrawing.getState().redo()} />
+        <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
+        <ModeSwitch
+          screen={screen}
+          activeMode={activeMode}
+          onPick={(id) => {
+            useMode.getState().setMode(id as WorkMode)
+            record('モード', modeName(SCREEN_MODES, id))
+          }}
+        />
+        <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
+
         <HeaderIconButton
           label="意味づけを判定"
           icon={<IconJudge />}

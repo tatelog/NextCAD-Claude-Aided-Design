@@ -1,3 +1,4 @@
+import { IconModeDrawing } from './headerIcons'
 import { RectangularStudyPanel } from './RectangularStudyPanel'
 import { FloorPlanMenu } from './FloorPlanMenu'
 import { useLeftPanelWidth, LeftPanelResize } from './LeftPanelResize'
@@ -47,7 +48,7 @@ import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { checkShaftAlignment } from '../plan/shaftAlignment'
 import { shaftFloorsOf } from '../plan/shaftCheck'
-import { isRightItemShown, useActiveMode } from '../store/mode'
+import { isRightItemShown, useActiveMode, useMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from '../plan/unitDetail'
 import { objectTableOf, type ObjectTableInput } from '../plan/objectTable'
@@ -153,7 +154,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [toolPosition, setToolPosition] = useState({x:8,y:8})
   const toolDrag = useRef<{x:number;y:number;left:number;top:number}|null>(null)
   const [toolsOpen, setToolsOpen] = useState(true)
-  const [planDrawing, setPlanDrawing] = useState(false)
   const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
   useEffect(() => {
     const element = planViewport.current
@@ -251,6 +251,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const hiddenTiles = usePanelTiles((s) => s.hidden)
   // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。× で閉じた項目も出さない（G73）
   const activeMode = useActiveMode('P3')
+  const planDrawing = activeMode === 'drawing'
   const tileShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P3', hiddenTiles, id)
   // 左のオブジェクト一覧の開閉（G55）。描画（システム）のモードは折りたたんで始める。モードが変わると既定に戻る
   const menuFold = useObjectMenuFold(`P3-${activeMode}`, objectMenuFoldedByDefault(activeMode, 'plan'))
@@ -388,9 +389,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <button type="button" aria-label="平面図を縮小" onClick={() => changeZoom(1 / 1.25)}>−</button>
           <span>{Math.round(planZoom * 100)}%</span>
           <button type="button" aria-label="平面図を拡大" onClick={() => changeZoom(1.25)}>＋</button>
-          <button type="button" onClick={() => setPlanZoom(1)}>全体表示</button>
-          <button type="button" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}>道具</button>
-          <button type="button" aria-pressed={planDrawing} onClick={() => setPlanDrawing(v => !v)}>図面に描く</button>
+          <button type="button" aria-label="全体表示" title="全体表示" onClick={() => setPlanZoom(1)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg></button>
+          <button type="button" aria-label="道具" title="描画の道具" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}><IconModeDrawing /></button>
         </div>
         <div style={{position:'relative', flex:1, minHeight:0, display:'flex', flexDirection:'column'}}>
         {toolsOpen && <div style={{position:'absolute', top:toolPosition.y, left:toolPosition.x, zIndex:20, maxWidth:'calc(100% - 16px)', background:'#fff', borderRadius:6, boxShadow:'0 2px 10px #0002'}}>
@@ -402,7 +402,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             >⠿</button>
             <button type="button" aria-label="道具メニューを閉じる" onClick={()=>setToolsOpen(false)}>×</button>
           </div>
-          <PenToolbar compact placement={placement} isDrawing={planDrawing} onDraw={() => setPlanDrawing(true)} />
+          <PenToolbar compact placement={placement} isDrawing={planDrawing} onDraw={() => useMode.getState().setMode('drawing')} />
         </div>}
         {lines && units.cells ? (
           <div ref={planViewport} style={{ position: 'relative', overflow:'auto', flex:1, minHeight:0, background:'#f4f4f2' }}>
