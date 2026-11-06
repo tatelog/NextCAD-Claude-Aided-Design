@@ -7,7 +7,7 @@ import { NumericLineForm } from './NumericLineForm'
 import { useFeatures } from '../store/features'
 import { ROAD_WIDTH_SOURCES, roadWidthNote, type RoadWidthSource } from '../volume/roadWidthSource'
 import { volumeAfterSlope } from '../volume/cutVolume'
-import { legalBoundaries, NORTH_NEEDS_TRUE_NORTH } from '../volume/legalSlope'
+import { legalSlopeFromInputs, NORTH_NEEDS_TRUE_NORTH, slopeRowReasonOf } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { setbackHintOf, setbackInitialOf, setbackInputsOf } from '../volume/setbackDefaults'
 import { setbackLabel } from '../plan/dimensionLabel'
@@ -254,10 +254,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const effectiveFar = siteRule?.farPercent ?? inputFar
 
   const legal = useMemo(() => {
-    if (effectiveFar === null || !Number.isFinite(effectiveFar) || effectiveFar <= 0) {
-      return { boundaries: [], pending: ['容積率の限度（上限）が未入力'] }
-    }
-    return legalBoundaries({
+    return legalSlopeFromInputs({
       footprint: lot,
       roadEdgeIndex: edge,
       roadWidthMm: Number(roadWidth) || 0,
@@ -572,7 +569,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 <dt>斜線（北・隣地・道路）</dt>
                 <dd>
                   {legal.boundaries.length === 0
-                    ? '判定する規則が無い'
+                    ? slopeRowReasonOf(legal)
                     : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
                   {legal.pending.includes(NORTH_NEEDS_TRUE_NORTH) ? <div className="muted">{NORTH_NEEDS_TRUE_NORTH}</div> : null}
                 </dd>
