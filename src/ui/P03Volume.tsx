@@ -59,6 +59,7 @@ import { neighborsShownOf, shadowShownOf } from './volumeDisplay'
 import { HeaderIconButton } from './HeaderIconButton'
 import { IconBuildings, IconMap, IconShadow } from './headerIcons'
 import { SceneErrorBoundary } from './SceneErrorBoundary'
+import { mapTilesOf } from '../map/gsiTiles'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
@@ -136,6 +137,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const setVolumeShadow = useUi((s) => s.setVolumeShadow)
   const neighborsOn = neighborsShownOf(showNeighbors, volumeNeighbors)
   const shadowOn = shadowShownOf(showShadow, volumeShadow)
+  // 地面に貼る地理院タイル（確定した地点の周り。枠が無ければ無し。代表の依頼 2026-11-06。4）
+  const mapTiles = useMemo(() => (confirmed ? mapTilesOf(confirmed.center, confirmed.frame) : []), [confirmed])
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
     () => {
@@ -464,6 +467,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 shadow={shadowOn ? sunShadow : null}
                 neighbors={neighborsOn ? neighbors : []}
                 showMap={volumeMap}
+                mapTiles={mapTiles}
                 floors={stackedFloors}
                 setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
