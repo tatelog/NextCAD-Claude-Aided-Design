@@ -7,7 +7,7 @@
 // つまみの上で押しているあいだは、カメラの回転（OrbitControls）を止める。大きさは画面で一定。数値は仮置き。
 // 指・マウス・ペンのどれでも Pointer Events で一つに扱い、入力の種類で挙動を変えない。
 import { useFrame, useStore, type RootStore, type ThreeEvent } from '@react-three/fiber'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import {
@@ -22,8 +22,9 @@ import {
 } from '../volume/knobs3d'
 import { outlineCentroid, type RotationStep } from '../volume/rotation'
 
-/** つまみの半径（画面の px）。仮置き。2D のつまみの当たり判定（半径 12 px）より少し大きくする（指で押すため）。 */
-const KNOB_RADIUS_PX = 14
+/** 見た目は小さく、近接・タッチの当たり判定は別に確保する。 */
+const KNOB_RADIUS_PX = 6
+const KNOB_HIT_RADIUS_PX = 20
 const ROTATE_COLOR = '#e07b1f'
 const ROTATE_ACTIVE_COLOR = '#f5a04a'
 const HEIGHT_COLOR = '#2a6fdb'
@@ -54,6 +55,19 @@ function setCameraEnabled(store: RootStore, enabled: boolean): void {
 /** 画面の大きさが一定（半径 KNOB_RADIUS_PX の px）になるよう、毎フレーム拡大率を合わせる。中の形は半径 1 で作る。 */
 function ScreenScaled({ position, handlers, children }: { position: [number, number, number]; handlers: KnobHandlers; children: ReactNode }) {
   const ref = useRef<THREE.Group>(null)
+  const [near, setNear] = useState(false)
+  const [active, setActive] = useState(false)
+  const store = useStore()
+  useEffect(() => {
+    const canvas = store.getState().gl.domElement
+    const reset = () => { setNear(false); setActive(false) }
+    canvas.addEventListener('pointercancel', reset)
+    canvas.addEventListener('lostpointercapture', reset)
+    return () => {
+      canvas.removeEventListener('pointercancel', reset)
+      canvas.removeEventListener('lostpointercapture', reset)
+    }
+  }, [store])
   useFrame(({ camera, size }) => {
     const group = ref.current
     if (!group || size.height <= 0 || !(camera instanceof THREE.PerspectiveCamera)) return
@@ -61,8 +75,19 @@ function ScreenScaled({ position, handlers, children }: { position: [number, num
     group.scale.setScalar(worldPerPx * KNOB_RADIUS_PX)
   })
   return (
-    <group ref={ref} position={position} {...handlers}>
-      {children}
+    <group ref={ref} position={position}
+      onPointerOver={() => setNear(true)}
+      onPointerOut={() => setNear(false)}
+      onPointerDown={(e) => { setActive(true); handlers.onPointerDown(e) }}
+      onPointerMove={handlers.onPointerMove}
+      onPointerUp={(e) => { setActive(false); handlers.onPointerUp(e) }}
+    >
+      {/* 透明の近接領域。表示を隠しても操作対象は維持する。 */}
+      <mesh>
+        <sphereGeometry args={[KNOB_HIT_RADIUS_PX / KNOB_RADIUS_PX, 16, 12]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+      </mesh>
+      <group visible={near || active}>{children}</group>
     </group>
   )
 }
