@@ -69,7 +69,15 @@
   color: #fff;
 }
 
-.pen-toolbar.is-left .pen-toolbar-group { flex-wrap: wrap; }
+/* 固定時は一列。独立パレットの折返しは維持する。 */
+.pen-toolbar.is-left { flex-wrap: nowrap; padding: 4px; margin-right: 0; }
+.pen-toolbar.is-left .pen-toolbar-group { flex-direction: column; flex-wrap: nowrap; }
+.pen-toolbar.is-top { flex-direction: row; flex-wrap: nowrap; width: max-content; max-width: 100%; overflow-x: auto; }
+.pen-toolbar.is-top .pen-toolbar-group { flex-wrap: nowrap; }
+.pen-toolbar.is-left button,
+.pen-toolbar.is-top button { width: 34px; height: 32px; padding: 4px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+.pen-toolbar.is-top .pen-toolbar-group { flex: 0 0 auto; }
+
 
 .circle-menu-item { position: absolute; transform: translate(-50%, -50%); width: 62px; height: 62px; border: 1px solid transparent; border-radius: 50%; background: transparent; color: #1f2a44; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; cursor: pointer; font-size: 11px; }
 .circle-menu-item:hover:not(:disabled), .circle-menu-item:focus-visible { border-color: #8d9bb1; background: #e1e8f2; }
