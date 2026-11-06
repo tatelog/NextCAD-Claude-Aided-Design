@@ -1,3 +1,4 @@
+import {usePlanZoom} from '../store/planZoom'
 import {movePlanCore} from '../plan/movePlanCore'
 import { IconModeDrawing } from './headerIcons'
 import { RectangularStudyPanel } from './RectangularStudyPanel'
@@ -153,7 +154,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const placement = useUi(s => s.toolbarPlacement)
   const planViewport = useRef<HTMLDivElement>(null)
   const [planSize, setPlanSize] = useState({width: 800, height: 600})
-  const [planZoom, setPlanZoom] = useState(1)
+  const planZoom = usePlanZoom(s=>s.zoom)
+  const setPlanZoom = usePlanZoom(s=>s.setZoom)
   const [rectangleOpen, setRectangleOpen] = useState(false)
   const [toolPosition, setToolPosition] = useState({x:8,y:8})
   const toolDrag = useRef<{x:number;y:number;left:number;top:number}|null>(null)
@@ -161,7 +163,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [dockPreview,setDockPreview] = useState<'top'|'bottom'|'left'|'right'|null>(null)
   const toolHorizontal = toolDock ? toolDock==='top'||toolDock==='bottom' : placement==='top'
   const [toolsOpen, setToolsOpen] = useState(true)
-  const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
   useEffect(() => {
     const element = planViewport.current
     if (!element) return
@@ -409,10 +410,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
         <button type="button" onClick={() => setRectangleOpen(true)}>長方形で配置を比較</button>
         <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:8}}>
-          <button type="button" aria-label="平面図を縮小" onClick={() => changeZoom(1 / 1.25)}>−</button>
-          <span>{Math.round(planZoom * 100)}%</span>
-          <button type="button" aria-label="平面図を拡大" onClick={() => changeZoom(1.25)}>＋</button>
-          <button type="button" aria-label="全体表示" title="全体表示" onClick={() => setPlanZoom(1)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg></button>
           {activeMode !== 'system' && <button type="button" aria-label="道具" title="描画の道具" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}><IconModeDrawing /></button>}
         </div>
         <div style={{position:'relative', flex:1, minHeight:0, display:'flex', flexDirection:'column'}}>

@@ -1,3 +1,4 @@
+import {usePlanZoom} from './store/planZoom'
 // 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・モード・作業履歴・メニュー・保留）。
 // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
 import { useEffect, useRef, useState } from 'react'
@@ -57,6 +58,8 @@ export function App() {
   const canRedo = useDrawing((s) => s.redoStack.length > 0)
   // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
   useUndoKeys()
+  const planZoom = usePlanZoom(s=>s.zoom)
+  const setPlanZoom = usePlanZoom(s=>s.setZoom)
   const [screen, setScreen] = useState<ScreenId>('P1')
   // 開発用の道具（☰ の切替。既定は隠す）
   const devShown = useDevTools((s) => s.shown)
@@ -268,6 +271,13 @@ export function App() {
         <span aria-hidden="true" style={{color:"#b4b7bd", marginLeft:"auto", paddingLeft:24}}>｜｜</span>
         <HeaderIconButton label="元に戻す" title="元に戻す（描画・Ctrl+Z）" icon={<ToolIcon name="undo" />} disabled={!canUndo} onClick={() => useDrawing.getState().undo()} />
         <HeaderIconButton label="やり直す" title="やり直す（描画・Ctrl+Y）" icon={<ToolIcon name="redo" />} disabled={!canRedo} onClick={() => useDrawing.getState().redo()} />
+        {screen === 'P3' && <>
+          <HeaderIconButton label="平面図を縮小" disabled={planZoom<=0.25} onClick={()=>setPlanZoom(z=>z/1.25)} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14"/></svg>} />
+          <span aria-label="平面図の倍率" style={{fontSize:12,minWidth:40,textAlign:'center',whiteSpace:'nowrap'}}>{Math.round(planZoom*100)}%</span>
+          <HeaderIconButton label="平面図を拡大" disabled={planZoom>=8} onClick={()=>setPlanZoom(z=>z*1.25)} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14M12 5v14"/></svg>} />
+          <HeaderIconButton label="全体表示" onClick={()=>setPlanZoom(1)} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>} />
+        </>}
+
         <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
         <ModeSwitch
           screen={screen}
