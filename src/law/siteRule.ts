@@ -10,3 +10,11 @@ export function siteRuleFromDistricts(matches: readonly UseDistrict[]): { zone: 
   if (m.function === null) return null
   return { zone: zoneFromUrfFunction(m.function), farPercent: m.floorAreaRatePercent }
 }
+
+/**
+ * 用途地域の欄の表示（統括の依頼 2026-11-06）。PLATEAU（敷地）で区分が決まっていれば、計算はその区分を使うので、欄はその区分を示して押せないようにする。
+ * 決まらなければ、利用者の入力を示して押せる。
+ */
+export function zoneSelectStateOf(siteRule: { zone: Zone; farPercent: number | null } | null, manual: Zone): { value: Zone; disabled: boolean } {
+  return siteRule ? { value: siteRule.zone, disabled: true } : { value: manual, disabled: false }
+}
