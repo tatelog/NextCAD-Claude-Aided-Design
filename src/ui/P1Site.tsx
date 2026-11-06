@@ -69,7 +69,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
     const uid = parcelUidAt(p.lon, p.lat)
     const props = uid ? parcelPropsOf(uid) : undefined
     setInspected({ address: props ? chibanOf(props) ?? '未取得' : '未取得（この地点の筆データなし）', roads })
-    void useConfirmedSite.getState().fetchDistrictAt(p, cityCode)
   }
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
@@ -81,14 +80,25 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   useEffect(() => {
     useConfirmedSite.getState().setCurrentSite(site)
   }, [site])
+  // 選択方法によらず現在の地点で取得する。連続クリック中は最後の地点を採る。
+  useEffect(() => {
+    useConfirmedSite.getState().resetDistrict()
+    if (!site) return
+    const timer = window.setTimeout(() => {
+      void useConfirmedSite.getState().fetchDistrictAt(site, cityCode)
+    }, 200)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [site, cityCode])
 
   // 経緯度の入力で対象地点を決める。入力が正しければ、地図の中心もそこへ寄せる
   const moveSiteByText = (lonValue: string, latValue: string) => {
+    setInspected(null)
     setLonText(lonValue)
     setLatText(latValue)
     const p = parseSitePoint(lonValue, latValue)
     if (p) setCenter(p)
-    useConfirmedSite.getState().resetDistrict()
   }
 
   // 地図のクリックで対象地点を置く（中心は動かさない）
@@ -96,7 +106,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
     setInspected(null)
     setLonText(String(Number(p.lon.toFixed(6))))
     setLatText(String(Number(p.lat.toFixed(6))))
-    useConfirmedSite.getState().resetDistrict()
   }
 
   const runAddressSearch = async () => {
@@ -118,7 +127,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const pickCandidate = (c: AddressCandidate) => {
     moveSiteByText(String(c.lon), String(c.lat))
     setCandidates([])
-    void useConfirmedSite.getState().fetchDistrictAt({ lon: c.lon, lat: c.lat }, cityCode)
   }
 
   const fetchNeighbors = () => {
