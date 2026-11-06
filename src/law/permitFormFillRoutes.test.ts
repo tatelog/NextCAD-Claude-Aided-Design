@@ -38,7 +38,10 @@ describe('床面積の合計の行き先（仕様 RM1）', () => {
       'F2-4-12': { value: '3000.00', from: 'ボリューム' },
     })
     expect(r.unwritten).toEqual([])
-    expect(r.instructions).toHaveLength(1)
-    expect(r.instructions[0]).toMatchObject({ paragraphIndex: 3, kind: 'blanks', bracket: 2, value: '3000.00' })
+    // 統括の判断（2026-11-06）: 申請部分（1 番目）と合計（3 番目）に同じ値
+    expect(r.instructions.map((i) => [i.paragraphIndex, i.kind, i.bracket, i.value])).toEqual([
+      [3, 'blanks', 0, '3000.00'],
+      [3, 'blanks', 2, '3000.00'],
+    ])
   })
 })

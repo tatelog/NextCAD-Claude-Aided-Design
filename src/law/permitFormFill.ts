@@ -6,16 +6,20 @@ import { FLOOR_ROWS, faceRangesOf, locateHeadingOf, locateSubitemOf, type FormDe
 import { normalizeLabel } from '../export/docxRead'
 
 /** 値の行き先。sub は細目の見出し（対応表のまま）、bracket は括弧の番目（0 から）。 */
-const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; before?: string }> = {
-  'F2-3-10': { field: 'F2-3-10', sub: '【ｲ.建築物全体】', bracket: 2 },
-  'F2-3-11': { field: 'F2-3-11', sub: '【ｲ.建築物全体】', bracket: 2 },
+const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; brackets?: number[]; before?: string }> = {
+  // 新築なので建物全体が申請部分。申請部分（1 番目）と合計（3 番目）に同じ値（統括の判断 2026-11-06）
+  'F2-3-10': { field: 'F2-3-10', sub: '【ｲ.建築物全体】', brackets: [0, 2] },
+  'F2-3-11': { field: 'F2-3-11', sub: '【ｲ.建築物全体】', brackets: [0, 2] },
+  // 用途別床面積（第五面）: 共同住宅の行（【ｲ.】）の 1 番目（用途の区分）と 3 番目（床面積）。2 番目（具体的な用途の名称）は空欄
+  'F2-5-07.用途': { field: 'F2-5-07', sub: '【ｲ.】', bracket: 0 },
+  'F2-5-07.延べ面積': { field: 'F2-5-07', sub: '【ｲ.】', bracket: 2 },
   'F2-3-12': { field: 'F2-3-12', sub: '【ｲ.申請に係る建築物の数】' },
   'F2-3-13.最高の高さ': { field: 'F2-3-13', sub: '【ｲ.最高の高さ】', bracket: 0 },
   'F2-3-13.階数（地上）': { field: 'F2-3-13', sub: '【ﾛ.階数】', bracket: 0 },
   'F2-4-08': { field: 'F2-4-08', sub: '【ｲ.地階を除く階数】', bracket: 0 },
   'F2-4-09.最高の高さ': { field: 'F2-4-09', sub: '【ｲ.最高の高さ】', bracket: 0 },
   // 床面積の合計は、細目「ﾛ.合計」の段落の 3 つ目の括弧（(申請部分)(申請以外の部分)(合計) の順）
-  'F2-4-12': { field: 'F2-4-12', sub: '【ﾛ.合計】', bracket: 2 },
+  'F2-4-12': { field: 'F2-4-12', sub: '【ﾛ.合計】', brackets: [0, 2] },
   // 1 段落に見出しが 2 つある細目（inlineHeading）。sub は、その細目の名前（後ろの見出し）で引く（値の元は、設置者の住所を持つようになってから）
   'F8E-2-01.郵便番号': { field: 'F8E-2-01', sub: '【ハ．郵便番号】' },
   'F8E-2-01.住所': { field: 'F8E-2-01', sub: '【ニ．住所】' },
@@ -97,6 +101,8 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       const label = `${entryF.field.label}（階別）`
       const headingOfRow = row === 0 ? '【ｲ.階別】' : ''
       instructions.push({ fieldId: key, label, paragraphIndex: idx, kind: 'beforeUnit', heading: headingOfRow, unit: '階', value: String(n) })
+      // 新築なので申請部分（1 番目）と合計（3 番目）に同じ値（統括の判断 2026-11-06）
+      instructions.push({ fieldId: key, label, paragraphIndex: idx, kind: 'blanks', bracket: 0, value: v.value })
       instructions.push({ fieldId: key, label, paragraphIndex: idx, kind: 'blanks', bracket: 2, value: v.value })
       continue
     }
@@ -155,11 +161,11 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `単位が無い（${item.unit ?? ''}）` })
         continue
       }
-      if (item.kind === 'blanks' && bracketsOf(paragraphs[idx]!).length <= (item.bracket ?? 0)) {
+      if (item.kind === 'blanks' && bracketsOf(paragraphs[idx]!).length <= Math.max(item.bracket ?? 0, ...(route.brackets ?? []))) {
         unwritten.push({ fieldId: key, reason: `括弧が見つからない（${sub.heading}）` })
         continue
       }
-      instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: idx, ...item, value: v.value })
+      for (const x of expandOf(item, route.brackets)) instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: idx, ...x, value: v.value })
       continue
     }
     if (isDefault && t.place !== 'afterHeading') {
@@ -176,7 +182,7 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       unwritten.push({ fieldId: key, reason: `単位が無い（${item.unit ?? ''}）` })
       continue
     }
-    if (item.kind === 'blanks' && bracketsOf(paragraphs[parentIdx]!).length <= (item.bracket ?? 0)) {
+    if (item.kind === 'blanks' && bracketsOf(paragraphs[parentIdx]!).length <= Math.max(item.bracket ?? 0, ...(route?.brackets ?? []))) {
       unwritten.push({ fieldId: key, reason: `括弧が見つからない（${t.heading}）` })
       continue
     }
@@ -184,9 +190,15 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       unwritten.push({ fieldId: key, reason: `□が無い（${v.value}）` })
       continue
     }
-    instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: parentIdx, ...item, value: v.value })
+    for (const x of expandOf(item, route.brackets)) instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: parentIdx, ...x, value: v.value })
   }
   return { instructions, unwritten }
+}
+
+/** 括弧に入れる指示を、行き先の括弧の番号の数だけに広げる（申請部分と合計など）。括弧以外の指示はそのまま */
+function expandOf<T extends { kind: string; bracket?: number }>(item: T, brackets: readonly number[] | undefined): T[] {
+  if (item.kind !== 'blanks' || brackets === undefined) return [item]
+  return brackets.map((b) => ({ ...item, bracket: b }))
 }
 
 /** 段落の中の括弧（（　）・(　)）の並び。docxWrite の書き込みと同じ数え方 */

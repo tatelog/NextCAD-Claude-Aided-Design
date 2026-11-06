@@ -50,13 +50,16 @@ describe('各階の床面積の行（仕様 FL3・FL4）', () => {
     })
     expect(r.unwritten).toEqual([])
     const floor5 = r.instructions.filter((i) => i.fieldId === 'F2-4-12.階別5')
+    // 統括の判断（2026-11-06）: 申請部分（1 番目）と合計（3 番目）に同じ値
     expect(floor5).toEqual([
       expect.objectContaining({ paragraphIndex: 2, kind: 'beforeUnit', heading: '【ｲ.階別】', unit: '階', value: '5' }),
+      expect.objectContaining({ paragraphIndex: 2, kind: 'blanks', bracket: 0, value: '400.00' }),
       expect.objectContaining({ paragraphIndex: 2, kind: 'blanks', bracket: 2, value: '400.00' }),
     ])
     const floor4 = r.instructions.filter((i) => i.fieldId === 'F2-4-12.階別4')
     expect(floor4).toEqual([
       expect.objectContaining({ paragraphIndex: 3, kind: 'beforeUnit', unit: '階', value: '4' }),
+      expect.objectContaining({ paragraphIndex: 3, kind: 'blanks', bracket: 0, value: '400.00' }),
       expect.objectContaining({ paragraphIndex: 3, kind: 'blanks', bracket: 2, value: '400.00' }),
     ])
   })

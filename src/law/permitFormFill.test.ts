@@ -43,14 +43,14 @@ const VALUES: ValueMap = {
 }
 
 describe('書く指示（仕様 F1〜F4）', () => {
-  it('F1: 建築面積の合計は、細目「ｲ.建築物全体」の括弧の 3 番目（インデックス 2）に入る', () => {
+  // 統括の判断（2026-11-06）: 新築なので建物全体が申請部分。申請部分（1 番目）と合計（3 番目）の両方に同じ値
+  it('F1: 建築面積は、細目「ｲ.建築物全体」の括弧の 1 番目（申請部分）と 3 番目（合計、インデックス 2）に入る', () => {
     const r = fillInstructionsOf(FORM, PARAGRAPHS, VALUES)
-    const ins = r.instructions.find((i) => i.fieldId === 'F2-3-10')
-    expect(ins).toBeDefined()
-    expect(ins!.paragraphIndex).toBe(2)
-    expect(ins!.kind).toBe('blanks')
-    expect(ins!.bracket).toBe(2)
-    expect(ins!.value).toBe('600.00')
+    const ins = r.instructions.filter((i) => i.fieldId === 'F2-3-10')
+    expect(ins.map((i) => [i.paragraphIndex, i.kind, i.bracket, i.value])).toEqual([
+      [2, 'blanks', 0, '600.00'],
+      [2, 'blanks', 2, '600.00'],
+    ])
   })
 
   it('F2: 行政の欄は、値があっても書かない', () => {
