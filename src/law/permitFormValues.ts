@@ -170,12 +170,12 @@ export function formValuesFromVolume(
   }
   // 容積率・建蔽率（7 欄のハ・ニ。用途地域等と同じ列 1）。値が無い項目は入らない（limitNotesOf で空欄の理由を出す）
   if (project.limits?.floorAreaRatePercent != null) {
-    const far: FormValue = { value: String(project.limits.floorAreaRatePercent), from: LIMIT_SOURCE }
+    const far: FormValue = { value: `${project.limits.floorAreaRatePercent}％`, from: LIMIT_SOURCE }
     v['F2-3-07.容積率'] = far
     v['F3-2-07.容積率'] = far
   }
   if (project.limits?.buildingCoverageRatePercent != null) {
-    const bcr: FormValue = { value: String(project.limits.buildingCoverageRatePercent), from: LIMIT_SOURCE }
+    const bcr: FormValue = { value: `${project.limits.buildingCoverageRatePercent}％`, from: LIMIT_SOURCE }
     v['F2-3-07.建蔽率'] = bcr
     v['F3-2-07.建蔽率'] = bcr
   }
