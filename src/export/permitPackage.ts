@@ -24,6 +24,8 @@ export interface PackageInput {
   ifcFileName: string
   /** 欄に値を入れて書き出した様式（docx）。01_申請書/ に、そのままのバイト列で入る。無ければ省く */
   filledForms?: { fileName: string; bytes: Uint8Array }[]
+  /** 空欄の一覧に添える注（例: 敷地面積は公図からの参考値）。無ければ省く */
+  notes?: readonly string[]
 }
 
 export interface PackageFile {
@@ -50,11 +52,18 @@ export function judgementTextOf(j: PermitJudgement, docs: PackageInput['docs']):
 }
 
 /** 空欄の一覧.txt の中身。配置図と各階平面図が無ければ理由を出す。要る・要確認の書類は中身の種類つき。IFC が無ければその旨 */
-export function blankListTextOf(j: PermitJudgement, docs: PackageInput['docs'], ifcText: string | null, drawings: PackageInput['drawings']): string {
+export function blankListTextOf(
+  j: PermitJudgement,
+  docs: PackageInput['docs'],
+  ifcText: string | null,
+  drawings: PackageInput['drawings'],
+  notes: readonly string[] = [],
+): string {
   const lines: string[] = []
   const reasons = drawings.reasons ?? DRAWING_MISSING_DEFAULT
   if (drawings.site === null) lines.push(`配置図：${reasons.site}`)
   if (drawings.floorPlan === null) lines.push(`各階平面図：${reasons.floorPlan}`)
+  for (const n of notes) lines.push(n)
   for (const r of viewerRowsOf(j, docs)) {
     if (r.group === '要らない' || DRAWING_KEY_OF_NAME[r.name] !== undefined) continue
     lines.push(`${r.name}：${r.content}`)
@@ -67,7 +76,7 @@ export function blankListTextOf(j: PermitJudgement, docs: PackageInput['docs'], 
 export function permitPackageFilesOf(input: PackageInput): PackageFile[] {
   const files: PackageFile[] = [
     { path: PACKAGE_LAYOUT.judgementFile, text: judgementTextOf(input.judgement, input.docs) },
-    { path: PACKAGE_LAYOUT.blankFile, text: blankListTextOf(input.judgement, input.docs, input.ifcText, input.drawings) },
+    { path: PACKAGE_LAYOUT.blankFile, text: blankListTextOf(input.judgement, input.docs, input.ifcText, input.drawings, input.notes ?? []) },
   ]
   if (input.drawings.site !== null) {
     files.push({ path: `${PACKAGE_LAYOUT.folders.drawing}/${PACKAGE_LAYOUT.drawingFiles.site}`, text: input.drawings.site })

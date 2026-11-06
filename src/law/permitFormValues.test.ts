@@ -53,7 +53,7 @@ describe('ボリュームから入る記入値（t31）', () => {
 
   it('敷地面積の入力があれば、㎡で入る', () => {
     const v = formValuesFromVolume(block(5), { ...project, siteAreaM2: 1_200 })
-    expect(v['F2-3-07.敷地面積']).toEqual({ value: '1200.00', from: '案件' })
+    expect(v['F2-3-07.敷地面積']).toEqual({ value: '1200.00', from: '公図の参考値' })
   })
 
   it('ボリュームを変えると、入る値も変わる（11階にすると高さと延べ面積が変わる）', () => {
@@ -65,7 +65,7 @@ describe('ボリュームから入る記入値（t31）', () => {
   it('入れた値はすべて、出典（ボリュームか案件）を持つ', () => {
     const v = formValuesFromVolume(block(5), { ...project, siteAreaM2: 1_200 })
     for (const entry of Object.values(v)) {
-      expect(['ボリューム', '案件']).toContain(entry.from)
+      expect(['ボリューム', '案件', '公図', '公図の参考値']).toContain(entry.from)
     }
   })
 

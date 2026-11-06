@@ -54,6 +54,11 @@ export function rememberParcelGeometry(uid: string, geometry: unknown, props?: P
   if (props) properties.set(uid, props)
 }
 
+/** 覚えた筆の属性（地番・市区町村名など。覚えていなければ undefined）。地名地番に使う */
+export function parcelPropsOf(uid: string): ParcelProps | undefined {
+  return properties.get(uid)
+}
+
 /** 地点（経度・緯度）を含む筆の UID。覚えている筆の中に、地点を含むものが無ければ null */
 export function parcelUidAt(lon: number, lat: number): string | null {
   for (const [uid, geometry] of geometries) if (geometryContains(geometry, lon, lat)) return uid
