@@ -150,6 +150,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [planSize, setPlanSize] = useState({width: 800, height: 600})
   const [planZoom, setPlanZoom] = useState(1)
   const [rectangleOpen, setRectangleOpen] = useState(false)
+  const [toolPosition, setToolPosition] = useState({x:8,y:8})
+  const toolDrag = useRef<{x:number;y:number;left:number;top:number}|null>(null)
   const [toolsOpen, setToolsOpen] = useState(true)
   const [planDrawing, setPlanDrawing] = useState(false)
   const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
@@ -382,10 +384,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       </div>
       <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
         <button type="button" onClick={() => setRectangleOpen(true)}>長方形で配置を比較</button>
-        <label>表示階 <select value={selectedFloor} onChange={(e) => floorState.select(Number(e.target.value))}>
-          {Array.from({ length: storeyCount }, (_, i) => <option key={i} value={i + 1}>{i + 1}階</option>)}
-        </select></label>
-        <p>{selectedFloor}階 · {auto ? 'この階の配置案' : '配置未作成'} · ボリュームの斜線処理後の外形</p>
         <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:8}}>
           <button type="button" aria-label="平面図を縮小" onClick={() => changeZoom(1 / 1.25)}>−</button>
           <span>{Math.round(planZoom * 100)}%</span>
@@ -395,7 +393,15 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <button type="button" aria-pressed={planDrawing} onClick={() => setPlanDrawing(v => !v)}>図面に描く</button>
         </div>
         <div style={{position:'relative', flex:1, minHeight:0, display:'flex', flexDirection:'column'}}>
-        {toolsOpen && <div style={{position:'absolute', top:8, left:8, zIndex:20, maxWidth:'calc(100% - 16px)'}}>
+        {toolsOpen && <div style={{position:'absolute', top:toolPosition.y, left:toolPosition.x, zIndex:20, maxWidth:'calc(100% - 16px)', background:'#fff', borderRadius:6, boxShadow:'0 2px 10px #0002'}}>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            <button type="button" aria-label="道具メニューを移動" style={{cursor:'grab',touchAction:'none',flex:1}}
+              onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);toolDrag.current={x:e.clientX,y:e.clientY,left:toolPosition.x,top:toolPosition.y}}}
+              onPointerMove={e=>{const d=toolDrag.current;if(!d)return;const panel=e.currentTarget.parentElement!.parentElement!,area=panel.parentElement!;setToolPosition({x:Math.max(0,Math.min(area.clientWidth-panel.offsetWidth,d.left+e.clientX-d.x)),y:Math.max(0,Math.min(area.clientHeight-32,d.top+e.clientY-d.y))})}}
+              onPointerUp={e=>{toolDrag.current=null;e.currentTarget.releasePointerCapture(e.pointerId)}} onPointerCancel={()=>{toolDrag.current=null}}
+            >⠿</button>
+            <button type="button" aria-label="道具メニューを閉じる" onClick={()=>setToolsOpen(false)}>×</button>
+          </div>
           <PenToolbar compact placement={placement} isDrawing={planDrawing} onDraw={() => setPlanDrawing(true)} />
         </div>}
         {lines && units.cells ? (

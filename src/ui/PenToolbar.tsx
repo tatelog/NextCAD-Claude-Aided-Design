@@ -53,12 +53,12 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, compact = fals
     drag.current = null
   }
 
-  const style = placement === 'free' ? { left: freePosition.x, top: freePosition.y } : placement === 'left' ? { width: compact ? 140 : leftWidth, flexShrink: 0, position: 'relative' as const, boxSizing: 'border-box' as const } : undefined
+  const style = placement === 'free' ? (compact ? {position:'relative' as const,left:0,top:0} : { left: freePosition.x, top: freePosition.y }) : placement === 'left' ? { width: compact ? 140 : leftWidth, flexShrink: 0, position: 'relative' as const, boxSizing: 'border-box' as const } : undefined
 
   return (
     <div className={`pen-toolbar is-${placement}`} style={style} role="toolbar" aria-label="ペンの道具">
       {placement === 'left' && !compact && <LeftPanelResize />}
-      {placement === 'free' && (
+      {placement === 'free' && !compact && (
         <button
           type="button"
           className="pen-toolbar-handle"
