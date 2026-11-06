@@ -26,6 +26,15 @@ export function lotNoteOf(parcel: Point[] | null): string {
   return parcel === null ? '筆界はダミー（20 m × 30 m）' : '筆界は選んだ筆（敷地で選んだ公図）'
 }
 
+/**
+ * 斜線の注記の文（統括の依頼 2026-11-06）。いま使っている敷地と同じ元から作る:
+ * 選んだ筆（parcel）が無ければダミーの筆界、あれば選んだ筆と地番（chiban。取れなければ「地番不明」）。
+ */
+export function slopeLotNoteOf(parcel: Point[] | null, chiban: string | null): string {
+  const lot = parcel === null ? '筆界（ダミー 20 m × 30 m）' : `選んだ筆（${chiban === null ? '地番不明' : `地番 ${chiban}`}）`
+  return `斜線は法定の値（建築基準法 第56条・別表第三）を${lot}に当てて切る。`
+}
+
 /** 離れの注記。敷地が軸に平行な矩形のときは出さない。矩形でなければ「離れは矩形の敷地だけ」 */
 export function setbackNoteOf(lot: readonly Point[]): string | null {
   return isAxisRectangle(lot) ? null : '離れは矩形の敷地だけ'
