@@ -14,6 +14,8 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> 
   'F2-3-13.階数（地上）': { field: 'F2-3-13', sub: '【ﾛ.階数】', bracket: 0 },
   'F2-4-08': { field: 'F2-4-08', sub: '【ｲ.地階を除く階数】', bracket: 0 },
   'F2-4-09.最高の高さ': { field: 'F2-4-09', sub: '【ｲ.最高の高さ】', bracket: 0 },
+  // 床面積の合計は、細目「ﾛ.合計」の段落の 3 つ目の括弧（(申請部分)(申請以外の部分)(合計) の順）
+  'F2-4-12': { field: 'F2-4-12', sub: '【ﾛ.合計】', bracket: 2 },
   'F2-6-01': { field: 'F2-6-01' },
   'F2-6-02': { field: 'F2-6-02' },
   'F2-6-03.最高の高さ': { field: 'F2-6-03', sub: '【ｲ.最高の高さ】' },
