@@ -1,3 +1,4 @@
+import { orderedFrontage } from './orderedFrontage'
 // P3 の自動作成（D-04 P3「柱割り・間取り・縦シャフトを作る」）。目標の戸数（1 階あたり）から、スパン数と建物の寸法を決める。
 // 住戸の区画は candidateCells（仮置きの区画の作り方）で作り、countUnits で数え直す。決定論。
 // 縦シャフトの数と EV は、住戸数と evLevels の結果から決める（EPS・DS の 1 個ずつは仮置き）。
@@ -18,6 +19,8 @@ const STAIR_LEN_MM = 3_000
 const EV_HALL_LEN_MM = evHallLenMm()
 
 export interface AutoPlanInput {
+  /** 選んだ住戸構成の順番を保つ。 */
+  orderedTypes?: boolean
   /** 目標の戸数（1 階あたり、整数・1 以上） */
   targetPerFloor: number
   storeyCount: number
@@ -283,7 +286,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const selected = (input.unitTypeIds ?? [])
     .map((id) => input.unitTypes?.find((x) => x.id === id))
     .filter((t): t is UnitType => t !== undefined)
-  const grouping = groupByFrontage(
+  const grouping = (input.orderedTypes ? orderedFrontage : groupByFrontage)(
     Array.from({ length: spans }, () => input.spanMm),
     selected.map((t) => ({ id: t.id, frontageMm: t.frontage_mm })),
   )

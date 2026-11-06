@@ -1,3 +1,7 @@
+import { useSite } from '../store/site'
+import { useFloorPlans } from '../store/floorPlans'
+import { useDrawing } from '../store/drawing'
+import { generateAutoPlan } from '../plan/autoPlan'
 // 仕様（ハブ A-03 G69、D-04 P2・P3）: 道具の「什器」を P3 の画面に配線する。P3 で使う。文言は仮置き。
 // 仕様 1（道具が出る）: P3 の右パネルに、見出し「什器」と、5 品目のボタン（キッチン・ユニットバス・洗面・便器・収納の順）が出る。
 //   選んだ品目・置いた什器の一覧・外す操作は店舗のもの。
@@ -76,6 +80,14 @@ vi.mock('react', async (importOriginal) => {
   }
 })
 
+vi.mock('../store/site', async (importOriginal) => {
+ const actual = await importOriginal<typeof import('../store/site')>()
+ return {...actual, useSite: Object.assign((selector: (s: ReturnType<typeof actual.useSite.getState>) => unknown) => selector(actual.useSite.getState()), actual.useSite)}
+})
+vi.mock('../store/floorPlans', async (importOriginal) => {
+ const actual = await importOriginal<typeof import('../store/floorPlans')>()
+ return {...actual, useFloorPlans: Object.assign(() => actual.useFloorPlans.getState(), actual.useFloorPlans)}
+})
 import { P3Plan } from './P3Plan'
 
 function itemOf(label: string): FixtureItem {
@@ -112,6 +124,14 @@ const paletteProps = (): FixturePaletteProps => {
 }
 
 beforeEach(() => {
+  // 初期値による架空の配置ではなく、什器操作の対象となる配置済みの階を用意する。
+  const { storeyCount, storeyHeightMm } = useDrawing.getInitialState()
+  const volume = { footprint: [{x:0,y:0},{x:20000,y:0},{x:20000,y:12000},{x:0,y:12000}], storey_count:storeyCount, storey_height:storeyHeightMm }
+  useSite.setState({volume, slopeBoundaries:[]})
+  const candidates = candidateCells({width_mm:20000,depth_mm:12000,corridor_mm:1600,unit_depth_mm:6000,span_mm:3000,layout:'中廊下'})
+  const base = generateAutoPlan({targetPerFloor:8,storeyCount,storeyHeightMm,spanMm:3000,unitDepthMm:6000,corridorMm:1600,layout:'中廊下',evCount:1,evStops:[1]})
+  const plan = {...base,widthMm:20000,depthMm:12000,cells:CELLS,corridor:candidates.corridor,cores:[],rooms:[],shaftRects:[]}
+  useFloorPlans.setState({source:JSON.stringify([volume,[],storeyCount,storeyHeightMm]),plans:{1:plan},selected:1})
   fx.state.fixtures = []
   fx.state.selectedItem = null
   fx.layer = null
