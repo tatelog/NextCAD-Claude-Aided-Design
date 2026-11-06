@@ -243,6 +243,15 @@ export function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#fff', borderBottom: '1px solid #ddd8cc', flexShrink: 0, overflowX: 'auto' }}>
+        <ModeSwitch
+          screen={screen}
+          activeMode={activeMode}
+          onPick={(id) => {
+            useMode.getState().setMode(id as WorkMode)
+            record('モード', modeName(SCREEN_MODES, id))
+          }}
+        />
+        <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
         <input
           aria-label="案件名（敷地名）"
           placeholder="敷地名（案件）"
@@ -292,14 +301,7 @@ export function App() {
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
         <SaveDot status={saveStatus} />
         <HeaderIconButton label="保存" icon={<IconSave />} onClick={save} />
-        {screen !== 'P2' && <ModeSwitch
-          screen={screen}
-          activeMode={activeMode}
-          onPick={(id) => {
-            useMode.getState().setMode(id as WorkMode)
-            record('モード', modeName(SCREEN_MODES, id))
-          }}
-        />}
+
         <HeaderIconButton label="作業履歴" icon={<IconHistory />} pressed={panel === 'log'} onClick={() => setPanel(panel === 'log' ? null : 'log')} />
         {/* メニュー（ハブ A-03 G74）: ☰（三本線） */}
         <HeaderIconButton label="メニュー" icon={<IconMenu />} pressed={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} />

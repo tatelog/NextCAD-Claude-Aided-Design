@@ -1,7 +1,3 @@
-import { ModeSwitch } from './ModeSwitch'
-import { useActiveMode, useMode, type WorkMode } from '../store/mode'
-import { modeName, SCREEN_MODES } from '../app/screenModes'
-import { recordWorkLog } from '../app/workLogStore'
 import { LeftPanelResize, useLeftPanelWidth } from './LeftPanelResize'
 // ペンの道具（D-04 共通部品「ペンのモード」、G52）。直線／曲線、Undo／Redo、置き場（上・左・独立）の切替。
 // 置き場は上（ヘッダー）・左（縦の帯）・独立（浮かせる）。独立のときは、道具のハンドルをつかんで動かす。
@@ -29,7 +25,6 @@ export interface PenToolbarProps {
 }
 
 export function PenToolbar({ placement, isDrawing = true, onDraw, compact = false }: PenToolbarProps) {
-  const activeMode = useActiveMode('P2')
   const leftWidth = useLeftPanelWidth((s) => s.width)
   const penMode = useUi((s) => s.penMode)
   const setPenMode = useUi((s) => s.setPenMode)
@@ -77,11 +72,6 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, compact = fals
           <ToolIcon name="grip" />
         </button>
       )}
-      <ModeSwitch screen="P2" activeMode={activeMode} onPick={(id) => {
-        useMode.getState().setMode(id as WorkMode)
-        if (id === 'drawing') onDraw?.()
-        recordWorkLog({ at: new Date().toISOString(), screen: 'P2', action: 'モード', target: modeName(SCREEN_MODES, id) })
-      }} />
       <span className="pen-toolbar-group">
         <button type="button" aria-label="直線" title="直線" className={isDrawing && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>
           <ToolIcon name="line" />
