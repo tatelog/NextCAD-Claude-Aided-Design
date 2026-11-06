@@ -161,3 +161,49 @@ describe('カメラの今の距離に合わせる平面（仕様 2b〜2d）', ()
     }
   })
 })
+
+// 仕様（代表の依頼 2026-11-06。2: 初期表示は、確定した敷地を、南から北を向く正面（上から見下ろす 45°）で出す。外形が閉じていても）:
+// 仕様 3a: 初期の視点の範囲は敷地だけで決まる（周辺建物は入らない。外形の閉じ具合にも関係しない）。
+// 仕様 3b: 初期の視点は南側にあり、北を向く（カメラは目標より南（z が小さい側）で、目標より上）。
+// 仕様 3c: 初期の視点は、敷地の範囲の球が縦の視野に入る距離にある。
+// 仕様 3d: 敷地が無ければ、初期の視点は無い（null）。
+import { initialViewOf } from './volumeScene'
+
+describe('初期の視点（仕様 3a〜3d）', () => {
+  const FOV = 40
+  const LOT: Point[] = [
+    { x: 0, y: 0 },
+    { x: 10_000, y: 0 },
+    { x: 10_000, y: 10_000 },
+    { x: 0, y: 10_000 },
+  ]
+
+  it('仕様 3a: 範囲は敷地の頂点だけで決まる（中心 (5, 5) m、半径は対角の半分）', () => {
+    const frame = initialViewOf(LOT, FOV)!
+    expect(frame.target[0]).toBeCloseTo(5, 6)
+    expect(frame.target[2]).toBeCloseTo(5, 6)
+    expect(frame.radiusM).toBeCloseTo(Math.hypot(5, 5), 6)
+  })
+
+  it('仕様 3b: カメラは目標より南（z が小さい側）にあり、目標より上から北を向く', () => {
+    const frame = initialViewOf(LOT, FOV)!
+    const [px, py, pz] = frame.position
+    const [, ty, tz] = frame.target
+    expect(pz).toBeLessThan(tz)
+    expect(py).toBeGreaterThan(ty)
+    expect(Math.abs(px - frame.target[0])).toBeLessThan(1e-9)
+  })
+
+  it('仕様 3c: 球が縦の視野に入る距離にあり、カメラと目標の距離は distanceM', () => {
+    const frame = initialViewOf(LOT, FOV)!
+    expect(frame.distanceM * Math.sin((FOV / 2) * (Math.PI / 180))).toBeGreaterThanOrEqual(frame.radiusM)
+    const [px, py, pz] = frame.position
+    const [tx, ty, tz] = frame.target
+    expect(Math.hypot(px - tx, py - ty, pz - tz)).toBeCloseTo(frame.distanceM, 6)
+  })
+
+  it('仕様 3d: 敷地が無ければ、初期の視点は無い', () => {
+    expect(initialViewOf(null, FOV)).toBeNull()
+    expect(initialViewOf([], FOV)).toBeNull()
+  })
+})
