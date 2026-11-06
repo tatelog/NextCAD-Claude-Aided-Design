@@ -73,37 +73,32 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, compact = fals
         </button>
       )}
       <span className="pen-toolbar-group">
-        <button type="button" aria-label="直線" title="直線" className={isDrawing && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>
+        <button type="button" aria-label="直線" title="直線を描く" className={isDrawing && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>
           <ToolIcon name="line" />
-          <span>直線</span>
         </button>
-        <button type="button" aria-label="曲線" title="曲線" className={isDrawing && penMode === 'curve' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'curve'} onClick={() => { onDraw?.(); setPenMode('curve') }}>
+        <button type="button" aria-label="曲線" title="曲線を描く" className={isDrawing && penMode === 'curve' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'curve'} onClick={() => { onDraw?.(); setPenMode('curve') }}>
           <ToolIcon name="curve" />
-          <span>曲線</span>
         </button>
         {/* 二点の円弧（t70）は曲線モードの中の道具。押すと、二点を押してから中心線上を動かして中心を決める */}
         {isDrawing && penMode === 'curve' && (
           <button
             type="button"
             aria-label="円弧（二点）"
-            title="円弧（二点）"
+            title="二点と中心位置から円弧を描く"
             className={arcTwoPoint ? 'is-active' : undefined}
             aria-pressed={arcTwoPoint}
             onClick={() => setArcTwoPoint(!arcTwoPoint)}
           >
             <ToolIcon name="curve" />
-            <span>円弧（二点）</span>
           </button>
         )}
       </span>
       <span className="pen-toolbar-group" title="表示グリッドと入力スナップは別の設定（吸着に使うのは入力スナップだけ）">
-        <button type="button" aria-label="表示グリッド" title="表示グリッド" className={displayGrid ? 'is-active' : undefined} aria-pressed={displayGrid} onClick={() => setDisplayGrid(!displayGrid)}>
+        <button type="button" aria-label="表示グリッド" title="作図用グリッドの表示を切り替える" className={displayGrid ? 'is-active' : undefined} aria-pressed={displayGrid} onClick={() => setDisplayGrid(!displayGrid)}>
           <ToolIcon name="grid" />
-          <span>表示グリッド</span>
         </button>
-        <button type="button" aria-label="入力スナップ" title="入力スナップ" className={inputSnapGrid ? 'is-active' : undefined} aria-pressed={inputSnapGrid} onClick={() => setInputSnapGrid(!inputSnapGrid)}>
+        <button type="button" aria-label="入力スナップ" title="描画する点をグリッドに吸着させる" className={inputSnapGrid ? 'is-active' : undefined} aria-pressed={inputSnapGrid} onClick={() => setInputSnapGrid(!inputSnapGrid)}>
           <ToolIcon name="snap" />
-          <span>入力スナップ</span>
         </button>
       </span>
       <span className="pen-toolbar-group" title="什器は平面で使う（ボリュームでは使えない）">
@@ -114,7 +109,6 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, compact = fals
           disabled={!isToolEnabled('fixture', PEN_SCREEN)}
         >
           <ToolIcon name="fixture" />
-          <span>什器</span>
         </button>
       </span>
       <span className="pen-toolbar-group" title="道具の置き場">
@@ -129,7 +123,6 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, compact = fals
             title={`置き場: ${p.label}`}
           >
             <ToolIcon name={p.icon} />
-            <span>{p.label}</span>
           </button>
         ))}
       </span>
