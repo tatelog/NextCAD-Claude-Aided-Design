@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 import formsJson from './permitForms.json'
 
 type Tokyo = {
+  unit?: string
   face?: string
   heading?: string
   in?: 'paragraph' | 'tableCell'
@@ -29,7 +30,7 @@ type Form = { id: string; faces: Face[] }
 
 const forms = (formsJson as unknown as { forms: Form[] }).forms
 const fields = forms.flatMap((f) => f.faces.flatMap((face) => face.fields.map((field) => ({ form: f.id, face, field }))))
-const PLACES = ['afterHeading', 'fillBlanks', 'cellRight', 'cellBelow', 'checkbox', 'nextParagraphs']
+const PLACES = ['afterHeading', 'fillBlanks', 'beforeUnit', 'cellRight', 'cellBelow', 'checkbox', 'nextParagraphs']
 const norm = (s: string) => s.normalize('NFKC').replace(/[\s　]/g, '')
 
 const FACES: Record<string, string[]> = {
@@ -117,5 +118,59 @@ describe('図書マスタの不足 3 件（統括の指示 2026-11-06）', () =>
 
   it('仕様 7 (3): 第八号（昇降機用）は、第一面の 7 欄を持つ（第二号と違い、設計者氏名と消防関係同意欄は無い）', () => {
     expect(labels('F8', '第一面')).toEqual(FIRST)
+  })
+})
+
+// 仕様 8（開発｜メイン fa20f68、2026-11-06）: 括弧が無く、単位（階・ｍ）の前に値を入れる細目は place=beforeUnit と unit を持つ。
+// 単位は東京都の版の段落に実際にある（見出しの後ろ）。単位が段落に無いときは書かず、理由で残す。
+describe('単位の前に入れる細目（開発の指定 fa20f68）', () => {
+  const sub = (id: string, heading: string) => {
+    const f = fields.find((x) => x.field.id === id)!.field
+    return f.tokyo!.subitems!.find((s) => s.heading === heading)!
+  }
+
+  it('仕様 8: 【ｲ.地階を除く階数】は beforeUnit で、単位は「階」', () => {
+    const t = sub('F2-4-08', '【ｲ.地階を除く階数】')
+    expect(t.place).toBe('beforeUnit')
+    expect(t.unit).toBe('階')
+  })
+
+  it('仕様 8: 【ｲ.最高の高さ】（第四面 9 欄）と【ﾛ.最高の軒の高さ】は beforeUnit で、単位は「ｍ」', () => {
+    expect(sub('F2-4-09', '【ｲ.最高の高さ】')).toMatchObject({ place: 'beforeUnit', unit: 'ｍ' })
+    expect(sub('F2-4-09', '【ﾛ.最高の軒の高さ】')).toMatchObject({ place: 'beforeUnit', unit: 'ｍ' })
+  })
+
+  it('仕様 8: beforeUnit の細目は、すべて単位（unit）を持つ', () => {
+    for (const { field } of fields) {
+      for (const s of field.tokyo?.subitems ?? []) {
+        if (s.place === 'beforeUnit') expect(s.unit, `${field.id} ${s.heading}`).toBeTruthy()
+      }
+    }
+  })
+
+  it('仕様 8: 【ﾛ.合計】（床面積）は fillBlanks のまま（段落の括弧 3 つ目に入る）', () => {
+    expect(sub('F2-4-12', '【ﾛ.合計】').place).toBe('fillBlanks')
+  })
+})
+
+// 仕様 9（開発｜メイン、統括の決まり 2026-11-06 の commit 3f73945）: 【ﾎ.敷地面積の合計】（F2-3-07）は括弧が無く、「㎡」の前に（1）の値を入れる。
+// （2）の段落は括弧も単位も無いので書かない（同じ細目の注記に書く）。
+describe('敷地面積の合計（統括の決まり 2026-11-06）', () => {
+  it('仕様 9: 【ﾎ.敷地面積の合計】は beforeUnit で、単位は「㎡」', () => {
+    const f = fields.find((x) => x.field.id === 'F2-3-07')!.field
+    const t = f.tokyo!.subitems!.find((s) => s.heading === '【ﾎ.敷地面積の合計】')!
+    expect(t).toMatchObject({ place: 'beforeUnit', unit: '㎡' })
+  })
+})
+
+// 仕様 10（開発｜メイン、commit 6d263e0）: 道路（F2-3-06）の【ｲ.幅員】と【ﾛ.敷地と接している部分の長さ】は、括弧が無く「ｍ」の前の空白が値の場所。
+// 東京都の版の段落「【ｲ.幅員】　　 ｍ」「【ﾛ.敷地と接している部分の長さ】　　 ｍ」にある単位（ｍ）を unit に書く。
+describe('道路の幅員・接道の長さ（開発の依頼 6d263e0）', () => {
+  it('仕様 10: 【ｲ.幅員】と【ﾛ.敷地と接している部分の長さ】（第二号の F2-3-06）は beforeUnit で、単位は「ｍ」', () => {
+    const f = fields.find((x) => x.field.id === 'F2-3-06')!.field
+    for (const h of ['【ｲ.幅員】', '【ﾛ.敷地と接している部分の長さ】']) {
+      const t = f.tokyo!.subitems!.find((s) => s.heading === h)!
+      expect(t, h).toMatchObject({ place: 'beforeUnit', unit: 'ｍ' })
+    }
   })
 })
