@@ -162,3 +162,15 @@ describe('敷地面積の合計（統括の決まり 2026-11-06）', () => {
     expect(t).toMatchObject({ place: 'beforeUnit', unit: '㎡' })
   })
 })
+
+// 仕様 10（開発｜メイン、commit 6d263e0）: 道路（F2-3-06）の【ｲ.幅員】と【ﾛ.敷地と接している部分の長さ】は、括弧が無く「ｍ」の前の空白が値の場所。
+// 東京都の版の段落「【ｲ.幅員】　　 ｍ」「【ﾛ.敷地と接している部分の長さ】　　 ｍ」にある単位（ｍ）を unit に書く。
+describe('道路の幅員・接道の長さ（開発の依頼 6d263e0）', () => {
+  it('仕様 10: 【ｲ.幅員】と【ﾛ.敷地と接している部分の長さ】（第二号の F2-3-06）は beforeUnit で、単位は「ｍ」', () => {
+    const f = fields.find((x) => x.field.id === 'F2-3-06')!.field
+    for (const h of ['【ｲ.幅員】', '【ﾛ.敷地と接している部分の長さ】']) {
+      const t = f.tokyo!.subitems!.find((s) => s.heading === h)!
+      expect(t, h).toMatchObject({ place: 'beforeUnit', unit: 'ｍ' })
+    }
+  })
+})
