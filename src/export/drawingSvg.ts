@@ -98,6 +98,49 @@ export function siteLayoutBodyOf(input: {
   return parts.join('')
 }
 
+/** 配置図に入れる周辺建物の範囲: 筆（と外形）の外接矩形から、each side この距離（mm）。一か所の定数（統括の依頼 2026-11-06。1） */
+export const SITE_NEIGHBOR_MARGIN_MM = 40_000
+
+/** 配置図の作り方の結果。作れたら中身と分母、作れなければ理由 */
+export type SiteLayoutState = { kind: 'ok'; body: string; denominator: number } | { kind: 'notConfirmed' } | { kind: 'noFit' }
+
+/** 周辺建物のうち、基点（筆と外形の点）のまわり margin の範囲に、頂点がすべて入るものだけ（範囲をはみ出す建物は入れない） */
+export function nearSiteNeighborsOf(
+  base: readonly Pt[],
+  neighbors: readonly (readonly Pt[])[],
+  marginMm: number = SITE_NEIGHBOR_MARGIN_MM,
+): Pt[][] {
+  if (base.length === 0) return []
+  const xs = base.map((p) => p.x)
+  const ys = base.map((p) => p.y)
+  const x0 = Math.min(...xs) - marginMm
+  const x1 = Math.max(...xs) + marginMm
+  const y0 = Math.min(...ys) - marginMm
+  const y1 = Math.max(...ys) + marginMm
+  return neighbors
+    .filter((n) => n.length > 0 && n.every((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1))
+    .map((n) => [...n])
+}
+
+/** 配置図を作る。縮尺は、筆と外形と、そのまわりの範囲の周辺建物で決める（収まるいちばん大きい標準の縮尺）。作れないときは理由を返す */
+export function siteLayoutStateOf(input: {
+  lot: readonly Pt[] | null
+  footprint: readonly Pt[] | null
+  neighbors: readonly (readonly Pt[])[]
+  area: Box
+}): SiteLayoutState {
+  const base: Pt[] = [...(input.lot ?? []), ...(input.footprint ?? [])]
+  if (base.length < 3) return { kind: 'notConfirmed' }
+  const neighbors = nearSiteNeighborsOf(base, input.neighbors)
+  const all: Pt[] = [...base, ...neighbors.flatMap((n) => [...n])]
+  const xs = all.map((p) => p.x)
+  const ys = all.map((p) => p.y)
+  const s = chooseScaleOf(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), input.area)
+  if (s === null) return { kind: 'noFit' }
+  const body = siteLayoutBodyOf({ ...input, neighbors, scale: s })
+  return body === null ? { kind: 'notConfirmed' } : { kind: 'ok', body, denominator: s }
+}
+
 /** 配置図を、収まるいちばん大きい標準の縮尺で作る。分母も返す（図枠の縮尺の欄に書く）。作れなければ null */
 export function siteLayoutOf(input: {
   lot: readonly Pt[] | null
@@ -105,14 +148,8 @@ export function siteLayoutOf(input: {
   neighbors: readonly (readonly Pt[])[]
   area: Box
 }): { body: string; denominator: number } | null {
-  const all: Pt[] = [...(input.lot ?? []), ...(input.footprint ?? []), ...input.neighbors.flatMap((n) => [...n])]
-  if (all.length < 3) return null
-  const xs = all.map((p) => p.x)
-  const ys = all.map((p) => p.y)
-  const s = chooseScaleOf(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), input.area)
-  if (s === null) return null
-  const body = siteLayoutBodyOf({ ...input, scale: s })
-  return body === null ? null : { body, denominator: s }
+  const r = siteLayoutStateOf(input)
+  return r.kind === 'ok' ? { body: r.body, denominator: r.denominator } : null
 }
 
 /** 各階平面図を、収まるいちばん大きい標準の縮尺で作る。分母も返す。作れなければ null */
