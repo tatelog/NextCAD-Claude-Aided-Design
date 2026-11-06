@@ -152,3 +152,13 @@ describe('単位の前に入れる細目（開発の指定 fa20f68）', () => {
     expect(sub('F2-4-12', '【ﾛ.合計】').place).toBe('fillBlanks')
   })
 })
+
+// 仕様 9（開発｜メイン、統括の決まり 2026-11-06 の commit 3f73945）: 【ﾎ.敷地面積の合計】（F2-3-07）は括弧が無く、「㎡」の前に（1）の値を入れる。
+// （2）の段落は括弧も単位も無いので書かない（同じ細目の注記に書く）。
+describe('敷地面積の合計（統括の決まり 2026-11-06）', () => {
+  it('仕様 9: 【ﾎ.敷地面積の合計】は beforeUnit で、単位は「㎡」', () => {
+    const f = fields.find((x) => x.field.id === 'F2-3-07')!.field
+    const t = f.tokyo!.subitems!.find((s) => s.heading === '【ﾎ.敷地面積の合計】')!
+    expect(t).toMatchObject({ place: 'beforeUnit', unit: '㎡' })
+  })
+})
