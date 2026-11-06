@@ -9,8 +9,16 @@ import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { permitInputFromVolume } from '../law/permitInput'
 import { requiredPermitDocuments } from '../law/permitRequired'
-import { frameSvg } from '../law/permitFrameSvg'
-import { applicabilityTextOf, frameSizeOf, judgementRowsOf, legalCheckOfDoc, outlineStateOf, volumeOfOutline, type JudgementKind } from '../permit/p5Judgement'
+import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
+import { floorPlanBodyOf, siteLayoutBodyOf } from '../export/drawingSvg'
+import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { neighborOutlinesOf } from '../volume/neighborFrame'
+import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
+import { PermitViewer } from './PermitViewer'
+import permitDocsJson from '../law/permitDocuments.json'
+import { buildZip } from '../export/zipWriter'
+import { permitPackageFilesOf } from '../export/permitPackage'
+import { applicabilityTextOf, frameSizeOf, judgementRowsOf, legalCheckOfDoc, outlineStateOf, volumeOfOutline } from '../permit/p5Judgement'
 import { classLabelsOf } from '../law/buildingClass'
 import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
 import { fireStructureItems } from '../law/fireStructure'
@@ -27,7 +35,6 @@ import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { useDevTools } from '../store/devTools'
 import { PermitProjectFields } from './PermitProjectFields'
 
-const KIND_COLOR: Record<JudgementKind, string> = { 要る: '#1f2a44', 要らない: '#666', 要確認: '#a86b00' }
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
 
 export function P5Output() {
@@ -86,6 +93,72 @@ export function P5Output() {
   const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
   const ready = volume !== null
   const valid = ready && wallOk
+
+  // IFC の文字（ビューアで件数と容量を出す。外形が閉じていなければ null）
+  const ifcText = useMemo(() => {
+    if (!outline.ok) return null
+    try {
+      return writeIfc({ footprint: outline.footprint, storey_count: storeys, storey_height: height, wallThicknessMm: wall, schema })
+    } catch {
+      return null
+    }
+  }, [outline, storeys, height, wall, schema])
+
+  // 配置図と各階平面図の中身（図枠の作図領域の中）。元のデータが無いものは null
+  const confirmedNow = useConfirmedSite((s) => s.confirmed)
+  const buildingsNow = useConfirmedSite((s) => s.buildings)
+  const planResult = useSite((s) => s.plan)
+  const drawingSvgs = useMemo(() => {
+    const size = frameSizeOf(frame)
+    const area = drawingAreaOf(size)
+    const sheet = (body: string | null): string | null => (body === null ? null : frameSvg({ size, values: {}, body }).svg)
+    const site = sheet(
+      siteLayoutBodyOf({
+        lot: lotOfConfirmed(confirmedNow),
+        footprint: outline.ok ? outline.footprint : null,
+        neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
+        area,
+      }),
+    )
+    const floorPlan =
+      planResult === null
+        ? null
+        : sheet(
+            floorPlanBodyOf({
+              widthMm: planResult.widthMm,
+              depthMm: planResult.depthMm,
+              gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
+              units: planResult.cells,
+              area,
+            }),
+          )
+    return { site, floorPlan }
+  }, [frame, confirmedNow, buildingsNow, outline, planResult])
+
+  // 一式の中身（図面・IFC・書類一覧・空欄の一覧）。判定が無いときは null
+  const packageFiles = useMemo(() => {
+    if (!judgement) return null
+    return permitPackageFilesOf({
+      judgement,
+      docs: permitDocsJson.documents,
+      drawings: drawingSvgs,
+      ifcText,
+      ifcFileName: `model-${schema.toLowerCase()}.ifc`,
+    })
+  }, [judgement, drawingSvgs, ifcText, schema])
+
+  // 一式を zip ひとつで出す（無圧縮）
+  const downloadPackage = () => {
+    if (!packageFiles) return
+    const enc = new TextEncoder()
+    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: enc.encode(f.text) })))
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '確認申請一式.zip'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const download = () => {
     if (!outline.ok) return
@@ -324,35 +397,17 @@ export function P5Output() {
                 </div>
 
                 <section style={{ marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>図書の判定（要る・要らない・要確認）</h3>
-                  <p style={{ fontSize: 12, color: '#444' }}>{applicabilityTextOf(judgement)}</p>
-                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                    <thead>
-                      <tr>
-                        <th align="left">区分</th>
-                        <th align="left">図書</th>
-                        <th align="left">理由・法的チェック</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {judgementRowsOf(judgement).map((r) => {
-                        const check = r.kind === '要る' ? legalCheckOfDoc(r.name, legal) : null
-                        return (
-                          <tr key={`${r.kind}-${r.name}`}>
-                            <td style={{ color: KIND_COLOR[r.kind], fontWeight: r.kind === '要確認' ? 700 : 400 }}>{r.kind}</td>
-                            <td>{r.name}</td>
-                            <td style={{ fontSize: 12 }}>
-                              {r.reason ? <span style={{ color: '#666' }}>{r.reason}</span> : null}
-                              {check ? <span style={{ color: TONE_COLOR[check.tone], marginLeft: r.reason ? 8 : 0 }}>{check.text}</span> : null}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  <p style={{ color: '#666', fontSize: 12 }}>
-                    要確認は判定できなかった図書で、理由を出しています。要らないは条件に当たらなかった理由です。図書の範囲は施行規則 第1条の3 と表一・表二から。
-                  </p>
+                  <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>図書の一覧（見て確かめる）</h3>
+                  <PermitViewer
+                    judgement={judgement}
+                    docs={permitDocsJson.documents}
+                    ifcText={ifcText}
+                    drawingSvgs={drawingSvgs}
+                    checkOf={(name) => {
+                      const c = legalCheckOfDoc(name, legal)
+                      return c ? { text: c.text, color: TONE_COLOR[c.tone] } : null
+                    }}
+                  />
                 </section>
 
                 <section style={{ marginBottom: 16 }}>
@@ -371,6 +426,9 @@ export function P5Output() {
                   </div>
                   <button type="button" onClick={() => window.print()}>
                     印刷・PDF に保存
+                  </button>
+                  <button type="button" onClick={downloadPackage} disabled={!packageFiles}>
+                    一式を zip で出す
                   </button>
                   <p style={{ color: '#666', fontSize: 12 }}>
                     ブラウザの印刷で PDF にする。
