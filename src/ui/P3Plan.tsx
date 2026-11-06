@@ -56,7 +56,6 @@ import { copyFixturesToSameType, psOfUnit, sameTypeUnitIds, unitDetailOf } from 
 import { objectTableOf, type ObjectTableInput } from '../plan/objectTable'
 import { sourcesOfTable } from '../plan/objectCountsOfTable'
 import { useObjectTable } from '../store/objectTable'
-import { roomsOfCells } from '../plan/rooms'
 import { kindCountsIn, type KindPoint } from '../plan/unitWalls'
 import { balconyOfUnit } from '../plan/balcony'
 import { firstFloorCountsOf } from '../plan/commonAreas'
@@ -756,6 +755,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         const kindCounts = cell ? kindCountsIn(cell, kindPoints) : undefined
         return (
           <UnitDetailPanel
+            cell={cell}
+            planRooms={auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')) ?? []}
             detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
             onClose={() => setDetailUnitId(null)}
             storeyCount={storeyCount}
@@ -768,7 +769,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             onSetFirstFloorName={(name) => {
               if (detailUnitId) useFirstFloor.getState().setName(detailUnitId, name)
             }}
-            rooms={cell ? roomsOfCells([cell]).map((r) => r.kind) : []}
+            rooms={auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).map(r=>r.kind) ?? []}
             sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
             onApplySameType={() => {
               if (detailUnitId) useFixtures.setState({ fixtures: copyFixturesToSameType(detailUnitId, cells, fixtures) })
