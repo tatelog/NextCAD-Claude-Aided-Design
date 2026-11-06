@@ -62,21 +62,7 @@
   user-select: none;
 }
 
-.circle-menu {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: 180px;
-  gap: 6px;
-  padding: 10px;
-  background: #fff;
-  border: 1px solid #d8d6cf;
-  border-radius: 999px;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
-  z-index: 5;
-}
+.circle-menu { position: absolute; transform: translate(-50%, -50%); width: 200px; height: 200px; border-radius: 50%; background: rgba(248,250,252,.96); border: 1px solid #cbd2dc; box-shadow: 0 8px 28px #1f2a4430; z-index: 5; }
 
 .circle-menu button.is-active {
   background: #1f2a44;
@@ -84,3 +70,8 @@
 }
 
 .pen-toolbar.is-left .pen-toolbar-group { flex-wrap: wrap; }
+
+.circle-menu-item { position: absolute; transform: translate(-50%, -50%); width: 62px; height: 62px; border: 1px solid transparent; border-radius: 50%; background: transparent; color: #1f2a44; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; cursor: pointer; font-size: 11px; }
+.circle-menu-item:hover:not(:disabled), .circle-menu-item:focus-visible { border-color: #8d9bb1; background: #e1e8f2; }
+.circle-menu-item:disabled { opacity: .3; cursor: default; }
+.circle-menu-close { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cbd2dc; background: #fff; color: #536078; display: grid; place-items: center; cursor: pointer; }
