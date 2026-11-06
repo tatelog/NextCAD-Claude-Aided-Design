@@ -26,16 +26,17 @@ export interface StrokeToSegmentsResult {
 
 const newId = (): string => crypto.randomUUID()
 
-interface Mm {
+export interface Mm {
   x: number
   y: number
 }
 
-// `|| 0` は -0 を 0 に揃える（整数 mm に -0 は要らない）
-const toMm = (stroke: Stroke, p: { px: number; py: number }): Mm => ({
+// `|| 0` は -0 を 0 に揃える（整数 mm に -0 は要らない）。y は上向きが正（画面の py は下向きが正）
+export const strokePointToMm = (stroke: Stroke, p: { px: number; py: number }): Mm => ({
   x: Math.round((p.px - stroke.view_origin.px) * stroke.view_scale) || 0,
   y: Math.round(-(p.py - stroke.view_origin.py) * stroke.view_scale) || 0,
 })
+const toMm = strokePointToMm
 
 /** existingSegments は交点・線分上への吸着に使う既存の線分（省略時は端点だけ） */
 export function strokeToSegments(

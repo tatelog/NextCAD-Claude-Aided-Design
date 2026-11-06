@@ -15,7 +15,7 @@ import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
 import { useConfirmedSite } from './store/confirmedSite'
 import { workLogToCsv } from './app/workLogCsv'
-import { p3Stroke } from './plan/p3Stroke'
+import { devSeedSquareStrokes } from './app/devSeed'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
@@ -64,20 +64,9 @@ export function App() {
   useEffect(() => {
     if (!import.meta.env.DEV) return
     if (new URLSearchParams(window.location.search).get('seed') !== 'square') return
-    const corners = [
-      [0, 0],
-      [2000, 0],
-      [2000, 3000],
-      [0, 3000],
-      [0, 0],
-    ]
+    // 外形はダミーの筆界と同じ範囲（devSeed.ts。統括の依頼 2026-11-06）
     useDrawing.getState().clear()
-    for (let i = 0; i < 4; i++) {
-      const [a, b] = [corners[i]!, corners[i + 1]!]
-      useDrawing.getState().addStroke(
-        p3Stroke({ points: [{ px: a[0]!, py: a[1]! }, { px: b[0]!, py: b[1]! }], viewScaleMmPerPx: 10, viewOriginPx: { px: 0, py: 0 }, id: `seed-${i}` }),
-      )
-    }
+    for (const s of devSeedSquareStrokes()) useDrawing.getState().addStroke(s)
   }, [])
 
   // 作業履歴（SQLite）の準備ができたか。記録のたびに rev を進めて、一覧を読み直す
