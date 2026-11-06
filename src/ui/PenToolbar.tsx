@@ -83,8 +83,8 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, onClose
       )}
       {!compact && onClose && <button type="button" className="pen-toolbar-close" aria-label="作図ツールを閉じる" title="閉じる" onClick={onClose}>×</button>}
       {onPan && <span className="pen-toolbar-group" role="group" aria-label="操作モード">
-        <button type="button" title="作図" aria-label="作図" aria-pressed={isDrawing} className={isDrawing?'is-active':undefined} onClick={onDraw}><ToolIcon name="line" /></button>
-        <button type="button" title="パン" aria-label="パン" aria-pressed={!isDrawing} className={!isDrawing?'is-active':undefined} onClick={onPan}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg></button>
+        <button type="button" title="作図" aria-label="作図" aria-pressed={isDrawing} className={isDrawing?'is-active':undefined} onClick={onDraw}><ToolIcon name="pencil" /></button>
+        <button type="button" title="パン" aria-label="パン" aria-pressed={!isDrawing} className={!isDrawing?'is-active':undefined} onClick={onPan}><ToolIcon name="hand" /></button>
       </span>}
       {onBox && <button type="button" aria-label="直方体" title="直方体を寸法から作成" onClick={onBox}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg></button>}
       <span className="pen-toolbar-group">
