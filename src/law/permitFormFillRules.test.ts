@@ -25,7 +25,8 @@ const FORM: FormDef = {
             subitems: [{ heading: '【ｲ.階別】', place: 'fillBlanks' }],
           },
         },
-        { id: 'F2-4-04', label: '構造', tokyo: { face: '（第四面）', heading: '【4.構造】', in: 'paragraph', place: 'fillBlanks', note: '「造」の前' } },
+        // 行き先の表に無い括弧の欄（F2-4-04 の構造は、統括の決まりで行き先の表に入ったので、ここでは使わない）
+        { id: 'F2-4-05', label: '括弧の欄（試験）', tokyo: { face: '（第四面）', heading: '【4.構造】', in: 'paragraph', place: 'fillBlanks', note: '「造」の前' } },
       ],
     },
   ],
@@ -40,9 +41,9 @@ describe('既定の入れ方の規則（仕様 R1・R2）', () => {
   })
 
   it('R2: 括弧の欄は、行き先の表に無ければ書かない', () => {
-    const r = fillInstructionsOf(FORM, PARAGRAPHS, { 'F2-4-04': { value: 'RC', from: '案件' } })
+    const r = fillInstructionsOf(FORM, PARAGRAPHS, { 'F2-4-05': { value: 'RC', from: '案件' } })
     expect(r.instructions).toEqual([])
-    expect(r.unwritten[0]!.fieldId).toBe('F2-4-04')
+    expect(r.unwritten[0]!.fieldId).toBe('F2-4-05')
   })
 
   it('R3: 括弧が無い段落には、括弧の番目を指定しても書かない（書けなかった欄に残す）', () => {

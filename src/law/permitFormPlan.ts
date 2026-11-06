@@ -161,7 +161,8 @@ export function planRowsOf(form: FormDef, paragraphs: readonly string[], values:
       }
       rows.push({ ...base, action: actionOf(keyOf(field.id), t.note, vals), note: t.note ?? '' })
       for (const sub of t.subitems ?? []) {
-        const name = subLabelOf(sub.heading)
+        // 1 段落に見出しが 2 つあるとき（inlineHeading）は、後ろの見出しの名前で行を分ける（統括の依頼 2026-11-06。4）
+        const name = subLabelOf(sub.inlineHeading ?? sub.heading)
         const sidx = locateSubitemOf(paragraphs, range, idx, sub.heading, sub.occurrence ?? 1)
         const subRow = { fieldId: `${field.id}.${name}`, label: `${field.label}（${name}）`, face: face.title, heading: sub.heading }
         const action: PlanAction = sidx === null ? { kind: 'notFound' } : actionOf(keyOf(field.id, name), sub.note, vals)

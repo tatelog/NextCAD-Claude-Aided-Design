@@ -15,8 +15,8 @@ export interface ParagraphSpan {
 /** 書き込みの指示。paragraphIndex は readDocx の paragraphs の並び（表の外の段落）の番号 */
 export interface FillInstruction {
   paragraphIndex: number
-  /** after: 見出しの後ろの空白に入れる / blanks: 括弧の bracket 番目（1 から数えず 0 から）に入れる */
-  kind: 'after' | 'blanks' | 'beforeUnit'
+  /** after: 見出しの後ろの空白に入れる / blanks: 括弧の bracket 番目（1 から数えず 0 から）に入れる / check: value の語の前の □ を ■ にする（統括の依頼 2026-11-06。4） */
+  kind: 'after' | 'blanks' | 'beforeUnit' | 'check'
   heading?: string
   bracket?: number
   /** beforeUnit: 単位（「階」「ｍ」）の前に入れる。単位は見出しの後ろで探す */
@@ -143,6 +143,14 @@ export function beforeUnitInParagraph(pXml: string, heading: string, unit: strin
   return setPlainRange(pXml, u - ws, u, value)
 }
 
+/** 段落の中で「□語」の □ を ■ にする（選んだ語の □ だけ。レ点は足さない）。語の □ が無ければ何もしない（統括の依頼 2026-11-06。4） */
+export function checkInParagraph(pXml: string, label: string): string {
+  const plain = textOfParagraph(pXml)
+  const at = plain.indexOf(`□${label}`)
+  if (at < 0) return pXml
+  return setPlainRange(pXml, at, at + 1, '■')
+}
+
 /** 指示を段落に当てて、docx を書き出す。ほかの部品はそのまま */
 export async function fillDocx(bytes: Uint8Array, instructions: readonly FillInstruction[]): Promise<Uint8Array> {
   const d = await readDocx(bytes)
@@ -156,6 +164,7 @@ export async function fillDocx(bytes: Uint8Array, instructions: readonly FillIns
     for (const x of todo) {
       if (x.kind === 'after') p = replaceAfterHeadingInParagraph(p, x.heading ?? '', x.value)
       else if (x.kind === 'beforeUnit') p = beforeUnitInParagraph(p, x.heading ?? '', x.unit ?? '', x.value)
+      else if (x.kind === 'check') p = checkInParagraph(p, x.value)
       else p = fillBlanksInParagraph(p, x.bracket ?? 0, x.value)
     }
     xml = xml.slice(0, sp.start) + p + xml.slice(sp.end)

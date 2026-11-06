@@ -110,7 +110,7 @@ export const SITE_MISSING_TEXT = {
 /** 配置図の作り方の結果。作れたら中身と分母、作れなければ理由 */
 export type SiteLayoutState = { kind: 'ok'; body: string; denominator: number } | { kind: 'notConfirmed' } | { kind: 'noFit' }
 
-/** 周辺建物のうち、基点（筆と外形の点）のまわり margin の範囲に、頂点がすべて入るものだけ（範囲をはみ出す建物は入れない） */
+/** 周辺建物を、基点（筆と外形の点）のまわり margin の範囲で切る。範囲の外だけの建物は入らない（範囲にかかる建物は、枠で切って入る） */
 export function nearSiteNeighborsOf(
   base: readonly Pt[],
   neighbors: readonly (readonly Pt[])[],
@@ -119,13 +119,56 @@ export function nearSiteNeighborsOf(
   if (base.length === 0) return []
   const xs = base.map((p) => p.x)
   const ys = base.map((p) => p.y)
-  const x0 = Math.min(...xs) - marginMm
-  const x1 = Math.max(...xs) + marginMm
-  const y0 = Math.min(...ys) - marginMm
-  const y1 = Math.max(...ys) + marginMm
-  return neighbors
-    .filter((n) => n.length > 0 && n.every((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1))
-    .map((n) => [...n])
+  const box = {
+    x0: Math.min(...xs) - marginMm,
+    x1: Math.max(...xs) + marginMm,
+    y0: Math.min(...ys) - marginMm,
+    y1: Math.max(...ys) + marginMm,
+  }
+  // 範囲にかかる建物は、範囲の枠で切って入れる（丸ごと外さない。統括の依頼 2026-11-06。小さな直し）
+  return neighbors.map((n) => clipPolygonToBoxOf(n, box)).filter((n) => n.length >= 3)
+}
+
+/** 多角形を、軸に平行な矩形（作図の範囲）で切る（Sutherland–Hodgman）。範囲の外の部分は、枠の辺で切り取る。全部が外なら空 */
+export function clipPolygonToBoxOf(polygon: readonly Pt[], box: { x0: number; y0: number; x1: number; y1: number }): Pt[] {
+  type Edge = { inside: (p: Pt) => boolean; cut: (a: Pt, b: Pt) => Pt }
+  const edges: Edge[] = [
+    {
+      inside: (p) => p.x >= box.x0,
+      cut: (a, b) => ({ x: box.x0, y: a.y + ((box.x0 - a.x) / (b.x - a.x)) * (b.y - a.y) }),
+    },
+    {
+      inside: (p) => p.x <= box.x1,
+      cut: (a, b) => ({ x: box.x1, y: a.y + ((box.x1 - a.x) / (b.x - a.x)) * (b.y - a.y) }),
+    },
+    {
+      inside: (p) => p.y >= box.y0,
+      cut: (a, b) => ({ x: a.x + ((box.y0 - a.y) / (b.y - a.y)) * (b.x - a.x), y: box.y0 }),
+    },
+    {
+      inside: (p) => p.y <= box.y1,
+      cut: (a, b) => ({ x: a.x + ((box.y1 - a.y) / (b.y - a.y)) * (b.x - a.x), y: box.y1 }),
+    },
+  ]
+  let out: Pt[] = [...polygon]
+  for (const e of edges) {
+    const cur = out
+    out = []
+    for (let i = 0; i < cur.length; i++) {
+      const p = cur[i]!
+      const q = cur[(i - 1 + cur.length) % cur.length]!
+      const pIn = e.inside(p)
+      const qIn = e.inside(q)
+      if (pIn) {
+        if (!qIn) out.push(e.cut(q, p))
+        out.push(p)
+      } else if (qIn) {
+        out.push(e.cut(q, p))
+      }
+    }
+    if (out.length === 0) return []
+  }
+  return out
 }
 
 /** 配置図を作る。縮尺は、筆と外形と、そのまわりの範囲の周辺建物で決める（収まるいちばん大きい標準の縮尺）。作れないときは理由を返す */

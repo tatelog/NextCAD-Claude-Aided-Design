@@ -1,12 +1,14 @@
 // 取り込んだ様式の欄の一覧（統括の依頼 2026-11-06。2-b）。欄ごとに、アプリが何をするか（入れる・人が入れる・行政が記入 など）を並べる。
 // 表示だけの部品（値を受け取って描く）。記入は 2-c。
 import type { PlanAction, PlanRow } from '../law/permitFormPlan'
+import { AREA_REFERENCE_NOTE } from '../law/permitFormValues'
 
 /** 欄の行動の文（一か所。言い換えはここだけ） */
 export function actionTextOf(a: PlanAction): string {
   switch (a.kind) {
     case 'fill':
-      return `入れる：${a.value}（${a.from}）`
+      // 公図の参考値（敷地面積）は、参考値の文を添える（統括の依頼 2026-11-06。3）
+      return a.from === '公図の参考値' ? `入れる：${a.value}（${AREA_REFERENCE_NOTE}）` : `入れる：${a.value}（${a.from}）`
     case 'human':
       return '人が入れる（空欄）'
     case 'government':

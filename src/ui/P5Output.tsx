@@ -8,7 +8,9 @@ import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
-import { formValuesFromVolume } from '../law/permitFormValues'
+import { AREA_REFERENCE_NOTE, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
+import { chibanOf } from '../map/parcelInfo'
+import { parcelPropsOf } from '../map/selectedParcel'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
 import { floorPlanOf, siteLayoutStateOf, siteMissingTextOf } from '../export/drawingSvg'
@@ -97,7 +99,27 @@ export function P5Output() {
   const heightM = volume ? volume.total_height / 1000 : 0
   const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
   // 様式の欄に入れる値（ボリュームから決まるもの。案件の敷地面積は入力があるときだけ）
-  const formValues = useMemo(() => (permitVolume ? formValuesFromVolume(permitVolume, { structure: APP_STRUCTURE }) : {}), [permitVolume])
+  // 記入する値。地名地番と敷地面積は、確定した筆のデータ（公図）から。筆が無ければ入らない
+  const confirmedForForm = useConfirmedSite((s) => s.confirmed)
+  const districtForForm = useConfirmedSite((s) => s.district.data)
+  const formValues = useMemo(() => {
+    if (!permitVolume) return {}
+    const props = confirmedForForm?.parcelUid ? parcelPropsOf(confirmedForForm.parcelUid) : undefined
+    const chiban = props ? chibanOf(props) : null
+    const lotForForm = lotOfConfirmed(confirmedForForm)
+    const frontLength = confirmedForForm && lotForForm ? frontEdgeLengthM(lotForForm, confirmedForForm.roadEdge) : undefined
+    // 防火の区分は、確定の地点の法規（取れていなければ決めない）
+    const fire = fireLabelOf(
+      districtForForm === null ? null : { functions: districtForForm.fireMatches.map((f) => f.function), unknownOwner: districtForForm.fireUnknownOwner.length },
+    )
+    return formValuesFromVolume(permitVolume, {
+      structure: APP_STRUCTURE,
+      siteAreaM2: siteAreaM2Of(lotForForm),
+      ...(chiban !== null ? { chiban } : {}),
+      ...(fire !== null ? { fire } : {}),
+      ...(frontLength !== undefined ? { frontRoadLengthM: frontLength } : {}),
+    })
+  }, [permitVolume, confirmedForForm, districtForForm])
   const ready = volume !== null
   const valid = ready && wallOk
 
@@ -155,8 +177,10 @@ export function P5Output() {
       ifcText,
       ifcFileName: `model-${schema.toLowerCase()}.ifc`,
       filledForms: Object.values(filledNow).filter((x): x is { fileName: string; bytes: Uint8Array } => x !== undefined),
+      // 敷地面積が公図の参考値なら、空欄の一覧に参考値の文を添える（統括の依頼 2026-11-06。3）
+      notes: formValues['F2-3-07.敷地面積']?.from === '公図の参考値' ? [AREA_REFERENCE_NOTE] : [],
     })
-  }, [judgement, drawingSvgs, ifcText, schema, filledNow])
+  }, [judgement, drawingSvgs, ifcText, schema, filledNow, formValues])
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {
