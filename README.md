@@ -105,7 +105,7 @@ node scripts/prepare-local-data.ts --roads <道路の GeoJSON> --buildings <建�
 
 出典の一覧と確認の状態は、`src/data/sources.ts` が正です。
 
-第三者のソフトウェア: docx-preview（Apache License 2.0）と jszip（MIT を選んで使用）。ライセンスの本文は `licenses/`、表示は `THIRD_PARTY_NOTICES.md` です。
+第三者のソフトウェア: アプリが実行時に使う依存（`package.json` の `dependencies`）は、`THIRD_PARTY_NOTICES.md` に版・ライセンス・著作権表示を一覧にしてあります。ライセンスの本文は `licenses/` にあります。
 
 ## 制約と未完成
 
@@ -119,7 +119,6 @@ node scripts/prepare-local-data.ts --roads <道路の GeoJSON> --buildings <建�
 - **筆界**: 参考値です。法務上の境界を示すものではありません。
 - **住所検索**: 利用条件が未確認です。
 - **iPad の実機での操作**: 未確認です。
-- **ライセンスの表示**: `THIRD_PARTY_NOTICES.md` には、docx-preview と jszip だけを載せています。MapLibre GL JS など、ほかの依存関係の表示は、まだ追加していません。
 
 ## ライセンス
 
