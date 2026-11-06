@@ -59,9 +59,12 @@ export interface UiState {
   volumeNeighbors: boolean
   /** 影（P2 の 3D の地面の日影）。初期は off */
   volumeShadow: boolean
+  /** 斜線の面（斜線の上限の面と、食い込みの色）。初期は off（統括の指示 2026-11-06。5a） */
+  volumeSlope: boolean
   setVolumeMap: (on: boolean) => void
   setVolumeNeighbors: (on: boolean) => void
   setVolumeShadow: (on: boolean) => void
+  setVolumeSlope: (on: boolean) => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -102,4 +105,6 @@ export const useUi = create<UiState>((set) => ({
   setVolumeMap: (on) => set({ volumeMap: on }),
   setVolumeNeighbors: (on) => set({ volumeNeighbors: on }),
   setVolumeShadow: (on) => set({ volumeShadow: on }),
+  volumeSlope: false,
+  setVolumeSlope: (on) => set({ volumeSlope: on }),
 }))

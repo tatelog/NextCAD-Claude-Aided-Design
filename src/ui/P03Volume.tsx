@@ -57,7 +57,8 @@ import { Volume3D } from './Volume3D'
 import { shouldShowScene3DOf } from './volumeScene'
 import { neighborsShownOf, shadowShownOf } from './volumeDisplay'
 import { HeaderIconButton } from './HeaderIconButton'
-import { IconBuildings, IconMap, IconShadow } from './headerIcons'
+import { IconBuildings, IconMap, IconShadow, IconSlope } from './headerIcons'
+import { overrunFloorsOf, slopeSheetsOf } from '../volume/slopeSurface'
 import { SceneErrorBoundary } from './SceneErrorBoundary'
 import { mapTilesOf } from '../map/gsiTiles'
 import { neighborVolumes } from '../volume/neighborLocal'
@@ -135,6 +136,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const setVolumeMap = useUi((s) => s.setVolumeMap)
   const setVolumeNeighbors = useUi((s) => s.setVolumeNeighbors)
   const setVolumeShadow = useUi((s) => s.setVolumeShadow)
+  const volumeSlope = useUi((s) => s.volumeSlope)
+  const setVolumeSlope = useUi((s) => s.setVolumeSlope)
   const neighborsOn = neighborsShownOf(showNeighbors, volumeNeighbors)
   const shadowOn = shadowShownOf(showShadow, volumeShadow)
   // 地面に貼る地理院タイル（確定した地点の周り。枠が無ければ無し。代表の依頼 2026-11-06。4）
@@ -278,6 +281,17 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const setback = useMemo(() => (volume ? setbackFromRectParcel(lot, volume.footprint) : null), [volume, lot])
   // 離れの寸法線（G67）。3D の地面に出す。寸法線の表示をオフにしたら出さない
   const setbackLinesOfVolume = useMemo(() => (volume ? setbackLines(lot, volume.footprint) : null), [volume, lot])
+  // 斜線の面と食い込み（統括の指示 2026-11-06。5a）。斜線の境界（legal）から作る。斜線の面の長さは、敷地の対角の長さ＋5 m
+  const slopeExtentMm = useMemo(() => {
+    const xs = lot.map((p) => p.x)
+    const ys = lot.map((p) => p.y)
+    return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 5000
+  }, [lot])
+  const slopeSheets = useMemo(() => slopeSheetsOf(legal.boundaries, slopeExtentMm), [legal, slopeExtentMm])
+  const overrunFloors = useMemo(
+    () => (volume && legal.boundaries.length > 0 ? overrunFloorsOf(volume.footprint, legal.boundaries, volume) : []),
+    [volume, legal],
+  )
   // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
   const roadSlope = useMemo(() => {
     const road = legal.boundaries.filter((b) => b.kind === 'road')
@@ -432,6 +446,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           <HeaderIconButton label="地図" icon={<IconMap />} pressed={volumeMap} onClick={() => setVolumeMap(!volumeMap)} />
           <HeaderIconButton label="周辺建物" icon={<IconBuildings />} pressed={volumeNeighbors} onClick={() => setVolumeNeighbors(!volumeNeighbors)} />
           <HeaderIconButton label="影" icon={<IconShadow />} pressed={volumeShadow} onClick={() => setVolumeShadow(!volumeShadow)} />
+          <HeaderIconButton label="斜線の面" icon={<IconSlope />} pressed={volumeSlope} onClick={() => setVolumeSlope(!volumeSlope)} />
         </span>
         <span className="p03-actions">
           <button type="button" onClick={clear} disabled={segments.length === 0}>
@@ -468,6 +483,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 neighbors={neighborsOn ? neighbors : []}
                 showMap={volumeMap}
                 mapTiles={mapTiles}
+                slopeSheets={slopeSheets}
+                overrunFloors={overrunFloors}
+                showSlope={volumeSlope}
                 floors={stackedFloors}
                 setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}

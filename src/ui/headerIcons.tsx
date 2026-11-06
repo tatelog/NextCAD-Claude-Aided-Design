@@ -107,6 +107,16 @@ export function IconBuildings() {
   )
 }
 
+/** 斜線の面（斜めに立ち上がる面。下の辺と斜めの線で囲む） */
+export function IconSlope() {
+  return (
+    <svg {...svgProps}>
+      <path d="M2.5 13.5 H13.5 M2.5 13.5 L13.5 4 V13.5 Z" {...stroke} />
+      <path d="M2.5 13.5 L13.5 4 V13.5 Z" fill="currentColor" stroke="none" opacity="0.35" />
+    </svg>
+  )
+}
+
 /** 影（四角の下半分を塗る） */
 export function IconShadow() {
   return (

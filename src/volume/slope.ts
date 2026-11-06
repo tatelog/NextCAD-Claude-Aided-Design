@@ -32,8 +32,9 @@ const BoundarySchema = z.object({
 
 const round = (v: number) => Math.round(v * 1e6) / 1e6
 
-function clipHalfPlane(poly: readonly Point[], b: SlopeBoundary, dist: number): Point[] {
-  const f = (p: Point) => b.inward.x * (p.x - b.point.x) + b.inward.y * (p.y - b.point.y) - dist
+// sign = 1 なら、境界から dist 以上の側（残す側）を残す。sign = −1 なら、dist より境界に近い側（切られる側）を残す（食い込みの部分）
+function clipSide(poly: readonly Point[], b: SlopeBoundary, dist: number, sign: 1 | -1): Point[] {
+  const f = (p: Point) => sign * (b.inward.x * (p.x - b.point.x) + b.inward.y * (p.y - b.point.y) - dist)
   const cut = (p: Point, q: Point, fp: number, fq: number): Point => {
     const t = fp / (fp - fq)
     return { x: round(p.x + t * (q.x - p.x)), y: round(p.y + t * (q.y - p.y)) }
@@ -54,6 +55,10 @@ function clipHalfPlane(poly: readonly Point[], b: SlopeBoundary, dist: number): 
   return out.length < 3 ? [] : out
 }
 
+function clipHalfPlane(poly: readonly Point[], b: SlopeBoundary, dist: number): Point[] {
+  return clipSide(poly, b, dist, 1)
+}
+
 // 天端の高さ z（mm）での切り取り。すべての境界で順に切る。
 export function cutFootprint(footprint: readonly Point[], boundaries: readonly SlopeBoundary[], topZMm: number): Point[] {
   let poly: Point[] = footprint.map((p) => ({ x: p.x, y: p.y }))
@@ -66,6 +71,23 @@ export function cutFootprint(footprint: readonly Point[], boundaries: readonly S
     if (poly.length === 0) return []
   }
   return poly
+}
+
+// 切り取られた部分（食い込み）。天端 z で、外形から切り取り後の形を引いた残り。境界ごとに、残りのうち切られる側を取る。取った部分どうしは重ならない（統括の指示 2026-11-06。5a）
+export function removedPiecesOf(footprint: readonly Point[], boundaries: readonly SlopeBoundary[], topZMm: number): Point[][] {
+  let remaining: Point[] = footprint.map((p) => ({ x: p.x, y: p.y }))
+  const pieces: Point[][] = []
+  for (const raw of boundaries) {
+    const b = BoundarySchema.parse(raw)
+    if (topZMm <= b.riseMm) continue
+    const byHeight = (topZMm - b.riseMm) / b.coefficient
+    const dist = b.maxDistanceMm === undefined ? byHeight : Math.min(b.maxDistanceMm, byHeight)
+    const off = clipSide(remaining, b, dist, -1)
+    if (off.length >= 3) pieces.push(off)
+    remaining = clipSide(remaining, b, dist, 1)
+    if (remaining.length === 0) break
+  }
+  return pieces
 }
 
 // 階ごとに切る。天端は (i + 1) × 階高。
