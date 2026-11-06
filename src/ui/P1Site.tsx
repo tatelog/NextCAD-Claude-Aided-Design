@@ -16,6 +16,7 @@ import { geometryOfParcel, parcelPropsOf, parcelUidAt } from '../map/selectedPar
 import { chibanOf } from '../map/parcelInfo'
 import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
 import { parcelNoticeOf } from '../plan/lot'
+import { polygonAreaMm2 } from '../geom/polygon'
 import { interiorPointOf } from '../map/interiorPoint'
 import { useUi } from '../store/ui'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
@@ -183,6 +184,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <strong>選択地点の情報</strong>
           <dl style={{ margin: '8px 0 0' }}>
             <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected.address}</dd>
+            <dt>敷地面積（公図から算出）</dt><dd style={{ margin: '0 0 8px' }}>{parcel ? `${(polygonAreaMm2(parcel) / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} ㎡` : '未取得'}</dd>
             <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（下欄参照）' : '未取得'}</dd>
             <dt>建蔽率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.buildingCoverageRatePercent != null ? `${siteDistrict.buildingCoverageRatePercent} %` : '未取得'}</dd>
             <dt>容積率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.floorAreaRatePercent != null ? `${siteDistrict.floorAreaRatePercent} %` : '未取得'}</dd>
