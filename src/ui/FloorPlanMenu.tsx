@@ -12,8 +12,9 @@ export function FloorPlanMenu({floors,plans,widthMm,depthMm,selected,onSelect,ty
  types:readonly UnitType[]; pattern:string[]; onPattern:(ids:string[])=>void; onApply:()=>void
 }) {
  return <div style={{padding:10}}>
-  <h2 style={{fontSize:14}}>各階レイアウト</h2>
-  <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:6,maxHeight:'42vh',overflowY:'auto'}}>
+  <details open>
+  <summary style={{fontSize:14,fontWeight:700,cursor:"pointer",padding:"8px 0"}}>各階レイアウト</summary>
+  <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:6}}>
    {floors.map((outline,index)=>{const floor=index+1,plan=plans[floor];return <button key={floor} type="button" aria-label={`${floor}階のレイアウト`} aria-pressed={selected===floor} onClick={()=>onSelect(floor)} style={{padding:5,border:selected===floor?'2px solid #243953':'1px solid #d7dbe1',borderRadius:5,background:selected===floor?'#edf2f7':'white',color:'#243953'}}>
     <svg viewBox={`-500 -500 ${widthMm+1000} ${depthMm+1000}`} style={{width:'100%',height:90}} aria-hidden="true">
      <polygon points={outline.map(p=>`${p.x},${p.y}`).join(' ')} fill="#f1f3f5" stroke="#788697" strokeWidth={1} vectorEffect="non-scaling-stroke"/>
@@ -22,6 +23,7 @@ export function FloorPlanMenu({floors,plans,widthMm,depthMm,selected,onSelect,ty
     <div>{floor}階</div><small>{outline.length<3?'床なし':plan?`${plan.cells.length}戸・配置案`:'未配置'}</small>
    </button>})}
   </div>
+  </details>
   <h2 style={{fontSize:14,marginTop:18}}>住戸構成パターン</h2>
   <p style={{fontSize:11}}>横にタイプを組み合わせ、同じ列を上下階で揃えます。</p>
   {PATTERNS.map(([label,names])=>{const ids=names.map(name=>types.find(t=>t.name===name)?.id).filter((id):id is string=>!!id);return <button key={label} type="button" onClick={()=>onPattern(ids)} style={{display:'block',width:'100%',marginBottom:6,textAlign:'left',padding:6}}>{label}<br/><small>{names.join(' ｜ ')}</small></button>})}
