@@ -12,6 +12,8 @@ import { requiredPermitDocuments } from '../law/permitRequired'
 import { frameSvg } from '../law/permitFrameSvg'
 import { PermitViewer } from './PermitViewer'
 import permitDocsJson from '../law/permitDocuments.json'
+import { buildZip } from '../export/zipWriter'
+import { permitPackageFilesOf } from '../export/permitPackage'
 import { applicabilityTextOf, frameSizeOf, judgementRowsOf, legalCheckOfDoc, outlineStateOf, volumeOfOutline } from '../permit/p5Judgement'
 import { classLabelsOf } from '../law/buildingClass'
 import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
@@ -97,6 +99,31 @@ export function P5Output() {
       return null
     }
   }, [outline, storeys, height, wall, schema])
+
+  // 一式の中身（図枠・IFC・書類一覧・空欄の一覧）。判定が無いときは null
+  const packageFiles = useMemo(() => {
+    if (!judgement) return null
+    return permitPackageFilesOf({
+      judgement,
+      docs: permitDocsJson.documents,
+      frameSvg: frameSvg({ size: frameSizeOf(frame), values: {} }).svg,
+      ifcText,
+      ifcFileName: `model-${schema.toLowerCase()}.ifc`,
+    })
+  }, [judgement, frame, ifcText, schema])
+
+  // 一式を zip ひとつで出す（無圧縮）
+  const downloadPackage = () => {
+    if (!packageFiles) return
+    const enc = new TextEncoder()
+    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: enc.encode(f.text) })))
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '確認申請一式.zip'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const download = () => {
     if (!outline.ok) return
@@ -364,6 +391,9 @@ export function P5Output() {
                   </div>
                   <button type="button" onClick={() => window.print()}>
                     印刷・PDF に保存
+                  </button>
+                  <button type="button" onClick={downloadPackage} disabled={!packageFiles}>
+                    一式を zip で出す
                   </button>
                   <p style={{ color: '#666', fontSize: 12 }}>
                     ブラウザの印刷で PDF にする。
