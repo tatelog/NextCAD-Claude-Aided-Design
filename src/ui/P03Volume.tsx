@@ -1,3 +1,4 @@
+import { BoxPlot } from './BoxPlot'
 import { createPortal } from 'react-dom'
 import {boxOutline} from '../volume/boxOutline'
 import { visibleSlopeBoundaries, type SlopeVisibility } from './slopeVisibility'
@@ -145,10 +146,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   }, [])
   const [view, setView] = useState<'plan' | '3d'>('3d')
   const [panOnly, setPanOnly] = useState(false)
-  const [boxOpen,setBoxOpen] = useState(false)
-  const [boxWidth,setBoxWidth] = useState('12000'),[boxDepth,setBoxDepth] = useState('24000'),[boxFloors,setBoxFloors] = useState('5')
-  const [boxError,setBoxError] = useState('')
-  const startDrawing = () => { setPanOnly(false); setView('plan'); useMode.getState().setMode('drawing') }
+  const [boxPlot, setBoxPlot] = useState(false)
+  const startDrawing = () => { setBoxPlot(false); setPanOnly(false); setView('plan'); useMode.getState().setMode('drawing') }
   // 左メニュー（G55）で選んだ種類（1 つだけ。もう一度押すと外れる）。2D 平面のときだけ出す（3D のときに出すかは未決）
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const [homeToken, setHomeToken] = useState(0)
@@ -486,7 +485,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           onToggleFold={menuFold.toggle}
         />
         <div className="volume-preview-workspace">
-        {toolbarVisible && <DockedPenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement={placement} />}
+        {toolbarVisible && <DockedPenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>{setBoxPlot(false);setPanOnly(true)}} onBox={()=>{startDrawing();setPlanningPreview(null);setBoxPlot(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement={placement} />}
         {view === '3d' ? (
           shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: neighborsOn ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
@@ -525,7 +524,12 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           )
         ) : (
           <div className="p03-canvas-wrap">
-            <DrawingCanvas panOnly={panOnly || planningPreview !== null} siteOverride={confirmed} />
+            <DrawingCanvas panOnly={panOnly || boxPlot || planningPreview !== null} siteOverride={confirmed} />
+            {boxPlot && <BoxPlot onCancel={() => setBoxPlot(false)} onComplete={(a, b) => {
+              const next = boxOutline(Math.abs(b.x-a.x), Math.abs(b.y-a.y), {x:(a.x+b.x)/2,y:(a.y+b.y)/2})
+              transform(es => [...es.filter(e => e.screen === 'P3'), ...next])
+              setBoxPlot(false)
+            }} />}
             <CircleMenu />
           </div>
         )}
@@ -851,25 +855,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           </section>
         </aside>
       </div>
-      {boxOpen && <div role="dialog" aria-modal="true" aria-label="直方体を作成" style={{position:'fixed',top:'25%',left:'35%',zIndex:60,background:'#fff',padding:20,borderRadius:8,boxShadow:'0 8px 40px #0004'}}>
-        <h2>直方体</h2>
-        <label style={{display:'block'}}>幅 mm<input type="number" value={boxWidth} onChange={e=>setBoxWidth(e.target.value)}/></label>
-        <label style={{display:'block'}}>奥行き mm<input type="number" value={boxDepth} onChange={e=>setBoxDepth(e.target.value)}/></label>
-        <label style={{display:'block'}}>階数<input type="number" min="1" step="1" value={boxFloors} onChange={e=>setBoxFloors(e.target.value)}/></label>
-        <p>階高 {storeyHeightMm} mm × {boxFloors}階 ＝ 高さ {Number(boxFloors)*storeyHeightMm} mm</p>
-        <p>敷地中央に配置し、現在のボリューム外形を置き換えます。</p>
-        {boxError && <p role="alert">{boxError}</p>}
-        <button type="button" onClick={()=>{
-          try{
-            const floors=Number(boxFloors)
-            if(!Number.isInteger(floors)||floors<1)throw new Error('階数は1以上の整数で入力してください')
-            const center={x:(Math.min(...lot.map(p=>p.x))+Math.max(...lot.map(p=>p.x)))/2,y:(Math.min(...lot.map(p=>p.y))+Math.max(...lot.map(p=>p.y)))/2}
-            const next=boxOutline(Number(boxWidth),Number(boxDepth),center)
-            transform(es=>[...es.filter(e=>e.screen==='P3'),...next]);setStoreyCount(floors);setView('3d');setBoxOpen(false)
-          }catch(e){setBoxError((e as Error).message)}
-        }}>この寸法・階数で作成</button>
-        <button type="button" onClick={()=>setBoxOpen(false)}>閉じる</button>
-      </div>}
+
     </div>
   )
 }
