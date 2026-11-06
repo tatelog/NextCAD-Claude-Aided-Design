@@ -13,6 +13,7 @@ import { buildVolumeMesh, stackedMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
 import { ViewCube } from './ViewCubePanel'
 import { planeMmToScene } from '../volume/sceneSpace'
+import type { OverrunFloor, SlopeVertex } from '../volume/slopeSurface'
 import type { CubeTarget, Dir } from './viewCube'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
 import type { RotationStep } from '../volume/rotation'
@@ -263,6 +264,12 @@ interface Volume3DProps {
   showMap?: boolean
   /** 地理院タイル（確定した地点の周り）。地図を出すときに、地面に貼る（代表の依頼 2026-11-06。4） */
   mapTiles?: MapTile[]
+  /** 斜線の面（境界ごとの傾いた四角形）。showSlope のときだけ出す（統括の指示 2026-11-06。5a） */
+  slopeSheets?: SlopeVertex[][]
+  /** 食い込み（階ごとに、斜線で切られた部分）。showSlope のときだけ、赤く出す（5a） */
+  overrunFloors?: OverrunFloor[]
+  /** 斜線の面と食い込みを出すか（ボリュームの画面の切り替え。初期は off） */
+  showSlope?: boolean
 }
 
 export function Volume3D({
@@ -281,6 +288,9 @@ export function Volume3D({
   floors,
   showMap = true,
   mapTiles,
+  slopeSheets,
+  overrunFloors,
+  showSlope = false,
 }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
@@ -330,6 +340,39 @@ export function Volume3D({
     if (!lot || lot.length < 3) return null
     return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(...planeMmToScene(p.x, p.y, LOT_LIFT_MM))))
   }, [lot])
+  // 斜線の面（半透明の傾いた四角形。境界の線の上で rise、距離 D で rise + coef × D）（統括の指示 2026-11-06。5a）
+  const sheetGeo = useMemo(() => {
+    if (!showSlope || !slopeSheets || slopeSheets.length === 0) return null
+    const positions: number[] = []
+    for (const q of slopeSheets) {
+      for (const i of [0, 1, 2, 0, 2, 3]) {
+        const v = q[i]!
+        positions.push(...planeMmToScene(v.x, v.y, v.hMm))
+      }
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    return g
+  }, [showSlope, slopeSheets])
+  useEffect(() => () => sheetGeo?.dispose(), [sheetGeo])
+  // 食い込み（切られた部分を、階の高さの範囲で立体にする。赤く半透明）
+  const overrunGeo = useMemo(() => {
+    if (!showSlope || !overrunFloors || overrunFloors.length === 0) return null
+    const triangles: VolumeMesh['triangles'][number][] = []
+    for (const f of overrunFloors) {
+      for (const piece of f.pieces) {
+        try {
+          const m = buildVolumeMesh({ footprint: piece, storey_count: 1, storey_height: f.topMm - f.baseMm })
+          for (const tri of m.triangles) triangles.push(tri.map((v) => ({ x: v.x, y: v.y, z: v.z + f.baseMm })) as VolumeMesh['triangles'][number])
+        } catch {
+          // 切られた形が立体にならないときは、その部分だけ出さない（画面を落とさない）
+        }
+      }
+    }
+    return triangles.length > 0 ? toGeometry({ triangles }) : null
+  }, [showSlope, overrunFloors])
+  useEffect(() => () => overrunGeo?.dispose(), [overrunGeo])
+
   // 地面の大きさは、外形（無ければ敷地）から。どちらも無ければ地面は出さない
   const groundSource = footprint ?? lot ?? null
   const ground = useMemo(() => (groundSource && groundSource.length > 0 ? groundSize(groundSource) : null), [groundSource])
@@ -397,6 +440,16 @@ export function Volume3D({
         <SetbackDimension key={l.side} line={l} />
       ))}
       {setbackLines && <SetbackLabels lines={setbackLines} labels={labelRefs.current} />}
+      {sheetGeo && (
+        <mesh geometry={sheetGeo}>
+          <meshBasicMaterial color="#b5533c" opacity={0.22} transparent depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {overrunGeo && (
+        <mesh geometry={overrunGeo}>
+          <meshBasicMaterial color="#c0392b" opacity={0.45} transparent depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
       {shadowGeo && (
         <mesh geometry={shadowGeo}>
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />

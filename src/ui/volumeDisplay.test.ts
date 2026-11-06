@@ -28,3 +28,10 @@ describe('ボリューム画面の表示（仕様 V1〜V3）', () => {
     expect(shadowShownOf(false, false)).toBe(false)
   })
 })
+
+// 仕様 V4（統括の指示 2026-11-06。5a）: 斜線の面（斜線の上限の面と、食い込みの色）は、初期は off。ボリュームの画面の切り替えで出す。
+describe('斜線の面の切り替え（仕様 V4）', () => {
+  it('仕様 V4: 斜線の面は初期 off', () => {
+    expect(useUi.getState().volumeSlope).toBe(false)
+  })
+})
