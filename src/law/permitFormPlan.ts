@@ -71,13 +71,20 @@ export interface PlanRow {
 /** 面の見出し（「（第一面）」）を比べる形（空白・全角半角をそろえ、括弧を除く） */
 const faceKeyOf = (s: string): string => normalizeLabel(s).replace(/[()（）]/g, '')
 
+/** 段落が面の見出しなら、その面の名前（「第二面」）。段落の末尾が（第○面）の行だけ */
+const faceMarkerOf = (s: string): string | null => {
+  const m = /[（(]([^（(）)]*面)[）)]$/.exec(normalizeLabel(s))
+  return m ? m[1]! : null
+}
+
 /** 面ごとの段落の範囲（面の見出しの次の段落から、次の面の見出しの手前まで） */
 export function faceRangesOf(paragraphs: readonly string[], faceTitles: readonly string[]): Map<string, [number, number]> {
   const keys = faceTitles.map(faceKeyOf)
   const starts: { key: string; idx: number }[] = []
   paragraphs.forEach((p, i) => {
-    const k = faceKeyOf(p)
-    if (keys.includes(k)) starts.push({ key: k, idx: i })
+    // 面の見出しは、段落の末尾が（第○面）の行だけ（第三号は「建築計画概要書（第二面）」。本文の中の（第○面）は見出しにしない）
+    const k = faceMarkerOf(p)
+    if (k !== null && keys.includes(k)) starts.push({ key: k, idx: i })
   })
   const out = new Map<string, [number, number]>()
   starts.forEach((s, j) => {

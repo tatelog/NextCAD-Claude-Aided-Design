@@ -7,6 +7,7 @@ import { polygonAreaMm2 } from '../geom/polygon'
 import type { Volume } from '../volume/extrude'
 import type { RoadWidthSource } from '../volume/roadWidthSource'
 import { floorSheetOf, type FloorSheet } from './floorSheet'
+import { districtsAndZonesName } from '../plateau/codelist'
 
 export interface FormValue {
   value: string
@@ -16,6 +17,13 @@ export interface FormValue {
 
 /** 第五面（用途別床面積）の未決の点（空欄の一覧に出す）。記号の表の出どころと、階ごとに 1 枚（注②）の枚数が決まるまで */
 export const FIFTH_OPEN_NOTE = '第五面：用途の区分の記号は人が入れる（様式の注の別紙の表に従う。表はアプリに無い）'
+
+/** 第三号だけの欄（人が入れる・別紙）の注（空欄の一覧に出す。統括の依頼 2026-11-06） */
+export const THIRD_OPEN_NOTES: readonly string[] = [
+  '第三号：主要用途（区分）は人が入れる（記号は様式の別紙の表に従う）',
+  '第三号：付近見取図は人が用意して別紙に。配置図はアプリの配置図（02_図面）を別紙に添えられる',
+  '第三号：7 欄のホ（敷地面積の合計）は、括弧も単位も無いので人が入れる',
+]
 
 /** 新築として、申請部分と合計に同じ値を書いたことの一行（空欄の一覧に出す。統括の判断 2026-11-06） */
 export const NEW_BUILDING_NOTE = '新築として申請部分＝合計で記入'
@@ -30,6 +38,14 @@ const m = (mm: number) => (mm / 1_000).toFixed(2)
 export function siteAreaM2Of(lot: readonly Point[] | null): number | undefined {
   if (lot === null || lot.length < 3) return undefined
   return polygonAreaMm2(lot) / 1_000_000
+}
+
+/** 用途地域の名前。地点の用途地域（区分コード）が一つで、名前が分かるときだけ。二つ以上・無い・表に無いコードは決めない（null）。地域ごとの面積は未対応 */
+export function zoneNameOf(districts: readonly { function: number | null }[]): string | null {
+  if (districts.length !== 1) return null
+  const code = districts[0]!.function
+  if (code === null) return null
+  return districtsAndZonesName(code) ?? null
 }
 
 /** 第五面のまとまり（ボリュームの各階の床面積から）。箱の形なので全階が同じ（統括の決定 2026-11-06。B） */
@@ -72,6 +88,8 @@ export function formValuesFromVolume(
     frontRoadWidth?: { mm: number; source: RoadWidthSource }
     /** 用途（共同住宅）。案件の入力 */
     usage?: string
+    /** 用途地域の名前（地点の用途地域が一つのときだけ。zoneNameOf） */
+    zoneName?: string
   },
 ): Record<string, FormValue> {
   const vol = (value: string): FormValue => ({ value, from: 'ボリューム' })
@@ -111,21 +129,42 @@ export function formValuesFromVolume(
   v['F3-2-13.最高の高さ'] = vol(m(volume.total_height))
 
   // 地名地番（筆のデータ。筆が無いときは入らない）
-  if (project.chiban !== undefined) v['F2-3-01'] = { value: project.chiban, from: '公図' }
-  // 敷地面積は、ボリュームからは取らない。筆の面積（参考値）を、イ（列 1）とホ（合計）に入れる
+  if (project.chiban !== undefined) {
+    v['F2-3-01'] = { value: project.chiban, from: '公図' }
+    v['F3-2-01'] = { value: project.chiban, from: '公図' }
+  }
+  // 敷地面積は、ボリュームからは取らない。筆の面積（参考値）を、イ（列 1）とホ（合計）に入れる（第三号のイも同じ）
   if (project.siteAreaM2 !== undefined) {
     const area: FormValue = { value: project.siteAreaM2.toFixed(2), from: '公図の参考値' }
     v['F2-3-07.敷地面積'] = area
     v['F2-3-07.敷地面積の合計'] = area
+    v['F3-2-07.敷地面積'] = area
   }
+  // 用途地域等（地点の用途地域が一つのときだけ。第二号・第三号とも列 1）
+  if (project.zoneName !== undefined) {
+    v['F2-3-07.用途地域等'] = { value: project.zoneName, from: '法規' }
+    v['F3-2-07.用途地域等'] = { value: project.zoneName, from: '法規' }
+  }
+  // 第三号の 13 欄（階数・構造）は、第二号と同じ値
+  v['F3-2-13.階数（地上）'] = vol(String(volume.storey_count))
+  v['F3-2-13.構造'] = cas(structureLabelOf(project.structure))
   // 用途（案件の入力。共同住宅）
   if (project.usage !== undefined) v['F2-5-07.用途'] = cas(project.usage)
   // 防火地域（筆の地点の法規。取れたときだけ）。接する部分の長さ（前面道路の辺。公図の辺）
-  if (project.fire !== undefined) v['F2-3-04'] = { value: project.fire, from: '法規' }
-  if (project.frontRoadLengthM !== undefined) v['F2-3-06.敷地と接している部分の長さ'] = { value: project.frontRoadLengthM.toFixed(2), from: '公図' }
+  if (project.fire !== undefined) {
+    v['F2-3-04'] = { value: project.fire, from: '法規' }
+    v['F3-2-04'] = { value: project.fire, from: '法規' }
+  }
+  // 第三号は単位が印刷されていないので、値に「ｍ」を含める（統括の依頼 2026-11-06）
+  if (project.frontRoadLengthM !== undefined) {
+    v['F2-3-06.敷地と接している部分の長さ'] = { value: project.frontRoadLengthM.toFixed(2), from: '公図' }
+    v['F3-2-06.敷地と接している部分の長さ'] = { value: `${project.frontRoadLengthM.toFixed(2)}ｍ`, from: '公図' }
+  }
   // 前面道路の幅員（mm → m。出典は出どころの名前）
   if (project.frontRoadWidth !== undefined && project.frontRoadWidth.mm > 0) {
-    v['F2-3-06.幅員'] = { value: (project.frontRoadWidth.mm / 1_000).toFixed(2), from: project.frontRoadWidth.source }
+    const m = (project.frontRoadWidth.mm / 1_000).toFixed(2)
+    v['F2-3-06.幅員'] = { value: m, from: project.frontRoadWidth.source }
+    v['F3-2-06.幅員'] = { value: `${m}ｍ`, from: project.frontRoadWidth.source }
   }
   return v
 }
