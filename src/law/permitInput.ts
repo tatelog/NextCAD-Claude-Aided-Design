@@ -7,6 +7,8 @@ export type PermitProject = Omit<PermitInput, 'storeys' | 'heightM' | 'totalFloo
 // このアプリの対象は RC 造の板状マンション（AGENTS.md）。構造と用途は入力させず固定する（統括の指示 2026-11-06）
 export const APP_STRUCTURE = 'RC' as const
 export const APP_USAGE = '共同住宅'
+/** 工事種別（新築を前提。申請部分＝合計と同じ判断。統括の依頼 2026-11-06） */
+export const APP_WORK_KIND = '新築'
 
 // 高さ・階数・延べ面積はボリュームの値から毎回決める（条件は可変）。
 // 高さ = 階数 × 階高（D-02 C5 の仮置き）。延べ面積 = 各階の建築面積の合計（斜線などで切り取る前）。

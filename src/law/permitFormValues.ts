@@ -88,6 +88,8 @@ export function formValuesFromVolume(
     frontRoadWidth?: { mm: number; source: RoadWidthSource }
     /** 用途（共同住宅）。案件の入力 */
     usage?: string
+    /** 工事種別（新築）。案件の入力 */
+    workKind?: string
     /** 用途地域の名前（地点の用途地域が一つのときだけ。zoneNameOf） */
     zoneName?: string
   },
@@ -150,6 +152,12 @@ export function formValuesFromVolume(
   v['F3-2-13.構造'] = cas(structureLabelOf(project.structure))
   // 用途（案件の入力。共同住宅）
   if (project.usage !== undefined) v['F2-5-07.用途'] = cas(project.usage)
+  // 工事種別（案件の入力。新築）: 第二号の第三面 9 欄・第四面 3 欄、第三号の 9 欄
+  if (project.workKind !== undefined) {
+    v['F2-3-09'] = cas(project.workKind)
+    v['F2-4-03'] = cas(project.workKind)
+    v['F3-2-09'] = cas(project.workKind)
+  }
   // 防火地域（筆の地点の法規。取れたときだけ）。接する部分の長さ（前面道路の辺。公図の辺）
   if (project.fire !== undefined) {
     v['F2-3-04'] = { value: project.fire, from: '法規' }

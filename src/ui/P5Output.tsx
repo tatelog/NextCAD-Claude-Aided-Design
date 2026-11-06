@@ -7,7 +7,7 @@ import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
-import { APP_STRUCTURE, APP_USAGE, permitInputFromVolume } from '../law/permitInput'
+import { APP_STRUCTURE, APP_USAGE, APP_WORK_KIND, permitInputFromVolume } from '../law/permitInput'
 import { AREA_REFERENCE_NOTE, FIFTH_OPEN_NOTE, NEW_BUILDING_NOTE, THIRD_OPEN_NOTES, fifthSheetOf, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of, zoneNameOf } from '../law/permitFormValues'
 import { unwrittenNotesOf } from '../law/permitFormNotes'
 import { floorSheetRestNoteOf } from '../law/floorSheet'
@@ -119,6 +119,7 @@ export function P5Output() {
     return formValuesFromVolume(permitVolume, {
       structure: APP_STRUCTURE,
       usage: APP_USAGE,
+      workKind: APP_WORK_KIND,
       ...(zoneName !== null ? { zoneName } : {}),
       siteAreaM2: siteAreaM2Of(lotForForm),
       ...(chiban !== null ? { chiban } : {}),

@@ -40,6 +40,10 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; br
   'F2-3-07.用途地域等': { field: 'F2-3-07', sub: '【ﾛ.用途地域等】', bracket: 0 },
   // 第三号（建築計画概要書・本庁用）: 第二号と同じ値の欄を、第三号の欄で入れる（統括の依頼 2026-11-06）。細目は第三号の段落に合わせる
   'F3-2-04': { field: 'F3-2-04' },
+  // 工事種別（新築。第二号の第三面 9 欄・第四面 3 欄、第三号の 9 欄）: 見出しの次の段落の □新築 を ■ にする（統括の依頼 2026-11-06）
+  'F2-3-09': { field: 'F2-3-09' },
+  'F2-4-03': { field: 'F2-4-03' },
+  'F3-2-09': { field: 'F3-2-09' },
   'F3-2-06.幅員': { field: 'F3-2-06', sub: '【イ.幅員】' },
   'F3-2-06.敷地と接している部分の長さ': { field: 'F3-2-06', sub: '【ロ.敷地と接している部分の長さ】' },
   'F3-2-07.敷地面積': { field: 'F3-2-07', sub: '【イ.敷地面積】', bracket: 0, subPlace: 'fillBlanks' },
@@ -204,11 +208,14 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       unwritten.push({ fieldId: key, reason: `括弧が見つからない（${t.heading}）` })
       continue
     }
-    if (item.kind === 'check' && !paragraphs[parentIdx]!.includes(`□${v.value}`)) {
+    // チェックの □ は、見出しと同じ段落か、見出しの次の段落（工事種別など）にある
+    const checkAt = item.kind === 'check' ? [parentIdx, parentIdx + 1].find((i) => paragraphs[i]?.includes(`□${v.value}`)) : undefined
+    if (item.kind === 'check' && checkAt === undefined) {
       unwritten.push({ fieldId: key, reason: `□が無い（${v.value}）` })
       continue
     }
-    for (const x of expandOf(item, route.brackets)) instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: parentIdx, ...x, value: v.value })
+    const at = checkAt ?? parentIdx
+    for (const x of expandOf(item, route.brackets)) instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: at, ...x, value: v.value })
   }
   return { instructions, unwritten }
 }
