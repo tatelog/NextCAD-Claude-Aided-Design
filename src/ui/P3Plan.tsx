@@ -498,8 +498,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
 
         </div>
       </div>
-      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        {activeMode === 'chat' ? <section aria-label="チャット専用パネル"><h2>Claude（チャット）</h2><ChatTile screen="P3" /></section> : <>
+      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: activeMode === 'chat' ? 'hidden' : 'auto', minHeight:0 }}>
+        {activeMode === 'chat' ? <section aria-label="チャット専用パネル" style={{height:"100%",minHeight:0,display:"flex",flexDirection:"column"}}><h2 style={{flexShrink:0}}>Claude（チャット）</h2><ChatTile screen="P3" fillHeight /></section> : <>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>
         {Object.keys(hiddenTiles).length > 0 ? (
           <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>

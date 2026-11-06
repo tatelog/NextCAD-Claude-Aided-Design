@@ -9,9 +9,10 @@ const ROLE_LABEL: Record<ChatMessage['role'], string> = { user: 'あなた', cla
 export interface ChatTileProps {
   /** 作業ログに残す画面（P2 か P3） */
   screen: string
+  fillHeight?: boolean
 }
 
-export function ChatTile({ screen }: ChatTileProps) {
+export function ChatTile({ screen, fillHeight = false }: ChatTileProps) {
   const messages = useChat((s) => s.messages)
   const sending = useChat((s) => s.sending)
   const notice = useChat((s) => s.notice)
@@ -26,9 +27,10 @@ export function ChatTile({ screen }: ChatTileProps) {
   }
 
   return (
-    <div style={{ fontSize: 13 }}>
+    <div style={{ fontSize: 13, ...(fillHeight ? {display:"flex",flexDirection:"column",flex:1,minHeight:0} as const : {}) }}>
+      <div style={fillHeight ? {flex:1,minHeight:0,overflowY:"auto",overflowWrap:"anywhere"} : undefined}>
       {notice ? <p style={{ color: '#a33', fontSize: 12 }}>{notice}</p> : null}
-      <ol style={{ listStyle: 'none', padding: 0, margin: '0 0 8px', maxHeight: 260, overflowY: 'auto' }}>
+      <ol style={{ listStyle: 'none', padding: 0, margin: '0 0 8px', maxHeight: fillHeight ? undefined : 260, overflowY: fillHeight ? undefined : 'auto' }}>
         {messages.map((m) => (
           <li key={m.id} style={{ marginBottom: 6 }}>
             <span style={{ fontSize: 11, color: '#5b6670' }}>{ROLE_LABEL[m.role]}</span>
@@ -65,7 +67,9 @@ export function ChatTile({ screen }: ChatTileProps) {
           </button>
         </div>
       ) : null}
+      </div>
       <form
+        style={{flexShrink:0, paddingTop:8, background:"#fff"}}
         onSubmit={(e) => {
           e.preventDefault()
           send(draft)
@@ -77,7 +81,7 @@ export function ChatTile({ screen }: ChatTileProps) {
           onChange={(e) => setDraft(e.target.value)}
           rows={2}
           placeholder="自由な文で指示する（例：階数を 5 にして）"
-          style={{ width: '100%', font: 'inherit', fontSize: 13 }}
+          style={{ width: '100%', boxSizing:'border-box', resize:'vertical', maxHeight:160, font: 'inherit', fontSize: 13 }}
         />
         <button type="submit" disabled={sending || draft.trim() === ''} style={{ font: 'inherit', fontSize: 12, padding: '3px 12px', marginTop: 4 }}>
           送る
