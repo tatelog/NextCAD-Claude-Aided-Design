@@ -1,7 +1,7 @@
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
-import { clipPlanesAt, lotPlateTrianglesOf, LOT_LIFT_MM, sceneFrameOf, type SceneFrame } from './volumeScene'
+import { clipPlanesAt, initialViewOf, lotPlateTrianglesOf, LOT_LIFT_MM, type SceneFrame } from './volumeScene'
 import { neighborMeshesOf } from '../volume/neighborMesh'
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
@@ -42,7 +42,16 @@ function CameraDirector({ request }: { request: FaceRequest | null }) {
 }
 
 // 外形が無いとき、確定した敷地（と周辺建物）の範囲が画面に収まるように、カメラと目標を置く（統括の依頼 2026-11-06。B）
-function FrameCamera({ frame, controlsRef }: { frame: SceneFrame | null; controlsRef: { current: ComponentRef<typeof OrbitControls> | null } }) {
+// ホーム（homeToken が変わったとき）も、同じ初期の視点へ戻す（代表の依頼 2026-11-06。2）
+function FrameCamera({
+  frame,
+  controlsRef,
+  homeToken,
+}: {
+  frame: SceneFrame | null
+  controlsRef: { current: ComponentRef<typeof OrbitControls> | null }
+  homeToken: number
+}) {
   const { camera } = useThree()
   useEffect(() => {
     if (!frame) return
@@ -53,7 +62,7 @@ function FrameCamera({ frame, controlsRef }: { frame: SceneFrame | null; control
       controls.target.set(frame.target[0], frame.target[1], frame.target[2])
       controls.update()
     }
-  }, [frame, camera, controlsRef])
+  }, [frame, camera, controlsRef, homeToken])
   return null
 }
 
@@ -214,11 +223,8 @@ export function Volume3D({
     return toGeometry({ triangles })
   }, [neighbors])
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
-  // 外形が無いときだけ、敷地と周辺建物の範囲に合わせる（外形が閉じたら枠は無く、今までどおり）
-  const sceneFrame = useMemo(
-    () => (footprint === null ? sceneFrameOf([...(lot ? [lot] : []), ...(neighbors ?? []).map((n) => n.footprint)], 40) : null),
-    [footprint, lot, neighbors],
-  )
+  // 初期の視点（代表の依頼 2026-11-06。2）: 確定した敷地だけを、南から北を向く正面で収める。外形が閉じていても使う。敷地が無ければ無し
+  const sceneFrame = useMemo(() => initialViewOf(lot ?? null, 40), [lot])
   // 寸法の表記（DOM）の置き場。側ごとに一つ（SetbackLabels が位置を写す）
   const labelRefs = useRef<Record<string, HTMLDivElement | null>>({})
   // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
@@ -263,18 +269,18 @@ export function Volume3D({
 
   const [faceRequest, setFaceRequest] = useState<FaceRequest | null>(null)
 
-  // ホームの押下で視点を既定に戻す（homeToken が変わったときだけ）
+  // ホームの押下: 敷地の初期の視点があれば、FrameCamera が同じ視点へ戻す。無ければ、今までどおり既定に戻す
   const lastHome = useRef(homeToken)
   if (lastHome.current !== homeToken) {
     lastHome.current = homeToken
-    controlsRef.current?.reset()
+    if (!sceneFrame) controlsRef.current?.reset()
   }
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas camera={{ position: [40, 40, 50], fov: 40 }}>
       <CameraDirector request={faceRequest} />
-      <FrameCamera frame={sceneFrame} controlsRef={controlsRef} />
+      <FrameCamera frame={sceneFrame} controlsRef={controlsRef} homeToken={homeToken} />
       <ClipPlanes frame={sceneFrame} controlsRef={controlsRef} />
       <color attach="background" args={['#f4f4f2']} />
       <ambientLight intensity={0.6} />

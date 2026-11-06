@@ -80,3 +80,25 @@ export function clipPlanesAt(distanceM: number, radiusM: number): { near: number
     far: (d + r) * 2,
   }
 }
+
+/** 初期の視点の仰角（度）。南から北を向く正面から、上へこの角度だけ見下ろす（真横だと敷地が一本の線に見えるため。統括へ報告） */
+const INITIAL_VIEW_ELEVATION_DEG = 45
+
+/**
+ * 初期の視点（代表の依頼 2026-11-06。2）。確定した敷地（筆）だけを範囲にし、南から北を向く正面から、上へ 45° 見下ろす向きに置く。
+ * 外形が閉じているかどうかには関係なく使う（周辺建物は範囲に入れない）。敷地が無ければ null。
+ * 三次元の座標: 平面の y は北（+z）、南は −z。
+ */
+export function initialViewOf(lot: readonly Point[] | null, fovDeg: number): SceneFrame | null {
+  if (!lot || lot.length === 0) return null
+  const frame = sceneFrameOf([lot], fovDeg)
+  if (!frame) return null
+  const e = (INITIAL_VIEW_ELEVATION_DEG * Math.PI) / 180
+  // カメラは目標の南側・上側にある。方向は単位ベクトル（上 sin e、南 −cos e）
+  const dir: [number, number, number] = [0, Math.sin(e), -Math.cos(e)]
+  const d = frame.distanceM
+  return {
+    ...frame,
+    position: [frame.target[0] + dir[0] * d, frame.target[1] + dir[1] * d, frame.target[2] + dir[2] * d],
+  }
+}
