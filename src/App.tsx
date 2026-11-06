@@ -54,7 +54,7 @@ const WORKER_URL: string = appWorkerUrl()
 export function App() {
   // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
   useUndoKeys()
-  const [screen, setScreen] = useState<ScreenId>('P2')
+  const [screen, setScreen] = useState<ScreenId>('P1')
   // 開発用の道具（☰ の切替。既定は隠す）
   const devShown = useDevTools((s) => s.shown)
   const setDevShown = useDevTools((s) => s.setShown)
