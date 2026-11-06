@@ -7,8 +7,8 @@ import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
-import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
-import { AREA_REFERENCE_NOTE, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
+import { APP_STRUCTURE, APP_USAGE, permitInputFromVolume } from '../law/permitInput'
+import { AREA_REFERENCE_NOTE, NEW_BUILDING_NOTE, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
 import { unwrittenNotesOf } from '../law/permitFormNotes'
 import { chibanOf } from '../map/parcelInfo'
 import { parcelPropsOf } from '../map/selectedParcel'
@@ -115,6 +115,7 @@ export function P5Output() {
     )
     return formValuesFromVolume(permitVolume, {
       structure: APP_STRUCTURE,
+      usage: APP_USAGE,
       siteAreaM2: siteAreaM2Of(lotForForm),
       ...(chiban !== null ? { chiban } : {}),
       ...(fire !== null ? { fire } : {}),
@@ -190,6 +191,8 @@ export function P5Output() {
         ...(formValues['F2-3-06.幅員'] !== undefined
           ? [`前面道路の幅員：${formValues['F2-3-06.幅員'].value} m（出どころ：${formValues['F2-3-06.幅員'].from}）`]
           : []),
+        // 新築として、申請部分と合計に同じ値を書いた（統括の判断 2026-11-06）
+        ...(formValues['F2-3-10'] !== undefined ? [NEW_BUILDING_NOTE] : []),
         // 書けなかった欄（取り込んだ様式ごと）は、黙って抜かず、空欄の一覧に出す（統括の依頼 2026-11-06）
         ...unwrittenNotesOf(formsNow, formValues),
       ],

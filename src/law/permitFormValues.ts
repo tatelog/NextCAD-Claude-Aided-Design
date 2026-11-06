@@ -13,6 +13,9 @@ export interface FormValue {
   from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規' | RoadWidthSource
 }
 
+/** 新築として、申請部分と合計に同じ値を書いたことの一行（空欄の一覧に出す。統括の判断 2026-11-06） */
+export const NEW_BUILDING_NOTE = '新築として申請部分＝合計で記入'
+
 /** 敷地面積が公図からの参考値であることの文（ビューアと空欄の一覧で同じ文。統括の依頼 2026-11-06。3） */
 export const AREA_REFERENCE_NOTE = '敷地面積は公図からの参考値。測量の値で直す'
 
@@ -58,6 +61,8 @@ export function formValuesFromVolume(
     frontRoadLengthM?: number
     /** 前面道路の幅員（mm）と出どころ。0 mm は未入力 */
     frontRoadWidth?: { mm: number; source: RoadWidthSource }
+    /** 用途（共同住宅）。案件の入力 */
+    usage?: string
   },
 ): Record<string, FormValue> {
   const vol = (value: string): FormValue => ({ value, from: 'ボリューム' })
@@ -79,6 +84,8 @@ export function formValuesFromVolume(
   v['F2-4-12'] = vol(m2(volume.gross_floor_area_mm2))
   // 各階の床面積（階ごと。箱の形なので、各階は建築面積と同じ。階の番号は欄の id の中の数）
   for (let f = 1; f <= volume.storey_count; f++) v[`F2-4-12.階別${f}`] = vol(m2(volume.building_area_mm2))
+  // 用途別床面積（第五面）: 延べ面積は、共同住宅の行の床面積（3 番目）。用途は案件の入力（下で入れる）
+  v['F2-5-07.延べ面積'] = vol(m2(volume.gross_floor_area_mm2))
   // 第二号様式 第六面（建築物独立部分別概要）
   v['F2-6-01'] = vol('1')
   v['F2-6-02'] = vol(m2(volume.gross_floor_area_mm2))
@@ -97,6 +104,8 @@ export function formValuesFromVolume(
     v['F2-3-07.敷地面積'] = area
     v['F2-3-07.敷地面積の合計'] = area
   }
+  // 用途（案件の入力。共同住宅）
+  if (project.usage !== undefined) v['F2-5-07.用途'] = cas(project.usage)
   // 防火地域（筆の地点の法規。取れたときだけ）。接する部分の長さ（前面道路の辺。公図の辺）
   if (project.fire !== undefined) v['F2-3-04'] = { value: project.fire, from: '法規' }
   if (project.frontRoadLengthM !== undefined) v['F2-3-06.敷地と接している部分の長さ'] = { value: project.frontRoadLengthM.toFixed(2), from: '公図' }

@@ -158,7 +158,9 @@ export async function fillDocx(bytes: Uint8Array, instructions: readonly FillIns
   let xml = d.xml
   for (let i = spans.length - 1; i >= 0; i--) {
     const sp = spans[i]!
-    const todo = instructions.filter((x) => x.paragraphIndex === i)
+    // 同じ段落の括弧は、番号の大きい方から書く。書いた括弧は空白でなくなるので、後ろの番号がずれないように（統括の判断 2026-11-06）
+    const key = (x: FillInstruction): number => (x.kind === 'blanks' ? (x.bracket ?? 0) : -1)
+    const todo = instructions.filter((x) => x.paragraphIndex === i).sort((a, b) => key(b) - key(a))
     if (todo.length === 0) continue
     let p = sp.xml
     for (const x of todo) {
