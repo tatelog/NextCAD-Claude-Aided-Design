@@ -108,6 +108,23 @@ export function App() {
     )
   }, [chatOn, screen])
   const [panel, setPanel] = useState<'log' | 'menu' | null>(null)
+  const menuRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (panel !== 'menu') return
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target as Element
+      if (!menuRef.current?.contains(target) && !target.closest('button[aria-label="メニュー"]')) setPanel(null)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPanel(null)
+    }
+    document.addEventListener('pointerdown', dismiss)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', dismiss)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [panel])
   // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
@@ -289,7 +306,11 @@ export function App() {
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}
         {panel !== null && (
-          <aside style={{ position: 'absolute', top: 0, right: 0, bottom: 0, ...(panel === 'menu' ? { left: 0 } : { width: 320 }), background: '#fff', borderLeft: '1px solid #ddd8cc', padding: 12, overflowY: 'auto', zIndex: 5 }}>
+          <aside ref={menuRef} aria-label={panel === 'menu' ? 'メニュー' : '作業履歴'} style={{ position: 'absolute', ...(panel === 'menu' ? { top: 8, right: 8, width: 380, maxWidth: 'calc(100% - 16px)', maxHeight: 'calc(100% - 16px)', boxSizing: 'border-box', border: '1px solid #ddd8cc', borderRadius: 10, boxShadow: '0 8px 28px #1f2a4433', overflowWrap: 'anywhere' } : { top: 0, right: 0, bottom: 0, width: 320, borderLeft: '1px solid #ddd8cc' }), background: '#fff', padding: 12, overflowY: 'auto', zIndex: 5 }}>
+            {panel === 'menu' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <strong>メニュー</strong>
+              <button type="button" aria-label="メニューを閉じる" style={button} onClick={() => setPanel(null)}>閉じる</button>
+            </div>}
             {panel === 'log' && (
               <>
                 <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（同じブラウザに残る）</h2>
