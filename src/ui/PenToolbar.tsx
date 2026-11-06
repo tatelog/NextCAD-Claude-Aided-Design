@@ -18,13 +18,14 @@ const PEN_SCREEN = 'P2' as const
 
 export interface PenToolbarProps {
   /** 独立のときの位置の基準にする要素（この中で動かす） */
+  onBox?: () => void
   compact?: boolean
   isDrawing?: boolean
   onDraw?: () => void
   placement: ToolbarPlacement
 }
 
-export function PenToolbar({ placement, isDrawing = true, onDraw, compact = false }: PenToolbarProps) {
+export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, compact = false }: PenToolbarProps) {
   const leftWidth = useLeftPanelWidth((s) => s.width)
   const penMode = useUi((s) => s.penMode)
   const setPenMode = useUi((s) => s.setPenMode)
@@ -72,6 +73,7 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, compact = fals
           <ToolIcon name="grip" />
         </button>
       )}
+      {onBox && <button type="button" aria-label="直方体" title="直方体を寸法から作成" onClick={onBox}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg></button>}
       <span className="pen-toolbar-group">
         <button type="button" aria-label="直線" title="直線を描く" className={isDrawing && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>
           <ToolIcon name="line" />
