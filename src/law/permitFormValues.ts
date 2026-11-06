@@ -5,10 +5,12 @@
 import type { Point } from '../geom/viewport'
 import { polygonAreaMm2 } from '../geom/polygon'
 import type { Volume } from '../volume/extrude'
+import type { RoadWidthSource } from '../volume/roadWidthSource'
 
 export interface FormValue {
   value: string
-  from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規'
+  /** 出典。幅員は、出どころの名前（数値指定・対岸指定・資料指定）がそのまま出典になる */
+  from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規' | RoadWidthSource
 }
 
 /** 敷地面積が公図からの参考値であることの文（ビューアと空欄の一覧で同じ文。統括の依頼 2026-11-06。3） */
@@ -48,7 +50,15 @@ export function fireLabelOf(fire: { functions: readonly (number | null)[]; unkno
 
 export function formValuesFromVolume(
   volume: Volume,
-  project: { structure: string; siteAreaM2?: number; chiban?: string; fire?: string; frontRoadLengthM?: number },
+  project: {
+    structure: string
+    siteAreaM2?: number
+    chiban?: string
+    fire?: string
+    frontRoadLengthM?: number
+    /** 前面道路の幅員（mm）と出どころ。0 mm は未入力 */
+    frontRoadWidth?: { mm: number; source: RoadWidthSource }
+  },
 ): Record<string, FormValue> {
   const vol = (value: string): FormValue => ({ value, from: 'ボリューム' })
   const cas = (value: string): FormValue => ({ value, from: '案件' })
@@ -61,11 +71,14 @@ export function formValuesFromVolume(
   v['F2-3-13.最高の高さ'] = vol(m(volume.total_height))
   v['F2-3-13.階数（地上）'] = vol(String(volume.storey_count))
   v['F2-3-13.構造'] = cas(structureLabelOf(project.structure))
+  v['F2-6-03.構造'] = cas(structureLabelOf(project.structure))
   // 第二号様式 第四面（建築物別概要）
   v['F2-4-04'] = cas(structureLabelOf(project.structure))
   v['F2-4-08'] = vol(String(volume.storey_count))
   v['F2-4-09.最高の高さ'] = vol(m(volume.total_height))
   v['F2-4-12'] = vol(m2(volume.gross_floor_area_mm2))
+  // 各階の床面積（階ごと。箱の形なので、各階は建築面積と同じ。階の番号は欄の id の中の数）
+  for (let f = 1; f <= volume.storey_count; f++) v[`F2-4-12.階別${f}`] = vol(m2(volume.building_area_mm2))
   // 第二号様式 第六面（建築物独立部分別概要）
   v['F2-6-01'] = vol('1')
   v['F2-6-02'] = vol(m2(volume.gross_floor_area_mm2))
@@ -87,5 +100,9 @@ export function formValuesFromVolume(
   // 防火地域（筆の地点の法規。取れたときだけ）。接する部分の長さ（前面道路の辺。公図の辺）
   if (project.fire !== undefined) v['F2-3-04'] = { value: project.fire, from: '法規' }
   if (project.frontRoadLengthM !== undefined) v['F2-3-06.敷地と接している部分の長さ'] = { value: project.frontRoadLengthM.toFixed(2), from: '公図' }
+  // 前面道路の幅員（mm → m。出典は出どころの名前）
+  if (project.frontRoadWidth !== undefined && project.frontRoadWidth.mm > 0) {
+    v['F2-3-06.幅員'] = { value: (project.frontRoadWidth.mm / 1_000).toFixed(2), from: project.frontRoadWidth.source }
+  }
   return v
 }

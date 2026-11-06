@@ -19,6 +19,8 @@ const CONFIRMED: ConfirmedSite = {
   frame: { lon0: 139.83, lat0: 35.67, kx: 90_000, ky: 111_000, cx: 5_000, cy: 5_000 },
   center: { lat: 35.67, lon: 139.83 },
   roadEdge: 2,
+  roadWidthMm: 6000,
+  roadSource: '数値指定',
 }
 const base = { projectName: '案件', entries: [], storeyCount: 5, storeyHeightMm: 3000, savedAt: new Date('2026-11-06T00:00:00Z') }
 const roundTrip = (d: unknown) => JSON.parse(JSON.stringify(d))

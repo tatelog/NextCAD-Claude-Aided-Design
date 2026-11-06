@@ -2,11 +2,11 @@
 // 欄の見出しで段落を探し（permitFormPlan の規則）、値は対応表の入れ方（見出しの後ろ・括弧の番目）で入れる。
 // 値の行き先（ROUTES）は、ボリュームの値（formValuesFromVolume のキー）ごとに、対応表の注記を読んで決めた。
 import type { FillInstruction } from '../export/docxWrite'
-import { faceRangesOf, locateHeadingOf, locateSubitemOf, type FormDef, type TokyoSubitem, type ValueMap } from './permitFormPlan'
+import { FLOOR_ROWS, faceRangesOf, locateHeadingOf, locateSubitemOf, type FormDef, type TokyoSubitem, type ValueMap } from './permitFormPlan'
 import { normalizeLabel } from '../export/docxRead'
 
 /** 値の行き先。sub は細目の見出し（対応表のまま）、bracket は括弧の番目（0 から）。 */
-const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> = {
+const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; before?: string }> = {
   'F2-3-10': { field: 'F2-3-10', sub: '【ｲ.建築物全体】', bracket: 2 },
   'F2-3-11': { field: 'F2-3-11', sub: '【ｲ.建築物全体】', bracket: 2 },
   'F2-3-12': { field: 'F2-3-12', sub: '【ｲ.申請に係る建築物の数】' },
@@ -24,9 +24,12 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> 
   'F2-3-07.敷地面積の合計': { field: 'F2-3-07', sub: '【ﾎ.敷地面積の合計】' },
   // 防火地域（見出しと同じ段落の □ を、選んだ語で ■ にする。値は語そのもの）。構造は「造」の前の括弧（1 つ目）。道路の接する長さは、前面道路の辺の長さ（統括の依頼 2026-11-06。4・5・6）
   'F2-3-04': { field: 'F2-3-04' },
-  'F2-4-04': { field: 'F2-4-04', bracket: 0 },
-  'F2-3-13.構造': { field: 'F2-3-13', sub: '【ﾊ.構造】', bracket: 0 },
+  // 構造は「造」の前に入る（東京都の版は括弧が無く、「造」の前の空白。統括の依頼 2026-11-06。構造の直し）
+  'F2-4-04': { field: 'F2-4-04', before: '造' },
+  'F2-6-03.構造': { field: 'F2-6-03', sub: '【ﾆ.】構造】', before: '造' },
+  'F2-3-13.構造': { field: 'F2-3-13', sub: '【ﾊ.構造】', before: '造' },
   'F2-3-06.敷地と接している部分の長さ': { field: 'F2-3-06', sub: '【ﾛ.敷地と接している部分の長さ】' },
+  'F2-3-06.幅員': { field: 'F2-3-06', sub: '【ｲ.幅員】' },
   'F2-6-01': { field: 'F2-6-01' },
   'F2-6-02': { field: 'F2-6-02' },
   'F2-6-03.最高の高さ': { field: 'F2-6-03', sub: '【ｲ.最高の高さ】' },
@@ -47,6 +50,11 @@ export interface FillPlan {
   unwritten: Unwritten[]
 }
 
+/** 各階の床面積の欄（F2-4-12.階別N。N は階の番号）と、階別の行の数（東京都の版は、見出しと次の 5 段落。最上階から） */
+const FLOOR_KEY = /^F2-4-12\.階別(\d+)$/
+
+const floorNumbersOf = (values: ValueMap): number[] => Object.keys(values).flatMap((k) => (FLOOR_KEY.test(k) ? [Number(FLOOR_KEY.exec(k)![1])] : []))
+
 const normOf = (s: string): string => normalizeLabel(s)
 
 /** 値を書く指示と、書けなかった欄（理由つき）を作る */
@@ -61,6 +69,37 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
   const instructions: FillPlanItem[] = []
   const unwritten: Unwritten[] = []
   for (const [key, v] of Object.entries(values)) {
+    // 各階の床面積（階ごとの行）。行の番号は最上階からの差。階の番号は（　階）に、面積は 3 つ目の括弧（合計）に入る（統括の依頼 2026-11-06。8）
+    const floor = FLOOR_KEY.exec(key)
+    if (floor !== null) {
+      const n = Number(floor[1])
+      const entryF = fields.get('F2-4-12')
+      const rangeF = entryF === undefined ? undefined : ranges.get(normOf(entryF.face.title))
+      const tF = entryF?.field.tokyo
+      const parentF = rangeF === undefined || tF === undefined ? null : locateHeadingOf(paragraphs, rangeF, tF.heading, tF.occurrence ?? 1)
+      const headF = rangeF === undefined || parentF === null ? null : locateSubitemOf(paragraphs, rangeF, parentF, '【ｲ.階別】')
+      if (entryF === undefined || rangeF === undefined || headF === null) {
+        unwritten.push({ fieldId: key, reason: '階別の行が見つからない' })
+        continue
+      }
+      const floors = floorNumbersOf(values)
+      const row = Math.max(...floors) - n
+      // 行が足りないときは、一つも書かない（「各階の床面積は別紙」）
+      if (floors.length > FLOOR_ROWS || row >= FLOOR_ROWS) {
+        unwritten.push({ fieldId: key, reason: '行が足りない（各階の床面積は別紙）' })
+        continue
+      }
+      const idx = headF + row
+      if (idx >= rangeF[1] || bracketsOf(paragraphs[idx]!).length < 3) {
+        unwritten.push({ fieldId: key, reason: '括弧が見つからない（階別の行）' })
+        continue
+      }
+      const label = `${entryF.field.label}（階別）`
+      const headingOfRow = row === 0 ? '【ｲ.階別】' : ''
+      instructions.push({ fieldId: key, label, paragraphIndex: idx, kind: 'beforeUnit', heading: headingOfRow, unit: '階', value: String(n) })
+      instructions.push({ fieldId: key, label, paragraphIndex: idx, kind: 'blanks', bracket: 2, value: v.value })
+      continue
+    }
     // 行き先の表に無い欄は、欄の id をそのまま使う（既定）。既定で書けるのは、細目を持たない見出しの後ろの欄だけ
     const isDefault = ROUTES[key] === undefined
     const route = ROUTES[key] ?? (fields.has(key) ? { field: key } : undefined)
@@ -104,7 +143,10 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（inlineHeading の細目は ${sub.place}）` })
         continue
       }
-      const item = placeOf(sub.place ?? '', sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
+      const item =
+        route.before !== undefined
+          ? { kind: 'beforeUnit' as const, heading: sub.inlineHeading ?? sub.heading, unit: route.before }
+          : placeOf(sub.place ?? '', sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
       if (item === null) {
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（${sub.place}）` })
         continue
@@ -124,7 +166,8 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       unwritten.push({ fieldId: key, reason: `入れ方が未対応（${t.place}）` })
       continue
     }
-    const item = placeOf(t.place, t.heading, route.bracket, t.unit)
+    const item =
+      route.before !== undefined ? { kind: 'beforeUnit' as const, heading: t.heading, unit: route.before } : placeOf(t.place, t.heading, route.bracket, t.unit)
     if (item === null) {
       unwritten.push({ fieldId: key, reason: `入れ方が未対応（${t.place}）` })
       continue

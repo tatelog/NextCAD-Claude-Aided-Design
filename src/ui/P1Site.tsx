@@ -134,6 +134,8 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       frame: geometry === undefined ? null : parcelFrameOf(geometry),
       center: { lat: center.lat, lon: center.lon },
       roadEdge: useConfirmedSite.getState().roadEdge,
+      roadWidthMm: Number(useConfirmedSite.getState().roadWidth) || 0,
+      roadSource: useConfirmedSite.getState().roadSource,
     })
     void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
     void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)

@@ -9,6 +9,7 @@ import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
 import { loadNeighborBuildings } from '../plateau/neighborBuildings'
 import { createLatestGate } from '../ui/districtFetch'
 import { useSite } from './site'
+import { DEFAULT_ROAD_WIDTH_SOURCE, type RoadWidthSource } from '../volume/roadWidthSource'
 
 export interface ConfirmedSite {
   /** 確定した筆の UID。筆が無い地点で確定したときは null（ダミーの筆界で進む） */
@@ -21,6 +22,10 @@ export interface ConfirmedSite {
   center: { lat: number; lon: number }
   /** 前面道路の辺（P2 で決める。既定 0） */
   roadEdge: number
+  /** 前面道路の幅員（mm）。ボリュームの画面で入れた値。確定のまとめに入る（統括の依頼 2026-11-06） */
+  roadWidthMm: number
+  /** 幅員の出どころ（数値指定・対岸指定・資料指定）。確定のまとめに入る */
+  roadSource: RoadWidthSource
 }
 
 /** 取得の状態（取っている間・失敗の文・取れた結果） */
@@ -44,6 +49,11 @@ interface ConfirmedState {
   confirm: (c: ConfirmedSite) => void
   clear: () => void
   setRoadEdge: (roadEdge: number) => void
+  /** 前面道路の幅員（入力のままの文）。確定していれば、確定のまとめの幅員（mm）も変える */
+  roadWidth: string
+  roadSource: RoadWidthSource
+  setRoadWidth: (text: string) => void
+  setRoadSource: (source: RoadWidthSource) => void
   /** 用途地域を、その地点で取る（取り直しも同じ）。遅れて返った古い結果は採らない */
   fetchDistrictAt: (point: { lat: number; lon: number }, cityCode: string) => Promise<void>
   /** 周辺建物を、その地点で取る。遅れて返った古い結果は採らない */
@@ -58,6 +68,8 @@ interface ConfirmedState {
 export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   confirmed: null,
   roadEdge: 0,
+  roadWidth: '6000',
+  roadSource: DEFAULT_ROAD_WIDTH_SOURCE,
   district: IDLE,
   buildings: IDLE,
   // 確定したときは、今いる地点も確定の中心にする（確定の処理は P1 を離れるので、P1 は今いる地点を更新できない。統括の依頼 2026-11-06。不具合の直し）
@@ -66,6 +78,15 @@ export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   setRoadEdge: (roadEdge) => {
     const c = get().confirmed
     set({ roadEdge, confirmed: c !== null ? { ...c, roadEdge } : null })
+  },
+  setRoadWidth: (text) => {
+    const c = get().confirmed
+    const roadWidthMm = Number(text) || 0
+    set({ roadWidth: text, confirmed: c !== null ? { ...c, roadWidthMm } : null })
+  },
+  setRoadSource: (roadSource) => {
+    const c = get().confirmed
+    set({ roadSource, confirmed: c !== null ? { ...c, roadSource } : null })
   },
   fetchDistrictAt: async (point, cityCode) => {
     const id = districtGate.begin()

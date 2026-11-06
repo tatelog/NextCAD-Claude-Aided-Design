@@ -5,7 +5,7 @@ import { findClosedOutline } from '../canvas/closure'
 import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
 import { NumericLineForm } from './NumericLineForm'
 import { useFeatures } from '../store/features'
-import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES, roadWidthNote, type RoadWidthSource } from '../volume/roadWidthSource'
+import { ROAD_WIDTH_SOURCES, roadWidthNote, type RoadWidthSource } from '../volume/roadWidthSource'
 import { volumeAfterSlope } from '../volume/cutVolume'
 import { legalBoundaries } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
@@ -148,9 +148,11 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const setRoadEdge = (n: number) => useConfirmedSite.getState().setRoadEdge(n)
   // 前面道路の辺は、今の敷地の辺の範囲に収めて使う（統括の依頼 2026-11-06 (b)）
   const edge = roadEdgeIndexOf(lot, roadEdge)
-  const [roadWidth, setRoadWidth] = useState('6000')
-  // 幅員の出どころ（仮置き）: 値は入力のまま、出どころの名前だけを持つ
-  const [roadSource, setRoadSource] = useState<RoadWidthSource>(DEFAULT_ROAD_WIDTH_SOURCE)
+  // 前面道路の幅員と出どころ（仮置き）は店舗が持つ。確定のまとめに入り、様式と空欄の一覧に出せる（統括の依頼 2026-11-06）
+  const roadWidth = useConfirmedSite((s) => s.roadWidth)
+  const roadSource = useConfirmedSite((s) => s.roadSource)
+  const setRoadWidth = (text: string) => useConfirmedSite.getState().setRoadWidth(text)
+  const setRoadSource = (source: RoadWidthSource) => useConfirmedSite.getState().setRoadSource(source)
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   // 離れ（西・南）の入力は空で始める。描いた外形は、離れを入れるまで動かない（t62 の直し）。既定（G104・G115）は入力欄の placeholder に出す
   const setbackInit = setbackInitialOf(lot, edge)

@@ -57,9 +57,10 @@ describe('防火地域のチェック（仕様 FC1・FC2）', () => {
 })
 
 describe('構造（仕様 ST1）', () => {
-  it('ST1: 構造は、見出しと同じ段落の、「造」の前の括弧（1 つ目）に入る', () => {
-    const r = fillInstructionsOf(FORM, ['（第四面）', '【4.構造】　（　）造'], { 'F2-4-04': { value: '鉄筋コンクリート', from: '案件' } })
+  // 注: 東京都の版には括弧が無く、「造」の前の空白だけ（実際の段落の形）。括弧（fillBlanks）の想定は取り下げ、「造」の前に入れる（仕様 ST3 を参照）
+  it('ST1: 構造は、見出しと同じ段落の、「造」の前に入る（括弧は使わない）', () => {
+    const r = fillInstructionsOf(FORM, ['（第四面）', '【4.構造】　　　　造'], { 'F2-4-04': { value: '鉄筋コンクリート', from: '案件' } })
     expect(r.unwritten).toEqual([])
-    expect(r.instructions[0]).toMatchObject({ paragraphIndex: 1, kind: 'blanks', bracket: 0, value: '鉄筋コンクリート' })
+    expect(r.instructions[0]).toMatchObject({ paragraphIndex: 1, kind: 'beforeUnit', unit: '造', value: '鉄筋コンクリート' })
   })
 })
