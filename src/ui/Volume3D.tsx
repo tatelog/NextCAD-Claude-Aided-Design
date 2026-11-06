@@ -12,6 +12,7 @@ import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, stackedMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
 import { ViewCube } from './ViewCubePanel'
+import { useUi } from '../store/ui'
 import { planeMmToScene } from '../volume/sceneSpace'
 import type { OverrunFloor, SlopeVertex } from '../volume/slopeSurface'
 import type { CubeTarget, Dir } from './viewCube'
@@ -294,6 +295,7 @@ export function Volume3D({
   overrunFloors,
   showSlope = false,
 }: Volume3DProps) {
+  const displayGrid = useUi((s) => s.displayGrid)
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
   const neighborGeo = useMemo(() => {
@@ -426,9 +428,9 @@ export function Volume3D({
             <planeGeometry args={[ground.width, ground.depth]} />
             <meshStandardMaterial color="#e6e3dc" />
           </mesh>
-          <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
         </>
       )}
+      {ground && displayGrid && <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />}
       {showMap && mapTiles && mapTiles.length > 0 && (
         <TileErrorBoundary>
           <Suspense fallback={null}>
