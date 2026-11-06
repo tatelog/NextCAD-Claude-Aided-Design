@@ -101,6 +101,7 @@ export function UnitDetailPanel({ detail, onClose, cell, planRooms = [], shaft, 
         </label>
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button type="button" onClick={onClose}>閉じる</button>
         <button type="button" onClick={onClose}>
           この住戸を直す（平面に戻る）
         </button>
