@@ -78,7 +78,7 @@ import { nextGateOf, p2NextIssuesOf, type CheckIssue } from '../plan/nextCheck'
 import { brokenFloorsOf } from '../volume/mesh'
 import { recordWorkLog } from '../app/workLogStore'
 import { usePanelTiles } from '../store/panelTiles'
-import { isRightItemShown, useActiveMode } from '../store/mode'
+import { isRightItemShown, useActiveMode, useMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { OrdinanceForm, OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
@@ -128,6 +128,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const placement = useUi((s) => s.toolbarPlacement)
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
   const [view, setView] = useState<'plan' | '3d'>('3d')
+  const [panOnly, setPanOnly] = useState(false)
+  const startDrawing = () => { setPanOnly(false); setView('plan'); useMode.getState().setMode('drawing') }
   // 左メニュー（G55）で選んだ種類（1 つだけ。もう一度押すと外れる）。2D 平面のときだけ出す（3D のときに出すかは未決）
   const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const [homeToken, setHomeToken] = useState(0)
@@ -435,7 +437,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     <div className="p03">
       <header className="p03-toolbar">
         <strong>ボリューム作図</strong>
-        {placement === 'top' && <PenToolbar placement="top" />}
+        <span role="group" aria-label="操作モード"><button type="button" aria-pressed={view === 'plan' && !panOnly} className={view === 'plan' && !panOnly ? 'is-active' : undefined} onClick={startDrawing}>作図</button><button type="button" aria-pressed={panOnly || view === '3d'} className={panOnly || view === '3d' ? 'is-active' : undefined} onClick={() => setPanOnly(true)}>パン</button></span>
+        {placement === 'top' && <PenToolbar isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="top" />}
         <span className="p03-mode">
           表示:
           <button type="button" className={view === 'plan' ? 'is-active' : undefined} aria-pressed={view === 'plan'} onClick={() => setView('plan')}>
@@ -478,8 +481,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           folded={menuFold.folded}
           onToggleFold={menuFold.toggle}
         />
-        {placement === 'left' && <PenToolbar placement="left" />}
-        {placement === 'free' && <PenToolbar placement="free" />}
+        {placement === 'left' && <PenToolbar isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="left" />}
+        {placement === 'free' && <PenToolbar isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="free" />}
         {view === '3d' ? (
           shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: neighborsOn ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
@@ -517,7 +520,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           )
         ) : (
           <div className="p03-canvas-wrap">
-            <DrawingCanvas />
+            <DrawingCanvas panOnly={panOnly} />
             <CircleMenu />
           </div>
         )}

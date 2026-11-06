@@ -7,6 +7,7 @@ import { P3Plan } from './ui/P3Plan'
 import { P4Estimate } from './ui/P4Estimate'
 import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
+import { ToolIcon } from './ui/toolIcons'
 import { HeaderIconButton } from './ui/HeaderIconButton'
 import { IconHistory, IconJudge, IconLoad, IconMenu, IconSave } from './ui/headerIcons'
 import { PendingIndicator, SaveDot } from './ui/HeaderStatus'
@@ -52,6 +53,8 @@ const button = { font: 'inherit', padding: '4px 10px', border: '1px solid #b8b2a
 const WORKER_URL: string = appWorkerUrl()
 
 export function App() {
+  const canUndo = useDrawing((s) => s.past.length > 0)
+  const canRedo = useDrawing((s) => s.redoStack.length > 0)
   // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
   useUndoKeys()
   const [screen, setScreen] = useState<ScreenId>('P1')
@@ -262,6 +265,8 @@ export function App() {
         ))}
       </nav>
         <span style={{ flex: 1 }} />
+        <HeaderIconButton label="元に戻す" title="元に戻す（描画・Ctrl+Z）" icon={<ToolIcon name="undo" />} disabled={!canUndo} onClick={() => useDrawing.getState().undo()} />
+        <HeaderIconButton label="やり直す" title="やり直す（描画・Ctrl+Y）" icon={<ToolIcon name="redo" />} disabled={!canRedo} onClick={() => useDrawing.getState().redo()} />
         <HeaderIconButton
           label="意味づけを判定"
           icon={<IconJudge />}

@@ -135,7 +135,9 @@ const EDGE_LABEL_OFFSET_PX = 16
 const EDGE_LABEL_RADIUS_PX = 9
 const EDGE_LABEL_FONT = '11px sans-serif'
 
-export function DrawingCanvas() {
+export function DrawingCanvas({ panOnly = false }: { panOnly?: boolean } = {}) {
+  const panOnlyRef = useRef(panOnly)
+  panOnlyRef.current = panOnly
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewport = useDrawing((s) => s.viewport)
   const setViewport = useDrawing((s) => s.setViewport)
@@ -346,12 +348,13 @@ export function DrawingCanvas() {
 
     const onDown = (e: PointerEvent) => {
       const p = local(e)
-      const intent = classifyPointerDown({
+      let intent = classifyPointerDown({
         pointerType: e.pointerType,
         button: e.button,
         shiftKey: e.shiftKey,
         activeCount: pointersRef.current.size + 1,
       })
+      if (panOnlyRef.current && intent !== 'none' && intent !== 'pan-zoom') intent = 'pan'
       // 右クリックは描かない（サークルメニューは contextmenu で開く）
       if (intent === 'none') return
       // サークルメニューが開いているときの押下は、メニューを閉じるだけ（線は描かない）

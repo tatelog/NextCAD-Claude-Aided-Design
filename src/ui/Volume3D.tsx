@@ -470,7 +470,7 @@ export function Volume3D({
           onStoreyCount={onStoreyCount}
         />
       )}
-      <OrbitControls ref={controlsRef} makeDefault />
+      <OrbitControls ref={controlsRef} makeDefault mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }} />
     </Canvas>
     {setbackLines?.map((l) => (
       <div
