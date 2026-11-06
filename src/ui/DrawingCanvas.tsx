@@ -22,7 +22,7 @@ import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
 import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
-import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { lotOfConfirmed, useConfirmedSite, type ConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { neighborsShownOf } from './volumeDisplay'
 import { lotEdgeLabelsOf, lotOf, roadEdgeIndexOf, type LotEdgeLabel } from '../plan/lot'
@@ -135,7 +135,7 @@ const EDGE_LABEL_OFFSET_PX = 16
 const EDGE_LABEL_RADIUS_PX = 9
 const EDGE_LABEL_FONT = '11px sans-serif'
 
-export function DrawingCanvas({ panOnly = false }: { panOnly?: boolean } = {}) {
+export function DrawingCanvas({ panOnly = false, siteOverride }: { panOnly?: boolean; siteOverride?: ConfirmedSite | null } = {}) {
   const panOnlyRef = useRef(panOnly)
   panOnlyRef.current = panOnly
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -148,7 +148,8 @@ export function DrawingCanvas({ panOnly = false }: { panOnly?: boolean } = {}) {
   const drawnAll = useDrawing((s) => s.entries)
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   // 敷地（筆界）: 確定した敷地の筆、無ければダミー。点線で出す（統括の依頼 2026-11-06。1）
-  const confirmedSite = useConfirmedSite((s) => s.confirmed)
+  const storedSite = useConfirmedSite((s) => s.confirmed)
+  const confirmedSite = siteOverride === undefined ? storedSite : siteOverride
   const lot = lotOf(lotOfConfirmed(confirmedSite))
   // 筆界の辺の番号（統括の決定 2026-11-06）。いま選んでいる前面道路の辺を印にする
   const edgeLabels = useMemo(() => lotEdgeLabelsOf(lot, roadEdgeIndexOf(lot, confirmedSite?.roadEdge ?? 0)), [lot, confirmedSite?.roadEdge])

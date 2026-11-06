@@ -1,3 +1,6 @@
+import { PlanningFramePanel } from './PlanningFramePanel'
+import { rotatePlanPoint } from '../map/planningFrame'
+import type { ConfirmedSite } from '../store/confirmedSite'
 // P03 ボリューム作図（描く）。D-04 v7 の一枚目: 直線モード、閉合、階数・階高、押し出し。
 // 斜線・日影・段状の切り取り・自動案・3D は次の一枚。
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -96,7 +99,10 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const sideDrag = useRef<{ x: number; width: number } | null>(null)
   const devShown = useDevTools((s) => s.shown)
   // P2 の敷地: 確定した敷地の筆（P1 の「この敷地で確定」）。確定していなければダミー（統括の依頼 2026-11-06。1）
-  const confirmed = useConfirmedSite((s) => s.confirmed)
+  const savedSite = useConfirmedSite((s) => s.confirmed)
+  const [planningPreview, setPlanningPreview] = useState<ConfirmedSite | null>(null)
+  const confirmed = planningPreview ?? savedSite
+  const planningAngle = confirmed?.frame?.rotationDeg ?? 0
   const currentSite = useConfirmedSite((s) => s.currentSite)
   const currentUid = useSite((s) => s.parcelUid)
   const confirmedBuildings = useConfirmedSite((s) => s.buildings.data)
@@ -276,9 +282,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
       farPercent: effectiveFar,
       // 真北は、確定した筆がある（経緯度から平面を作った）ときだけ分かる。平面の +y が真北（parcelPlane.ts）。
       // ダミーの筆界では真北が分からないので渡さない（北側斜線は未判定。統括の指示 2026-11-06。5c）
-      trueNorth: parcel ? PLANE_TRUE_NORTH : undefined,
+      trueNorth: parcel ? rotatePlanPoint(PLANE_TRUE_NORTH, planningAngle) : undefined,
     })
-  }, [effectiveFar, effectiveZone, edge, roadWidth, lot, parcel])
+  }, [effectiveFar, effectiveZone, edge, roadWidth, lot, parcel, planningAngle])
 
   const cut = useMemo(() => {
     if (!volume) return null
@@ -331,7 +337,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // 点が 0 の階は brokenFloorsOf が除く（全部削られた階は出さない）
   const brokenFloors = useMemo(() => (volume ? brokenFloorsOf(floorsAll, volume.storey_height) : []), [floorsAll, volume])
   // 地面に落ちる日影（時刻の太陽の位置から、切り取った階ごとの影の形）。太陽が地平線の上のときだけ
-  const sunShadow = useMemo(() => sunShadowsOf(stackedFloors, sun), [stackedFloors, sun])
+  const sunShadow = useMemo(() => sunShadowsOf(stackedFloors, sun ? { ...sun, azimuthFromSouthDeg: sun.azimuthFromSouthDeg - planningAngle } : null), [stackedFloors, sun, planningAngle])
   const ordinanceEntries = useOrdinance((s) => s.entries)
   const setOrdinanceEntry = useOrdinance((s) => s.setEntry)
   const confirmOrdinance = useOrdinance((s) => s.confirm)
@@ -355,8 +361,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     })
     if (!ordinance.ok) return { text: ordinance.reason, result: null as '適合' | '不適合' | null }
     const judgment = judgeShadow({
-      lot,
-      buildings: stackedFloors,
+      lot: lot.map((p) => rotatePlanPoint(p, -planningAngle)),
+      buildings: stackedFloors.map((b) => ({ ...b, footprint: b.footprint.map((p) => rotatePlanPoint(p, -planningAngle)) })),
       rule: ordinance.rule,
       lat: sunSite.lat,
       lon: sunSite.lon,
@@ -366,8 +372,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     const drawingText = shadowDrawingSummary(
       shadowDrawing({
         structure: 'RC',
-        lot,
-        buildings: stackedFloors,
+        lot: lot.map((p) => rotatePlanPoint(p, -planningAngle)),
+        buildings: stackedFloors.map((b) => ({ ...b, footprint: b.footprint.map((p) => rotatePlanPoint(p, -planningAngle)) })),
         rule: ordinance.rule,
         lat: sunSite.lat,
         lon: sunSite.lon,
@@ -377,7 +383,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     if (judgment.result === '適合') return { text: `適合（確認済みの条例の値で判定）／${drawingText}`, result: '適合' as const }
     const w = judgment.worst!
     return { text: `不適合（最大 ${w.hours} h、境界から ${w.distanceM} m、上限 ${w.limit} h）／${drawingText}`, result: '不適合' as const }
-  }, [volume, volumeError, effectiveZone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot, sunSite])
+  }, [volume, volumeError, effectiveZone, stackedFloors, featureOn.shadowRecalc, ordinanceEntries, heightDistrict, lot, sunSite, planningAngle])
   useEffect(() => {
     useSite.getState().setShadow(shadowJudge.result)
   }, [shadowJudge])
@@ -516,7 +522,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           )
         ) : (
           <div className="p03-canvas-wrap">
-            <DrawingCanvas panOnly={panOnly} />
+            <DrawingCanvas panOnly={panOnly || planningPreview !== null} siteOverride={confirmed} />
             <CircleMenu />
           </div>
         )}
@@ -557,6 +563,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           }}
         />
         <aside className="p03-side" style={{ width: sideWidth }}>
+          <PlanningFramePanel key={savedSite?.parcelUid ?? 'none'} site={savedSite} locked={drawnAll.length > 0} onPreview={setPlanningPreview} />
           <section style={tileStyle('p2-outline')}>
             <TileClose title="外形" onHide={() => hideTile('p2-outline')} />
             <h2>外形（基準線: {baselineLabelOf(baselineOpts)}）</h2>

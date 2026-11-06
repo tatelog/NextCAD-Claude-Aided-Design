@@ -13,9 +13,10 @@ import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES } from '../volume/roadWid
 
 // 確定した敷地（統括の依頼 2026-11-06。8）。形が合わなければ例外（読む前の画面は変えない）
 const ConfirmedSchema = z.object({
+  planningEdge: z.number().int().min(0).optional(),
   parcelUid: z.string().nullable(),
   lot: z.array(z.object({ x: z.number(), y: z.number() })).nullable(),
-  frame: z.object({ lon0: z.number(), lat0: z.number(), kx: z.number(), ky: z.number(), cx: z.number(), cy: z.number() }).nullable(),
+  frame: z.object({ lon0: z.number(), lat0: z.number(), kx: z.number(), ky: z.number(), cx: z.number(), cy: z.number(), rotationDeg: z.number().finite().optional() }).nullable(),
   center: z.object({ lat: z.number(), lon: z.number() }),
   roadEdge: z.number().int().min(0),
   // 幅員と出どころは後から足した（統括の依頼 2026-11-06）。無い古い保存は、6000 mm・数値指定として読む

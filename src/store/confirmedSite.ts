@@ -12,6 +12,7 @@ import { useSite } from './site'
 import { DEFAULT_ROAD_WIDTH_SOURCE, type RoadWidthSource } from '../volume/roadWidthSource'
 
 export interface ConfirmedSite {
+  planningEdge?: number
   /** 確定した筆の UID。筆が無い地点で確定したときは null（ダミーの筆界で進む） */
   parcelUid: string | null
   /** 筆の平面（mm）。null なら、ダミーの筆界を使う */
