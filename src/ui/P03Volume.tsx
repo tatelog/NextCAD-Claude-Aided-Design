@@ -28,6 +28,7 @@ import { boundsOf } from './mapBounds'
 import { SHADOW_KEYS, shadowRuleFromOrdinance } from '../law/shadowOrdinance'
 import { PROJECT_WARD } from '../law/shadowRule'
 import { koutoAreaOf } from '../law/shadowKotoAreas'
+import { chomeNameOf } from '../map/parcelInfo'
 import { ordinanceStatus } from '../law/ordinance'
 import { confirmMeasurement } from '../law/measurementConfirm'
 import { ICHI_NOTE } from '../law/fireIchi'
@@ -590,7 +591,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 <dd>
                   {shadowJudge.text}
                   {/* 江東区の一覧（K1・K2・町丁目の区域）。丁目は P2 にまだ渡っていないので、区域に当たるかは確かめられない（t34） */}
-                  <div className="muted">江東区の一覧: {koutoAreaOf(null).reason}</div>
+                  <div className="muted">江東区の一覧: {koutoAreaOf(parcelProps ? chomeNameOf(parcelProps) : null).reason}</div>
                   {ORDINANCE_KEYS.map((k) => (
                     <div key={k}>
                       <OrdinanceStatusLine itemKey={k} />

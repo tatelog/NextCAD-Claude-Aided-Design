@@ -38,3 +38,11 @@ export function chibanOf(p: ParcelProps): string | null {
   const ban = sub !== undefined && sub !== '' ? `${main}番${sub}` : `${main}番`
   return `${p['市区町村名'] ?? ''}${p['大字名'] ?? ''}${chomeOf(p['丁目名'])}${ban}`
 }
+
+/** 丁目の名前（大字名と丁目。例「新砂二丁目」）。江東区の一覧を引く名前（統括の依頼 2026-11-06）。大字名か丁目名が無いときは null */
+export function chomeNameOf(p: ParcelProps): string | null {
+  const oaza = p['大字名']
+  const chome = p['丁目名']
+  if (!oaza || !chome) return null
+  return `${oaza}${chomeOf(chome)}`
+}
