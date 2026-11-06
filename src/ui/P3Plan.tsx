@@ -491,6 +491,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
             <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
+            {units.cells.cells.map(cell=>{
+              const typeId=auto?.unitTypeIdsByCell?.[cell.id] ?? auto?.spanTypes[Math.floor(cell.y0/(auto.depthMm/auto.spans))]
+              const name=UNIT_TYPES.find(t=>t.id===typeId)?.name ?? 'タイプ未設定'
+              return <text key={`type-${cell.id}`} x={(cell.x0+cell.x1)/2} y={(cell.y0+cell.y1)/2} textAnchor="middle" dominantBaseline="middle" fontSize={Math.min(cell.x1-cell.x0,cell.y1-cell.y0)/7} fill="#1f2a44" pointerEvents="none">{name}</text>
+            })}
+
             {/* 壁（意味づけが wall の線）を、中心線から両側に壁厚の半分ずつ広げた輪郭で描く。交わるところは和の輪郭（ハブ A-03 G4） */}
             {/* 輪郭（外側と穴）は一つのパスで塗る。穴を別の多角形で塗ると、穴まで埋まる */}
             {wallPolys.length > 0 && (

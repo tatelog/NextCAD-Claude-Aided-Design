@@ -72,6 +72,7 @@ export interface ShaftRect {
 }
 
 export interface AutoPlan {
+  unitTypeIdsByCell?: Record<string,string|null>
   buildingOutline?: readonly {x:number;y:number}[]
   widthMm: number
   depthMm: number
@@ -332,6 +333,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     cores: coresInCorridor,
     shaftRects: shaftsOf(cells, rooms, coresInCorridor, c.corridor),
     spanTypes,
+    unitTypeIdsByCell: Object.fromEntries(cells.map(cell=>[cell.id,spanTypes[Math.floor(cell.y0/input.spanMm)] ?? null])),
     unsupportedSpans,
     provisionalSpans,
     absorbedSpans,
