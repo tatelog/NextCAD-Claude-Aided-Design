@@ -16,6 +16,9 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> 
   'F2-4-09.最高の高さ': { field: 'F2-4-09', sub: '【ｲ.最高の高さ】', bracket: 0 },
   // 床面積の合計は、細目「ﾛ.合計」の段落の 3 つ目の括弧（(申請部分)(申請以外の部分)(合計) の順）
   'F2-4-12': { field: 'F2-4-12', sub: '【ﾛ.合計】', bracket: 2 },
+  // 1 段落に見出しが 2 つある細目（inlineHeading）。sub は、その細目の名前（後ろの見出し）で引く（値の元は、設置者の住所を持つようになってから）
+  'F8E-2-01.郵便番号': { field: 'F8E-2-01', sub: '【ハ．郵便番号】' },
+  'F8E-2-01.住所': { field: 'F8E-2-01', sub: '【ニ．住所】' },
   'F2-6-01': { field: 'F2-6-01' },
   'F2-6-02': { field: 'F2-6-02' },
   'F2-6-03.最高の高さ': { field: 'F2-6-03', sub: '【ｲ.最高の高さ】' },
@@ -78,7 +81,8 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       continue
     }
     if (route.sub !== undefined) {
-      const sub: TokyoSubitem | undefined = (t.subitems ?? []).find((s) => normOf(s.heading) === normOf(route.sub!))
+      // 細目は、後ろの見出し（inlineHeading）があればその名前で引く。段落の位置は見出し（heading）で探す
+      const sub: TokyoSubitem | undefined = (t.subitems ?? []).find((s) => normOf(s.inlineHeading ?? s.heading) === normOf(route.sub!))
       if (sub === undefined) {
         unwritten.push({ fieldId: key, reason: `細目が対応表に無い（${route.sub}）` })
         continue
@@ -88,7 +92,11 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `細目の見出しが無い（${sub.heading}）` })
         continue
       }
-      const item = placeOf(sub.place ?? '', sub.heading, route.bracket, sub.unit)
+      if (sub.inlineHeading !== undefined && sub.place !== 'afterHeading') {
+        unwritten.push({ fieldId: key, reason: `入れ方が未対応（inlineHeading の細目は ${sub.place}）` })
+        continue
+      }
+      const item = placeOf(sub.place ?? '', sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
       if (item === null) {
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（${sub.place}）` })
         continue
