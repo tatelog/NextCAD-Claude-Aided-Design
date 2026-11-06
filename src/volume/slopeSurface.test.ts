@@ -89,3 +89,39 @@ describe('階ごとの食い込み（仕様 K5・K6）', () => {
     expect(slopeSheetsOf([], 30_000)).toEqual([])
   })
 })
+
+// 5a の確かめ直し（統括の依頼 2026-11-06）: 外形を開発用のダミー筆界（20 m × 30 m。南の辺が前面道路）に重ねて、
+// 用途地域「住居系」・前面道路の幅員 6 m・高さ 15 m（5 階 × 3 m）。道路斜線の式: 1.25 × (6 m + 道路境界からの距離 y) = 階の天端 z で、
+// 建物の南の辺から y = z ÷ 1.25 − 6 m の帯が切られる。隣地（立ち上がり 20 m）と北側（住居系は対象外）は、高さ 15 m では切らない。
+import { legalBoundaries } from './legalSlope'
+import { DUMMY_PARCEL } from '../plan/dummyParcel'
+
+describe('5a の確かめ: 住居系・前面道路 6 m・高さ 15 m（外形 = ダミー筆界）', () => {
+  const legal = legalBoundaries({ footprint: DUMMY_PARCEL, roadEdgeIndex: 0, roadWidthMm: 6_000, zone: '住居系', farPercent: 200 })
+
+  it('道路斜線は 1 本（係数 1.25、距離 20 m、南の辺の外 6 m）。北側は作らない', () => {
+    const road = legal.boundaries.filter((b) => b.kind === 'road')
+    expect(road).toHaveLength(1)
+    expect(road[0]!.coefficient).toBe(1.25)
+    expect(road[0]!.maxDistanceMm).toBe(20_000)
+    expect(road[0]!.point.y).toBeCloseTo(-6_000, 6)
+    expect(legal.boundaries.some((b) => b.kind === 'north')).toBe(false)
+  })
+
+  it('階ごとに切られる帯の幅: 天端 9 m は 1.2 m、12 m は 3.6 m、15 m は 6.0 m（20 m の辺にわたる。面積 24・72・120 m²）', () => {
+    const floors = overrunFloorsOf(DUMMY_PARCEL, legal.boundaries, { storey_count: 5, storey_height: 3_000 })
+    const areas = floors.map((f) => polyArea(f.pieces))
+    expect(areas[0]).toBeCloseTo(0, 0)
+    expect(areas[1]).toBeCloseTo(0, 0)
+    expect(areas[2]).toBeCloseTo(24e6, -3)
+    expect(areas[3]).toBeCloseTo(72e6, -3)
+    expect(areas[4]).toBeCloseTo(120e6, -3)
+  })
+
+  it('高さ 15 m で切られるのは道路斜線の帯（6 m × 20 m）だけ。隣地は切らない（全体 = 120 m²）', () => {
+    const pieces = removedPiecesOf(DUMMY_PARCEL, legal.boundaries, 15_000)
+    expect(polyArea(pieces)).toBeCloseTo(120e6, -3)
+    // 切られた部分の一つ一つが、南の辺（y = 0）から 6 m の帯の中にある
+    for (const piece of pieces) for (const p of piece) expect(p.y).toBeLessThanOrEqual(6_000 + 1e-6)
+  })
+})
