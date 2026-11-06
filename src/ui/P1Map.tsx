@@ -1,7 +1,8 @@
 // P1 の地図（MapLibre GL JS）。基図は国土地理院の標準地図（彩度を下げる）。
 // 道路・筆・建物（LOD1）は、利用者が準備して public/local-data/ に置いたファイルを読む。無ければ「未取得」と出す（同梱しない）。
 import { useEffect, useRef } from 'react'
-import { Map as MaplibreMap, NavigationControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import { Map as MaplibreMap, NavigationControl, ScaleControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import { relativeMapMagnification } from '../map/magnification'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { GSI_BASEMAP_ATTRIBUTION, GSI_BASEMAP_TILES, gsiBasemapLayer } from '../map/basemap'
 import { ROAD_WIDTH_CLASSES } from '../map/roadStyle'
@@ -99,6 +100,17 @@ export function P1Map(props: Props) {
       maxPitch: 85,
     })
     map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
+    map.addControl(new ScaleControl({ maxWidth: 160, unit: 'metric' }), 'bottom-left')
+    const magnification = document.createElement('div')
+    magnification.className = 'maplibregl-ctrl'
+    magnification.style.cssText = 'background:rgba(255,255,255,.92);color:#222;padding:4px 8px;border-radius:4px;font-size:12px;pointer-events:none'
+    const updateMagnification = () => {
+      magnification.textContent = `倍率 ${relativeMapMagnification(map.getZoom(), DEMO_INITIAL_VIEW.zoom).toFixed(2)}×（初期比）`
+    }
+    map.addControl({
+      onAdd: () => { updateMagnification(); map.on('zoom', updateMagnification); return magnification },
+      onRemove: () => { map.off('zoom', updateMagnification); magnification.remove() },
+    }, 'bottom-left')
     mapRef.current = map
     const resize = new ResizeObserver(() => map.resize())
     resize.observe(elRef.current)
