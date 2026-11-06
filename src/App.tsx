@@ -239,14 +239,28 @@ export function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#fff' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#fff', borderBottom: '1px solid #ddd8cc', flexShrink: 0, overflowX: 'auto' }}>
         <input
           aria-label="案件名（敷地名）"
           placeholder="敷地名（案件）"
           value={project}
           onChange={(e) => setProject(e.target.value)}
-          style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', minWidth: 200 }}
+          style={{ font: 'inherit', fontWeight: 700, border: '1px solid transparent', padding: '2px 6px', width: 220, flex: '0 0 220px', boxSizing: 'border-box' }}
         />
+      <nav aria-label="画面切り替え" style={{ display: 'flex', flexShrink: 0, gap: 6, marginLeft: 24, whiteSpace: 'nowrap' }}>
+        {SCREENS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={screen === s.id ? 'is-active' : undefined}
+            aria-pressed={screen === s.id}
+            onClick={() => go(s.id)}
+            style={{ ...button, background: screen === s.id ? '#1f2a44' : '#fff', color: screen === s.id ? '#fff' : '#1f2a44' }}
+          >
+            {s.name}
+          </button>
+        ))}
+      </nav>
         <span style={{ flex: 1 }} />
         <HeaderIconButton
           label="意味づけを判定"
@@ -285,20 +299,7 @@ export function App() {
         {/* メニュー（ハブ A-03 G74）: ☰（三本線） */}
         <HeaderIconButton label="メニュー" icon={<IconMenu />} pressed={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} />
       </header>
-      <nav style={{ display: 'flex', gap: 6, padding: '6px 12px', borderBottom: '1px solid #ddd8cc', background: '#fff' }}>
-        {SCREENS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={screen === s.id ? 'is-active' : undefined}
-            aria-pressed={screen === s.id}
-            onClick={() => go(s.id)}
-            style={{ ...button, background: screen === s.id ? '#1f2a44' : '#fff', color: screen === s.id ? '#fff' : '#1f2a44' }}
-          >
-            {s.name}
-          </button>
-        ))}
-      </nav>
+
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         {screen === 'P1' && <P1Site onNext={() => go('P2')} />}
         {screen === 'P2' && <P03Volume onNext={() => go('P3')} />}
