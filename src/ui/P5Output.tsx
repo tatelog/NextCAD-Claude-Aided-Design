@@ -18,6 +18,7 @@ import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import { PermitViewer } from './PermitViewer'
 import { PermitFormImport } from './PermitFormImport'
 import { PermitFormPlan } from './PermitFormPlan'
+import { usePermitForms } from '../store/permitForms'
 import permitDocsJson from '../law/permitDocuments.json'
 import { buildZip } from '../export/zipWriter'
 import { permitPackageFilesOf } from '../export/permitPackage'
@@ -140,7 +141,8 @@ export function P5Output() {
     }
   }, [frame, confirmedNow, buildingsNow, outline, planResult])
 
-  // 一式の中身（図面・IFC・書類一覧・空欄の一覧）。判定が無いときは null
+  // 一式の中身（図面・IFC・書類一覧・空欄の一覧・記入した様式）。判定が無いときは null
+  const filledNow = usePermitForms((s) => s.filled)
   const packageFiles = useMemo(() => {
     if (!judgement) return null
     return permitPackageFilesOf({
@@ -149,14 +151,15 @@ export function P5Output() {
       drawings: drawingSvgs,
       ifcText,
       ifcFileName: `model-${schema.toLowerCase()}.ifc`,
+      filledForms: Object.values(filledNow).filter((x): x is { fileName: string; bytes: Uint8Array } => x !== undefined),
     })
-  }, [judgement, drawingSvgs, ifcText, schema])
+  }, [judgement, drawingSvgs, ifcText, schema, filledNow])
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {
     if (!packageFiles) return
     const enc = new TextEncoder()
-    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: enc.encode(f.text) })))
+    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: f.bytes ?? enc.encode(f.text) })))
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
     const a = document.createElement('a')
     a.href = url
