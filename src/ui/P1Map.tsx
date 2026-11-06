@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { Map as MaplibreMap, NavigationControl, ScaleControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
 import { relativeMapMagnification } from '../map/magnification'
+import { topViewAt } from '../map/topView'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { GSI_BASEMAP_ATTRIBUTION, GSI_BASEMAP_TILES, gsiBasemapLayer } from '../map/basemap'
 import { ROAD_WIDTH_CLASSES } from '../map/roadStyle'
@@ -100,6 +101,11 @@ export function P1Map(props: Props) {
       maxPitch: 85,
     })
     map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
+    map.doubleClickZoom.disable()
+    map.on('dblclick', (e) => {
+      e.preventDefault()
+      map.easeTo({ ...topViewAt(e.lngLat.lng, e.lngLat.lat, DEMO_INITIAL_VIEW.zoom), duration: 300 })
+    })
     map.addControl(new ScaleControl({ maxWidth: 160, unit: 'metric' }), 'bottom-left')
     const magnification = document.createElement('div')
     magnification.className = 'maplibregl-ctrl'
