@@ -15,6 +15,7 @@ import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import { PermitViewer } from './PermitViewer'
+import { PermitFormImport } from './PermitFormImport'
 import permitDocsJson from '../law/permitDocuments.json'
 import { buildZip } from '../export/zipWriter'
 import { permitPackageFilesOf } from '../export/permitPackage'
@@ -362,6 +363,10 @@ export function P5Output() {
 
         {tab === 'pdf' && (
           <>
+            <section style={{ marginBottom: 16 }}>
+              <PermitFormImport />
+            </section>
+
             <section style={{ marginBottom: 16 }}>
               <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>案件の項目（ボリュームから決まらない条件）</h3>
               <PermitProjectFields project={project} onChange={setProject} />
