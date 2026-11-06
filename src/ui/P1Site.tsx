@@ -5,7 +5,6 @@ import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewpor
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
 import { P1Map } from './P1Map'
-import { POSTAL_UNAVAILABLE_NOTICE } from '../geocode/postalNotice'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
 import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
@@ -63,7 +62,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
   const [mapInfo, setMapInfo] = useState('')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
-  const [postalNotice, setPostalNotice] = useState<string | null>(null)
   const [inspected, setInspected] = useState<{ address: string; roads: string[] } | null>(null)
 
   const inspectSite = (p: LonLat, roads: string[]) => {
@@ -285,16 +283,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             </ul>
           )}
         </div>
-        <div style={{ marginBottom: 12, opacity: 0.45 }}>
-          <label style={{ display: 'block', marginBottom: 6 }}>
-            郵便番号
-            <input placeholder="例: 135-8383" style={{ width: '100%' }} />
-          </label>
-          <button type="button" onClick={() => setPostalNotice(POSTAL_UNAVAILABLE_NOTICE)}>
-            郵便番号で探す
-          </button>
-          {postalNotice ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>{postalNotice}</p> : null}
-        </div>
         <div style={devShown ? undefined : { display: 'none' }}>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
@@ -309,7 +297,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <input type="number" min={0} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(clampZoom(Number(e.target.value)))} style={{ width: '100%' }} />
         </label>
         </div>
-        <section>
+        <section hidden>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
