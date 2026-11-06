@@ -4,7 +4,7 @@
     "status": "草案（統括の確認待ち）",
     "basis": "欄名は江東区版（S06・S07）の Word から読み取った。国の別記様式（S04・S05）との照合は未了（t21）。記入元は D-03 の表・列（T-01 案件、T-02 オブジェクト、T-03 判定、T-04 見積、T-05 申請書、T-07 法規）で示す。『未定義』は D-03 に列が無く、追加が要るもの。",
     "dataSourceLegend": "T-xx.列名 の形。『なし（行政が記入）』は※欄で、本システムは入力しない。",
-    "tokyoLocator": "各欄の tokyo は、東京都都市整備局の Word の版（使う人が自分で取ってきて取り込む。2026-11-06 の版で確認）の中での探し方。face は面の段落、heading は段落の先頭の文字（ファイルの文字のまま）で、NFKC にして空白を除いて比べる。face の段落の次から次の面の段落の直前までで、heading に先頭一致する occurrence 番目（省略は 1）の段落。細目（subitems）は親の見出しの段落から後ろ（同じ段落を含む）で探す。place は afterHeading（見出しの後ろ）・fillBlanks（見出しの後の括弧や「年 月 日」の空白に順に入れる）・nextParagraphs（見出しの次の段落から）・checkbox（□をレにする。□が次の段落にあるときは次の見出しの手前まで）・cellBelow／cellRight（表のセル）。112 欄と細目の見出しは、2026-11-06 に東京都の版で全部見つかることを確かめた。欄の並びは国の別記様式（e-Gov の PDF）と同じ。第二号の第四面の注意書きだけ、東京都の版は国の現行より前の改正のもの（㉔・㉕㉖が違う）。"
+    "tokyoLocator": "各欄の tokyo は、東京都都市整備局の Word の版（使う人が自分で取ってきて取り込む。2026-11-06 の版で確認）の中での探し方。face は面の段落、heading は段落の先頭の文字（ファイルの文字のまま）で、NFKC にして空白を除いて比べる。face の段落の次から次の面の段落の直前までで、heading に先頭一致する occurrence 番目（省略は 1）の段落。細目（subitems）は親の見出しの段落から後ろ（同じ段落を含む）で探す。place は afterHeading（見出しの後ろ）・fillBlanks（見出しの後の括弧や「年 月 日」の空白に順に入れる）・nextParagraphs（見出しの次の段落から）・checkbox（□をレにする。□が次の段落にあるときは次の見出しの手前まで）・cellBelow／cellRight（表のセル）。inlineHeading は、1 つの段落に見出しが 2 つ並ぶとき（例「【ハ．郵便番号】【ニ．住所】」）の後ろの見出しで、段落の先頭の見出しで探し、値はその段落の inlineHeading の後ろに入れる。136 欄（4 様式）と細目の見出しは、2026-11-06 に東京都の版で全部見つかることを確かめた。label は国の別記様式の見出し。欄の並びは国の別記様式（e-Gov の PDF）と同じ。第二号の第四面の注意書きだけ、東京都の版は国の現行より前の改正のもの（㉔・㉕㉖が違う）。"
   },
   "forms": [
     {
@@ -55,7 +55,7 @@
             { "id": "F2-3-04", "no": 4, "label": "防火地域", "dataSource": "T-07 法規.key=防火", "sourceIds": ["S06"], "tokyo": {"face": "（第三面）", "heading": "【4.防火地域】", "in": "paragraph", "place": "checkbox", "note": "□防火地域 □準防火地域 □指定なし は見出しと同じ段落"} },
             { "id": "F2-3-05", "no": 5, "label": "その他の区域、地域、地区又は街区", "dataSource": "T-07 法規.key=高度地区・日影（条例値は人が入力）", "sourceIds": ["S06"], "tokyo": {"face": "（第三面）", "heading": "【5.その他の区域、地域、地区又は街区】", "in": "paragraph", "place": "afterHeading"} },
             { "id": "F2-3-06", "no": 6, "label": "道路", "subitems": ["幅員", "敷地と接している部分の長さ"], "dataSource": "T-02 オブジェクト（敷地）.attributes.front_roads（adopted_width・edge の範囲）", "sourceIds": ["S06"], "tokyo": {"face": "（第三面）", "heading": "【6.道路】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる", "subitems": [{"heading": "【ｲ.幅員】", "in": "paragraph", "place": "fillBlanks", "note": "「ｍ」の前の空白に入れる"}, {"heading": "【ﾛ.敷地と接している部分の長さ】", "in": "paragraph", "place": "fillBlanks", "note": "「ｍ」の前の空白に入れる"}]} },
-            { "id": "F2-3-07", "no": 7, "label": "敷地面積", "subitems": ["敷地面積", "用途地域等", "容積率（法52条）", "建蔽率（法53条）", "敷地面積の合計", "敷地に建築可能な延べ面積を敷地面積で除した数値", "敷地に建築可能な建築面積を敷地面積で除した数値"], "dataSource": "T-02 オブジェクト（敷地）.geometry（面積は計算）、T-07 法規.key=用途地域・容積率・建蔽率", "sourceIds": ["S06", "S08"], "tokyo": {"face": "（第三面）", "heading": "【7.敷地面積】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる。東京都の版・国の版とも【ﾁ.備考】があるが、図書マスタの細目には無い", "subitems": [{"heading": "【ｲ.敷地面積】", "in": "paragraph", "place": "fillBlanks", "note": "(1)の行と次の段落の(2)の行に、用途地域が異なる地域ごとに括弧 4 つ"}, {"heading": "【ﾛ.用途地域等】", "in": "paragraph", "place": "fillBlanks", "note": "括弧 4 つ"}, {"heading": "【ﾊ.建築基準法第52条第１項及び第２項の規定による建築物の容積率】", "in": "paragraph", "place": "nextParagraphs", "note": "括弧 4 つは見出しの次の段落"}, {"heading": "【ﾆ.建築基準法第53条第１項の規定による建築物の建蔽率】", "in": "paragraph", "place": "nextParagraphs", "note": "括弧 4 つは見出しの次の段落"}, {"heading": "【ﾎ.敷地面積の合計】", "in": "paragraph", "place": "fillBlanks", "note": "(1)は見出しと同じ段落、(2)は次の段落"}, {"heading": "【ﾍ.敷地に建築可能な延べ面積を敷地面積で除した数値】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ﾄ.敷地に建築可能な建築面積を敷地面積で除した数値】", "in": "paragraph", "place": "afterHeading"}]} },
+            { "id": "F2-3-07", "no": 7, "label": "敷地面積", "subitems": ["敷地面積", "用途地域等", "容積率（法52条）", "建蔽率（法53条）", "敷地面積の合計", "敷地に建築可能な延べ面積を敷地面積で除した数値", "敷地に建築可能な建築面積を敷地面積で除した数値", "備考"], "dataSource": "T-02 オブジェクト（敷地）.geometry（面積は計算）、T-07 法規.key=用途地域・容積率・建蔽率", "sourceIds": ["S06", "S08"], "tokyo": {"face": "（第三面）", "heading": "【7.敷地面積】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる", "subitems": [{"heading": "【ｲ.敷地面積】", "in": "paragraph", "place": "fillBlanks", "note": "(1)の行と次の段落の(2)の行に、用途地域が異なる地域ごとに括弧 4 つ"}, {"heading": "【ﾛ.用途地域等】", "in": "paragraph", "place": "fillBlanks", "note": "括弧 4 つ"}, {"heading": "【ﾊ.建築基準法第52条第１項及び第２項の規定による建築物の容積率】", "in": "paragraph", "place": "nextParagraphs", "note": "括弧 4 つは見出しの次の段落"}, {"heading": "【ﾆ.建築基準法第53条第１項の規定による建築物の建蔽率】", "in": "paragraph", "place": "nextParagraphs", "note": "括弧 4 つは見出しの次の段落"}, {"heading": "【ﾎ.敷地面積の合計】", "in": "paragraph", "place": "fillBlanks", "note": "(1)は見出しと同じ段落、(2)は次の段落"}, {"heading": "【ﾍ.敷地に建築可能な延べ面積を敷地面積で除した数値】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ﾄ.敷地に建築可能な建築面積を敷地面積で除した数値】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ﾁ.備考】", "in": "paragraph", "place": "afterHeading"}]} },
             { "id": "F2-3-08", "no": 8, "label": "主要用途", "dataSource": "T-02 オブジェクト（建物）.用途（未定義・要追加）", "sourceIds": ["S06"], "tokyo": {"face": "（第三面）", "heading": "【8.主要用途】", "in": "paragraph", "place": "fillBlanks", "note": "(区分　)に用途の区分の記号、続けて主要用途"} },
             { "id": "F2-3-09", "no": 9, "label": "工事種別", "dataSource": "T-01 案件.工事種別（未定義・要追加）", "sourceIds": ["S06"], "tokyo": {"face": "（第三面）", "heading": "【9.工事種別】", "in": "paragraph", "place": "checkbox", "note": "□新築 □増築 … は見出しの次の段落"} },
             { "id": "F2-3-10", "no": 10, "label": "建築面積", "subitems": ["建築物全体", "建蔽率の算定の基礎となる建築面積", "建蔽率"], "dataSource": "T-02 オブジェクト（ボリューム）.geometry（計算）", "sourceIds": ["S06", "S08"], "tokyo": {"face": "（第三面）", "heading": "【10.建築面積】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる。括弧は (申請部分)(申請以外の部分)(合計) の順", "subitems": [{"heading": "【ｲ.建築物全体】", "in": "paragraph", "place": "fillBlanks"}, {"heading": "【ﾛ.建蔽率の算定の基礎となる建築面積】", "in": "paragraph", "place": "nextParagraphs", "note": "括弧 3 つは次の段落"}, {"heading": "【ﾊ.建蔽率】", "in": "paragraph", "place": "fillBlanks", "note": "「％」の前"}]} },
@@ -193,6 +193,20 @@
       "sourceIds": ["S04"],
       "faces": [
         {
+          "no": 1,
+          "title": "第一面",
+          "heading": "申請者・行政の記入欄（※印の欄は行政が記入する）",
+          "fields": [
+            { "id": "F8-1-01", "label": "申請年月日", "dataSource": "T-01 案件.申請日（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "年　　月　　日", "in": "paragraph", "place": "fillBlanks", "note": "申請年月日。「年　月　日」の空白に年・月・日を入れる"} },
+            { "id": "F8-1-02", "label": "申請者氏名", "dataSource": "T-01 案件.applicant（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "申請者氏名", "in": "paragraph", "place": "afterHeading"} },
+            { "id": "F8-1-03", "label": "※手数料欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※手数料欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8-1-04", "label": "※受付欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※受付欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8-1-05", "label": "※決裁欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※決裁欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8-1-06", "label": "※確認番号欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※確認番号欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8-1-07", "label": "係員氏名", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "係員氏名", "in": "tableCell", "place": "afterHeading", "note": "行政が記入（アプリは書かない）。受付欄と確認番号欄の下に 2 か所ある（1 番目）"} }
+          ]
+        },
+        {
           "no": 2,
           "title": "第二面",
           "heading": "昇降機の概要（第1条の3 第4項ロ。法87条の4の昇降機、6条1項1・2号の建築物）",
@@ -207,6 +221,44 @@
             { "id": "F8-2-08", "no": 8, "label": "工事完了予定年月日", "dataSource": "T-01 案件（未定義・利用者入力）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【8.工事完了予定年月日】", "in": "paragraph", "place": "fillBlanks"} },
             { "id": "F8-2-09", "no": 9, "label": "特定工程工事終了予定年月日", "dataSource": "T-01 案件（未定義・利用者入力）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【9.特定工程工事終了予定年月日】", "in": "paragraph", "place": "nextParagraphs", "note": "次の 2 段落"} },
             { "id": "F8-2-10", "no": 10, "label": "備考", "dataSource": "T-05 申請書（備考）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【10．備考】", "in": "paragraph", "place": "afterHeading"} }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "F8E",
+      "name": "確認申請書（昇降機以外の建築設備）（第八号様式・昇降機以外の建築設備用）",
+      "sourceIds": ["S04"],
+      "faces": [
+        {
+          "no": 1,
+          "title": "第一面",
+          "heading": "申請者・行政の記入欄（※印の欄は行政が記入する）",
+          "fields": [
+            { "id": "F8E-1-01", "label": "申請年月日", "dataSource": "T-01 案件.申請日（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "年　　月　　日", "in": "paragraph", "place": "fillBlanks", "note": "申請年月日。「年　月　日」の空白に年・月・日を入れる"} },
+            { "id": "F8E-1-02", "label": "申請者氏名", "dataSource": "T-01 案件.applicant（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "申請者氏名", "in": "paragraph", "place": "afterHeading"} },
+            { "id": "F8E-1-03", "label": "※手数料欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※手数料欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8E-1-04", "label": "※受付欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※受付欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8E-1-05", "label": "※決裁欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※決裁欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8E-1-06", "label": "※確認番号欄", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "※確認番号欄", "in": "tableCell", "place": "cellBelow", "note": "行政が記入（アプリは書かない）"} },
+            { "id": "F8E-1-07", "label": "係員氏名", "dataSource": "なし（行政が記入）", "sourceIds": ["S04"], "tokyo": {"face": "（第一面）", "heading": "係員氏名", "in": "tableCell", "place": "afterHeading", "note": "行政が記入（アプリは書かない）。受付欄と確認番号欄の下に 2 か所ある（1 番目）"} }
+          ]
+        },
+        {
+          "no": 2,
+          "title": "第二面",
+          "heading": "建築設備の概要（法87条の4。昇降機以外の建築設備）",
+          "fields": [
+            { "id": "F8E-2-01", "no": 1, "label": "設置者", "subitems": ["氏名のフリガナ", "氏名", "郵便番号", "住所", "電話番号"], "dataSource": "T-01 案件（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【１．設置主】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる。東京都の版の見出しは「設置主」（国の版は「設置者」。誤記のまま扱う）", "subitems": [{"heading": "【イ．氏名のフリガナ】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ロ．氏名】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ハ．郵便番号】", "in": "paragraph", "place": "afterHeading", "note": "同じ段落に【ニ．住所】が続く。郵便番号は【ニ．住所】の手前"}, {"heading": "【ハ．郵便番号】", "in": "paragraph", "place": "afterHeading", "inlineHeading": "【ニ．住所】", "note": "東京都の版は見出し 2 つが 1 つの段落にある。段落の先頭の見出しで探し、値は inlineHeading の手前（前の細目）か後ろ（この細目）に入れる"}, {"heading": "【ホ．電話番号】", "in": "paragraph", "place": "afterHeading"}]} },
+            { "id": "F8E-2-02", "no": 2, "label": "代理者", "subitems": ["資格", "氏名", "建築士事務所名", "郵便番号", "所在地", "電話番号"], "dataSource": "T-01 案件（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【２．代理者】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる", "subitems": [{"heading": "【イ．資格】", "in": "paragraph", "place": "fillBlanks", "note": "（　）建築士（　）登録第　号"}, {"heading": "【ロ．氏名】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ハ．建築士事務所名】", "in": "paragraph", "place": "fillBlanks", "note": "（　）建築士事務所（　）知事登録第　号"}, {"heading": "【ニ．郵便番号】", "in": "paragraph", "place": "afterHeading", "note": "同じ段落に【ホ．所在地】が続く。郵便番号は【ホ．所在地】の手前"}, {"heading": "【ニ．郵便番号】", "in": "paragraph", "place": "afterHeading", "inlineHeading": "【ホ．所在地】", "note": "東京都の版は見出し 2 つが 1 つの段落にある。段落の先頭の見出しで探し、値は inlineHeading の手前（前の細目）か後ろ（この細目）に入れる"}, {"heading": "【ヘ．電話番号】", "in": "paragraph", "place": "afterHeading"}]} },
+            { "id": "F8E-2-03", "no": 3, "label": "設計者", "subitems": ["代表となる設計者", "その他の設計者", "作成した設計図書"], "dataSource": "T-01 案件（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【３．設計者】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる。国の版は代表となる設計者とその他の設計者 3 人分の欄がある。東京都の版は代表となる設計者だけで、その他の設計者は人数を書いて別紙", "subitems": [{"heading": "（代表となる設計者）", "in": "paragraph", "place": "nextParagraphs", "note": "次の【イ．資格】〜【ト．作成した設計図書】"}, {"heading": "（代表となる設計者）", "in": "paragraph", "place": "fillBlanks", "inlineHeading": "（その他の設計者", "note": "同じ段落の「（その他の設計者　　名は、別紙による）」の空白に人数"}, {"heading": "【ト．作成した設計図書】", "in": "paragraph", "place": "afterHeading"}]} },
+            { "id": "F8E-2-04", "no": 4, "label": "工事施工者", "subitems": ["氏名", "営業所名（建設業の許可番号）", "郵便番号", "所在地", "電話番号"], "dataSource": "T-01 案件（未定義・要追加）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【４．工事施工者】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる", "subitems": [{"heading": "【イ．氏名】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ロ．営業所名】", "in": "paragraph", "place": "fillBlanks", "note": "建設業の許可（　）第　号"}, {"heading": "【ハ．郵便番号】", "in": "paragraph", "place": "afterHeading", "note": "同じ段落に【ニ．所在地】が続く。郵便番号は【ニ．所在地】の手前"}, {"heading": "【ハ．郵便番号】", "in": "paragraph", "place": "afterHeading", "inlineHeading": "【ニ．所在地】", "note": "東京都の版は見出し 2 つが 1 つの段落にある。段落の先頭の見出しで探し、値は inlineHeading の手前（前の細目）か後ろ（この細目）に入れる"}, {"heading": "【ホ．電話番号】", "in": "paragraph", "place": "afterHeading"}]} },
+            { "id": "F8E-2-05", "no": 5, "label": "設置する建築物", "subitems": ["所在地", "名称のフリガナ", "名称", "用途"], "dataSource": "T-01 案件・T-02 オブジェクト（建物）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【５．設置する建築物】", "in": "paragraph", "place": "afterHeading", "note": "値は細目に入れる", "subitems": [{"heading": "【イ．所在地】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ロ．名称のフリガナ】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ハ．名称】", "in": "paragraph", "place": "afterHeading"}, {"heading": "【ニ．用途】", "in": "paragraph", "place": "afterHeading"}]} },
+            { "id": "F8E-2-06", "no": 6, "label": "建築設備の概要", "dataSource": "未定義（建築設備のオブジェクトが無い。設備の種類と概要の入力が要る）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【６．建築設備の概要】", "in": "paragraph", "place": "afterHeading"} },
+            { "id": "F8E-2-07", "no": 7, "label": "工事着手予定年月日", "dataSource": "T-01 案件（未定義・利用者入力）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【７．工事着手予定年月日】", "in": "paragraph", "place": "fillBlanks", "note": "「年　月　日」の空白"} },
+            { "id": "F8E-2-08", "no": 8, "label": "工事完了予定年月日", "dataSource": "T-01 案件（未定義・利用者入力）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【８．工事完了予定年月日】", "in": "paragraph", "place": "fillBlanks", "note": "「年　月　日」の空白"} },
+            { "id": "F8E-2-09", "no": 9, "label": "特定工程工事終了予定年月日", "dataSource": "T-01 案件（未定義・利用者入力）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【９．特定工程工事終了予定年月日】", "in": "paragraph", "place": "nextParagraphs", "note": "次の 2 段落（第　回）年　月　日（特定工程）"} },
+            { "id": "F8E-2-10", "no": 10, "label": "備考", "dataSource": "T-05 申請書（備考）", "sourceIds": ["S04"], "tokyo": {"face": "（第二面）", "heading": "【10．備考】", "in": "paragraph", "place": "afterHeading"} }
           ]
         }
       ]
