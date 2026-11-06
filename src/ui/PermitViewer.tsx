@@ -4,6 +4,9 @@ import type { PermitJudgement } from '../law/permitRequired'
 import { applicabilityTextOf } from '../permit/p5Judgement'
 import { fitSvgForView } from './fitSvgForView'
 import { DRAWING_KEY_OF_NAME, DRAWING_MISSING_DEFAULT, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
+import type { FormKind } from '../law/permitFormKind'
+import { previewPlanOf, type FilledFormFile } from './permitFormPreview'
+import { DocxFormView } from './DocxFormView'
 
 const GROUPS: readonly ViewerGroup[] = ['要る', '要確認', '要らない']
 const JUDGE_KEY: string = FIXED_VIEWER_ITEMS[0]
@@ -36,6 +39,8 @@ export interface PermitViewerProps {
   checkOf?: (name: string) => { text: string; color: string } | null
   /** 最初に選ぶ項目の鍵（省略は判定の一覧） */
   initialKey?: string
+  /** 記入した様式（第二号・第三号の docx）。あれば様式のまま描く。無ければ一覧のまま */
+  filledForms?: Partial<Record<FormKind, FilledFormFile>>
 }
 
 export function PermitViewer({
@@ -46,6 +51,7 @@ export function PermitViewer({
   drawingReasons = DRAWING_MISSING_DEFAULT,
   checkOf,
   initialKey = JUDGE_KEY,
+  filledForms = {},
 }: PermitViewerProps) {
   const rows = viewerRowsOf(judgement, docs)
   const [selected, setSelected] = useState(initialKey)
@@ -82,6 +88,13 @@ export function PermitViewer({
     const check = selectedRow.group === '要る' && checkOf ? checkOf(selectedRow.name) : null
     const key = DRAWING_KEY_OF_NAME[selectedRow.name]
     const svg = key === undefined ? null : drawingSvgs[key]
+    // 第二号・第三号は、記入した様式があれば様式のまま描く（統括の依頼 2026-11-06。代表承認）。描けなければ、一覧の文に戻す
+    const docx = previewPlanOf(selectedRow.name, filledForms)
+    const drawingBlock = key === undefined ? null : svg !== null ? (
+      <div style={{ width: '100%' }} dangerouslySetInnerHTML={{ __html: fitSvgForView(svg) }} />
+    ) : (
+      <p style={{ fontSize: 12, color: '#a33' }}>{`${drawingReasons[key]}。`}</p>
+    )
     pane = (
       <>
         <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>{selectedRow.name}</h3>
@@ -89,10 +102,13 @@ export function PermitViewer({
         {selectedRow.reason ? <p style={{ fontSize: 12, color: '#666', margin: '0 0 4px' }}>{selectedRow.reason}</p> : null}
         {check ? <p style={{ fontSize: 12, color: check.color, margin: '0 0 4px' }}>{check.text}</p> : null}
         <p style={{ fontSize: 12, color: '#444' }}>{`中身: ${selectedRow.content}`}</p>
-        {key === undefined ? null : svg !== null ? (
-          <div style={{ width: '100%' }} dangerouslySetInnerHTML={{ __html: fitSvgForView(svg) }} />
+        {docx.mode === 'docx' ? (
+          <DocxFormView fileName={docx.fileName} bytes={docx.bytes} fallback={drawingBlock} />
         ) : (
-          <p style={{ fontSize: 12, color: '#a33' }}>{`${drawingReasons[key]}。`}</p>
+          <>
+            {docx.reason ? <p style={{ fontSize: 12, color: '#666' }}>{docx.reason}</p> : null}
+            {drawingBlock}
+          </>
         )}
       </>
     )
