@@ -32,7 +32,7 @@ import { ordinanceStatus } from '../law/ordinance'
 import { confirmMeasurement } from '../law/measurementConfirm'
 import { ICHI_NOTE } from '../law/fireIchi'
 import { useOrdinance } from '../store/ordinance'
-import { siteRuleFromDistricts } from '../law/siteRule'
+import { siteRuleFromDistricts, zoneSelectStateOf } from '../law/siteRule'
 import { suggestMeasurement } from '../law/shadowSuggest'
 import type { HeightDistrict } from '../law/shadowMeasure'
 
@@ -250,6 +250,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const siteMatches = useSite((s) => s.matches)
   const siteRule = useMemo(() => (siteMatches ? siteRuleFromDistricts(siteMatches) : null), [siteMatches])
   const effectiveZone = siteRule?.zone ?? zone
+  // 欄は、計算に使う区分を示す（PLATEAU の区分が決まっていれば、その区分で押せない。統括の依頼 2026-11-06）
+  const zoneSelect = zoneSelectStateOf(siteRule, zone)
   const inputFar = farLimit === '' ? null : Number(farLimit)
   const effectiveFar = siteRule?.farPercent ?? inputFar
 
@@ -634,7 +636,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             <p className="muted">防火（令 136 条の 2）: {ICHI_NOTE}</p>
             <label>
               用途地域
-              <select value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
+              <select value={zoneSelect.value} disabled={zoneSelect.disabled} onChange={(e) => setZone(e.target.value as Zone)}>
                 {ZONES.map((z) => (
                   <option key={z} value={z}>
                     {z}
