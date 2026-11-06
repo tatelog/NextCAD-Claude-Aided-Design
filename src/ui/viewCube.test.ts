@@ -1,6 +1,6 @@
 // 仕様（代表の依頼 2026-11-06。3: 右上の 上・下・正面・背面・左・右 を、3D のキューブに替える。キューブはカメラと一緒に回る）:
 // 仕様 C1: 六面・十二辺・八隅の、26 の向きがある。どれも単位長さで、互いに違う。
-// 仕様 C2: 六面の向き。上は +y、下は −y、正面は南（−z）から北を見る向き、背面は北（+z）、右は +x、左は −x。見出しは 上・下・正面・背面・左・右。
+// 仕様 C2: 六面の向き。上は +y、下は −y、正面は南（+z）から北を見る向き、背面は北（−z）、右は +x、左は −x（北は −z。統括の判断 2026-11-06）。見出しは 上・下・正面・背面・左・右。
 // 仕様 C3: 辺は隣り合う二面の向きの和、隅は三面の向きの和（どちらも単位長さに直す）。
 // 仕様 C4: カメラの向きに対して、そちらを向いている面・辺・隅だけを見える（押せる）とする。
 //          正面から見るときは正面だけ、上から見るときは上だけ、角から見るときは三面・三辺・四隅（向きの内積が正）。
@@ -23,8 +23,8 @@ describe('ビューキューブの向き（仕様 C1〜C3）', () => {
     const face = (id: string) => CUBE_TARGETS.find((t) => t.kind === 'face' && t.id === id)!
     expect(face('top').dir).toEqual({ x: 0, y: 1, z: 0 })
     expect(face('bottom').dir).toEqual({ x: 0, y: -1, z: 0 })
-    expect(face('front').dir).toEqual({ x: 0, y: 0, z: -1 })
-    expect(face('back').dir).toEqual({ x: 0, y: 0, z: 1 })
+    expect(face('front').dir).toEqual({ x: 0, y: 0, z: 1 })
+    expect(face('back').dir).toEqual({ x: 0, y: 0, z: -1 })
     expect(face('right').dir).toEqual({ x: 1, y: 0, z: 0 })
     expect(face('left').dir).toEqual({ x: -1, y: 0, z: 0 })
     expect(['top', 'bottom', 'front', 'back', 'left', 'right'].map((id) => face(id).label)).toEqual(['上', '下', '正面', '背面', '左', '右'])
@@ -48,7 +48,7 @@ describe('ビューキューブの向き（仕様 C1〜C3）', () => {
 
 describe('カメラに向いている面・辺・隅（仕様 C4）', () => {
   it('仕様 C4: 正面から見ると、見える面は正面だけで、正面の四隅は単位立方体の一辺（±1）', () => {
-    const v = cubeViewOf({ x: 0, y: 0, z: -1 })
+    const v = cubeViewOf({ x: 0, y: 0, z: 1 })
     expect(v.faces.filter((f) => f.visible).map((f) => f.id)).toEqual(['front'])
     const front = v.faces.find((f) => f.id === 'front')!
     expect(front.points).toHaveLength(4)
@@ -64,7 +64,7 @@ describe('カメラに向いている面・辺・隅（仕様 C4）', () => {
   })
 
   it('仕様 C4: 角（右・上・正面寄り）から見ると、見える面は三つ、見える辺は三つ、見える隅は四つ', () => {
-    const b = { x: 1, y: 1, z: -1 }
+    const b = { x: 1, y: 1, z: 1 }
     const v = cubeViewOf(b)
     expect(v.faces.filter((f) => f.visible).map((f) => f.id).sort()).toEqual(['front', 'right', 'top'])
     expect(v.edges.filter((e) => e.visible)).toHaveLength(3)
@@ -74,7 +74,7 @@ describe('カメラに向いている面・辺・隅（仕様 C4）', () => {
 
 describe('水平から見るとき（仕様 C4 の補足）', () => {
   it('仕様 C4: 正面から水平に見るとき、計算の誤差（1e-12 程度の上下・左右のずれ）で、上や右の面を見えるとしない', () => {
-    const v = cubeViewOf({ x: 1e-12, y: 1e-12, z: -1 })
+    const v = cubeViewOf({ x: 1e-12, y: 1e-12, z: 1 })
     expect(v.faces.filter((f) => f.visible).map((f) => f.id)).toEqual(['front'])
     // 見える辺は、見える正面の四辺だけ（上と正面・下と正面・正面と左・正面と右）
     expect(v.edges.filter((e) => e.visible).map((e) => e.id).sort()).toEqual(['bottom-front', 'front-left', 'front-right', 'top-front'])

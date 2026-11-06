@@ -328,9 +328,10 @@ describe('回転のつまみを置く角: 外形のすべての頂点に 1 つ�
 })
 
 describe('指の位置: 3D の視線と地面（高さ 0）の交点を、平面の mm で返す', () => {
-  it('真上から真下への視線は、真下の点。three の x・z（m）が、平面の x・y（mm）に当たる', () => {
+  // 統括の判断 2026-11-06（鏡像の直し、方針 A）: 北は three の −z。平面の y は three の −z（m）に当たる
+  it('真上から真下への視線は、真下の点。three の x と −z（m）が、平面の x と y（mm）に当たる', () => {
     expect(rayHitPlaneMm({ x: 0, y: 10, z: 0 }, { x: 0, y: -1, z: 0 }, 0)).toEqual({ x: 0, y: 0 })
-    expect(rayHitPlaneMm({ x: 2, y: 10, z: 3 }, { x: 0, y: -1, z: 0 }, 0)).toEqual({ x: 2000, y: 3000 })
+    expect(rayHitPlaneMm({ x: 2, y: 10, z: 3 }, { x: 0, y: -1, z: 0 }, 0)).toEqual({ x: 2000, y: -3000 })
   })
 
   it('斜めの視線は、進んだ先で地面と交わる（高さ 10 m から x の向きへ 45° で、x = 10 m の点）', () => {
@@ -347,7 +348,7 @@ describe('指の位置: 3D の視線と地面（高さ 0）の交点を、平面
   })
 
   it('高さを指定すると、その高さの水平な面との交点（高さ 4 m の面）', () => {
-    expect(rayHitPlaneMm({ x: 1, y: 10, z: 1 }, { x: 0, y: -1, z: 0 }, 4)).toEqual({ x: 1000, y: 1000 })
+    expect(rayHitPlaneMm({ x: 1, y: 10, z: 1 }, { x: 0, y: -1, z: 0 }, 4)).toEqual({ x: 1000, y: -1000 })
   })
 
   it('地面と平行な視線は交わらない（null）', () => {
@@ -358,17 +359,18 @@ describe('指の位置: 3D の視線と地面（高さ 0）の交点を、平面
     expect(rayHitPlaneMm({ x: 0, y: 10, z: 0 }, { x: 0, y: 1, z: 0 }, 0)).toBeNull()
   })
 
-  it('重心の右（three の +x 側）から上（mm の +y = three の +z 側）へ指を回すと、回す量は +90°', () => {
+  // 統括の判断 2026-11-06（鏡像の直し、方針 A）: 上（画面の上 = 平面の北 = three の −z 側）
+  it('重心の右（東。three の +x 側）から上（北。three の −z 側）へ指を回すと、回す量は +90°', () => {
     const pivot: Pt = ORIGIN
     const grab = rayHitPlaneMm({ x: 1, y: 10, z: 0 }, { x: 0, y: -1, z: 0 }, 0)!
-    const now = rayHitPlaneMm({ x: 0, y: 10, z: 1 }, { x: 0, y: -1, z: 0 }, 0)!
+    const now = rayHitPlaneMm({ x: 0, y: 10, z: -1 }, { x: 0, y: -1, z: 0 }, 0)!
     expect(knobAngleDeg(pivot, grab, now)).toBeCloseTo(90, 9)
   })
 })
 
 describe('平面の点（mm）と高さ（mm）を、3D の位置（three の x・高さ・z。m）にする', () => {
-  it('平面の (x, y) mm は three の (x, 高さ, y) m。mm は 1/1000 で m', () => {
-    expect(scenePosition({ x: 2000, y: 3000 }, 6000)).toEqual([2, 6, 3])
+  it('平面の (x, y) mm は three の (x, 高さ, −y) m（北は −z。統括の判断 2026-11-06）。mm は 1/1000 で m', () => {
+    expect(scenePosition({ x: 2000, y: 3000 }, 6000)).toEqual([2, 6, -3])
     expect(scenePosition({ x: -1500, y: 0 }, 0)).toEqual([-1.5, 0, 0])
   })
 })
@@ -425,9 +427,9 @@ describe('高さのつまみ: 指の高さ（重心を通る鉛直な軸の上�
     expect(axisHeightAtRayMm({ x: 0, y: 5, z: 10 }, { x: 0, y: -2, z: -10 }, { x: 0, y: 0 })!).toBeCloseTo(3000, 6)
   })
 
-  it('軸は平面の点 (x, y) mm の真上（three の x・z が x・y）。軸 (4000, 7000) mm の高さ 6 m を狙う視線は 6000 mm', () => {
-    // 視点 (4, 20, 17) m から (4, 6, 7) m を見る
-    expect(axisHeightAtRayMm({ x: 4, y: 20, z: 17 }, { x: 0, y: -14, z: -10 }, { x: 4000, y: 7000 })!).toBeCloseTo(6000, 6)
+  it('軸は平面の点 (x, y) mm の真上（three の x と −z が x と y）。軸 (4000, 7000) mm の高さ 6 m を狙う視線は 6000 mm', () => {
+    // 視点 (4, 20, 17) m から、軸の高さ 6 m の点 (4, 6, −7) m を見る（平面の y = 7000 mm は three の z = −7 m）
+    expect(axisHeightAtRayMm({ x: 4, y: 20, z: 17 }, { x: 0, y: -14, z: -24 }, { x: 4000, y: 7000 })!).toBeCloseTo(6000, 6)
   })
 
   it('真横から見る視線は、視点の高さ（高さ 3 m から -x の向きへ。軸に当たらず脇を通っても同じ）', () => {

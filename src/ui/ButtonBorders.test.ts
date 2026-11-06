@@ -48,3 +48,15 @@ describe('アイコンだけのボタンは枠なし（仕様 BB2・BB3）', () 
     expect(css).toMatch(/\.btn-icon:active\s*\{[^}]*background/)
   })
 })
+
+// 仕様 BB4（統括の指示 2026-11-06。ボリュームの表示の切り替え 3 つに枠が出て、アイコンが小さく見えた）:
+// 仕様 BB4: ボリュームの道具の帯の button の規則（枠・余白・白い地）は、アイコンだけのボタン（hdr-btn）に効かない。
+//           hdr-btn の枠・余白・地は、hdr-btn の規則だけで決まる（共通ヘッダーと同じ見え方）。
+describe('ツールバーの button の規則は、アイコンだけのボタン（hdr-btn）に効かない（仕様 BB4）', () => {
+  const css = readFileSync(join(process.cwd(), 'src', 'styles.css'), 'utf8')
+
+  it('BB4: .p03-toolbar の button の規則は、hdr-btn を除く（:not(.hdr-btn)）', () => {
+    expect(css).toMatch(/\.p03-toolbar button:not\(\.hdr-btn\)\s*\{/)
+    expect(css).not.toMatch(/\.p03-toolbar button\s*\{/)
+  })
+})

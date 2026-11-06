@@ -3,14 +3,16 @@
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
 import { clipPlanesAt, initialViewOf, lotPlateTrianglesOf, LOT_LIFT_MM, type SceneFrame } from './volumeScene'
 import { neighborMeshesOf } from '../volume/neighborMesh'
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react'
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
+import { GSI_ATTRIBUTION, type MapTile } from '../map/gsiTiles'
 import { Line, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, stackedMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
 import { ViewCube } from './ViewCubePanel'
+import { planeMmToScene } from '../volume/sceneSpace'
 import type { CubeTarget, Dir } from './viewCube'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
 import type { RotationStep } from '../volume/rotation'
@@ -126,7 +128,7 @@ const MM_TO_M = 1 / 1000
 export function toGeometry(mesh: Pick<VolumeMesh, 'triangles'>): THREE.BufferGeometry {
   const positions: number[] = []
   for (const tri of mesh.triangles) {
-    for (const v of tri) positions.push(v.x * MM_TO_M, v.z * MM_TO_M, v.y * MM_TO_M)
+    for (const v of tri) positions.push(...planeMmToScene(v.x, v.y, v.z))
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -146,7 +148,8 @@ function groundSize(footprint: readonly Point[]): { width: number; depth: number
     width: (maxX - minX + 2 * margin) * MM_TO_M,
     depth: (maxY - minY + 2 * margin) * MM_TO_M,
     cx: ((minX + maxX) / 2) * MM_TO_M,
-    cz: ((minY + maxY) / 2) * MM_TO_M,
+    // 北は −z（sceneSpace.ts）。地面の中心の z も、平面の y の符号を反対にする
+    cz: -((minY + maxY) / 2) * MM_TO_M,
   }
 }
 
@@ -155,7 +158,7 @@ function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeo
   const positions: number[] = []
   for (const shadow of shadows) {
     for (const [a, b, c] of triangulatePolygon(shadow)) {
-      for (const v of [a, b, c]) positions.push(v.x * MM_TO_M, 0.002, v.y * MM_TO_M)
+      for (const v of [a, b, c]) positions.push(...planeMmToScene(v.x, v.y, 2))
     }
   }
   const geometry = new THREE.BufferGeometry()
@@ -166,8 +169,8 @@ function shadowGeometry(shadows: readonly (readonly Point[])[]): THREE.BufferGeo
 
 // 敷地からの離れの寸法線（G67）: 平面の mm を three の m に直し、地面の少し上に線を引く。両端と中点（表記を置く点）
 function setbackEnds(line: SetbackLine) {
-  const a: [number, number, number] = [line.from.x * MM_TO_M, 0.02, line.from.y * MM_TO_M]
-  const b: [number, number, number] = [line.to.x * MM_TO_M, 0.02, line.to.y * MM_TO_M]
+  const a: [number, number, number] = planeMmToScene(line.from.x, line.from.y, 20)
+  const b: [number, number, number] = planeMmToScene(line.to.x, line.to.y, 20)
   const mid: [number, number, number] = [(a[0] + b[0]) / 2, 0.1, (a[2] + b[2]) / 2]
   return { a, b, mid }
 }
@@ -190,6 +193,45 @@ function SetbackLabels({ lines, labels }: { lines: SetbackLine[]; labels: Record
     }
   })
   return null
+}
+
+// 地理院タイル 1 枚を、地面に貼る（統括の依頼 2026-11-06。4）。四隅は敷地と同じ平面（sceneSpace で three の位置へ）。
+// 画像は地理院から読む（CORS を付ける）。地面より少し上（0.5 mm）に置く。
+function MapTileMesh({ tile }: { tile: MapTile }) {
+  const texture = useLoader(THREE.TextureLoader, tile.url, (loader) => loader.setCrossOrigin('anonymous'))
+  useEffect(() => {
+    texture.colorSpace = THREE.SRGBColorSpace
+  }, [texture])
+  const geometry = useMemo(() => {
+    const c = tile.corners
+    const [nw, sw, se, ne] = [c.nw, c.sw, c.se, c.ne].map((p) => planeMmToScene(p.x, p.y, 0.5))
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute([...nw!, ...sw!, ...se!, ...ne!], 3))
+    // 画像の上（北）を、平面の北（−z 側）に合わせる
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 1, 1], 2))
+    g.setIndex([0, 1, 2, 0, 2, 3])
+    return g
+  }, [tile])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return (
+    <mesh geometry={geometry}>
+      <meshBasicMaterial map={texture} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
+// 地図のタイルが読めないときも、3D は描く（タイルだけ出さない。灰色の地面は残す）
+class TileErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  componentDidCatch(error: unknown): void {
+    console.error('地理院タイルを貼れなかった', error)
+  }
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children
+  }
 }
 
 interface Volume3DProps {
@@ -219,6 +261,8 @@ interface Volume3DProps {
   setbackLines?: SetbackLine[] | null
   /** 地図（地面と格子）を出すか。省略は出す（代表の依頼 2026-11-06。1） */
   showMap?: boolean
+  /** 地理院タイル（確定した地点の周り）。地図を出すときに、地面に貼る（代表の依頼 2026-11-06。4） */
+  mapTiles?: MapTile[]
 }
 
 export function Volume3D({
@@ -236,6 +280,7 @@ export function Volume3D({
   setbackLines,
   floors,
   showMap = true,
+  mapTiles,
 }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
@@ -283,7 +328,7 @@ export function Volume3D({
   }, [lot])
   const lotLine = useMemo(() => {
     if (!lot || lot.length < 3) return null
-    return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(p.x * MM_TO_M, LOT_LIFT_MM * MM_TO_M, p.y * MM_TO_M)))
+    return new THREE.BufferGeometry().setFromPoints(lot.map((p) => new THREE.Vector3(...planeMmToScene(p.x, p.y, LOT_LIFT_MM))))
   }, [lot])
   // 地面の大きさは、外形（無ければ敷地）から。どちらも無ければ地面は出さない
   const groundSource = footprint ?? lot ?? null
@@ -339,6 +384,15 @@ export function Volume3D({
           <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />
         </>
       )}
+      {showMap && mapTiles && mapTiles.length > 0 && (
+        <TileErrorBoundary>
+          <Suspense fallback={null}>
+            {mapTiles.map((t) => (
+              <MapTileMesh key={t.url} tile={t} />
+            ))}
+          </Suspense>
+        </TileErrorBoundary>
+      )}
       {setbackLines?.map((l) => (
         <SetbackDimension key={l.side} line={l} />
       ))}
@@ -374,6 +428,11 @@ export function Volume3D({
         {l.label}
       </div>
     ))}
+    {showMap && mapTiles && mapTiles.length > 0 && (
+      <div style={{ position: 'absolute', left: 6, bottom: 4, fontSize: 10, color: '#444', background: 'rgba(255,255,255,0.85)', padding: '0 4px', borderRadius: 3, pointerEvents: 'none' }}>
+        {GSI_ATTRIBUTION}
+      </div>
+    )}
     {knobPreview?.kind === 'height' && (
       <div
         style={{ position: 'absolute', left: 8, bottom: 8, padding: '2px 8px', border: '1px solid #b8b2a4', borderRadius: 4, background: '#fff', fontSize: 12, pointerEvents: 'none' }}

@@ -93,7 +93,8 @@ body,
   border-bottom: 1px solid #ddd8cc;
   background: #fff;
 }
-.p03-toolbar button {
+/* アイコンだけのボタン（hdr-btn）は、この規則（枠・余白・白い地）に入れない。枠と大きさは hdr-btn だけで決める（統括の指示 2026-11-06） */
+.p03-toolbar button:not(.hdr-btn) {
   font: inherit;
   padding: 4px 10px;
   margin-left: 6px;
