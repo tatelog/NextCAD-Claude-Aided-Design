@@ -101,17 +101,13 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
     useConfirmedSite.getState().resetDistrict()
   }
 
-  const fetchDistricts = () => {
-    if (site === null) return
-    void useConfirmedSite.getState().fetchDistrictAt(site, cityCode)
-  }
-
   const runAddressSearch = async () => {
     setAddressLoading(true)
     setAddressError(null)
     try {
       const list = await searchAddress(addressText)
       setCandidates(list)
+      if (list.length === 1) pickCandidate(list[0]!)
       if (list.length === 0 && addressText.trim() !== '') setAddressError('該当する住所がありません')
     } catch (e) {
       setCandidates([])
@@ -124,6 +120,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const pickCandidate = (c: AddressCandidate) => {
     moveSiteByText(String(c.lon), String(c.lat))
     setCandidates([])
+    void useConfirmedSite.getState().fetchDistrictAt({ lon: c.lon, lat: c.lat }, cityCode)
   }
 
   const fetchNeighbors = () => {
@@ -183,7 +180,12 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <button type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
         </div>
         {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
-          <strong>選択地点の情報</strong>
+          <div style={{ position: 'relative' }}>
+            <strong>選択地点の情報</strong>
+            <span className="site-note" tabIndex={0} aria-label="所在地と道路情報の補足" style={{ fontSize: 11 }}>
+              ※<span className="site-note-content" role="tooltip" style={{ top: '100%', bottom: 'auto' }}>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</span>
+            </span>
+          </div>
           <dl style={{ margin: '8px 0 0' }}>
             <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected?.address ?? (parcelUid ? chibanOf(parcelPropsOf(parcelUid) ?? {}) : null) ?? '未取得'}</dd>
             <dt>敷地面積（公図から算出）</dt><dd style={{ margin: '0 0 8px' }}>{parcel ? `${(polygonAreaMm2(parcel) / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} ㎡` : '未取得'}</dd>
@@ -195,16 +197,12 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected?.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
           </dl>
           {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
-          <small>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</small>
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区のコード（例: 13108 は江東区）
             <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
           </label>
           </div>
-          <button type="button" onClick={fetchDistricts} disabled={loading}>
-            {loading ? '取得中…' : 'この地点の用途地域を取る'}
-          </button>
           {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
           {error && <p style={{ color: '#a33' }}>{error}</p>}
           {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
@@ -227,11 +225,13 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           {result && result.fireMatches.map((f) => (
             <p key={f.id} style={{ position: 'relative' }}>
               防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
-              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
-              {f.notificationNumber ? `、${f.notificationNumber}` : ''}
-              {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
-              <span className="site-note" tabIndex={0} aria-label={fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}>
-                ※<span className="site-note-content" role="tooltip">{fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}</span>
+              <span className="site-note" tabIndex={0} aria-label="防火地域の詳細と判定の補足">
+                ※<span className="site-note-content" role="tooltip">
+                  {f.usage === null ? '用途 未取得' : `用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}`}<br />
+                  {f.notificationNumber ?? '告示番号 未取得'}<br />
+                  {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>区分と用途が合わない。元データの確認が要る。<br /></span> : null}
+                  {fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}
+                </span>
               </span>
             </p>
           ))}
@@ -247,7 +247,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>斜線・日影は urf に無い（条例で補う）。</p>
 
         </section>}
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
