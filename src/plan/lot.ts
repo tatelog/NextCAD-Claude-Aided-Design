@@ -4,6 +4,7 @@ import type { Point } from '../geom/viewport'
 import { polygonAreaMm2 } from '../geom/polygon'
 import { isAxisRectangle } from '../volume/placement'
 import { DUMMY_PARCEL } from './dummyParcel'
+import { outwardNormal } from '../law/frontRoad'
 
 /** P2 の敷地。選んだ筆（P1 の公図の平面）があればそれ、無ければダミー */
 export function lotOf(parcel: Point[] | null): Point[] {
@@ -33,6 +34,27 @@ export function lotNoteOf(parcel: Point[] | null): string {
 export function slopeLotNoteOf(parcel: Point[] | null, chiban: string | null): string {
   const lot = parcel === null ? '筆界（ダミー 20 m × 30 m）' : `選んだ筆（${chiban === null ? '地番不明' : `地番 ${chiban}`}）`
   return `斜線は法定の値（建築基準法 第56条・別表第三）を${lot}に当てて切る。`
+}
+
+/** 筆界の一つの辺の番号（2D の平面に出す。統括の決定 2026-11-06）。mid は辺の中点、outward は外向きの単位ベクトル、selected は前面道路に選んでいる辺 */
+export interface LotEdgeLabel {
+  index: number
+  mid: Point
+  outward: { x: number; y: number }
+  selected: boolean
+}
+
+/** 筆界の辺の番号（0〜n−1）。辺 i は頂点 i → i+1。外向きは辺の向きによらず筆界の外へ向く */
+export function lotEdgeLabelsOf(lot: readonly Point[], roadEdgeIndex: number): LotEdgeLabel[] {
+  return lot.map((a, i) => {
+    const b = lot[(i + 1) % lot.length]!
+    return {
+      index: i,
+      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      outward: outwardNormal(lot, i),
+      selected: i === roadEdgeIndex,
+    }
+  })
 }
 
 /** 離れの注記。敷地が軸に平行な矩形のときは出さない。矩形でなければ「離れは矩形の敷地だけ」 */
