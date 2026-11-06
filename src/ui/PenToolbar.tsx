@@ -1,3 +1,4 @@
+import { LeftPanelResize, useLeftPanelWidth } from './LeftPanelResize'
 // ペンの道具（D-04 共通部品「ペンのモード」、G52）。直線／曲線、Undo／Redo、置き場（上・左・独立）の切替。
 // 置き場は上（ヘッダー）・左（縦の帯）・独立（浮かせる）。独立のときは、道具のハンドルをつかんで動かす。
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
@@ -23,6 +24,7 @@ export interface PenToolbarProps {
 }
 
 export function PenToolbar({ placement, isDrawing = true, onDraw }: PenToolbarProps) {
+  const leftWidth = useLeftPanelWidth((s) => s.width)
   const penMode = useUi((s) => s.penMode)
   const setPenMode = useUi((s) => s.setPenMode)
   const arcTwoPoint = useUi((s) => s.arcTwoPoint)
@@ -50,10 +52,11 @@ export function PenToolbar({ placement, isDrawing = true, onDraw }: PenToolbarPr
     drag.current = null
   }
 
-  const style = placement === 'free' ? { left: freePosition.x, top: freePosition.y } : undefined
+  const style = placement === 'free' ? { left: freePosition.x, top: freePosition.y } : placement === 'left' ? { width: leftWidth, flexShrink: 0, position: 'relative' as const, boxSizing: 'border-box' as const } : undefined
 
   return (
     <div className={`pen-toolbar is-${placement}`} style={style} role="toolbar" aria-label="ペンの道具">
+      {placement === 'left' && <LeftPanelResize />}
       {placement === 'free' && (
         <button
           type="button"

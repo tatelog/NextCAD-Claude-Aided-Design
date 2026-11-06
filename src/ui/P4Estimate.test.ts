@@ -80,8 +80,8 @@ describe('P4 の左メニュー（共通部品。仕様 1）', () => {
     expect(text).toContain(`オブジェクト${CAPTION}`)
   })
 
-  it('左の列の幅は帯の幅（180）で、その右に本体と右パネル（360）が並ぶ', () => {
-    expect(htmlOf()).toContain('grid-template-columns:180px 1fr 360px')
+  it('左の列は可変の帯幅に追従し、本体は残り幅、右パネルは360px', () => {
+    expect(htmlOf()).toContain('grid-template-columns:max-content minmax(0, 1fr) 360px')
   })
 
   it('左メニューは本体より前（左）に出る', () => {

@@ -1,3 +1,4 @@
+import { LeftPanelResize, useLeftPanelWidth } from './LeftPanelResize'
 // 左メニューの部品（ハブ A-03 G55、D-04 共通部品「左メニュー」）。P2 の 2D 平面・P3・P4 で共通に使う。
 // 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びと開閉は呼び出し側が持つ。
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
@@ -19,6 +20,7 @@ export function objectMenuWidthOf(folded: boolean): number {
 
 export interface ObjectMenuProps {
   /** 種類ごとの結果（件数と中身の入力）。作り方は objectSourcesOfPlan・objectSourcesOfFootprint（plan/objectSourcesOfPlan.ts） */
+  width?: number
   sources: ObjectDetailSources
   /** 選んでいる種類。選んでいなければ null */
   selectedKind: ObjectKind | null
@@ -41,6 +43,7 @@ export interface ObjectMenuProps {
 }
 
 export function ObjectMenu({
+  width = OBJECT_MENU_WIDTH,
   sources,
   selectedKind,
   onSelect,
@@ -56,7 +59,8 @@ export function ObjectMenu({
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
   const groupSummary = objectRows ? unitGroupSummary(objectRows) : null
   const frame = {
-    width: objectMenuWidthOf(folded),
+    width: folded ? OBJECT_MENU_FOLDED_WIDTH : width,
+    position: 'relative' as const,
     boxSizing: 'border-box' as const,
     flex: 'none',
     padding: folded ? 4 : 12,
@@ -83,6 +87,7 @@ export function ObjectMenu({
   if (folded) return <aside style={frame}>{toggle}</aside>
   return (
     <aside style={frame}>
+      <LeftPanelResize />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <h2 style={{ fontSize: 14, margin: '0 0 4px' }}>オブジェクト</h2>
         {toggle}
@@ -159,4 +164,9 @@ export function ObjectMenu({
       ) : null}
     </aside>
   )
+}
+
+export function ResizableObjectMenu(props: ObjectMenuProps) {
+  const width = useLeftPanelWidth((s) => s.width)
+  return <ObjectMenu {...props} width={width} />
 }

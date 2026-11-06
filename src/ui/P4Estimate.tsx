@@ -47,7 +47,7 @@ import { useSite } from '../store/site'
 import { cutFloorAreasOf } from '../volume/cutVolume'
 import { FixtureLayer } from './FixtureLayer'
 import { FixtureSummary } from './FixtureSummary'
-import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
+import { ResizableObjectMenu as ObjectMenu } from './ObjectMenu'
 import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
@@ -238,7 +238,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 360px`, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `max-content minmax(0, 1fr) 360px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
         countSources={countSources}

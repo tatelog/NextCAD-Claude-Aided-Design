@@ -33,7 +33,7 @@ import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 import { PenToolbar } from './PenToolbar'
-import { objectMenuWidthOf, ObjectMenu } from './ObjectMenu'
+import { ResizableObjectMenu as ObjectMenu } from './ObjectMenu'
 import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { SemanticConfirm } from './SemanticConfirm'
 import { DrawingReviewTile } from './DrawingReviewTile'
@@ -379,7 +379,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${objectMenuWidthOf(menuFold.folded)}px 1fr 320px`, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `max-content minmax(0, 1fr) 320px`, height: '100%' }}>
       <ObjectMenu
         sources={objectSources}
         countSources={countSources}

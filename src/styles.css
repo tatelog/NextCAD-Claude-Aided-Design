@@ -235,3 +235,6 @@ body,
   font-size: 12px;
   margin: 6px 0 0;
 }
+
+.left-panel-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; z-index: 4; }
+.left-panel-resize:hover, .left-panel-resize:focus-visible { background: #cad5e7; outline: none; }

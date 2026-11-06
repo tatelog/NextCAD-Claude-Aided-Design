@@ -82,3 +82,5 @@
   background: #1f2a44;
   color: #fff;
 }
+
+.pen-toolbar.is-left .pen-toolbar-group { flex-wrap: wrap; }
