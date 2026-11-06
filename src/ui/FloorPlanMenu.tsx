@@ -24,13 +24,10 @@ export function FloorPlanMenu({floors,plans,widthMm,depthMm,selected,onSelect,ty
    </button>})}
   </div>
   </details>
-  <h2 style={{fontSize:14,marginTop:18}}>住戸構成パターン</h2>
-  <p style={{fontSize:11}}>横にタイプを組み合わせ、同じ列を上下階で揃えます。</p>
-  {PATTERNS.map(([label,names])=>{const ids=names.map(name=>types.find(t=>t.name===name)?.id).filter((id):id is string=>!!id);return <button key={label} type="button" onClick={()=>onPattern(ids)} style={{display:'block',width:'100%',marginBottom:6,textAlign:'left',padding:6}}>{label}<br/><small>{names.join(' ｜ ')}</small></button>})}
-  <label style={{fontSize:12}}>選択中の列構成</label>
-  {pattern.map((id,index)=><select key={index} aria-label={`${index+1}列目の住戸タイプ`} value={id} onChange={e=>onPattern(pattern.map((v,i)=>i===index?e.target.value:v))} style={{width:'100%',marginBottom:4}}>{types.map(t=><option key={t.id} value={t.id}>{index+1}列目：{t.name}</option>)}</select>)}
-  <button type="button" onClick={()=>onPattern([...pattern,types[0]!.id])}>列を追加</button>
-  <button type="button" disabled={pattern.length<=1} onClick={()=>onPattern(pattern.slice(0,-1))}>末尾を削除</button>
-  <button type="button" onClick={onApply} disabled={!floors.length} style={{width:'100%',marginTop:8}}>この構成で各階の配置案を作る</button>
+  <details open style={{marginTop:18}}><summary style={{fontSize:14,fontWeight:700,cursor:"pointer",padding:"8px 0"}}>住戸構成パターン</summary>
+  <p style={{fontSize:11}}>住戸タイプの並びを選んで再配置します。サムネイルは並び方の模式図です。</p>
+  {PATTERNS.map(([label,names])=>{const ids=names.map(name=>types.find(t=>t.name===name)?.id).filter((id):id is string=>!!id);return <button key={label} type="button" aria-pressed={ids.join()===pattern.join()} onClick={()=>onPattern(ids)} style={{display:'block',width:'100%',marginBottom:6,textAlign:'left',padding:6}}><strong>{label}</strong><svg viewBox="0 0 180 76" style={{display:'block',width:'100%',height:76}} aria-hidden="true">{[0,1,2].map(row=>names.map((name,k)=><g key={`${row}-${k}`}><rect x={k*180/names.length+2} y={row*24+2} width={180/names.length-4} height={20} rx={2} fill={name==='1K'?'#d9e8df':name==='1LDK'?'#d9e6f2':name==='2LDK'?'#b6cce0':'#c6bddc'}/>{row===1&&<text x={(k+.5)*180/names.length} y={row*24+16} textAnchor="middle" fontSize="9" fill="#243953">{name}</text>}</g>))}</svg><small>{names.join(' ｜ ')}</small></button>})}
+  <button type="button" onClick={onApply} disabled={!floors.length} style={{width:'100%',marginTop:8}}>このパターンで各階を再配置</button>
+  </details>
  </div>
 }
