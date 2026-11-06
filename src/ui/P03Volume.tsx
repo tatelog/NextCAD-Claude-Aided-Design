@@ -287,7 +287,11 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     const ys = lot.map((p) => p.y)
     return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 5000
   }, [lot])
-  const slopeSheets = useMemo(() => slopeSheetsOf(legal.boundaries, slopeExtentMm), [legal, slopeExtentMm])
+  // 斜線の面は、建物の高さに届くところまで（統括の依頼 2026-11-06）
+  const slopeSheets = useMemo(
+    () => slopeSheetsOf(legal.boundaries, slopeExtentMm, volume ? volume.total_height : undefined),
+    [legal, slopeExtentMm, volume],
+  )
   const overrunFloors = useMemo(
     () => (volume && legal.boundaries.length > 0 ? overrunFloorsOf(volume.footprint, legal.boundaries, volume) : []),
     [volume, legal],

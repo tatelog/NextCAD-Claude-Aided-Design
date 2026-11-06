@@ -151,3 +151,22 @@ describe('実データの確かめ: 準工業・前面道路 6 m・高さ 15 m�
     for (const piece of pieces) for (const p of piece) expect(p.y).toBeLessThanOrEqual(4_000 + 1e-6)
   })
 })
+
+// 斜線の面の奥行きは、建物の高さまでで切る（統括の依頼 2026-11-06。実データの確かめで、隣地の面が敷地の外まで広がって画面を覆った）:
+// 仕様 SC1: 奥行きは、建物の高さに届く距離（(高さ − 立ち上がり) ÷ 係数）まで。その先は、建物に届かないので描かない。
+// 仕様 SC2: 建物の高さが立ち上がり以下なら、その斜線の面は作らない。
+describe('斜線の面の奥行き（建物の高さで切る。仕様 SC1・SC2）', () => {
+  const ADJ: SlopeBoundary = { point: { x: 0, y: 0 }, inward: { x: 1, y: 0 }, coefficient: 2.5, riseMm: 31_000, kind: 'adjacent' }
+
+  it('仕様 SC1: 隣地（立ち上がり 31 m・係数 2.5）の面は、建物の高さ 42 m までの奥行き 4.4 m で止まる（高さは 42 m）', () => {
+    const sheets = slopeSheetsOf([ADJ], 300_000, 42_000)
+    expect(sheets).toHaveLength(1)
+    const high = sheets[0]!.filter((v) => Math.abs(v.hMm - 42_000) < 1e-6)
+    expect(high).toHaveLength(2)
+    for (const v of high) expect(v.x).toBeCloseTo(4_400, 6)
+  })
+
+  it('仕様 SC2: 建物の高さが立ち上がり以下なら、その斜線の面は作らない', () => {
+    expect(slopeSheetsOf([ADJ], 300_000, 30_000)).toEqual([])
+  })
+})

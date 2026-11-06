@@ -20,9 +20,12 @@ export interface SlopeVertex {
  * 斜線の面（境界ごとの傾いた四角形）。境界の線に沿って ±extentMm、内側へ距離 D（距離の上限と extentMm の小さい方）。
  * 高さは、境界の線上で rise、距離 D で rise + coef × D。四隅の順は、西の端（低い側）・東の端（低い側）・東の端（高い側）・西の端（高い側）。
  */
-export function slopeSheetsOf(boundaries: readonly SlopeBoundary[], extentMm: number): SlopeVertex[][] {
-  return boundaries.map((b) => {
-    const depth = b.maxDistanceMm === undefined ? extentMm : Math.min(b.maxDistanceMm, extentMm)
+export function slopeSheetsOf(boundaries: readonly SlopeBoundary[], extentMm: number, heightCapMm?: number): SlopeVertex[][] {
+  return boundaries.flatMap((b) => {
+    let depth = b.maxDistanceMm === undefined ? extentMm : Math.min(b.maxDistanceMm, extentMm)
+    // 建物の高さに届く距離までで切る（それより先は、建物に届かないので描かない）。統括の依頼 2026-11-06
+    if (heightCapMm !== undefined) depth = Math.min(depth, (heightCapMm - b.riseMm) / b.coefficient)
+    if (!(depth > 0)) return []
     const t = { x: -b.inward.y, y: b.inward.x }
     const at = (s: number, d: number, h: number): SlopeVertex => ({
       x: b.point.x + t.x * s + b.inward.x * d,
@@ -31,7 +34,7 @@ export function slopeSheetsOf(boundaries: readonly SlopeBoundary[], extentMm: nu
     })
     const low = b.riseMm
     const high = b.riseMm + b.coefficient * depth
-    return [at(-extentMm, 0, low), at(extentMm, 0, low), at(extentMm, depth, high), at(-extentMm, depth, high)]
+    return [[at(-extentMm, 0, low), at(extentMm, 0, low), at(extentMm, depth, high), at(-extentMm, depth, high)]]
   })
 }
 
