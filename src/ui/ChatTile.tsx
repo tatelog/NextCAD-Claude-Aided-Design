@@ -1,3 +1,4 @@
+import './chat.css'
 // 右パネルの「Claude（チャット）」（ハブ A-03 G95・G96・G97・G14、統括の依頼 t55）。
 // 自由な文で指示する。Claude の質問は選択肢のボタンで出す。図面を変えた返答は、変更の説明と「変更を戻す」を出す。
 // 閉じる（×）は呼び出し側（PanelTile の × と同じ状態）。返信の仕組みは未接続のときは注記を出す。
@@ -28,9 +29,9 @@ export function ChatTile({ screen, fillHeight = false }: ChatTileProps) {
 
   return (
     <div style={{ fontSize: 13, ...(fillHeight ? {display:"flex",flexDirection:"column",flex:1,minHeight:0} as const : {}) }}>
-      <div style={fillHeight ? {flex:1,minHeight:0,overflowY:"auto",overflowWrap:"anywhere"} : undefined}>
+      <div className="chat-history-scroll" style={fillHeight ? {flex:1,minHeight:0,overflowY:"auto",overflowWrap:"anywhere"} : undefined}>
       {notice ? <p style={{ color: '#a33', fontSize: 12 }}>{notice}</p> : null}
-      <ol style={{ listStyle: 'none', padding: 0, margin: '0 0 8px', maxHeight: fillHeight ? undefined : 260, overflowY: fillHeight ? undefined : 'auto' }}>
+      <ol className="chat-history-scroll" style={{ listStyle: 'none', padding: 0, margin: '0 0 8px', maxHeight: fillHeight ? undefined : 260, overflowY: fillHeight ? undefined : 'auto' }}>
         {messages.map((m) => (
           <li key={m.id} style={{ marginBottom: 6 }}>
             <span style={{ fontSize: 11, color: '#5b6670' }}>{ROLE_LABEL[m.role]}</span>
@@ -72,6 +73,7 @@ export function ChatTile({ screen, fillHeight = false }: ChatTileProps) {
         style={{flexShrink:0, paddingTop:8, background:"#fff"}}
         onSubmit={(e) => {
           e.preventDefault()
+          if (sending || !draft.trim()) return
           send(draft)
           setDraft('')
         }}
@@ -79,6 +81,20 @@ export function ChatTile({ screen, fillHeight = false }: ChatTileProps) {
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+            e.preventDefault()
+            if (e.ctrlKey) {
+              const input = e.currentTarget
+              const start = input.selectionStart
+              const end = input.selectionEnd
+              setDraft(input.value.slice(0, start) + '\n' + input.value.slice(end))
+              requestAnimationFrame(() => input.setSelectionRange(start + 1, start + 1))
+              return
+            }
+            if (!e.repeat) e.currentTarget.form?.requestSubmit()
+          }}
+          title="Enterで送信・Ctrl＋Enterで改行"
           rows={2}
           placeholder="自由な文で指示する（例：階数を 5 にして）"
           style={{ width: '100%', boxSizing:'border-box', resize:'vertical', maxHeight:160, font: 'inherit', fontSize: 13 }}
