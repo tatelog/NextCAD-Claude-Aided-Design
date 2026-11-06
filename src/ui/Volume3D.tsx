@@ -1,7 +1,7 @@
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
-import { clipPlanesOf, lotPlateTrianglesOf, LOT_LIFT_MM, sceneFrameOf, type SceneFrame } from './volumeScene'
+import { clipPlanesAt, lotPlateTrianglesOf, LOT_LIFT_MM, sceneFrameOf, type SceneFrame } from './volumeScene'
 import { neighborMeshesOf } from '../volume/neighborMesh'
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
@@ -48,18 +48,44 @@ function FrameCamera({ frame, controlsRef }: { frame: SceneFrame | null; control
     if (!frame) return
     camera.position.set(frame.position[0], frame.position[1], frame.position[2])
     camera.lookAt(frame.target[0], frame.target[1], frame.target[2])
-    // 近い平面・遠い平面を範囲に合わせる（既定の遠い平面 1000 m では、範囲が切れて空に見えた。統括の依頼 2026-11-06）
-    const planes = clipPlanesOf(frame)
-    const perspective = camera as THREE.PerspectiveCamera
-    perspective.near = planes.near
-    perspective.far = planes.far
-    perspective.updateProjectionMatrix()
     const controls = controlsRef.current
     if (controls) {
       controls.target.set(frame.target[0], frame.target[1], frame.target[2])
       controls.update()
     }
   }, [frame, camera, controlsRef])
+  return null
+}
+
+// 近い平面と遠い平面を、カメラの今の距離に合わせて作り直す（統括の依頼 2026-11-06（最優先）。拡大で範囲が消えた）。
+// 初期の距離のまま固定すると、ホイールで寄ったとき範囲が近い平面の手前に入って切れる。外形が無いときだけ。外形があるときは既定の 0.1 m と 1000 m
+const DEFAULT_NEAR_M = 0.1
+const DEFAULT_FAR_M = 1000
+function ClipPlanes({ frame, controlsRef }: { frame: SceneFrame | null; controlsRef: { current: ComponentRef<typeof OrbitControls> | null } }) {
+  const { camera } = useThree()
+  const applied = useRef<string | null>(null)
+  useFrame(() => {
+    let near = DEFAULT_NEAR_M
+    let far = DEFAULT_FAR_M
+    if (frame) {
+      const t = controlsRef.current?.target
+      const tx = t ? t.x : frame.target[0]
+      const ty = t ? t.y : frame.target[1]
+      const tz = t ? t.z : frame.target[2]
+      const d = Math.hypot(camera.position.x - tx, camera.position.y - ty, camera.position.z - tz)
+      const planes = clipPlanesAt(d, frame.radiusM)
+      near = planes.near
+      far = planes.far
+    }
+    // 変わったときだけ、投影の行列を作り直す
+    const key = `${near}:${far}`
+    if (applied.current === key) return
+    applied.current = key
+    const perspective = camera as THREE.PerspectiveCamera
+    perspective.near = near
+    perspective.far = far
+    perspective.updateProjectionMatrix()
+  })
   return null
 }
 
@@ -246,6 +272,7 @@ export function Volume3D({
     <Canvas camera={{ position: [40, 40, 50], fov: 40 }}>
       <CameraDirector request={faceRequest} />
       <FrameCamera frame={sceneFrame} controlsRef={controlsRef} />
+      <ClipPlanes frame={sceneFrame} controlsRef={controlsRef} />
       <color attach="background" args={['#f4f4f2']} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[30, 50, 20]} intensity={0.8} />

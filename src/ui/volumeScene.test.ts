@@ -124,3 +124,40 @@ describe('外形が無いときのカメラの平面（仕様 2a）', () => {
     expect(planes.far).toBeGreaterThan(1000)
   })
 })
+
+// 仕様（統括の依頼 2026-11-06（最優先の不具合）。3D の拡大で、範囲が消える。近い平面は、カメラを寄せた今の距離で決める）:
+// 仕様 2b: 目標から半径 r 以内の範囲の点は、カメラが今どの距離 d にあっても、近い平面以上・遠い平面以下に入る。
+//          （最も近い点の距離は max(d − r, 0.01)、最も遠い点の距離は d + r）
+// 仕様 2c: 近い平面は 0.01 m 以上。遠い平面は範囲の最も遠い点より遠い。
+// 仕様 2d: 寄せていく途中（ホイールの一段ごとに距離が縮む）でも、どの段でも 2b が成り立つ。
+import { clipPlanesAt } from './volumeScene'
+
+describe('カメラの今の距離に合わせる平面（仕様 2b〜2d）', () => {
+  const R = 150 // 範囲の半径（m）
+
+  it('仕様 2b: どの距離でも、範囲の最も近い点・最も遠い点は、近い平面と遠い平面の間に入る', () => {
+    for (const d of [0, 0.5, 5, 50, 100, 150, 200, 400, 504, 1000, 3000, 10_000]) {
+      const planes = clipPlanesAt(d, R)
+      expect(planes.near).toBeLessThanOrEqual(Math.max(d - R, 0.01))
+      expect(planes.far).toBeGreaterThanOrEqual(d + R)
+    }
+  })
+
+  it('仕様 2c: 近い平面は 0.01 m 以上、遠い平面は近い平面より遠い', () => {
+    for (const d of [0, 1, 100, 10_000]) {
+      const planes = clipPlanesAt(d, R)
+      expect(planes.near).toBeGreaterThanOrEqual(0.01)
+      expect(planes.far).toBeGreaterThan(planes.near)
+    }
+  })
+
+  it('仕様 2d: 初期の距離から一段ずつ寄せていく（0.95 倍ずつ縮む）途中のどの段でも、2b が成り立つ', () => {
+    let d = 3.36 * R
+    for (let step = 0; step < 60; step++) {
+      const planes = clipPlanesAt(d, R)
+      expect(planes.near).toBeLessThanOrEqual(Math.max(d - R, 0.01))
+      expect(planes.far).toBeGreaterThanOrEqual(d + R)
+      d *= 0.95
+    }
+  })
+})
