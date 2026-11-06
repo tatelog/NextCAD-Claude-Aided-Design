@@ -1,4 +1,4 @@
-// 共通ヘッダーのアイコン（代表の依頼 2026-11-06。文字を消して SVG だけにする）。部品は足さず、自前の線画（16×16、線の色は currentColor）。
+// 共通ヘッダーのアイコン（代表の依頼 2026-11-06。文字を消して SVG だけにする）。ボリューム画面の表示の切り替え（地図・周辺建物・影）も使う。部品は足さず、自前の線画（16×16、線の色は currentColor）。
 // 読み上げはボタンの aria-label と title が受けるので、アイコンは aria-hidden にする。
 
 const svgProps = { width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': true, focusable: false, style: { display: 'block' } } as const
@@ -85,6 +85,34 @@ export function IconPending() {
   return (
     <svg {...svgProps}>
       <path d="M2.5 9 L4 3.5 H12 L13.5 9 V13 H2.5 Z M2.5 9 H5.5 L6.5 10.5 H9.5 L10.5 9 H13.5" {...stroke} />
+    </svg>
+  )
+}
+
+/** 地図（折りたたんだ地図）。ボリューム画面の表示の切り替え（代表の依頼 2026-11-06。1） */
+export function IconMap() {
+  return (
+    <svg {...svgProps}>
+      <path d="M2 4 L6 2.5 L10 4 L14 2.5 V12 L10 13.5 L6 12 L2 13.5 Z M6 2.5 V12 M10 4 V13.5" {...stroke} />
+    </svg>
+  )
+}
+
+/** 周辺建物（低い建物と高い建物） */
+export function IconBuildings() {
+  return (
+    <svg {...svgProps}>
+      <path d="M2 14 V7 H7 V14 M7 14 V3 H14 V14 M2 14 H14" {...stroke} />
+    </svg>
+  )
+}
+
+/** 影（四角の下半分を塗る） */
+export function IconShadow() {
+  return (
+    <svg {...svgProps}>
+      <path d="M3 3 H13 V13 H3 Z" {...stroke} />
+      <path d="M3 8 H13 V13 H3 Z" fill="currentColor" stroke="none" opacity="0.55" />
     </svg>
   )
 }

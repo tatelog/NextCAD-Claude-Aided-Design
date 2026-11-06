@@ -51,6 +51,17 @@ export interface UiState {
   setShowNeighbors: (on: boolean) => void
   setShowDimensions: (on: boolean) => void
   setShowGrid: (on: boolean) => void
+
+  // ボリューム画面の表示（代表の依頼 2026-11-06）。機能の調整（全体）と両方が入っているときに出る（volumeDisplay.ts）
+  /** 地図（P2 の 3D の地面） */
+  volumeMap: boolean
+  /** 周辺建物（P2 の 3D と 2D の輪郭）。初期は off */
+  volumeNeighbors: boolean
+  /** 影（P2 の 3D の地面の日影）。初期は off */
+  volumeShadow: boolean
+  setVolumeMap: (on: boolean) => void
+  setVolumeNeighbors: (on: boolean) => void
+  setVolumeShadow: (on: boolean) => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -84,4 +95,11 @@ export const useUi = create<UiState>((set) => ({
   setShowNeighbors: (on) => set({ showNeighbors: on }),
   setShowDimensions: (on) => set({ showDimensions: on }),
   setShowGrid: (on) => set({ showGrid: on }),
+
+  volumeMap: true,
+  volumeNeighbors: false,
+  volumeShadow: false,
+  setVolumeMap: (on) => set({ volumeMap: on }),
+  setVolumeNeighbors: (on) => set({ volumeNeighbors: on }),
+  setVolumeShadow: (on) => set({ volumeShadow: on }),
 }))

@@ -115,6 +115,12 @@ body,
   color: #6b6558;
   font-size: 12px;
 }
+/* ボリューム画面の表示の切り替え（地図・周辺建物・影）。アイコンだけで、枠は無い（hdr-btn）。代表の依頼 2026-11-06 */
+.p03-layers {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .p03-body {
   display: flex;
   flex: 1;

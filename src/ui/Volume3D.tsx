@@ -186,6 +186,8 @@ interface Volume3DProps {
   onStoreyCount?: (n: number) => void
   /** 敷地からの離れの寸法線（G67）。渡さなければ出さない（寸法線の表示をオフにしたとき） */
   setbackLines?: SetbackLine[] | null
+  /** 地図（地面と格子）を出すか。省略は出す（代表の依頼 2026-11-06。1） */
+  showMap?: boolean
 }
 
 export function Volume3D({
@@ -202,6 +204,7 @@ export function Volume3D({
   onStoreyCount,
   setbackLines,
   floors,
+  showMap = true,
 }: Volume3DProps) {
   const shadowGeo = useMemo(() => (shadow && shadow.length > 0 ? shadowGeometry(shadow) : null), [shadow])
   // 周辺建物は 1 つの形にまとめて描く（建物ごとに部品を作ると描画の呼び出しが増えすぎる）
@@ -296,7 +299,7 @@ export function Volume3D({
           <meshStandardMaterial color="#d8d4c8" side={THREE.DoubleSide} />
         </mesh>
       )}
-      {ground && (
+      {ground && showMap && (
         <>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ground.cx, 0, ground.cz]}>
             <planeGeometry args={[ground.width, ground.depth]} />

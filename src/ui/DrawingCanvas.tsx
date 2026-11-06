@@ -24,6 +24,7 @@ import type { Node, Segment, Stroke } from '../model/schema'
 import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
+import { neighborsShownOf } from './volumeDisplay'
 import { lotOf } from '../plan/lot'
 import { viewOfLot, viewOfSite } from '../plan/lotView'
 import { useUi } from '../store/ui'
@@ -146,7 +147,12 @@ export function DrawingCanvas() {
   // 周辺建物の輪郭（確定した筆の枠で置いた。筆とずれない。統括の依頼 2026-11-06。5）
   const confirmedFrame = confirmedSite?.frame ?? null
   const confirmedBuildings = useConfirmedSite((s) => s.buildings.data)
-  const neighborOutlines = useMemo(() => neighborOutlinesOf(confirmedBuildings ?? [], confirmedFrame), [confirmedBuildings, confirmedFrame])
+  // 周辺建物の輪郭は、ボリュームの周辺建物の切り替えに従う（代表の依頼 2026-11-06。1）。切ると輪郭を描かない
+  const neighborsOn = useUi((s) => neighborsShownOf(s.showNeighbors, s.volumeNeighbors))
+  const neighborOutlines = useMemo(
+    () => (neighborsOn ? neighborOutlinesOf(confirmedBuildings ?? [], confirmedFrame) : []),
+    [neighborsOn, confirmedBuildings, confirmedFrame],
+  )
   const displayGrid = useUi((s) => s.displayGrid)
   const openCircleMenu = useUi((s) => s.openCircleMenu)
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])

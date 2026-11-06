@@ -55,6 +55,9 @@ import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
 import { shouldShowScene3DOf } from './volumeScene'
+import { neighborsShownOf, shadowShownOf } from './volumeDisplay'
+import { HeaderIconButton } from './HeaderIconButton'
+import { IconBuildings, IconMap, IconShadow } from './headerIcons'
 import { SceneErrorBoundary } from './SceneErrorBoundary'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
@@ -124,6 +127,15 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const showNeighbors = useUi((s) => s.showNeighbors)
   const showDimensions = useUi((s) => s.showDimensions)
   const showMiniMap = useUi((s) => s.showMiniMap)
+  // ボリューム画面の表示（代表の依頼 2026-11-06。1）。機能の調整（全体）と両方が入っているときに出る
+  const volumeMap = useUi((s) => s.volumeMap)
+  const volumeNeighbors = useUi((s) => s.volumeNeighbors)
+  const volumeShadow = useUi((s) => s.volumeShadow)
+  const setVolumeMap = useUi((s) => s.setVolumeMap)
+  const setVolumeNeighbors = useUi((s) => s.setVolumeNeighbors)
+  const setVolumeShadow = useUi((s) => s.setVolumeShadow)
+  const neighborsOn = neighborsShownOf(showNeighbors, volumeNeighbors)
+  const shadowOn = shadowShownOf(showShadow, volumeShadow)
   const sitePoint = useSite((s) => s.sitePoint)
   const neighbors = useMemo(
     () => {
@@ -413,6 +425,11 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             </button>
           )}
         </span>
+        <span className="p03-layers" aria-label="表示の切り替え">
+          <HeaderIconButton label="地図" icon={<IconMap />} pressed={volumeMap} onClick={() => setVolumeMap(!volumeMap)} />
+          <HeaderIconButton label="周辺建物" icon={<IconBuildings />} pressed={volumeNeighbors} onClick={() => setVolumeNeighbors(!volumeNeighbors)} />
+          <HeaderIconButton label="影" icon={<IconShadow />} pressed={volumeShadow} onClick={() => setVolumeShadow(!volumeShadow)} />
+        </span>
         <span className="p03-actions">
           <button type="button" onClick={clear} disabled={segments.length === 0}>
             全部消す
@@ -438,14 +455,15 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         {placement === 'left' && <PenToolbar placement="left" />}
         {placement === 'free' && <PenToolbar placement="free" />}
         {view === '3d' ? (
-          shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: showNeighbors ? neighbors.length : 0 }) ? (
+          shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: neighborsOn ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
               <SceneErrorBoundary>
               <Volume3D
                 footprint={volume ? volume.footprint : null}
                 lot={parcel}
-                shadow={showShadow ? sunShadow : null}
-                neighbors={showNeighbors ? neighbors : []}
+                shadow={shadowOn ? sunShadow : null}
+                neighbors={neighborsOn ? neighbors : []}
+                showMap={volumeMap}
                 floors={stackedFloors}
                 setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
