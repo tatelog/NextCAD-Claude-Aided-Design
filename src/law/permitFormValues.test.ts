@@ -41,9 +41,9 @@ describe('ボリュームから入る記入値（t31）', () => {
     expect(v['F2-4-08']).toEqual({ value: '5', from: 'ボリューム' })
   })
 
-  it('構造は案件の入力から入り、出典は案件', () => {
+  it('構造は案件の入力から入り、出典は案件（造の前に入る文字は「鉄筋コンクリート」）', () => {
     const v = formValuesFromVolume(block(5), project)
-    expect(v['F2-4-04']).toEqual({ value: 'RC', from: '案件' })
+    expect(v['F2-4-04']).toEqual({ value: '鉄筋コンクリート', from: '案件' })
   })
 
   it('敷地面積は、入力が無いときは入らない（ボリュームからは取らない）', () => {

@@ -8,7 +8,7 @@ import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
-import { AREA_REFERENCE_NOTE, formValuesFromVolume, siteAreaM2Of } from '../law/permitFormValues'
+import { AREA_REFERENCE_NOTE, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
 import { chibanOf } from '../map/parcelInfo'
 import { parcelPropsOf } from '../map/selectedParcel'
 import { requiredPermitDocuments } from '../law/permitRequired'
@@ -101,16 +101,25 @@ export function P5Output() {
   // 様式の欄に入れる値（ボリュームから決まるもの。案件の敷地面積は入力があるときだけ）
   // 記入する値。地名地番と敷地面積は、確定した筆のデータ（公図）から。筆が無ければ入らない
   const confirmedForForm = useConfirmedSite((s) => s.confirmed)
+  const districtForForm = useConfirmedSite((s) => s.district.data)
   const formValues = useMemo(() => {
     if (!permitVolume) return {}
     const props = confirmedForForm?.parcelUid ? parcelPropsOf(confirmedForForm.parcelUid) : undefined
     const chiban = props ? chibanOf(props) : null
+    const lotForForm = lotOfConfirmed(confirmedForForm)
+    const frontLength = confirmedForForm && lotForForm ? frontEdgeLengthM(lotForForm, confirmedForForm.roadEdge) : undefined
+    // 防火の区分は、確定の地点の法規（取れていなければ決めない）
+    const fire = fireLabelOf(
+      districtForForm === null ? null : { functions: districtForForm.fireMatches.map((f) => f.function), unknownOwner: districtForForm.fireUnknownOwner.length },
+    )
     return formValuesFromVolume(permitVolume, {
       structure: APP_STRUCTURE,
-      siteAreaM2: siteAreaM2Of(lotOfConfirmed(confirmedForForm)),
+      siteAreaM2: siteAreaM2Of(lotForForm),
       ...(chiban !== null ? { chiban } : {}),
+      ...(fire !== null ? { fire } : {}),
+      ...(frontLength !== undefined ? { frontRoadLengthM: frontLength } : {}),
     })
-  }, [permitVolume, confirmedForForm])
+  }, [permitVolume, confirmedForForm, districtForForm])
   const ready = volume !== null
   const valid = ready && wallOk
 
