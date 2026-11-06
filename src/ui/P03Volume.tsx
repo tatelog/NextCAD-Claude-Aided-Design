@@ -59,7 +59,7 @@ import { DrawingCanvas } from './DrawingCanvas'
 import { PenToolbar } from './PenToolbar'
 import { Volume3D } from './Volume3D'
 import { shouldShowScene3DOf } from './volumeScene'
-import { neighborsShownOf, shadowShownOf } from './volumeDisplay'
+import { mapShownOf, neighborsShownOf, shadowShownOf } from './volumeDisplay'
 import { HeaderIconButton } from './HeaderIconButton'
 import { IconBuildings, IconMap, IconShadow, IconSlope } from './headerIcons'
 import { overrunFloorsOf, slopeSheetsOf } from '../volume/slopeSurface'
@@ -95,7 +95,7 @@ import { sunSiteOf } from '../plan/sunSite'
 import { useDevTools } from '../store/devTools'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
-export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
+export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSelectSite?: () => void } = {}) {
   const [sideWidth, setSideWidth] = useState(260)
   const sideDrag = useRef<{ x: number; width: number } | null>(null)
   const devShown = useDevTools((s) => s.shown)
@@ -463,7 +463,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           )}
         </span>
         <span className="p03-layers" aria-label="表示の切り替え">
-          <HeaderIconButton label="地図" icon={<IconMap />} pressed={volumeMap} onClick={() => setVolumeMap(!volumeMap)} />
+          <HeaderIconButton label="地図" icon={<IconMap />} pressed={mapShownOf(volumeMap, mapTiles.length)} title={mapTiles.length === 0 ? "敷地を選ぶと地図を表示できます" : "地図"} onClick={() => { if (mapTiles.length === 0) onSelectSite?.(); else setVolumeMap(!volumeMap) }} />
           <HeaderIconButton label="周辺建物" icon={<IconBuildings />} pressed={volumeNeighbors} onClick={() => setVolumeNeighbors(!volumeNeighbors)} />
           <HeaderIconButton label="影" icon={<IconShadow />} pressed={volumeShadow} onClick={() => setVolumeShadow(!volumeShadow)} />
           <HeaderIconButton label="斜線の面" icon={<IconSlope />} pressed={volumeSlope} onClick={() => setVolumeSlope(!volumeSlope)} />
@@ -473,7 +473,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             全部消す
           </button>
         </span>
-        {confirmed === null ? <span className="p03-note">まだ確定していない（敷地の「この敷地で確定」。今はダミーの筆界）。</span> : null}
+        {confirmed === null ? <span className="p03-note" role="status">地図を表示するには敷地を確定してください。<button type="button" onClick={onSelectSite}>敷地を選ぶ</button></span> : null}
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
       </header>
       <div className="p03-body">
@@ -497,7 +497,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 lot={parcel}
                 shadow={shadowOn ? sunShadow : null}
                 neighbors={neighborsOn ? neighbors : []}
-                showMap={volumeMap}
+                showMap={mapShownOf(volumeMap, mapTiles.length)}
                 mapTiles={mapTiles}
                 slopeSheets={slopeSheets}
                 overrunFloors={overrunFloors}

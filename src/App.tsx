@@ -307,7 +307,7 @@ export function App() {
 
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         {screen === 'P1' && <P1Site onNext={() => go('P2')} />}
-        {screen === 'P2' && <P03Volume onNext={() => go('P3')} />}
+        {screen === 'P2' && <P03Volume onNext={() => go('P3')} onSelectSite={() => go('P1')} />}
         {screen === 'P3' && <P3Plan onNext={() => go('P4')} />}
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}

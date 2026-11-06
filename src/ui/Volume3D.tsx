@@ -223,13 +223,14 @@ function MapTileMesh({ tile }: { tile: MapTile }) {
 }
 
 // 地図のタイルが読めないときも、3D は描く（タイルだけ出さない。灰色の地面は残す）
-class TileErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class TileErrorBoundary extends Component<{ children: ReactNode; onError: () => void }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError() {
     return { failed: true }
   }
   componentDidCatch(error: unknown): void {
     console.error('地理院タイルを貼れなかった', error)
+    this.props.onError()
   }
   render(): ReactNode {
     return this.state.failed ? null : this.props.children
@@ -309,6 +310,10 @@ export function Volume3D({
   // 寸法の表記（DOM）の置き場。側ごとに一つ（SetbackLabels が位置を写す）
   const labelRefs = useRef<Record<string, HTMLDivElement | null>>({})
   // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
+  const [mapFailed, setMapFailed] = useState(false)
+  const [mapRetry, setMapRetry] = useState(0)
+  const mapKey = (mapTiles?.map((tile) => tile.url).join(',') ?? '') + ':' + mapRetry
+  useEffect(() => { setMapFailed(false) }, [mapKey, showMap])
   const [knobPreview, setKnobPreview] = useState<KnobPreview | null>(null)
   const shownFootprint = footprint === null ? null : knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
   const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
@@ -432,7 +437,7 @@ export function Volume3D({
       )}
       {ground && displayGrid && <gridHelper args={[Math.max(ground.width, ground.depth), 20]} position={[ground.cx, 0.001, ground.cz]} />}
       {showMap && mapTiles && mapTiles.length > 0 && (
-        <TileErrorBoundary>
+        <TileErrorBoundary key={mapKey} onError={() => setMapFailed(true)}>
           <Suspense fallback={null}>
             {mapTiles.map((t) => (
               <MapTileMesh key={t.url} tile={t} />
@@ -500,6 +505,9 @@ export function Volume3D({
     <div style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none', fontSize: 12, color: '#59616c', background: 'rgba(255,255,255,0.85)', padding: '4px 8px', borderRadius: 4 }}>
       設定階数 {shownStoreyCount} 階 · 階高 {(storeyHeightMm / 1000).toLocaleString('ja-JP')} m
     </div>
+    {showMap && mapFailed && <div role="alert" style={{ position: 'absolute', left: 8, bottom: 28, padding: 8, background: '#fff', fontSize: 12 }}>
+      地図を読み込めませんでした。<button type="button" onClick={() => { mapTiles?.forEach((tile) => useLoader.clear(THREE.TextureLoader, tile.url)); setMapRetry((n) => n + 1) }}>再試行</button>
+    </div>}
     <div style={{ position: 'absolute', top: 8, right: 8 }}>
       <ViewCube onHome={onHome} toCamera={viewDir} onPick={(t: CubeTarget) => setFaceRequest((prev) => ({ dir: t.dir, token: (prev?.token ?? 0) + 1 }))} />
     </div>
