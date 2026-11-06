@@ -179,7 +179,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地選定</h2>
-        {(inspected || result || site) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
+        {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
           <strong>選択地点の情報</strong>
           <dl style={{ margin: '8px 0 0' }}>
             <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected?.address ?? (parcelUid ? chibanOf(parcelPropsOf(parcelUid) ?? {}) : null) ?? '未取得'}</dd>
@@ -191,6 +191,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             <dt>告示番号</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.notificationNumber ?? '未取得'}</dd>
             <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected?.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
           </dl>
+          {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
           <small>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</small>
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
@@ -246,7 +247,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         </section>}
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
-        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
         <div style={{ margin: '0 0 8px' }}>
           <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（ボリュームへ）</button>
           {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
