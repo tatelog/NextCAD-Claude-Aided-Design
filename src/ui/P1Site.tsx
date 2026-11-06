@@ -185,6 +185,43 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
           <button type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
         </div>
+
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
+        <div style={{ margin: '0 0 8px' }}>
+          {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
+          {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
+        </div>
+        {mapInfo && <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            住所
+            <input
+              value={addressText}
+              onChange={(e) => setAddressText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runAddressSearch()
+              }}
+              placeholder="例: 東京都江東区東陽4-11-28"
+              style={{ width: '100%' }}
+            />
+          </label>
+          <button type="button" onClick={() => void runAddressSearch()} disabled={addressLoading}>
+            {addressLoading ? '検索中…' : '住所で探す'}
+          </button>
+          {addressError && <p style={{ color: '#a33' }}>{addressError}</p>}
+          {candidates.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+              {candidates.map((c) => (
+                <li key={`${c.lon},${c.lat},${c.title}`} style={{ marginBottom: 4 }}>
+                  <button type="button" onClick={() => pickCandidate(c)} style={{ textAlign: 'left' }}>
+                    {c.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
           <div style={{ position: 'relative' }}>
             <strong>選択地点の情報</strong>
@@ -256,42 +293,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
 
           {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
         </section>}
-        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
-        <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
-        <div style={{ margin: '0 0 8px' }}>
-          {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
-          {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
-        </div>
-        {mapInfo && <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 6 }}>
-            住所
-            <input
-              value={addressText}
-              onChange={(e) => setAddressText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void runAddressSearch()
-              }}
-              placeholder="例: 東京都江東区東陽4-11-28"
-              style={{ width: '100%' }}
-            />
-          </label>
-          <button type="button" onClick={() => void runAddressSearch()} disabled={addressLoading}>
-            {addressLoading ? '検索中…' : '住所で探す'}
-          </button>
-          {addressError && <p style={{ color: '#a33' }}>{addressError}</p>}
-          {candidates.length > 0 && (
-            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
-              {candidates.map((c) => (
-                <li key={`${c.lon},${c.lat},${c.title}`} style={{ marginBottom: 4 }}>
-                  <button type="button" onClick={() => pickCandidate(c)} style={{ textAlign: 'left' }}>
-                    {c.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
         <div style={devShown ? undefined : { display: 'none' }}>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
