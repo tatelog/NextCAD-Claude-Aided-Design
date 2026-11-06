@@ -68,10 +68,12 @@ export function ObjectMenu({
   const toggle = onToggleFold ? (
     <button
       type="button"
+      className="btn-icon"
       aria-expanded={!folded}
       aria-label={folded ? 'オブジェクトを開く' : 'オブジェクトを閉じる'}
+      title={folded ? 'オブジェクトを開く' : 'オブジェクトを閉じる'}
       onClick={onToggleFold}
-      style={{ font: 'inherit', padding: '0 2px', border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
+      style={{ font: 'inherit', padding: '0 2px', background: 'transparent', color: 'inherit', cursor: 'pointer' }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
         <path d={folded ? 'M4 2 L8 6 L4 10' : 'M2 4 L6 8 L10 4'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -92,6 +94,7 @@ export function ObjectMenu({
           <li key={r.kind} style={{ borderBottom: '1px dashed #e6e4dc' }}>
             <button
               type="button"
+              className="btn-text"
               aria-pressed={selectedKind === r.kind}
               onClick={() => onSelect(toggleKind(selectedKind, r.kind))}
               style={{
@@ -100,7 +103,6 @@ export function ObjectMenu({
                 gap: 8,
                 width: '100%',
                 padding: '3px 4px',
-                border: 0,
                 background: selectedKind === r.kind ? '#ece8da' : 'transparent',
                 color: 'inherit',
                 font: 'inherit',

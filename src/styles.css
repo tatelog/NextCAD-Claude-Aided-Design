@@ -13,6 +13,22 @@ body,
   /* 地は白を明示する（暗い表示の既定の地に任せると、濃い文字が沈む。統括の依頼 2026-11-05） */
   background: #fff;
 }
+/* ボタンの枠の決まり（代表 2026-11-06「テキストが入る場合は枠入れてね」）: 文字が入るボタン（アイコンと文字の両方を含む）は枠あり。アイコンだけのボタンは枠なし */
+.btn-text {
+  border: 1px solid #b8b2a4;
+  border-radius: 4px;
+}
+.btn-icon {
+  border: none;
+  cursor: pointer;
+}
+.btn-icon:hover {
+  background: #ebe7dc;
+}
+.btn-icon:active {
+  background: #ddd6c6;
+}
+
 /* 共通ヘッダーのアイコンだけのボタン（代表の依頼 2026-11-06）。枠は無し。押せることは、指を置いた・押した時の背景の色で示す。選ばれているものは背景の色 */
 .hdr-btn {
   font: inherit;

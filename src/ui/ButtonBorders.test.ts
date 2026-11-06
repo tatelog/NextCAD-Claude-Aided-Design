@@ -1,0 +1,50 @@
+// 仕様（代表の決まり 2026-11-06「テキストが入る場合は枠入れてね」）:
+// BB1: 文字が入るボタン（アイコンと文字の両方を含む）は枠あり。枠は CSS の btn-text で付け、インラインで枠を消さない。
+// BB2: アイコンだけのボタンは枠なし（btn-icon）。押せることは背景の色の変化で示し、aria-label と title を付ける。
+// BB3: 枠の決まりは styles.css に一か所で書く（btn-text は枠あり、btn-icon は枠なし）。
+// 対象: 右パネルの × （TileClose）・メニューの折りたたみ（Fold）・メニューのチェックの行（MenuCheckRows）。
+import { describe, expect, it } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { TileClose } from './PanelTile'
+import { Fold } from './Fold'
+import { MenuCheckRows } from './MenuCheckRows'
+
+const buttonsOf = (html: string): string[] => html.match(/<button[^>]*>/g) ?? []
+
+describe('文字が入るボタンは枠あり（仕様 BB1）', () => {
+  it('BB1: 右パネルの × は btn-text（枠は CSS で付け、インラインで消さない）', () => {
+    const [b] = buttonsOf(renderToStaticMarkup(createElement(TileClose, { title: '外形', onHide: () => undefined })))
+    expect(b).toContain('class="btn-text"')
+    expect(b).not.toMatch(/border:\s*0/)
+  })
+
+  it('BB1: メニューの折りたたみの見出し（▾ 文字）は btn-text', () => {
+    const [b] = buttonsOf(renderToStaticMarkup(createElement(Fold, { title: 'クレジット（出典）' })))
+    expect(b).toContain('class="btn-text"')
+    expect(b).not.toMatch(/border:\s*0/)
+  })
+
+  it('BB1: メニューのチェックの行（文字とチェックの絵）は btn-text', () => {
+    const groups = [{ heading: '共通', rows: [{ id: 'x', title: '日影', shown: true }] }] as never
+    const [b] = buttonsOf(renderToStaticMarkup(createElement(MenuCheckRows, { groups, onToggle: () => undefined })))
+    expect(b).toContain('class="btn-text"')
+    expect(b).not.toMatch(/border:\s*0/)
+  })
+})
+
+describe('アイコンだけのボタンは枠なし（仕様 BB2・BB3）', () => {
+  const css = readFileSync(join(process.cwd(), 'src', 'styles.css'), 'utf8')
+
+  it('BB3: styles.css に btn-text（枠あり）と btn-icon（枠なし）が一か所ずつある', () => {
+    expect(css).toMatch(/\.btn-text\s*\{[^}]*border:\s*1px solid/)
+    expect(css).toMatch(/\.btn-icon\s*\{[^}]*border:\s*none/)
+  })
+
+  it('BB2: 押せることは背景の色で示す（btn-icon の指を置いた・押した時の背景）', () => {
+    expect(css).toMatch(/\.btn-icon:hover\s*\{[^}]*background/)
+    expect(css).toMatch(/\.btn-icon:active\s*\{[^}]*background/)
+  })
+})
