@@ -58,7 +58,7 @@ import { judgeFar } from '../volume/farCheck'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { CircleMenu } from './CircleMenu'
 import { DrawingCanvas } from './DrawingCanvas'
-import { PenToolbar } from './PenToolbar'
+import { DockedPenToolbar } from './DockedPenToolbar'
 import { Volume3D } from './Volume3D'
 import { shouldShowScene3DOf } from './volumeScene'
 import { mapShownOf, neighborsShownOf, shadowShownOf } from './volumeDisplay'
@@ -477,7 +477,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
 </>, headerSlots.display)}
         {headerSlots && createPortal(<HeaderIconButton label="全部消す" title="描いた線をすべて削除" disabled={segments.length === 0} onClick={() => { if (window.confirm("描いた線をすべて削除しますか？")) clear() }} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l3 3m8 8 3 3M5 19l3-3M16 8l3-3"/></svg>} />, headerSlots.clear)}
         {!toolbarVisible && <button type="button" title="作図ツールを表示" aria-label="作図ツールを表示" onClick={()=>setToolbarVisible(true)}>✎</button>}
-        {toolbarVisible && placement === 'top' && <PenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="top" />}
         {confirmed === null ? <span className="p03-note" role="status">地図を表示するには敷地を確定してください。<button type="button" onClick={onSelectSite}>敷地を選ぶ</button></span> : null}
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
       </header>
@@ -491,8 +490,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           folded={menuFold.folded}
           onToggleFold={menuFold.toggle}
         />
-        {toolbarVisible && placement === 'left' && <PenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="left" />}
-        {toolbarVisible && placement === 'free' && <PenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="free" />}
+        <div className="volume-preview-workspace">
+        {toolbarVisible && <DockedPenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement={placement} />}
         {view === '3d' ? (
           shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: neighborsOn ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
@@ -535,6 +534,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
             <CircleMenu />
           </div>
         )}
+        </div>
         <div
           className="p03-side-resizer"
           role="separator"

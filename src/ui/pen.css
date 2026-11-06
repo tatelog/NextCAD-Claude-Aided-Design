@@ -89,3 +89,18 @@
 .pen-toolbar.is-top button.pen-toolbar-handle { width:18px; height:32px; }
 .pen-toolbar.is-top .pen-grip-bar { width:3px; height:20px; }
 #volume-display-controls .p03-mode, #volume-display-controls .p03-layers { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+
+.volume-preview-workspace {position:relative;display:flex;flex:1;min-width:0;min-height:0;overflow:hidden}
+.docked-pen {position:absolute;z-index:12;display:flex;gap:2px;align-items:center;background:#fff;border:1px solid #d8d6cf;border-radius:6px;padding:3px;max-width:100%;max-height:100%;overflow:auto;box-sizing:border-box}
+.docked-pen.vertical {flex-direction:column}
+.docked-pen .pen-toolbar {border:0;padding:0;margin:0;box-shadow:none;background:transparent}
+.docked-pen button.dock-grip,.docked-pen button.dock-close {border:0;background:transparent;box-shadow:none;padding:2px;color:#9ba3ad;flex-shrink:0;width:18px;height:24px;display:grid;place-items:center}
+.docked-pen button.dock-grip {cursor:grab;touch-action:none}
+.dock-grip span {display:block;width:3px;height:20px;background:#c4c9d0;border-radius:2px}
+.vertical .dock-grip span {width:20px;height:3px}
+.docked-pen.vertical button.dock-grip,.docked-pen.vertical button.dock-close {width:32px;height:18px}
+.toolbar-dock-preview {position:absolute;background:#408eff99;z-index:11;pointer-events:none}
+.toolbar-dock-preview.dock-left {left:0;top:0;bottom:0;width:4px}
+.toolbar-dock-preview.dock-right {right:0;top:0;bottom:0;width:4px}
+.toolbar-dock-preview.dock-top {left:0;right:0;top:0;height:4px}
+.toolbar-dock-preview.dock-bottom {left:0;right:0;bottom:0;height:4px}
