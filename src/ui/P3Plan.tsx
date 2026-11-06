@@ -159,6 +159,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [rectangleOpen, setRectangleOpen] = useState(false)
   const [toolPosition, setToolPosition] = useState({x:8,y:8})
   const toolDrag = useRef<{x:number;y:number;left:number;top:number}|null>(null)
+  const [toolDock,setToolDock] = useState<'top'|'bottom'|'left'|'right'|null>(null)
+  const [dockPreview,setDockPreview] = useState<'top'|'bottom'|'left'|'right'|null>(null)
+  const toolHorizontal = toolDock ? toolDock==='top'||toolDock==='bottom' : placement==='top'
   const [toolsOpen, setToolsOpen] = useState(true)
   const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
   useEffect(() => {
@@ -416,16 +419,17 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <button type="button" aria-label="道具" title="描画の道具" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}><IconModeDrawing /></button>
         </div>
         <div style={{position:'relative', flex:1, minHeight:0, display:'flex', flexDirection:'column'}}>
-        {toolsOpen && <div style={{position:'absolute', top:toolPosition.y, left:toolPosition.x, zIndex:20, maxWidth:'calc(100% - 16px)', background:'#f7f8fa', display:'flex', flexDirection:placement==='top'?'row':'column', borderRadius:6, boxShadow:'0 2px 10px #0002'}}>
-          <div style={{display:'flex',flexDirection:placement==='top'?'column-reverse':'row',alignItems:'center',gap:4,padding:4}}>
+        {dockPreview && <div aria-hidden="true" style={{position:'absolute',pointerEvents:'none',zIndex:19,background:'#3989ff',boxShadow:'0 0 12px #3989ff66',...(dockPreview==='top'?{top:0,left:0,right:0,height:4}:dockPreview==='bottom'?{bottom:0,left:0,right:0,height:4}:dockPreview==='left'?{top:0,bottom:0,left:0,width:4}:{top:0,bottom:0,right:0,width:4})}} />}
+        {toolsOpen && <div style={{position:'absolute', top:toolDock==='bottom'?undefined:toolDock?8:toolPosition.y, bottom:toolDock==='bottom'?8:undefined, left:toolDock==='right'?undefined:toolDock?8:toolPosition.x, right:toolDock==='right'?8:undefined, zIndex:20, maxWidth:'calc(100% - 16px)', background:'#f7f8fa', display:'flex', flexDirection:toolHorizontal?'row':'column', borderRadius:6, boxShadow:'0 2px 10px #0002'}}>
+          <div style={{display:'flex',flexDirection:toolHorizontal?'column-reverse':'row',alignItems:'center',gap:4,padding:4}}>
             <div aria-label="道具メニューを移動" title="ドラッグして移動" style={{cursor:'grab',touchAction:'none',flex:1,minWidth:20,minHeight:20,display:'flex',alignItems:'center',justifyContent:'center',alignSelf:'stretch'}}
-              onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);toolDrag.current={x:e.clientX,y:e.clientY,left:toolPosition.x,top:toolPosition.y}}}
-              onPointerMove={e=>{const d=toolDrag.current;if(!d)return;const panel=e.currentTarget.parentElement!.parentElement!,area=panel.parentElement!;setToolPosition({x:Math.max(0,Math.min(area.clientWidth-panel.offsetWidth,d.left+e.clientX-d.x)),y:Math.max(0,Math.min(area.clientHeight-32,d.top+e.clientY-d.y))})}}
-              onPointerUp={e=>{toolDrag.current=null;e.currentTarget.releasePointerCapture(e.pointerId)}} onPointerCancel={()=>{toolDrag.current=null}}
-            ><span aria-hidden="true" style={{display:'block',background:'#c9cdd3',borderRadius:2,width:placement==='top'?3:28,height:placement==='top'?28:3}} /></div>
+              onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);toolDrag.current={x:e.clientX,y:e.clientY,left:e.currentTarget.parentElement!.parentElement!.offsetLeft,top:e.currentTarget.parentElement!.parentElement!.offsetTop};setToolPosition({x:toolDrag.current.left,y:toolDrag.current.top});setToolDock(null)}}
+              onPointerMove={e=>{const d=toolDrag.current;if(!d)return;const panel=e.currentTarget.parentElement!.parentElement!,area=panel.parentElement!;const x=d.left+e.clientX-d.x,y=d.top+e.clientY-d.y;setToolPosition({x:Math.max(0,Math.min(area.clientWidth-panel.offsetWidth,x)),y:Math.max(0,Math.min(area.clientHeight-panel.offsetHeight,y))});const edges=[['left',Math.abs(x)],['right',Math.abs(area.clientWidth-x-panel.offsetWidth)],['top',Math.abs(y)],['bottom',Math.abs(area.clientHeight-y-panel.offsetHeight)]] as const;const edge=[...edges].sort((a,b)=>a[1]-b[1])[0]!;setDockPreview(edge[1]<=28?edge[0]:null)}}
+              onPointerUp={e=>{toolDrag.current=null;setToolDock(dockPreview);setDockPreview(null);e.currentTarget.releasePointerCapture(e.pointerId)}} onPointerCancel={()=>{toolDrag.current=null;setDockPreview(null)}}
+            ><span aria-hidden="true" style={{display:'block',background:'#c9cdd3',borderRadius:2,width:toolHorizontal?3:28,height:toolHorizontal?28:3}} /></div>
             <button type="button" aria-label="道具メニューを閉じる" title="閉じる" style={{border:0,background:"transparent",color:"#9aa0a8",fontSize:18,fontWeight:300,lineHeight:1,width:20,height:20,padding:0,cursor:"pointer",boxShadow:"none"}} onClick={()=>setToolsOpen(false)}>×</button>
           </div>
-          <PenToolbar compact placement={placement} isDrawing={planDrawing} onDraw={() => useMode.getState().setMode('drawing')} />
+          <PenToolbar compact placement={toolDock ? (toolHorizontal ? 'top' : 'left') : placement} isDrawing={planDrawing} onDraw={() => useMode.getState().setMode('drawing')} />
         </div>}
         {lines && units.cells ? (
           <div ref={planViewport} style={{ position: 'relative', overflow:'auto', flex:1, minHeight:0, background:'#f4f4f2' }}>
