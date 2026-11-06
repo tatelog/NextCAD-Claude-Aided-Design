@@ -26,6 +26,9 @@ export interface LegalSlopeResult {
   pending: string[]
 }
 
+/** 北側斜線の規則は当たるのに、真北が分からないときの未判定の文言（統括の指示 2026-11-06。5c） */
+export const NORTH_NEEDS_TRUE_NORTH = '北側斜線は真北が分からないので未判定'
+
 export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
   const poly = input.footprint
   const n = poly.length
@@ -69,9 +72,9 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
     })
   }
 
-  // 北側（真北の向きが分かるときだけ）
+  // 北側（真北の向きが分かるときだけ作る。分からないのに規則が当たるなら未判定に積む。統括の指示 2026-11-06。5c）
+  const north = northSlopeRule({ zone: input.zone })
   if (input.trueNorth) {
-    const north = northSlopeRule({ zone: input.zone })
     if (north.status === '適用') {
       const N = input.trueNorth
       let best = poly[0]!
@@ -84,6 +87,8 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
         riseMm: north.riseMm,
       })
     }
+  } else if (north.status === '適用') {
+    pending.push(NORTH_NEEDS_TRUE_NORTH)
   }
 
   return { boundaries, pending }
