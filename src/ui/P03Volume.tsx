@@ -82,7 +82,8 @@ import { SCREEN_MODES } from '../app/screenModes'
 import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
-import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf } from '../plan/lot'
+import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf, slopeLotNoteOf } from '../plan/lot'
+import { parcelPropsOf } from '../map/selectedParcel'
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborNoteOf, neighborVolumesInFrame } from '../volume/neighborFrame'
 import { sunSiteOf } from '../plan/sunSite'
@@ -99,6 +100,9 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // 日射・日影の地点（確定した敷地の中心。確定していなければ今までの固定の地点。統括の依頼 2026-11-06。3）
   const sunSite = sunSiteOf(confirmed?.center ?? null)
   const parcel = lotOfConfirmed(confirmed)
+  // 確定した筆の地番（P1 の「選択した筆：地番 …」と同じ値。取れなければ null）。斜線の注記に使う（統括の依頼 2026-11-06）
+  const parcelProps = confirmed?.parcelUid ? parcelPropsOf(confirmed.parcelUid) : undefined
+  const chiban = parcelProps?.['地番'] ?? null
   const lot = lotOf(parcel)
   // 外形は P2 の線だけ（P3 の線は P3 の平面で扱う）
   const drawnAll = useDrawing((s) => s.entries)
@@ -701,7 +705,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する）</p>
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
-            <p className="muted">斜線は法定の値（建築基準法 第56条・別表第三）を筆界（ダミー 20 m × 30 m）に当てて切る。日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。</p>
+            <p className="muted">{slopeLotNoteOf(parcel, chiban)}日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。</p>
           </section>
           <section style={{ ...tileStyle('p2-numeric'), ...(devShown ? {} : { display: 'none' }) }}>
             <TileClose title="数値で線を入れる" onHide={() => hideTile('p2-numeric')} />
