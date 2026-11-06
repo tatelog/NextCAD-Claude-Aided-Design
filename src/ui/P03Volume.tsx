@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import {boxOutline} from '../volume/boxOutline'
 import { visibleSlopeBoundaries, type SlopeVisibility } from './slopeVisibility'
 import { PlanningFramePanel } from './PlanningFramePanel'
@@ -135,6 +136,13 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   const transform = useDrawing((s) => s.transform)
   const placement = useUi((s) => s.toolbarPlacement)
   // 既定は 3D（D-04 P2 の主画面、G42）。外形が閉じるまでは 3D に何も出ない（案内を出す）
+  const [toolbarVisible, setToolbarVisible] = useState(true)
+  const [headerSlots, setHeaderSlots] = useState<{display: HTMLElement; clear: HTMLElement} | null>(null)
+  useEffect(() => {
+    const display = document.getElementById('volume-display-controls')
+    const clear = document.getElementById('volume-clear-control')
+    if (display && clear) setHeaderSlots({display, clear})
+  }, [])
   const [view, setView] = useState<'plan' | '3d'>('3d')
   const [panOnly, setPanOnly] = useState(false)
   const [boxOpen,setBoxOpen] = useState(false)
@@ -450,9 +458,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
     <div className="p03">
       <header className="p03-toolbar">
         <strong>ボリューム作図</strong>
-        <span role="group" aria-label="操作モード"><button type="button" aria-pressed={view === 'plan' && !panOnly} className={view === 'plan' && !panOnly ? 'is-active' : undefined} onClick={startDrawing}>作図</button><button type="button" aria-pressed={panOnly || view === '3d'} className={panOnly || view === '3d' ? 'is-active' : undefined} onClick={() => setPanOnly(true)}>パン</button></span>
-        {placement === 'top' && <PenToolbar onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="top" />}
-        <span className="p03-mode">
+        {headerSlots && createPortal(<>        <span className="p03-mode">
           表示:
           <button type="button" className={view === 'plan' ? 'is-active' : undefined} aria-pressed={view === 'plan'} onClick={() => setView('plan')}>
             平面
@@ -460,11 +466,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           <button type="button" className={view === '3d' ? 'is-active' : undefined} aria-pressed={view === '3d'} onClick={() => setView('3d')}>
             3D
           </button>
-          {view === '3d' && (
-            <button type="button" onClick={() => setHomeToken((n) => n + 1)} title="既定の向きに戻す">
-              ホーム
-            </button>
-          )}
+
         </span>
         <span className="p03-layers" aria-label="表示の切り替え">
           <HeaderIconButton label="地図" icon={<IconMap />} pressed={mapShownOf(volumeMap, mapTiles.length)} title={mapTiles.length === 0 ? "敷地を選ぶと地図を表示できます" : "地図"} onClick={() => { if (mapTiles.length === 0) onSelectSite?.(); else setVolumeMap(!volumeMap) }} />
@@ -472,11 +474,10 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           <HeaderIconButton label="影" icon={<IconShadow />} pressed={volumeShadow} onClick={() => setVolumeShadow(!volumeShadow)} />
           <HeaderIconButton label="斜線の面" icon={<IconSlope />} pressed={volumeSlope} onClick={() => setVolumeSlope(!volumeSlope)} />
         </span>
-        <span className="p03-actions">
-          <button type="button" onClick={() => { if (window.confirm("描いた線をすべて削除しますか？")) clear() }} disabled={segments.length === 0}>
-            全部消す
-          </button>
-        </span>
+</>, headerSlots.display)}
+        {headerSlots && createPortal(<HeaderIconButton label="全部消す" title="描いた線をすべて削除" disabled={segments.length === 0} onClick={() => { if (window.confirm("描いた線をすべて削除しますか？")) clear() }} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l3 3m8 8 3 3M5 19l3-3M16 8l3-3"/></svg>} />, headerSlots.clear)}
+        {!toolbarVisible && <button type="button" title="作図ツールを表示" aria-label="作図ツールを表示" onClick={()=>setToolbarVisible(true)}>✎</button>}
+        {toolbarVisible && placement === 'top' && <PenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="top" />}
         {confirmed === null ? <span className="p03-note" role="status">地図を表示するには敷地を確定してください。<button type="button" onClick={onSelectSite}>敷地を選ぶ</button></span> : null}
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
       </header>
@@ -490,8 +491,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
           folded={menuFold.folded}
           onToggleFold={menuFold.toggle}
         />
-        {placement === 'left' && <PenToolbar onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="left" />}
-        {placement === 'free' && <PenToolbar onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="free" />}
+        {toolbarVisible && placement === 'left' && <PenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="left" />}
+        {toolbarVisible && placement === 'free' && <PenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>setPanOnly(true)} onBox={()=>{setBoxFloors(String(storeyCount));setBoxError('');setBoxOpen(true)}} isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement="free" />}
         {view === '3d' ? (
           shouldShowScene3DOf({ hasVolume: volume !== null, hasLot: parcel !== null, neighborCount: neighborsOn ? neighbors.length : 0 }) ? (
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>

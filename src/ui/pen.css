@@ -83,3 +83,9 @@
 .circle-menu-item:hover:not(:disabled), .circle-menu-item:focus-visible { border-color: #8d9bb1; background: #e1e8f2; }
 .circle-menu-item:disabled { opacity: .3; cursor: default; }
 .circle-menu-close { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cbd2dc; background: #fff; color: #536078; display: grid; place-items: center; cursor: pointer; }
+
+.pen-toolbar button.pen-toolbar-handle, .pen-toolbar button.pen-toolbar-close { border:0; background:transparent; box-shadow:none; color:#9ba3ad; min-width:0; height:18px; padding:2px; }
+.pen-grip-bar { display:block; width:20px; height:3px; border-radius:2px; background:#c4c9d0; }
+.pen-toolbar.is-top button.pen-toolbar-handle { width:18px; height:32px; }
+.pen-toolbar.is-top .pen-grip-bar { width:3px; height:20px; }
+#volume-display-controls .p03-mode, #volume-display-controls .p03-layers { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }

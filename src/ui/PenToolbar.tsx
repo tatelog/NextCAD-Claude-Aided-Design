@@ -17,6 +17,8 @@ const PEN_SCREEN = 'P2' as const
 
 export interface PenToolbarProps {
   /** 独立のときの位置の基準にする要素（この中で動かす） */
+  onClose?: () => void
+  onPan?: () => void
   onBox?: () => void
   compact?: boolean
   isDrawing?: boolean
@@ -24,7 +26,7 @@ export interface PenToolbarProps {
   placement: ToolbarPlacement
 }
 
-export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, compact = false }: PenToolbarProps) {
+export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, onClose, onPan, compact = false }: PenToolbarProps) {
   const penMode = useUi((s) => s.penMode)
   const setPenMode = useUi((s) => s.setPenMode)
   const arcTwoPoint = useUi((s) => s.arcTwoPoint)
@@ -41,14 +43,23 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, compact
   const drag = useRef<{ start: { x: number; y: number }; origin: { x: number; y: number } } | null>(null)
   const onHandleDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { start: { x: e.clientX, y: e.clientY }, origin: freePosition }
+    drag.current = { start: { x: e.clientX, y: e.clientY }, origin: placement === 'free' ? freePosition : (() => {
+      const rect = e.currentTarget.closest('.pen-toolbar')!.getBoundingClientRect()
+      const body = e.currentTarget.closest('.p03')?.querySelector('.p03-body')?.getBoundingClientRect()
+      return {x: rect.left - (body?.left ?? 0), y: rect.top - (body?.top ?? 0)}
+    })() }
   }
   const onHandleMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const d = drag.current
     if (!d) return
     setFreePosition({ x: d.origin.x + (e.clientX - d.start.x), y: d.origin.y + (e.clientY - d.start.y) })
   }
-  const onHandleUp = () => {
+  const onHandleUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (drag.current) {
+      const d = drag.current
+      setFreePosition({x: Math.max(0,d.origin.x+e.clientX-d.start.x), y: Math.max(0,d.origin.y+e.clientY-d.start.y)})
+      setToolbarPlacement('free')
+    }
     drag.current = null
   }
 
@@ -56,7 +67,7 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, compact
 
   return (
     <div className={`pen-toolbar is-${placement}`} style={style} role="toolbar" aria-label="ペンの道具">
-      {placement === 'free' && !compact && (
+      {!compact && (
         <button
           type="button"
           className="pen-toolbar-handle"
@@ -67,9 +78,14 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, compact
           onPointerUp={onHandleUp}
           onPointerCancel={onHandleUp}
         >
-          <ToolIcon name="grip" />
+          <span className="pen-grip-bar" />
         </button>
       )}
+      {!compact && onClose && <button type="button" className="pen-toolbar-close" aria-label="作図ツールを閉じる" title="閉じる" onClick={onClose}>×</button>}
+      {onPan && <span className="pen-toolbar-group" role="group" aria-label="操作モード">
+        <button type="button" title="作図" aria-label="作図" aria-pressed={isDrawing} className={isDrawing?'is-active':undefined} onClick={onDraw}><ToolIcon name="line" /></button>
+        <button type="button" title="パン" aria-label="パン" aria-pressed={!isDrawing} className={!isDrawing?'is-active':undefined} onClick={onPan}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg></button>
+      </span>}
       {onBox && <button type="button" aria-label="直方体" title="直方体を寸法から作成" onClick={onBox}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg></button>}
       <span className="pen-toolbar-group">
         <button type="button" aria-label="直線" title="直線を描く" className={isDrawing && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>

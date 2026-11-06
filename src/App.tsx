@@ -268,9 +268,12 @@ export function App() {
           </button>
         ))}
       </nav>
-        <span aria-hidden="true" style={{color:"#b4b7bd", marginLeft:"auto", paddingLeft:24}}>｜｜</span>
+        <span aria-hidden="true" style={{color:"#b4b7bd", marginLeft:"auto", paddingLeft:24}}>｜</span>
+        <span id="volume-display-controls" style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}} />
+        <span aria-hidden="true" style={{color:"#b4b7bd"}}>｜</span>
         <HeaderIconButton label="元に戻す" title="元に戻す（描画・Ctrl+Z）" icon={<ToolIcon name="undo" />} disabled={!canUndo} onClick={() => useDrawing.getState().undo()} />
         <HeaderIconButton label="やり直す" title="やり直す（描画・Ctrl+Y）" icon={<ToolIcon name="redo" />} disabled={!canRedo} onClick={() => useDrawing.getState().redo()} />
+        <span id="volume-clear-control" style={{display:"flex",flexShrink:0}} />
         {screen === 'P3' && <>
           <HeaderIconButton label="平面図を縮小" disabled={planZoom<=0.25} onClick={()=>setPlanZoom(z=>z/1.25)} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14"/></svg>} />
           <span aria-label="平面図の倍率" style={{fontSize:12,minWidth:40,textAlign:'center',whiteSpace:'nowrap'}}>{Math.round(planZoom*100)}%</span>
