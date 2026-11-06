@@ -10,7 +10,9 @@ import { usePermitProject } from '../store/permitProject'
 import { permitInputFromVolume } from '../law/permitInput'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { frameSvg } from '../law/permitFrameSvg'
-import { applicabilityTextOf, frameSizeOf, judgementRowsOf, legalCheckOfDoc, outlineStateOf, volumeOfOutline, type JudgementKind } from '../permit/p5Judgement'
+import { PermitViewer } from './PermitViewer'
+import permitDocsJson from '../law/permitDocuments.json'
+import { applicabilityTextOf, frameSizeOf, judgementRowsOf, legalCheckOfDoc, outlineStateOf, volumeOfOutline } from '../permit/p5Judgement'
 import { classLabelsOf } from '../law/buildingClass'
 import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
 import { fireStructureItems } from '../law/fireStructure'
@@ -27,7 +29,6 @@ import { FeatureAdjustTile } from './FeatureAdjustTile'
 import { useDevTools } from '../store/devTools'
 import { PermitProjectFields } from './PermitProjectFields'
 
-const KIND_COLOR: Record<JudgementKind, string> = { 要る: '#1f2a44', 要らない: '#666', 要確認: '#a86b00' }
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
 
 export function P5Output() {
@@ -86,6 +87,16 @@ export function P5Output() {
   const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
   const ready = volume !== null
   const valid = ready && wallOk
+
+  // IFC の文字（ビューアで件数と容量を出す。外形が閉じていなければ null）
+  const ifcText = useMemo(() => {
+    if (!outline.ok) return null
+    try {
+      return writeIfc({ footprint: outline.footprint, storey_count: storeys, storey_height: height, wallThicknessMm: wall, schema })
+    } catch {
+      return null
+    }
+  }, [outline, storeys, height, wall, schema])
 
   const download = () => {
     if (!outline.ok) return
@@ -324,35 +335,17 @@ export function P5Output() {
                 </div>
 
                 <section style={{ marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>図書の判定（要る・要らない・要確認）</h3>
-                  <p style={{ fontSize: 12, color: '#444' }}>{applicabilityTextOf(judgement)}</p>
-                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                    <thead>
-                      <tr>
-                        <th align="left">区分</th>
-                        <th align="left">図書</th>
-                        <th align="left">理由・法的チェック</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {judgementRowsOf(judgement).map((r) => {
-                        const check = r.kind === '要る' ? legalCheckOfDoc(r.name, legal) : null
-                        return (
-                          <tr key={`${r.kind}-${r.name}`}>
-                            <td style={{ color: KIND_COLOR[r.kind], fontWeight: r.kind === '要確認' ? 700 : 400 }}>{r.kind}</td>
-                            <td>{r.name}</td>
-                            <td style={{ fontSize: 12 }}>
-                              {r.reason ? <span style={{ color: '#666' }}>{r.reason}</span> : null}
-                              {check ? <span style={{ color: TONE_COLOR[check.tone], marginLeft: r.reason ? 8 : 0 }}>{check.text}</span> : null}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  <p style={{ color: '#666', fontSize: 12 }}>
-                    要確認は判定できなかった図書で、理由を出しています。要らないは条件に当たらなかった理由です。図書の範囲は施行規則 第1条の3 と表一・表二から。
-                  </p>
+                  <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>図書の一覧（見て確かめる）</h3>
+                  <PermitViewer
+                    judgement={judgement}
+                    docs={permitDocsJson.documents}
+                    frame={frame}
+                    ifcText={ifcText}
+                    checkOf={(name) => {
+                      const c = legalCheckOfDoc(name, legal)
+                      return c ? { text: c.text, color: TONE_COLOR[c.tone] } : null
+                    }}
+                  />
                 </section>
 
                 <section style={{ marginBottom: 16 }}>
