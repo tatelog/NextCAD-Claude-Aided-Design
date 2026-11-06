@@ -116,7 +116,7 @@ describe('第八号様式（確認申請書（昇降機）・昇降機用）の�
   const form8 = forms.find((f) => f.id === 'F8')
 
   it('第二面は、番号1〜10の見出しを持つ（1設置者・2代理者・3設計者・4工事施工者・5設置する建築物・6昇降機の概要・7〜9 工事の予定・10備考）', () => {
-    expect(labelsOf(form8?.faces[0])).toEqual([
+    expect(labelsOf(form8?.faces.find((f) => f.title === '第二面'))).toEqual([
       '設置者',
       '代理者',
       '設計者',
@@ -131,7 +131,7 @@ describe('第八号様式（確認申請書（昇降機）・昇降機用）の�
   })
 
   it('6欄（昇降機の概要）は、番号・種別・用途・積載荷重・最大定員・定格速度・その他必要な事項を持つ', () => {
-    const field = form8?.faces[0]?.fields.find((f) => f.label === '昇降機の概要')
+    const field = form8?.faces.find((f) => f.title === '第二面')?.fields.find((f) => f.label === '昇降機の概要')
     expect(field?.subitems).toEqual(['番号', '種別', '用途', '積載荷重', '最大定員', '定格速度', 'その他必要な事項'])
   })
 })
