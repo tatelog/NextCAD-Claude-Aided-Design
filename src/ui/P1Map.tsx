@@ -29,6 +29,7 @@ type Props = {
   // 周辺建物の輪郭（経度・緯度の環の配列）。表示する
   neighborRings: [number, number][][]
   onSiteClick: (p: LonLat) => void
+  onSiteInspect?: (p: LonLat, roads: string[]) => void
   onInfo: (text: string) => void
   onStatus: (text: string) => void
   onView: (center: LonLat, zoom: number) => void
@@ -105,6 +106,17 @@ export function P1Map(props: Props) {
     map.on('dblclick', (e) => {
       e.preventDefault()
       map.jumpTo(topViewAt(e.lngLat.lng, e.lngLat.lat, DEMO_INITIAL_VIEW.zoom))
+      const p = { lon: e.lngLat.lng, lat: e.lngLat.lat }
+      const uid = selectParcelAt(p.lon, p.lat)
+      showSelectedParcel(map, selectedRef, uid)
+      const point = map.project(e.lngLat)
+      const layers = ROAD_WIDTH_CLASSES.map((w) => `roads-w${w.k}`).filter((id) => map.getLayer(id))
+      const roads = layers.length ? map.queryRenderedFeatures([[point.x - 100, point.y - 100], [point.x + 100, point.y + 100]], { layers }) : []
+      const labels = [...new Set(roads.flatMap((r) => {
+        const width = ROAD_WIDTH_CLASSES.find((w) => w.k === Number(r.properties.w))
+        return width ? [width.label] : []
+      }))]
+      latest.current.onSiteInspect?.(p, labels)
     })
     map.addControl(new ScaleControl({ maxWidth: 160, unit: 'metric' }), 'bottom-left')
     const magnification = document.createElement('div')

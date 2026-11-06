@@ -12,7 +12,8 @@ import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
 import { useConfirmedSite, isConfirmedStaleOf, startSiteOf } from '../store/confirmedSite'
 import { districtStatusTextOf } from './districtFetch'
-import { geometryOfParcel } from '../map/selectedParcel'
+import { geometryOfParcel, parcelPropsOf, parcelUidAt } from '../map/selectedParcel'
+import { chibanOf } from '../map/parcelInfo'
 import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
 import { parcelNoticeOf } from '../plan/lot'
 import { interiorPointOf } from '../map/interiorPoint'
@@ -63,6 +64,15 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const [mapInfo, setMapInfo] = useState('')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
   const [postalNotice, setPostalNotice] = useState<string | null>(null)
+  const [inspected, setInspected] = useState<{ address: string; roads: string[] } | null>(null)
+
+  const inspectSite = (p: LonLat, roads: string[]) => {
+    moveSiteByMap(p)
+    const uid = parcelUidAt(p.lon, p.lat)
+    const props = uid ? parcelPropsOf(uid) : undefined
+    setInspected({ address: props ? chibanOf(props) ?? '未取得' : '未取得（この地点の筆データなし）', roads })
+    void useConfirmedSite.getState().fetchDistrictAt(p, cityCode)
+  }
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -85,6 +95,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
 
   // 地図のクリックで対象地点を置く（中心は動かさない）
   const moveSiteByMap = (p: LonLat) => {
+    setInspected(null)
     setLonText(String(Number(p.lon.toFixed(6))))
     setLatText(String(Number(p.lat.toFixed(6))))
     useConfirmedSite.getState().resetDistrict()
@@ -157,6 +168,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           site={site}
           neighborRings={neighborRings}
           onSiteClick={moveSiteByMap}
+          onSiteInspect={inspectSite}
           onInfo={(text) => setMapInfo(text.startsWith('道路の幅員区分') ? '' : text)}
           onStatus={setMapStatus}
           onView={(c, z) => {
@@ -167,6 +179,17 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地選定</h2>
+        {inspected && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
+          <strong>選択地点の情報</strong>
+          <dl style={{ margin: '8px 0 0' }}>
+            <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected.address}</dd>
+            <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（下欄参照）' : '未取得'}</dd>
+            <dt>建蔽率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.buildingCoverageRatePercent != null ? `${siteDistrict.buildingCoverageRatePercent} %` : '未取得'}</dd>
+            <dt>容積率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.floorAreaRatePercent != null ? `${siteDistrict.floorAreaRatePercent} %` : '未取得'}</dd>
+            <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
+          </dl>
+          <small>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</small>
+        </section>}
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
