@@ -180,7 +180,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
           <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
-          <button type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定（ボリュームへ）" style={{ fontWeight: 700 }}>この敷地で確定<span style={{ display: 'block', fontSize: 11 }}>ボリュームへ</span></button>
+          <button type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
         </div>
         {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
           <strong>選択地点の情報</strong>
