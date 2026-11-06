@@ -459,13 +459,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
       <header className="p03-toolbar">
         <strong>ボリューム作図</strong>
         {headerSlots && createPortal(<>        <span className="p03-mode">
-          表示:
-          <button type="button" className={view === 'plan' ? 'is-active' : undefined} aria-pressed={view === 'plan'} onClick={() => setView('plan')}>
-            平面
-          </button>
-          <button type="button" className={view === '3d' ? 'is-active' : undefined} aria-pressed={view === '3d'} onClick={() => setView('3d')}>
-            3D
-          </button>
+          <HeaderIconButton label="平面" pressed={view === 'plan'} onClick={() => setView('plan')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="1"/><path d="m6 11 6-5 6 5M8 10v7h8v-7M11 17v-4h2v4"/></svg>} />
+          <HeaderIconButton label="3D" pressed={view === '3d'} onClick={() => setView('3d')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg>} />
 
         </span>
         <span className="p03-layers" aria-label="表示の切り替え">
