@@ -27,6 +27,7 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> 
   'F2-4-04': { field: 'F2-4-04', bracket: 0 },
   'F2-3-13.構造': { field: 'F2-3-13', sub: '【ﾊ.構造】', bracket: 0 },
   'F2-3-06.敷地と接している部分の長さ': { field: 'F2-3-06', sub: '【ﾛ.敷地と接している部分の長さ】' },
+  'F2-3-06.幅員': { field: 'F2-3-06', sub: '【ｲ.幅員】' },
   'F2-6-01': { field: 'F2-6-01' },
   'F2-6-02': { field: 'F2-6-02' },
   'F2-6-03.最高の高さ': { field: 'F2-6-03', sub: '【ｲ.最高の高さ】' },

@@ -18,6 +18,8 @@ const confirmed = (over: Partial<ConfirmedSite> = {}): ConfirmedSite => ({
   frame: null,
   center: CENTER,
   roadEdge: 0,
+  roadWidthMm: 6000,
+  roadSource: '数値指定',
   ...over,
 })
 

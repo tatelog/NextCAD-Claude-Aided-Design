@@ -118,6 +118,10 @@ export function P5Output() {
       ...(chiban !== null ? { chiban } : {}),
       ...(fire !== null ? { fire } : {}),
       ...(frontLength !== undefined ? { frontRoadLengthM: frontLength } : {}),
+      // 前面道路の幅員と出どころ（確定のまとめの値。0 mm は未入力）
+      ...(confirmedForForm && confirmedForForm.roadWidthMm > 0
+        ? { frontRoadWidth: { mm: confirmedForForm.roadWidthMm, source: confirmedForForm.roadSource } }
+        : {}),
     })
   }, [permitVolume, confirmedForForm, districtForForm])
   const ready = volume !== null
@@ -178,7 +182,13 @@ export function P5Output() {
       ifcFileName: `model-${schema.toLowerCase()}.ifc`,
       filledForms: Object.values(filledNow).filter((x): x is { fileName: string; bytes: Uint8Array } => x !== undefined),
       // 敷地面積が公図の参考値なら、空欄の一覧に参考値の文を添える（統括の依頼 2026-11-06。3）
-      notes: formValues['F2-3-07.敷地面積']?.from === '公図の参考値' ? [AREA_REFERENCE_NOTE] : [],
+      // 幅員は出どころ（入力の値など）を添える（統括の依頼 2026-11-06）
+      notes: [
+        ...(formValues['F2-3-07.敷地面積']?.from === '公図の参考値' ? [AREA_REFERENCE_NOTE] : []),
+        ...(formValues['F2-3-06.幅員'] !== undefined
+          ? [`前面道路の幅員：${formValues['F2-3-06.幅員'].value} m（出どころ：${formValues['F2-3-06.幅員'].from}）`]
+          : []),
+      ],
     })
   }, [judgement, drawingSvgs, ifcText, schema, filledNow, formValues])
 

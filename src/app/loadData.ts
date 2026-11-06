@@ -9,6 +9,7 @@ import { useFixtures } from '../store/fixtures'
 import { useFirstFloor } from '../store/firstFloor'
 import { useSemantic } from '../store/semantic'
 import { useConfirmedSite, type ConfirmedSite } from '../store/confirmedSite'
+import { DEFAULT_ROAD_WIDTH_SOURCE, ROAD_WIDTH_SOURCES } from '../volume/roadWidthSource'
 
 // 確定した敷地（統括の依頼 2026-11-06。8）。形が合わなければ例外（読む前の画面は変えない）
 const ConfirmedSchema = z.object({
@@ -17,6 +18,9 @@ const ConfirmedSchema = z.object({
   frame: z.object({ lon0: z.number(), lat0: z.number(), kx: z.number(), ky: z.number(), cx: z.number(), cy: z.number() }).nullable(),
   center: z.object({ lat: z.number(), lon: z.number() }),
   roadEdge: z.number().int().min(0),
+  // 幅員と出どころは後から足した（統括の依頼 2026-11-06）。無い古い保存は、6000 mm・数値指定として読む
+  roadWidthMm: z.number().min(0).default(6000),
+  roadSource: z.enum(ROAD_WIDTH_SOURCES).default(DEFAULT_ROAD_WIDTH_SOURCE),
 })
 
 const EntrySchema = z.object({
@@ -89,5 +93,11 @@ export function applyLoadedProject(p: LoadedProject): void {
   useFirstFloor.setState({ names: p.firstFloorNames })
   useSemantic.getState().clear()
   // 読んだ保存の確定した敷地に入れ替える。今いる地点も確定の中心にそろえる（P2 がダミーに戻らない）
-  useConfirmedSite.setState({ confirmed: p.confirmedSite, roadEdge: p.confirmedSite?.roadEdge ?? 0, currentSite: p.confirmedSite ? p.confirmedSite.center : null })
+  useConfirmedSite.setState({
+    confirmed: p.confirmedSite,
+    roadEdge: p.confirmedSite?.roadEdge ?? 0,
+    roadWidth: String(p.confirmedSite?.roadWidthMm ?? 6000),
+    roadSource: p.confirmedSite?.roadSource ?? DEFAULT_ROAD_WIDTH_SOURCE,
+    currentSite: p.confirmedSite ? p.confirmedSite.center : null,
+  })
 }

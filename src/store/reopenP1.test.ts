@@ -33,6 +33,8 @@ describe('開き直しで確定し直しにならない（仕様 1d）', () => {
       frame: null,
       center: CENTER_625,
       roadEdge: 0,
+      roadWidthMm: 6000,
+      roadSource: '数値指定',
     }
     useConfirmedSite.getState().confirm(confirmed)
     // P1 を開き直す: 地点は店舗の今いる地点から、筆は選ばれていた筆を残す
