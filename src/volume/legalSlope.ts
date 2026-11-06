@@ -29,6 +29,24 @@ export interface LegalSlopeResult {
 /** 北側斜線の規則は当たるのに、真北が分からないときの未判定の文言（統括の指示 2026-11-06。5c） */
 export const NORTH_NEEDS_TRUE_NORTH = '北側斜線は真北が分からないので未判定'
 
+/** 容積率の上限が無いときの未判定。道路斜線の適用距離（容積率で決まる）が決まらない。斜線の欄と、判定不能の一覧で同じ文言を使う（統括の指示 2026-11-06） */
+export const FAR_LIMIT_PENDING = '容積率の上限が未入力（道路斜線の適用距離が決まらない）'
+
+export type LegalSlopeArgs = Omit<LegalSlopeInput, 'farPercent'> & { farPercent: number | null }
+
+/** 画面の入力（容積率の上限は空のことがある）から、斜線の境界と未判定を作る。容積率が無ければ境界は作らず、理由を未判定に積む */
+export function legalSlopeFromInputs(input: LegalSlopeArgs): LegalSlopeResult {
+  const far = input.farPercent
+  if (far === null || !Number.isFinite(far) || far <= 0) return { boundaries: [], pending: [FAR_LIMIT_PENDING] }
+  return legalBoundaries({ ...input, farPercent: far })
+}
+
+/** 境界が一つも作られないときの、斜線の欄の理由（未判定の一覧と同じ元。北側斜線の未判定は欄の下に別に出すので外す）。理由が無いときは「判定する規則が無い」 */
+export function slopeRowReasonOf(legal: LegalSlopeResult): string {
+  const reasons = legal.pending.filter((p) => p !== NORTH_NEEDS_TRUE_NORTH)
+  return reasons.length > 0 ? reasons.join('、') : '判定する規則が無い'
+}
+
 export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
   const poly = input.footprint
   const n = poly.length
