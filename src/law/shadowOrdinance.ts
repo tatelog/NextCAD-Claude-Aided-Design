@@ -25,6 +25,10 @@ export function numberOf(text: string): number | null {
 
 /** 文脈（高度地区・区）は基準の表に渡す。判定の測定面は、確認済みの条例の値で置き換わるので、文脈で結果は変わらない（t29） */
 export function shadowRuleFromOrdinance(zone: Zone, entries: readonly OrdinanceEntry[], ctx?: ShadowRuleContext): ShadowOrdinance {
+  // 準工・工業系: 準工業は別表第四の対象（三項）、工業・工業専用は対象外。PLATEAU の区分をアプリは一つにまとめているので判定しない（統括の依頼 2026-11-06）
+  if (zone === '準工・工業系') {
+    return { ok: false, reason: '判定しない（準工業は日影の対象。工業・工業専用は対象外だが、アプリは用途地域の区分を両者に分けていない）' }
+  }
   const base = shadowRuleFor(zone, 2, ctx)
   if (base === null) return { ok: false, reason: '対象外（この用途地域の規制値は未確認）' }
   const values: number[] = []
