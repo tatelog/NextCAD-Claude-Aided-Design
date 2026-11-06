@@ -12,7 +12,7 @@ import { districtsAndZonesName } from '../plateau/codelist'
 export interface FormValue {
   value: string
   /** 出典。幅員は、出どころの名前（数値指定・対岸指定・資料指定）がそのまま出典になる */
-  from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規' | RoadWidthSource
+  from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規' | '都市計画決定情報（PLATEAU）' | RoadWidthSource
 }
 
 /** 第五面（用途別床面積）の未決の点（空欄の一覧に出す）。記号の表の出どころと、階ごとに 1 枚（注②）の枚数が決まるまで */
@@ -38,6 +38,30 @@ const m = (mm: number) => (mm / 1_000).toFixed(2)
 export function siteAreaM2Of(lot: readonly Point[] | null): number | undefined {
   if (lot === null || lot.length < 3) return undefined
   return polygonAreaMm2(lot) / 1_000_000
+}
+
+/** 容積率・建蔽率の出典（統括の依頼 2026-11-06） */
+export const LIMIT_SOURCE = '都市計画決定情報（PLATEAU）'
+
+export interface ZoneLimits {
+  floorAreaRatePercent: number | null
+  buildingCoverageRatePercent: number | null
+}
+
+/** 容積率・建蔽率（地点の用途地域が一つのときだけ。二つ以上・無いときは決めない（null）。値が無い項目は null のまま） */
+export function zoneLimitsOf(districts: readonly ZoneLimits[]): ZoneLimits | null {
+  if (districts.length !== 1) return null
+  const d = districts[0]!
+  return { floorAreaRatePercent: d.floorAreaRatePercent, buildingCoverageRatePercent: d.buildingCoverageRatePercent }
+}
+
+/** 容積率・建蔽率が決まらないときの理由（空欄の一覧に出す）。決まっていれば空 */
+export function limitNotesOf(limits: ZoneLimits | null): string[] {
+  if (limits === null) return ['容積率・建蔽率：地点の用途地域が一つでないので、都市計画決定情報の値は決めない（空欄）']
+  const notes: string[] = []
+  if (limits.floorAreaRatePercent === null) notes.push('容積率：都市計画決定情報の値が無い（空欄）')
+  if (limits.buildingCoverageRatePercent === null) notes.push('建蔽率：都市計画決定情報の値が無い（空欄）')
+  return notes
 }
 
 /** 用途地域の名前。地点の用途地域（区分コード）が一つで、名前が分かるときだけ。二つ以上・無い・表に無いコードは決めない（null）。地域ごとの面積は未対応 */
@@ -88,6 +112,10 @@ export function formValuesFromVolume(
     frontRoadWidth?: { mm: number; source: RoadWidthSource }
     /** 用途（共同住宅）。案件の入力 */
     usage?: string
+    /** 工事種別（新築）。案件の入力 */
+    workKind?: string
+    /** 容積率・建蔽率（地点の用途地域が一つのときの値。値が無い項目は null） */
+    limits?: ZoneLimits
     /** 用途地域の名前（地点の用途地域が一つのときだけ。zoneNameOf） */
     zoneName?: string
   },
@@ -140,6 +168,17 @@ export function formValuesFromVolume(
     v['F2-3-07.敷地面積の合計'] = area
     v['F3-2-07.敷地面積'] = area
   }
+  // 容積率・建蔽率（7 欄のハ・ニ。用途地域等と同じ列 1）。値が無い項目は入らない（limitNotesOf で空欄の理由を出す）
+  if (project.limits?.floorAreaRatePercent != null) {
+    const far: FormValue = { value: `${project.limits.floorAreaRatePercent}％`, from: LIMIT_SOURCE }
+    v['F2-3-07.容積率'] = far
+    v['F3-2-07.容積率'] = far
+  }
+  if (project.limits?.buildingCoverageRatePercent != null) {
+    const bcr: FormValue = { value: `${project.limits.buildingCoverageRatePercent}％`, from: LIMIT_SOURCE }
+    v['F2-3-07.建蔽率'] = bcr
+    v['F3-2-07.建蔽率'] = bcr
+  }
   // 用途地域等（地点の用途地域が一つのときだけ。第二号・第三号とも列 1）
   if (project.zoneName !== undefined) {
     v['F2-3-07.用途地域等'] = { value: project.zoneName, from: '法規' }
@@ -150,6 +189,12 @@ export function formValuesFromVolume(
   v['F3-2-13.構造'] = cas(structureLabelOf(project.structure))
   // 用途（案件の入力。共同住宅）
   if (project.usage !== undefined) v['F2-5-07.用途'] = cas(project.usage)
+  // 工事種別（案件の入力。新築）: 第二号の第三面 9 欄・第四面 3 欄、第三号の 9 欄
+  if (project.workKind !== undefined) {
+    v['F2-3-09'] = cas(project.workKind)
+    v['F2-4-03'] = cas(project.workKind)
+    v['F3-2-09'] = cas(project.workKind)
+  }
   // 防火地域（筆の地点の法規。取れたときだけ）。接する部分の長さ（前面道路の辺。公図の辺）
   if (project.fire !== undefined) {
     v['F2-3-04'] = { value: project.fire, from: '法規' }
