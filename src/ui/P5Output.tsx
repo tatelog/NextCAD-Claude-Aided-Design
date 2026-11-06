@@ -485,6 +485,7 @@ export function P5Output() {
                     ifcText={ifcText}
                     drawingSvgs={drawingSvgs}
                     drawingReasons={drawingSvgs.reasons}
+                    filledForms={filledNow}
                     checkOf={(name) => {
                       const c = legalCheckOfDoc(name, legal)
                       return c ? { text: c.text, color: TONE_COLOR[c.tone] } : null
