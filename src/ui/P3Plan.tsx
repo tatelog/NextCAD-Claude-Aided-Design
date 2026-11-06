@@ -541,7 +541,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         {!tileShown('p3-form') ? null : (
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <div role="group" aria-label="廊下タイプ" style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}>
-          {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm))}}>{next==='階段室'?'階段室型':next==='ツイン'?'ツインコリドー':next}</button>)}
+          {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm))}}>{next==='階段室'?'階段室型':next}</button>)}
         </div>
         {layoutText === '階段室' ? (
           <label style={{ display: 'block', marginBottom: 4 }}>
