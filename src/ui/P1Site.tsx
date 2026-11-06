@@ -188,13 +188,34 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected?.address ?? (parcelUid ? chibanOf(parcelPropsOf(parcelUid) ?? {}) : null) ?? '未取得'}</dd>
             <dt>敷地面積（公図から算出）</dt><dd style={{ margin: '0 0 8px' }}>{parcel ? `${(polygonAreaMm2(parcel) / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} ㎡` : '未取得'}</dd>
             <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（以下に併記）' : '未取得'}</dd>
+          {result && result.fireMatches.length === 0 && result.file !== null && <dd style={{ margin: '0 0 8px' }}>防火地域・準防火地域: この地点には無い（境界上を含めない）。</dd>}
+          {result && result.fireMatches.map((f) => (
+            <dd key={f.id} style={{ position: 'relative', margin: '0 0 8px' }}>
+              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
+              <span className="site-note" tabIndex={0} aria-label="防火地域の詳細と判定の補足">
+                ※<span className="site-note-content" role="tooltip">
+                  {f.usage === null ? '用途 未取得' : `用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}`}<br />
+                  {f.notificationNumber ?? '告示番号 未取得'}<br />
+                  {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>区分と用途が合わない。元データの確認が要る。<br /></span> : null}
+                  {fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}
+                </span>
+              </span>
+            </dd>
+          ))}
             <dt>建蔽率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.buildingCoverageRatePercent != null ? `${siteDistrict.buildingCoverageRatePercent} %` : '未取得'}</dd>
             <dt>容積率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.floorAreaRatePercent != null ? `${siteDistrict.floorAreaRatePercent} %` : '未取得'}</dd>
             <dt>高さの上限</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.heightLimitM != null ? `${siteDistrict.heightLimitM} m` : '未取得'}</dd>
+          {result && result.heightMatches.length === 0 && result.file !== null && <dd style={{ margin: '0 0 8px' }} title="この地点に該当する高度地区なし（境界上を含めない）">高度地区: 無し</dd>}
+          {result && result.heightMatches.map((h) => (
+            <dd key={h.id} style={{ margin: '0 0 8px' }}>
+              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
+              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
+            </dd>
+          ))}
             <dt>告示番号</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.notificationNumber ?? '未取得'}</dd>
             <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected?.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
           </dl>
-          {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
+
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区のコード（例: 13108 は江東区）
@@ -211,7 +232,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
               <dt>容積率</dt>
               <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
-              <dt>建蔽率</dt>
+            <dt>建蔽率</dt>
               <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
               <dt>高さの上限</dt>
               <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
@@ -219,33 +240,13 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
               <dd>{m.notificationNumber ?? '未取得'}</dd>
             </dl>
           ))}
-          {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
-          {result && result.fireMatches.map((f) => (
-            <p key={f.id} style={{ position: 'relative' }}>
-              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
-              <span className="site-note" tabIndex={0} aria-label="防火地域の詳細と判定の補足">
-                ※<span className="site-note-content" role="tooltip">
-                  {f.usage === null ? '用途 未取得' : `用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}`}<br />
-                  {f.notificationNumber ?? '告示番号 未取得'}<br />
-                  {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>区分と用途が合わない。元データの確認が要る。<br /></span> : null}
-                  {fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}
-                </span>
-              </span>
-            </p>
-          ))}
-          {result && result.heightMatches.length === 0 && result.file !== null && <p title="この地点に該当する高度地区なし（境界上を含めない）">高度地区: 無し</p>}
-          {result && result.heightMatches.map((h) => (
-            <p key={h.id}>
-              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
-              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
-            </p>
-          ))}
           {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
             <p style={{ color: '#a33' }}>
               管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
             </p>
           )}
 
+          {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
         </section>}
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
