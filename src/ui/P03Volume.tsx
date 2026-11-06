@@ -7,7 +7,7 @@ import { NumericLineForm } from './NumericLineForm'
 import { useFeatures } from '../store/features'
 import { ROAD_WIDTH_SOURCES, roadWidthNote, type RoadWidthSource } from '../volume/roadWidthSource'
 import { volumeAfterSlope } from '../volume/cutVolume'
-import { legalBoundaries } from '../volume/legalSlope'
+import { legalBoundaries, NORTH_NEEDS_TRUE_NORTH } from '../volume/legalSlope'
 import { setbackFromRectParcel } from '../volume/placement'
 import { setbackHintOf, setbackInitialOf, setbackInputsOf } from '../volume/setbackDefaults'
 import { setbackLabel } from '../plan/dimensionLabel'
@@ -60,6 +60,7 @@ import { IconBuildings, IconMap, IconShadow, IconSlope } from './headerIcons'
 import { overrunFloorsOf, slopeSheetsOf } from '../volume/slopeSurface'
 import { SceneErrorBoundary } from './SceneErrorBoundary'
 import { mapTilesOf } from '../map/gsiTiles'
+import { PLANE_TRUE_NORTH } from '../map/parcelPlane'
 import { neighborVolumes } from '../volume/neighborLocal'
 import type { ObjectKind } from '../plan/objectMenu'
 import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
@@ -262,8 +263,11 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
       roadWidthMm: Number(roadWidth) || 0,
       zone: effectiveZone,
       farPercent: effectiveFar,
+      // 真北は、確定した筆がある（経緯度から平面を作った）ときだけ分かる。平面の +y が真北（parcelPlane.ts）。
+      // ダミーの筆界では真北が分からないので渡さない（北側斜線は未判定。統括の指示 2026-11-06。5c）
+      trueNorth: parcel ? PLANE_TRUE_NORTH : undefined,
     })
-  }, [effectiveFar, effectiveZone, edge, roadWidth, lot])
+  }, [effectiveFar, effectiveZone, edge, roadWidth, lot, parcel])
 
   const cut = useMemo(() => {
     if (!volume) return null
@@ -570,6 +574,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                   {legal.boundaries.length === 0
                     ? '判定する規則が無い'
                     : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
+                  {legal.pending.includes(NORTH_NEEDS_TRUE_NORTH) ? <div className="muted">{NORTH_NEEDS_TRUE_NORTH}</div> : null}
                 </dd>
                 <dt>日影</dt>
                 <dd>

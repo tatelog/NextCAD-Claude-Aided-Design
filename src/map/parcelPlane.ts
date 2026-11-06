@@ -89,6 +89,12 @@ export function parcelFrameOf(geometry: unknown): ParcelFrame | null {
   return { lon0, lat0, kx, ky, cx, cy }
 }
 
+/**
+ * 平面の真北（単位ベクトル）。planeOfLonLat は緯度を y に、経度を x に写すので、北へ動く向きは +y（x は動かない）。
+ * 北側斜線（legalBoundaries の trueNorth）に渡す（統括の指示 2026-11-06。5c）
+ */
+export const PLANE_TRUE_NORTH: { readonly x: number; readonly y: number } = { x: 0, y: 1 }
+
 /** 経緯度を、筆の平面（mm。整数に丸めない）にする。周辺建物も同じ枠で置くと、筆とずれない */
 export function planeOfLonLat(frame: ParcelFrame, lon: number, lat: number): Point {
   return { x: (lon - frame.lon0) * frame.kx - frame.cx, y: (lat - frame.lat0) * frame.ky - frame.cy }
