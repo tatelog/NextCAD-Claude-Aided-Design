@@ -497,6 +497,9 @@ export function Volume3D({
         高さ {knobPreview.storeyCount} 階（{(knobPreview.heightMm / 1000).toFixed(1)} m）
       </div>
     )}
+    <div style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none', fontSize: 12, color: '#59616c', background: 'rgba(255,255,255,0.85)', padding: '4px 8px', borderRadius: 4 }}>
+      設定階数 {shownStoreyCount} 階 · 階高 {(storeyHeightMm / 1000).toLocaleString('ja-JP')} m
+    </div>
     <div style={{ position: 'absolute', top: 8, right: 8 }}>
       <ViewCube onHome={onHome} toCamera={viewDir} onPick={(t: CubeTarget) => setFaceRequest((prev) => ({ dir: t.dir, token: (prev?.token ?? 0) + 1 }))} />
     </div>

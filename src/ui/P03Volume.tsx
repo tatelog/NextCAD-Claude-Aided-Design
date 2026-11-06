@@ -1,3 +1,4 @@
+import { visibleSlopeBoundaries, type SlopeVisibility } from './slopeVisibility'
 import { PlanningFramePanel } from './PlanningFramePanel'
 import { rotatePlanPoint } from '../map/planningFrame'
 import type { ConfirmedSite } from '../store/confirmedSite'
@@ -152,6 +153,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const setVolumeNeighbors = useUi((s) => s.setVolumeNeighbors)
   const setVolumeShadow = useUi((s) => s.setVolumeShadow)
   const volumeSlope = useUi((s) => s.volumeSlope)
+  const [slopeVisibility, setSlopeVisibility] = useState<SlopeVisibility>({ north: true, road: true, adjacent: true })
   const setVolumeSlope = useUi((s) => s.setVolumeSlope)
   const neighborsOn = neighborsShownOf(showNeighbors, volumeNeighbors)
   const shadowOn = shadowShownOf(showShadow, volumeShadow)
@@ -306,13 +308,14 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 5000
   }, [lot])
   // 斜線の面は、建物の高さに届くところまで（統括の依頼 2026-11-06）
+  const shownBoundaries = useMemo(() => visibleSlopeBoundaries(legal.boundaries, slopeVisibility), [legal, slopeVisibility])
   const slopeSheets = useMemo(
-    () => slopeSheetsOf(legal.boundaries, slopeExtentMm, volume ? volume.total_height : undefined),
-    [legal, slopeExtentMm, volume],
+    () => slopeSheetsOf(shownBoundaries, slopeExtentMm, volume ? volume.total_height : undefined),
+    [shownBoundaries, slopeExtentMm, volume],
   )
   const overrunFloors = useMemo(
-    () => (volume && legal.boundaries.length > 0 ? overrunFloorsOf(volume.footprint, legal.boundaries, volume) : []),
-    [volume, legal],
+    () => (volume && shownBoundaries.length > 0 ? overrunFloorsOf(volume.footprint, shownBoundaries, volume) : []),
+    [volume, shownBoundaries],
   )
   // 道路斜線だけの判定（図書の「道路斜線」用。北側・隣地と分けて出す）
   const roadSlope = useMemo(() => {
@@ -563,6 +566,52 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
           }}
         />
         <aside className="p03-side" style={{ width: sideWidth }}>
+          <section aria-label="階数・階高">
+            <h2>階数・階高</h2>
+            <label>
+              階数
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={storeyCount}
+                onChange={(e) => setStoreyCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+              />
+            </label>
+            <label>
+              階高 (mm)
+              <input
+                type="number"
+                min={1}
+                step={100}
+                value={storeyHeightMm}
+                onChange={(e) => setStoreyHeightMm(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+              />
+            </label>
+          </section>
+          <section aria-label="法規の表示">
+            <h2>法規の表示（3D）</h2>
+            {([['north', '北側斜線'], ['road', '道路斜線'], ['adjacent', '隣地斜線']] as const).map(([kind, label]) => (
+              <label key={kind} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span>{label}</span>
+                <button type="button" aria-pressed={volumeSlope && slopeVisibility[kind]} onClick={() => {
+                  const enabled = !(volumeSlope && slopeVisibility[kind])
+                  setSlopeVisibility({ ...(volumeSlope ? slopeVisibility : { north: false, road: false, adjacent: false }), [kind]: enabled })
+                  setVolumeSlope(true)
+                  if (enabled) setView('3d')
+                }}>{volumeSlope && slopeVisibility[kind] ? 'オン' : 'オフ'}</button>
+              </label>
+            ))}
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span>日影（指定時刻の影）</span>
+              <button type="button" aria-pressed={shadowOn} onClick={() => {
+                if (!shadowOn) { useUi.getState().setShowShadow(true); setView('3d') }
+                setVolumeShadow(!shadowOn)
+              }}>{shadowOn ? 'オン' : 'オフ'}</button>
+            </label>
+            <p className="p03-note">斜線は適用対象の面を表示します。表示切替は計算条件を変更しません。</p>
+          </section>
+
           <PlanningFramePanel key={savedSite?.parcelUid ?? 'none'} site={savedSite} locked={drawnAll.length > 0} onPreview={setPlanningPreview} />
           <section style={tileStyle('p2-outline')}>
             <TileClose title="外形" onHide={() => hideTile('p2-outline')} />
@@ -585,30 +634,6 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               <input type="number" step={10} value={baselineOffsetText} onChange={(e) => setBaselineOffsetText(e.target.value)} />
             </label>
             {baselineError ? <p className="ng">{baselineError}</p> : null}
-          </section>
-          <section style={tileStyle('p2-storey')}>
-            <TileClose title="階数・階高" onHide={() => hideTile('p2-storey')} />
-            <h2>階数・階高</h2>
-            <label>
-              階数
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={storeyCount}
-                onChange={(e) => setStoreyCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-              />
-            </label>
-            <label>
-              階高 (mm)
-              <input
-                type="number"
-                min={1}
-                step={100}
-                value={storeyHeightMm}
-                onChange={(e) => setStoreyHeightMm(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-              />
-            </label>
           </section>
           <section style={tileStyle('p2-volume')}>
             <TileClose title="ボリューム" onHide={() => hideTile('p2-volume')} />
