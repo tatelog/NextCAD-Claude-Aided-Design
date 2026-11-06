@@ -174,3 +174,35 @@ describe('道路の幅員・接道の長さ（開発の依頼 6d263e0）', () =>
     }
   })
 })
+
+// 仕様 11（統括の決定 2026-11-06。開発 033b6a3）: 第五面（階ごと）。(1) 枚数は B（同じ内容の階を 1 枚にまとめ、2 欄に階を列記。
+// 連続は「1階〜5階」、続かない階は「1階、3階」。内容の違う階は別紙）。(2) 用途別床面積（F2-5-07）の 1 番目（記号）は空欄（別紙の表に従い人が入れる）、
+// 2 番目は「共同住宅」、3 番目はその階の床面積（延べ床面積は入れない）。
+describe('第五面の階ごとの書き方（統括の決定 2026-11-06）', () => {
+  const field = (id: string) => fields.find((x) => x.field.id === id)!.field
+
+  it('仕様 11: 2 欄（階）は、階の列記（「1階〜5階」「1階、3階」）と書いてある', () => {
+    const note = field('F2-5-02').tokyo!.note ?? ''
+    expect(note).toContain('1階〜5階')
+    expect(note).toContain('1階、3階')
+  })
+
+  it('仕様 11: 用途別床面積の 1 番目（記号）は空欄で、別紙の表に従い人が入れると書いてある', () => {
+    const sub = field('F2-5-07').tokyo!.subitems![0]!
+    expect(sub.note).toContain('空欄')
+    expect(sub.note).toContain('別紙')
+  })
+
+  it('仕様 11: 2 番目は「共同住宅」、3 番目はその階の床面積（延べ床面積は入れない）と書いてある', () => {
+    const subs = field('F2-5-07').tokyo!.subitems!
+    expect(subs[1]!.note).toContain('共同住宅')
+    expect(subs[2]!.note).toContain('その階の床面積')
+    expect(subs[2]!.note).toContain('延べ床面積は入れない')
+  })
+
+  it('仕様 11: 枚数は B（同じ内容の階を 1 枚にまとめ、内容の違う階は別紙）と、用途別床面積の注に書いてある', () => {
+    const note = field('F2-5-07').tokyo!.note ?? ''
+    expect(note).toContain('1 枚にまとめ')
+    expect(note).toContain('別紙')
+  })
+})
