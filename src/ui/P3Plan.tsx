@@ -1,3 +1,4 @@
+import { RectangularStudyPanel } from './RectangularStudyPanel'
 import { FloorPlanMenu } from './FloorPlanMenu'
 import { useLeftPanelWidth, LeftPanelResize } from './LeftPanelResize'
 import { fitFloorPlan } from '../plan/fitFloorPlan'
@@ -148,6 +149,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const planViewport = useRef<HTMLDivElement>(null)
   const [planSize, setPlanSize] = useState({width: 800, height: 600})
   const [planZoom, setPlanZoom] = useState(1)
+  const [rectangleOpen, setRectangleOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(true)
   const [planDrawing, setPlanDrawing] = useState(false)
   const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
@@ -379,6 +381,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       />
       </div>
       <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
+        <button type="button" onClick={() => setRectangleOpen(true)}>長方形で配置を比較</button>
         <label>表示階 <select value={selectedFloor} onChange={(e) => floorState.select(Number(e.target.value))}>
           {Array.from({ length: storeyCount }, (_, i) => <option key={i} value={i + 1}>{i + 1}階</option>)}
         </select></label>
@@ -433,7 +436,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               </g>
             ) : null}
             {units.cells.corridors.map((k) => (
-              <rect key={k.id} x={k.x0} y={0} width={k.x1 - k.x0} height={D} fill="#eee" />
+              <rect key={k.id} x={k.x0} y={k.y0} width={k.x1 - k.x0} height={k.y1 - k.y0} fill="#eee" />
             ))}
             {auto && core.rect ? (
               <rect x={core.rect.x0} y={core.rect.y0} width={core.rect.x1 - core.rect.x0} height={core.rect.y1 - core.rect.y0} fill="#e6f2ed" stroke="#1f2a44" strokeWidth={20} />
@@ -484,12 +487,13 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           })() : null}
           </div>
         ) : (
-          <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
+          <div><p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p><P3Canvas /></div>
         )}
 
         </div>
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
+        {activeMode === 'chat' ? <section aria-label="チャット専用パネル"><h2>Claude（チャット）</h2><ChatTile screen="P3" /></section> : <>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>
         {Object.keys(hiddenTiles).length > 0 ? (
           <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
@@ -749,7 +753,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             <FeatureAdjustTile screen="P3" />
           </PanelTile>
         )}
+        </>}
       </aside>
+      {rectangleOpen && <RectangularStudyPanel initialWidth={inherited?.widthMm ?? 16000} initialLength={inherited?.depthMm ?? 42000} storeys={storeyCount} storeyHeightMm={storeyHeightMm} onClose={() => setRectangleOpen(false)} />}
       {(() => {
         const cells = units.cells ? units.cells.cells : []
         const cell = cells.find((c) => c.id === detailUnitId)
