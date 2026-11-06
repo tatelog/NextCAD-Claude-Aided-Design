@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
-import { PARCEL_BOUNDARY_NOTE } from '../data/sources'
 import { P1Map } from './P1Map'
 import { POSTAL_UNAVAILABLE_NOTICE } from '../geocode/postalNotice'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
@@ -62,7 +61,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const parcelInfo = useSite((s) => s.parcelInfo)
   const showNeighbors = useUi((s) => s.showNeighbors)
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
-  const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
+  const [mapInfo, setMapInfo] = useState('')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
   const [postalNotice, setPostalNotice] = useState<string | null>(null)
 
@@ -168,18 +167,16 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地</h2>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地選定</h2>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
         <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
         <div style={{ margin: '0 0 8px' }}>
           <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（ボリュームへ）</button>
-          {confirmed === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>まだ確定していない（ボリュームはダミーの筆界）</p> : null}
           {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
           {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
         </div>
-        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
-        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
+        {mapInfo && <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>}
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             住所
@@ -247,7 +244,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           </dl>
         </section>
         <section>
-          <OrdinanceForm />
+          <OrdinanceForm compactSite />
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>

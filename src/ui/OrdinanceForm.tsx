@@ -85,7 +85,7 @@ function OrdinanceSuggest() {
 }
 
 /** 入力と確認の欄（項目ごと）。確認は出典が空のままではできない */
-export function OrdinanceForm() {
+export function OrdinanceForm({ compactSite = false }: { compactSite?: boolean } = {}) {
   const entries = useOrdinance((s) => s.entries)
   const setEntry = useOrdinance((s) => s.setEntry)
   const confirm = useOrdinance((s) => s.confirm)
@@ -93,7 +93,7 @@ export function OrdinanceForm() {
   return (
     <section style={{ marginBottom: 10 }}>
       <strong style={{ fontSize: 13 }}>条例の値（人が入力し、出典を付けて確認する）</strong>
-      {ORDINANCE_KEYS.map((key) => {
+      {ORDINANCE_KEYS.filter((key) => !compactSite || key !== SHADOW_KEYS.height).map((key) => {
         const draft = drafts[key] ?? { value: '', source: '' }
         const status = ordinanceStatus(entries, key)
         return (
@@ -114,7 +114,7 @@ export function OrdinanceForm() {
           </div>
         )
       })}
-      <OrdinanceSuggest />
+      {!compactSite && <OrdinanceSuggest />}
     </section>
   )
 }
