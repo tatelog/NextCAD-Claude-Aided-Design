@@ -292,6 +292,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const { hideTile, showTile } = usePanelTiles.getState()
   // ダブルクリックで開く住戸の詳細（ハブ A-03 G76）。閉じると null に戻る
   const [detailUnitId, setDetailUnitId] = useState<string | null>(null)
+  const [unitLayers,setUnitLayers]=useState({outline:true,rooms:true,shaft:true,dimensions:true})
   const milestoneRows = useMemo(
     () =>
       milestoneSummary({
@@ -393,6 +394,18 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     <div style={{ display: 'grid', gridTemplateColumns: `max-content minmax(0, 1fr) 320px`, height: '100%' }}>
       <div style={{width:leftWidth,position:'relative',overflowY:'auto',borderRight:'1px solid #ddd8cc'}}>
         <LeftPanelResize />
+        {detailUnitId ? <section aria-label="選択住戸のレイヤーとオブジェクト" style={{padding:12,fontSize:13}}>
+          <h2 style={{fontSize:14}}>住戸 {detailUnitId}</h2>
+          <h3 style={{fontSize:13}}>レイヤー</h3>
+          {([['outline','住戸外形'],['rooms','部屋'],['shaft','PS'],['dimensions','寸法']] as const).map(([key,label])=><label key={key} style={{display:'block',marginBottom:6}}><input type="checkbox" checked={unitLayers[key]} onChange={e=>setUnitLayers(v=>({...v,[key]:e.target.checked}))}/>{label}</label>)}
+          <h3 style={{fontSize:13}}>オブジェクト</h3>
+          <div>住戸外形 1</div>
+          <div>部屋 {auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).length ?? 0}</div>
+          <ul>{auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).map(r=><li key={r.id}>{r.kind}</li>)}</ul>
+          <div>PS {auto?.shaftRects.filter(r=>r.unitId===detailUnitId).length ?? 0}</div>
+          <div>什器 {fixtures.filter(f=>f.unitId===detailUnitId).length}</div>
+          <ul>{fixtures.filter(f=>f.unitId===detailUnitId).map(f=><li key={f.id}>{f.item}</li>)}</ul>
+        </section> : <>
         <FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} types={UNIT_TYPES} pattern={unitTypeIds} onPattern={(ids) => setUnitTypeIdsText(ids.join(','))} onApply={() => runAuto(true)} />
       <ObjectMenu
         sources={objectSources}
@@ -405,6 +418,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         folded={menuFold.folded}
         onToggleFold={menuFold.toggle}
       />
+        </>}
       </div>
       <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
         <button type="button" onClick={() => setRectangleOpen(true)}>長方形で配置を比較</button>
@@ -756,6 +770,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         return (
           <UnitDetailPanel
             cell={cell}
+            layers={unitLayers}
             planRooms={auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')) ?? []}
             detail={detailUnitId && units.cells ? unitDetailOf(detailUnitId, { cells, corridors: units.cells.corridors, outline: { W, D }, fixtures }) : null}
             onClose={() => setDetailUnitId(null)}
