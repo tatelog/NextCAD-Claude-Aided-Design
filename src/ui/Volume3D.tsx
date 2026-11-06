@@ -1,3 +1,4 @@
+import { FloorLevels } from './FloorLevels'
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
 // 座標: 平面の (x, y) mm → three の (x, 高さ, y) m。
@@ -411,9 +412,10 @@ export function Volume3D({
       <directionalLight position={[30, 50, 20]} intensity={0.8} />
       {geometry && (
         <mesh geometry={geometry}>
-          <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} />
+          <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
       )}
+      {geometry && <FloorLevels geometry={geometry} count={shownStoreyCount} heightMm={storeyHeightMm} />}
       {lotPlate && (
         <mesh geometry={lotPlate}>
           <meshStandardMaterial color="#e9e1c9" side={THREE.DoubleSide} />
