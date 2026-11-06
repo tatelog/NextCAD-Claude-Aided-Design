@@ -178,7 +178,10 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地選定</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+          <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
+          <button type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定（ボリュームへ）" style={{ fontWeight: 700 }}>この敷地で確定<span style={{ display: 'block', fontSize: 11 }}>ボリュームへ</span></button>
+        </div>
         {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
           <strong>選択地点の情報</strong>
           <dl style={{ margin: '8px 0 0' }}>
@@ -222,15 +225,17 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           ))}
           {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
           {result && result.fireMatches.map((f) => (
-            <p key={f.id}>
+            <p key={f.id} style={{ position: 'relative' }}>
               防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
               {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
               {f.notificationNumber ? `、${f.notificationNumber}` : ''}
               {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
+              <span className="site-note" tabIndex={0} aria-label={fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}>
+                ※<span className="site-note-content" role="tooltip">{fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}</span>
+              </span>
             </p>
           ))}
-          {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
-          {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
+          {result && result.heightMatches.length === 0 && result.file !== null && <p title="この地点に該当する高度地区なし（境界上を含めない）">高度地区: 無し</p>}
           {result && result.heightMatches.map((h) => (
             <p key={h.id}>
               高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
@@ -248,7 +253,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
         <div style={{ margin: '0 0 8px' }}>
-          <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（ボリュームへ）</button>
           {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
           {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
         </div>
