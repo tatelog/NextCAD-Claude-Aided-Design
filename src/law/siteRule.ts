@@ -18,3 +18,8 @@ export function siteRuleFromDistricts(matches: readonly UseDistrict[]): { zone: 
 export function zoneSelectStateOf(siteRule: { zone: Zone; farPercent: number | null } | null, manual: Zone): { value: Zone; disabled: boolean } {
   return siteRule ? { value: siteRule.zone, disabled: true } : { value: manual, disabled: false }
 }
+
+/** 計算に使う用途地域（統括の依頼 2026-11-06）。PLATEAU（敷地）で区分が決まっていればそれ、決まらなければ利用者の入力。斜線・日影・測定面の計算はこれを使う */
+export function effectiveZoneOf(siteRule: { zone: Zone; farPercent: number | null } | null, manual: Zone): Zone {
+  return siteRule?.zone ?? manual
+}
