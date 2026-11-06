@@ -101,6 +101,12 @@ export function siteLayoutBodyOf(input: {
 /** 配置図に入れる周辺建物の範囲: 筆（と外形）の外接矩形から、each side この距離（mm）。一か所の定数（統括の依頼 2026-11-06。1） */
 export const SITE_NEIGHBOR_MARGIN_MM = 40_000
 
+/** 配置図が作れないときの理由（空欄の一覧・ビューアに出す） */
+export const SITE_MISSING_TEXT = {
+  notConfirmed: '敷地を確定すると出せます',
+  noFit: '敷地が大きく、図枠に収まる縮尺が無い',
+} as const
+
 /** 配置図の作り方の結果。作れたら中身と分母、作れなければ理由 */
 export type SiteLayoutState = { kind: 'ok'; body: string; denominator: number } | { kind: 'notConfirmed' } | { kind: 'noFit' }
 
@@ -139,6 +145,11 @@ export function siteLayoutStateOf(input: {
   if (s === null) return { kind: 'noFit' }
   const body = siteLayoutBodyOf({ ...input, neighbors, scale: s })
   return body === null ? { kind: 'notConfirmed' } : { kind: 'ok', body, denominator: s }
+}
+
+/** 配置図が作れないときの理由。作れるときは null */
+export function siteMissingTextOf(state: SiteLayoutState): string | null {
+  return state.kind === 'ok' ? null : SITE_MISSING_TEXT[state.kind]
 }
 
 /** 配置図を、収まるいちばん大きい標準の縮尺で作る。分母も返す（図枠の縮尺の欄に書く）。作れなければ null */

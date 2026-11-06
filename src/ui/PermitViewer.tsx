@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { PermitJudgement } from '../law/permitRequired'
 import { applicabilityTextOf } from '../permit/p5Judgement'
 import { fitSvgForView } from './fitSvgForView'
-import { DRAWING_KEY_OF_NAME, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
+import { DRAWING_KEY_OF_NAME, DRAWING_MISSING_DEFAULT, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
 
 const GROUPS: readonly ViewerGroup[] = ['要る', '要確認', '要らない']
 const JUDGE_KEY: string = FIXED_VIEWER_ITEMS[0]
@@ -30,13 +30,23 @@ export interface PermitViewerProps {
   ifcText: string | null
   /** 配置図と各階平面図の中身（図枠つきの SVG）。作れないものは null */
   drawingSvgs?: { site: string | null; floorPlan: string | null }
+  /** 作れない図の理由（図ごと）。無ければ既定の文 */
+  drawingReasons?: { site: string; floorPlan: string }
   /** 要る図書の法的チェック（文と色）。無ければ出さない */
   checkOf?: (name: string) => { text: string; color: string } | null
   /** 最初に選ぶ項目の鍵（省略は判定の一覧） */
   initialKey?: string
 }
 
-export function PermitViewer({ judgement, docs, ifcText, drawingSvgs = { site: null, floorPlan: null }, checkOf, initialKey = JUDGE_KEY }: PermitViewerProps) {
+export function PermitViewer({
+  judgement,
+  docs,
+  ifcText,
+  drawingSvgs = { site: null, floorPlan: null },
+  drawingReasons = DRAWING_MISSING_DEFAULT,
+  checkOf,
+  initialKey = JUDGE_KEY,
+}: PermitViewerProps) {
   const rows = viewerRowsOf(judgement, docs)
   const [selected, setSelected] = useState(initialKey)
   const item = (key: string, label: string) => (
@@ -82,7 +92,7 @@ export function PermitViewer({ judgement, docs, ifcText, drawingSvgs = { site: n
         {key === undefined ? null : svg !== null ? (
           <div style={{ width: '100%' }} dangerouslySetInnerHTML={{ __html: fitSvgForView(svg) }} />
         ) : (
-          <p style={{ fontSize: 12, color: '#a33' }}>{key === 'site' ? '敷地を確定すると出せます。' : '平面を作ると出せます。'}</p>
+          <p style={{ fontSize: 12, color: '#a33' }}>{`${drawingReasons[key]}。`}</p>
         )}
       </>
     )

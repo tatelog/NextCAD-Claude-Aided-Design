@@ -10,7 +10,7 @@
 // SL8: 配置図の中身は、作図の領域の外へ出ない。
 import { describe, expect, it } from 'vitest'
 import { drawingAreaOf } from '../law/permitFrameSvg'
-import { siteLayoutStateOf, SITE_NEIGHBOR_MARGIN_MM, STANDARD_SCALES, type SiteLayoutState } from './drawingSvg'
+import { siteLayoutStateOf, siteMissingTextOf, SITE_NEIGHBOR_MARGIN_MM, STANDARD_SCALES, type SiteLayoutState } from './drawingSvg'
 
 const AREA = drawingAreaOf('A3')
 const sq = (x0: number, y0: number, x1: number, y1: number) => [
@@ -81,6 +81,14 @@ describe('収まらないとき・筆が無いとき（仕様 SL4・SL5）', () 
   it('SL5: 筆も外形も無ければ、周辺建物があっても notConfirmed（図は作らない）', () => {
     const r = siteLayoutStateOf({ lot: null, footprint: null, neighbors: [sq(-20000, 5000, -10000, 9000)], area: AREA })
     expect(r.kind).toBe('notConfirmed')
+  })
+})
+
+describe('理由の文言（仕様 SL6）', () => {
+  it('SL6: noFit は「敷地が大きく、図枠に収まる縮尺が無い」、notConfirmed は「敷地を確定すると出せます」、ok は理由なし', () => {
+    expect(siteMissingTextOf({ kind: 'noFit' })).toBe('敷地が大きく、図枠に収まる縮尺が無い')
+    expect(siteMissingTextOf({ kind: 'notConfirmed' })).toBe('敷地を確定すると出せます')
+    expect(siteMissingTextOf(okOf(siteLayoutStateOf({ lot: LOT, footprint: FOOT, neighbors: [], area: AREA })))).toBeNull()
   })
 })
 
