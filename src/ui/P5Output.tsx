@@ -7,7 +7,8 @@ import { writeIfc, type IfcSchema } from '../ifc/writer'
 import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
-import { permitInputFromVolume } from '../law/permitInput'
+import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
+import { formValuesFromVolume } from '../law/permitFormValues'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
 import { floorPlanOf, siteLayoutOf } from '../export/drawingSvg'
@@ -16,6 +17,7 @@ import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import { PermitViewer } from './PermitViewer'
 import { PermitFormImport } from './PermitFormImport'
+import { PermitFormPlan } from './PermitFormPlan'
 import permitDocsJson from '../law/permitDocuments.json'
 import { buildZip } from '../export/zipWriter'
 import { permitPackageFilesOf } from '../export/permitPackage'
@@ -92,6 +94,8 @@ export function P5Output() {
   const grossM2 = permitVolume ? permitVolume.gross_floor_area_mm2 / 1_000_000 : 0
   const heightM = volume ? volume.total_height / 1000 : 0
   const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
+  // 様式の欄に入れる値（ボリュームから決まるもの。案件の敷地面積は入力があるときだけ）
+  const formValues = useMemo(() => (permitVolume ? formValuesFromVolume(permitVolume, { structure: APP_STRUCTURE }) : {}), [permitVolume])
   const ready = volume !== null
   const valid = ready && wallOk
 
@@ -365,6 +369,11 @@ export function P5Output() {
           <>
             <section style={{ marginBottom: 16 }}>
               <PermitFormImport />
+            </section>
+
+            <section style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>取り込んだ様式の欄（アプリが何をするか）</h3>
+              <PermitFormPlan values={formValues} />
             </section>
 
             <section style={{ marginBottom: 16 }}>
