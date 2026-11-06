@@ -1,3 +1,4 @@
+import {movePlanCore} from '../plan/movePlanCore'
 import { IconModeDrawing } from './headerIcons'
 import { RectangularStudyPanel } from './RectangularStudyPanel'
 import { FloorPlanMenu } from './FloorPlanMenu'
@@ -65,7 +66,7 @@ import { wallOutlineRings } from '../plan/wallUnion'
 import { useFirstFloor } from '../store/firstFloor'
 import { UnitDetailPanel } from './UnitDetailPanel'
 import unitTypeCandidates from '../plan/unitTypeCandidates.json'
-import { masterOf, unitTypeKind, unitTypeOptions } from '../plan/unitTypeMaster'
+import { masterOf, unitTypeKind } from '../plan/unitTypeMaster'
 import { useDevTools } from '../store/devTools'
 
 /** 住戸タイプのマスタ（T-08。候補 14 型。未確認の値は仮置き） */
@@ -92,7 +93,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const unitType = firstUnitType ? unitTypeKind(firstUnitType) : 'ファミリー'
   const [patternText, setPatternText] = useP3Field('patternText')
   const [targetText, setTargetText] = useP3Field('targetText')
-  const [coreText, setCoreText] = useP3Field('coreText')
+  const [coreText] = useP3Field('coreText')
   // 階数・階高は P2（ボリューム）の値を使う
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
@@ -174,9 +175,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     element.addEventListener('wheel', wheel, {passive:false})
     return () => { observer.disconnect(); element.removeEventListener('wheel', wheel) }
   }, [inherited !== null])
-  const runAuto = (allFloors = false) => {
+  const runAuto = (allFloors = false, automaticTypes = false) => {
     // 足りない入力は、一文で言う（ZodError の JSON は出さない。依頼 2b）
-    const problem = (targetText.trim() ? missingTargetOf(Number(targetText)) : null) ?? missingDimensionOf(dimensionsOf())
+    const problem = (targetText.trim() ? missingTargetOf(Number(targetText)) : null) ?? missingDimensionOf({...dimensionsOf(),widthMm:inherited?.widthMm ?? 0,depthMm:inherited?.depthMm ?? 0})
     if (problem !== null) {
       setAuto(null)
       setAutoError(problem)
@@ -197,8 +198,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         stairFinish: stairFinishText,
         unitType,
         unitTypes: UNIT_TYPES,
-        unitTypeIds,
-        orderedTypes: true,
+        unitTypeIds: automaticTypes ? UNIT_TYPES.map(t=>t.id) : unitTypeIds,
+        orderedTypes: !automaticTypes,
         pattern: patternText,
         evCount: Number(evCountText),
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
@@ -223,6 +224,23 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       setAuto(null)
       setAutoError(plainErrorTextOf(e))
     }
+  }
+
+  const attemptedSource = useRef('')
+  useEffect(() => {
+    if (!inherited || attemptedSource.current === sourceKey) return
+    attemptedSource.current = sourceKey
+    if (floorState.source !== sourceKey || !Object.keys(floorState.plans).length) runAuto(true, true)
+  }, [sourceKey, inherited])
+  const [moveCoreId,setMoveCoreId] = useState('evHall')
+  const [moveX,setMoveX] = useState('0'), [moveY,setMoveY] = useState('0')
+  const moveCore = () => {
+    try {
+      if (!inherited) return
+      const updated = Object.entries(floorState.plans).map(([floor,plan]) => [Number(floor),movePlanCore(plan,moveCoreId,Number(moveX),Number(moveY),inherited.floors[Number(floor)-1] ?? [])] as const)
+      for (const [floor,plan] of updated) floorState.put(sourceKey,floor,plan)
+      setAutoError(null)
+    } catch(e) {setAutoError(plainErrorTextOf(e))}
   }
 
   const lines = useMemo(() => {
@@ -518,25 +536,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         ) : null}
         {!tileShown('p3-form') ? null : (
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
-        <label style={{ display: 'block', marginBottom: 4 }}>
-          廊下タイプ
-          <select
-            value={layoutText}
-            onChange={(e) => {
-              const next = e.target.value as CorridorLayout
-              setLayoutText(next)
-              // 層を変えたら、その層の既定の廊下幅に合わせる（既定の無い層は変えない。G135）
-              const d = corridorDefaultOf(next)
-              if (d) setCorridorText(String(d.mm))
-            }}
-            style={{ width: '100%' }}
-          >
-            <option value="中廊下">中廊下</option>
-            <option value="片廊下">片廊下</option>
-            <option value="階段室">階段室型</option>
-            <option value="ツイン">ツインコリドー</option>
-          </select>
-        </label>
+        <div role="group" aria-label="廊下タイプ" style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}>
+          {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm))}}>{next==='階段室'?'階段室型':next==='ツイン'?'ツインコリドー':next}</button>)}
+        </div>
         {layoutText === '階段室' ? (
           <label style={{ display: 'block', marginBottom: 4 }}>
             階段室のしつらえ
@@ -583,16 +585,13 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           許容範囲 最大 (mm)
           <input value={maxText} onChange={(e) => setMaxText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
         </label>
-        <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
-          <legend style={{ fontSize: 12 }}>EV コアの矩形（任意・mm。四隅すべて入れると区画の除外判定に使う）</legend>
-          {(['x0', 'y0', 'x1', 'y1'] as const).map((k) => (
-            <label key={k} style={{ display: 'inline-block', width: '48%', marginBottom: 4, fontSize: 12 }}>
-              {k}
-              <input value={coreText[k]} onChange={(e) => setCoreText({ ...coreText, [k]: e.target.value })} style={{ width: '100%' }} />
-            </label>
-          ))}
-          {core.error ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{core.error}</p> : null}
-        </fieldset>
+        {auto && <fieldset><legend>コアの配置調整</legend>
+          <p style={{fontSize:12}}>寸法は自動配置の仮置き値。移動は上下階を揃えて反映します。</p>
+          <div role="group" aria-label="移動するコア">{auto.cores.map(c=><button type="button" key={c.id} aria-pressed={moveCoreId===c.id} onClick={()=>setMoveCoreId(c.id)}>{c.id==='evHall'?'EV':c.id==='stairA'?'階段A':'階段B'}</button>)}</div>
+          <label>横移動 mm<input type="number" value={moveX} onChange={e=>setMoveX(e.target.value)}/></label>
+          <label>縦移動 mm<input type="number" value={moveY} onChange={e=>setMoveY(e.target.value)}/></label>
+          <button type="button" onClick={moveCore}>選択したコアを移動</button>
+        </fieldset>}
         {!tileShown('auto') ? null : (
         <PanelTile title="自動で作る（柱割り・間取り・縦シャフト）" onHide={() => hideTile('auto')}>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
@@ -603,15 +602,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
             EV の基数（全階停止）
             <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
-          </label>
-          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
-            住戸タイプ（縦割りごと。ID を , で区切る。型が少なければ繰り返す）
-            <input list="unit-type-options" value={unitTypeIdsText} onChange={(e) => setUnitTypeIdsText(e.target.value)} style={{ width: '100%' }} />
-            <datalist id="unit-type-options">
-              {unitTypeOptions(UNIT_TYPES).map((o) => (
-                <option key={o.value} value={o.value} label={o.label} />
-              ))}
-            </datalist>
           </label>
           {auto ? (
             <>
@@ -679,7 +669,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </fieldset>
         </PanelTile>
         )}
-        {!tileShown('fixtures') ? null : (
+        {activeMode !== 'drawing' || !tileShown('fixtures') ? null : (
           <PanelTile title="什器" onHide={() => hideTile('fixtures')}>
             <FixturePalette selectedItem={selectedFixtureItem} onSelect={selectFixtureItem} fixtures={fixtures} unitIds={unitIds} onRemove={removeFixtureById} />
           </PanelTile>
@@ -738,7 +728,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             </section>
           </PanelTile>
         )}
-        {!tileShown('semantic') ? null : (
+        {activeMode !== 'drawing' || !tileShown('semantic') ? null : (
           <PanelTile title="意味づけの確認" onHide={() => hideTile('semantic')}>
             <SemanticConfirm
               rows={semanticRows}
