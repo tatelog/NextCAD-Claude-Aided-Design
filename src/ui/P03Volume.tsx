@@ -83,10 +83,10 @@ import { SCREEN_MODES } from '../app/screenModes'
 import { OrdinanceForm, OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
-import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf, slopeLotNoteOf } from '../plan/lot'
+import { lotAreaMm2, lotCenterOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf, slopeLotNoteOf } from '../plan/lot'
 import { parcelPropsOf } from '../map/selectedParcel'
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
-import { neighborNoteOf, neighborVolumesInFrame } from '../volume/neighborFrame'
+import { neighborVolumesInFrame } from '../volume/neighborFrame'
 import { sunSiteOf } from '../plan/sunSite'
 import { useDevTools } from '../store/devTools'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
@@ -466,10 +466,6 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
         </span>
         {confirmed === null ? <span className="p03-note">まだ確定していない（敷地の「この敷地で確定」。今はダミーの筆界）。</span> : null}
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
-        <span className="p03-note">{lotNoteOf(parcel)}。指・マウス・ペンのどれでも描ける。2本指でパン・ズーム。右クリックかダブルタップで道具のメニュー。</span>
-        {siteBuildings && (
-          <span className="p03-note">{neighborNoteOf(neighbors.length, confirmed?.frame != null)}</span>
-        )}
       </header>
       <div className="p03-body">
         <ObjectMenu
