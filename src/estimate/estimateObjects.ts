@@ -1,3 +1,5 @@
+import {stairLocation} from './stairLocation'
+import type {AutoPlan} from '../plan/autoPlan'
 // 積算のオブジェクト表からの集計（ハブ A-03 G86、統括の決定 2026-11-04）。決定論。
 // 床版の数量は、オブジェクト表の kind が slab の行から出す（ハブ A-03 G92）。ほかの躯体・外装・内装・外構・サッシの数量は、kind が other の行（属性 part で部分を決める）から出す。その明細が P4 の正本。
 // 単価の参照は、品目・単位・分類が一致する単価の行の id（一致しなければ null）。
@@ -21,6 +23,7 @@ export const PART = {
   interior: 'interior',
   planExterior: 'plan_exterior',
   sash: 'sash',
+  stairs: 'stairs',
 } as const
 
 /** 行の属性（JSON）。part で部分を決め、ほかは部分ごとの入力 */
@@ -71,6 +74,11 @@ export function sashRow(segments: readonly SashSegment[], kinds: Record<string, 
   return partRow('sash-drawn', PART.sash, { segments, kinds }, 'サッシ（開口）')
 }
 
+/** 各階の実際の外形と階段を一緒に保持し、階数の掛け算で代用しない。 */
+export function stairRows(plans:Record<number,AutoPlan>):ObjectRow[] {
+ return Object.entries(plans).flatMap(([floor,plan])=>plan.cores.filter(c=>c.id.startsWith('stair')).map(core=>partRow(`stair-${floor}-${core.id}`,PART.stairs,{core,outline:plan.buildingOutline??[],floor},`${floor}階 ${core.id==='stairA'?'階段A':'階段B'}`)))
+}
+
 const BASIS = {
   exterior: '外形から（仮置き）',
   site: '敷地の残り（仮置き）',
@@ -118,6 +126,11 @@ export function detailLinesOfObjects(rows: readonly ObjectRow[], rebar: RebarCon
     const a = partOf(row)
     if (a === null) continue
     switch (a.part) {
+      case PART.stairs: {
+        const location=stairLocation(a.core,a.outline)
+        if(location) lines.push(lineOf(row.id,{item:location,category:location==='内部階段'?'内装':'外装',quantity:(a.core.x1-a.core.x0)*(a.core.y1-a.core.y0)/1_000_000,unit:'m2',provisional:true},`${a.floor}階・階段の平面投影面積。建物外形から内外を判定。段床・仕上げ仕様は未確定`))
+        break
+      }
       case PART.exterior: {
         const q = buildingExteriorQuantities(a.footprint, { storey_count: a.storey_count, storey_height: a.storey_height }, a.roof_area_mm2)
         lines.push(lineOf(row.id, q.exterior_wall, BASIS.exterior), lineOf(row.id, q.roof, BASIS.exterior))

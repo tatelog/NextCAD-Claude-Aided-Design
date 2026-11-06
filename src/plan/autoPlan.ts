@@ -72,6 +72,7 @@ export interface ShaftRect {
 }
 
 export interface AutoPlan {
+  buildingOutline?: readonly {x:number;y:number}[]
   widthMm: number
   depthMm: number
   spans: number

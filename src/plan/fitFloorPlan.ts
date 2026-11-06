@@ -6,5 +6,5 @@ export function fitFloorPlan(base: AutoPlan, outline: readonly Point[]): AutoPla
  const cells=base.cells.filter(c=>!excluded.has(c.id))
  const rooms=base.rooms.filter(r=>cells.some(c=>r.id.startsWith(c.id+'-')))
  const shaftRects=base.shaftRects.filter(s=>!s.unitId || cells.some(c=>c.id===s.unitId))
- return {...base,cells,rooms,shaftRects,unitsPerFloor:cells.length,shortfall:base.shortfall+base.cells.length-cells.length,shafts:{ps:shaftRects.filter(s=>s.kind==='PS').length,eps:shaftRects.filter(s=>s.kind==='EPS').length,ds:shaftRects.filter(s=>s.kind==='DS').length}}
+ return {...base,buildingOutline:outline.map(p=>({...p})),cells,rooms,shaftRects,unitsPerFloor:cells.length,shortfall:base.shortfall+base.cells.length-cells.length,shafts:{ps:shaftRects.filter(s=>s.kind==='PS').length,eps:shaftRects.filter(s=>s.kind==='EPS').length,ds:shaftRects.filter(s=>s.kind==='DS').length}}
 }

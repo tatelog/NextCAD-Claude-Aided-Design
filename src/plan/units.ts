@@ -45,7 +45,7 @@ function insidePolygon(p: Point, poly: readonly Point[]): boolean {
 }
 
 // 区画が外形の中にあるか。四隅が外形の内側（辺上を含む）、かつ外形の頂点が区画の内部に入り込んでいない（外形の欠けと重ならない）。
-function cellInsideOutline(c: Rect, outline: readonly Point[]): boolean {
+export function cellInsideOutline(c: Rect, outline: readonly Point[]): boolean {
   const corners: Point[] = [
     { x: c.x0, y: c.y0 },
     { x: c.x1, y: c.y0 },

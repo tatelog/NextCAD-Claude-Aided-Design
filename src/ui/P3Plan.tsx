@@ -23,7 +23,7 @@ import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import { parseCoreRect } from '../plan/coreRect'
-import { generateAutoPlan, type AutoPlan, type StairFinish } from '../plan/autoPlan'
+import { generateAutoPlan, type AutoPlan } from '../plan/autoPlan'
 import { confirmRows, countByStatus, targetSegmentsOf } from '../plan/semanticConfirm'
 import { nextGateOf, p3NextIssuesOf, type CheckIssue } from '../plan/nextCheck'
 import { NextCheckPanel } from './NextCheckPanel'
@@ -84,8 +84,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [minText, setMinText] = useP3Field('minText')
   const [maxText, setMaxText] = useP3Field('maxText')
   const [layoutText, setLayoutText] = useP3Field('layoutText')
-  // 階段室型のしつらえ（統括の決定 G107）: 屋内シャフト（既定）か外部階段（アルミスリット 2 面）
-  const [stairFinishText, setStairFinishText] = useP3Field('stairFinishText')
   // 住戸タイプ（G89）: 縦割り（柱割りの列）ごとに、型の id を , で並べる。型が少なければ繰り返す
   const [unitTypeIdsText, setUnitTypeIdsText] = useP3Field('unitTypeIdsText')
   const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
@@ -198,7 +196,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         unitDepthMm: Number(unitDepthText),
         corridorMm: Number(corridorText),
         layout: layoutText,
-        stairFinish: stairFinishText,
         unitType,
         unitTypes: UNIT_TYPES,
         unitTypeIds: automaticTypes ? UNIT_TYPES.map(t=>t.id) : unitTypeIds,
@@ -543,15 +540,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         <div role="group" aria-label="廊下タイプ" style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}>
           {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm))}}>{next==='階段室'?'階段室型':next}</button>)}
         </div>
-        {layoutText === '階段室' ? (
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            階段室のしつらえ
-            <select value={stairFinishText} onChange={(e) => setStairFinishText(e.target.value as StairFinish)} style={{ width: '100%' }}>
-              <option value="indoorShaft">屋内シャフト（全部屋内）</option>
-              <option value="outdoorSlit">外部階段（4 面のうち 2 面がアルミスリット）</option>
-            </select>
-          </label>
-        ) : null}
         <label style={{ display: 'block', marginBottom: 6 }}>
           目標の戸数
           <input value={targetText} onChange={(e) => setTargetText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />

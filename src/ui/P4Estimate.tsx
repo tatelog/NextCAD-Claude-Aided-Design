@@ -1,3 +1,4 @@
+import {useFloorPlans} from '../store/floorPlans'
 // P4 積算（D-04 P4、D-02 C8、A-03 G19・G21・G22・G63）。単価は利用者が出典つきの CSV で置く（G20）。
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
 import { useEffect, useMemo, useState } from 'react'
@@ -7,6 +8,7 @@ import { usePriceTable } from '../store/priceTable'
 import { useComponentFire } from '../store/componentFire'
 import {
   detailLinesOfObjects,
+  stairRows,
   exteriorRow,
   interiorRow,
   planExteriorRow,
@@ -115,6 +117,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   }, [volume])
   // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
   const plan = useSite((s) => s.plan)
+  const floorPlans = useFloorPlans(s=>s.plans)
   // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
   // 描いた線は P2 の線だけ（P3 の線は P3 の欄で見る）
   const drawnAll = useDrawing((s) => s.entries)
@@ -163,11 +166,12 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
         }),
       )
     }
+    if(plan && Object.values(floorPlans).includes(plan)) rows.push(...stairRows(floorPlans))
     const segments = drawnEntries.flatMap((e) => e.segments)
     const kinds = Object.fromEntries(segments.map((s) => [s.id, assignments[s.id]?.kind ?? null]))
     rows.push(sashRow(segments, kinds))
     return rows
-  }, [plan, fixtures, volume, drawnEntries, assignments, siteAreaMm2])
+  }, [plan, floorPlans, fixtures, volume, drawnEntries, assignments, siteAreaMm2])
   // 左の一覧の件数（G78）は、この表の行から数える（別の集計表は作らない）
   const countSources = useMemo(() => sourcesOfTable(derivedObjectRows), [derivedObjectRows])
   const objectRows = useObjectTable((s) => s.rows)
