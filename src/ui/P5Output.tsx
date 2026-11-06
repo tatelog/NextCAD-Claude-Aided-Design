@@ -10,7 +10,7 @@ import { usePermitProject } from '../store/permitProject'
 import { permitInputFromVolume } from '../law/permitInput'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
-import { floorPlanBodyOf, siteLayoutBodyOf } from '../export/drawingSvg'
+import { floorPlanOf, siteLayoutOf } from '../export/drawingSvg'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
@@ -111,28 +111,28 @@ export function P5Output() {
   const drawingSvgs = useMemo(() => {
     const size = frameSizeOf(frame)
     const area = drawingAreaOf(size)
-    const sheet = (body: string | null): string | null => (body === null ? null : frameSvg({ size, values: {}, body }).svg)
-    const site = sheet(
-      siteLayoutBodyOf({
-        lot: lotOfConfirmed(confirmedNow),
-        footprint: outline.ok ? outline.footprint : null,
-        neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
-        area,
-      }),
-    )
-    const floorPlan =
+    // 縮尺は、作図の領域に収まるいちばん大きい標準の縮尺。図枠の縮尺の欄に「1/○○」と書く
+    const sheet = (body: string, denominator: number): string => frameSvg({ size, values: { scale: `1/${denominator}` }, body }).svg
+    const siteLayout = siteLayoutOf({
+      lot: lotOfConfirmed(confirmedNow),
+      footprint: outline.ok ? outline.footprint : null,
+      neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
+      area,
+    })
+    const floorLayout =
       planResult === null
         ? null
-        : sheet(
-            floorPlanBodyOf({
-              widthMm: planResult.widthMm,
-              depthMm: planResult.depthMm,
-              gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
-              units: planResult.cells,
-              area,
-            }),
-          )
-    return { site, floorPlan }
+        : floorPlanOf({
+            widthMm: planResult.widthMm,
+            depthMm: planResult.depthMm,
+            gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
+            units: planResult.cells,
+            area,
+          })
+    return {
+      site: siteLayout === null ? null : sheet(siteLayout.body, siteLayout.denominator),
+      floorPlan: floorLayout === null ? null : sheet(floorLayout.body, floorLayout.denominator),
+    }
   }, [frame, confirmedNow, buildingsNow, outline, planResult])
 
   // 一式の中身（図面・IFC・書類一覧・空欄の一覧）。判定が無いときは null
