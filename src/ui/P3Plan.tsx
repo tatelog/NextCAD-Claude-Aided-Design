@@ -148,6 +148,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const planViewport = useRef<HTMLDivElement>(null)
   const [planSize, setPlanSize] = useState({width: 800, height: 600})
   const [planZoom, setPlanZoom] = useState(1)
+  const [toolsOpen, setToolsOpen] = useState(true)
   const [planDrawing, setPlanDrawing] = useState(false)
   const changeZoom = (factor: number) => setPlanZoom(z => Math.max(0.25, Math.min(8, z * factor)))
   useEffect(() => {
@@ -387,9 +388,13 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <span>{Math.round(planZoom * 100)}%</span>
           <button type="button" aria-label="平面図を拡大" onClick={() => changeZoom(1.25)}>＋</button>
           <button type="button" onClick={() => setPlanZoom(1)}>全体表示</button>
+          <button type="button" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}>道具</button>
           <button type="button" aria-pressed={planDrawing} onClick={() => setPlanDrawing(v => !v)}>図面に描く</button>
         </div>
-        <div style={{position:"relative"}}><PenToolbar placement={placement} /></div>
+        <div style={{position:'relative', flex:1, minHeight:0, display:'flex', flexDirection:'column'}}>
+        {toolsOpen && <div style={{position:'absolute', top:8, left:8, zIndex:20, maxWidth:'calc(100% - 16px)'}}>
+          <PenToolbar compact placement={placement} isDrawing={planDrawing} onDraw={() => setPlanDrawing(true)} />
+        </div>}
         {lines && units.cells ? (
           <div ref={planViewport} style={{ position: 'relative', overflow:'auto', flex:1, minHeight:0, background:'#f4f4f2' }}>
           <div style={{position:'relative', width:Math.max(1, Math.min(planSize.width, planSize.height * (W + 2500) / (D + 2500)) - 16) * planZoom, margin:'8px auto', aspectRatio:`${W + 2500} / ${D + 2500}`}}>
@@ -482,6 +487,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <p style={{ color: '#a33' }}>{units.error ?? '入力を確かめてください'}</p>
         )}
 
+        </div>
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>

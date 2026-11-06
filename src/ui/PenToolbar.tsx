@@ -22,12 +22,13 @@ const PEN_SCREEN = 'P2' as const
 
 export interface PenToolbarProps {
   /** 独立のときの位置の基準にする要素（この中で動かす） */
+  compact?: boolean
   isDrawing?: boolean
   onDraw?: () => void
   placement: ToolbarPlacement
 }
 
-export function PenToolbar({ placement, isDrawing = true, onDraw }: PenToolbarProps) {
+export function PenToolbar({ placement, isDrawing = true, onDraw, compact = false }: PenToolbarProps) {
   const activeMode = useActiveMode('P2')
   const leftWidth = useLeftPanelWidth((s) => s.width)
   const penMode = useUi((s) => s.penMode)
@@ -57,11 +58,11 @@ export function PenToolbar({ placement, isDrawing = true, onDraw }: PenToolbarPr
     drag.current = null
   }
 
-  const style = placement === 'free' ? { left: freePosition.x, top: freePosition.y } : placement === 'left' ? { width: leftWidth, flexShrink: 0, position: 'relative' as const, boxSizing: 'border-box' as const } : undefined
+  const style = placement === 'free' ? { left: freePosition.x, top: freePosition.y } : placement === 'left' ? { width: compact ? 140 : leftWidth, flexShrink: 0, position: 'relative' as const, boxSizing: 'border-box' as const } : undefined
 
   return (
     <div className={`pen-toolbar is-${placement}`} style={style} role="toolbar" aria-label="ペンの道具">
-      {placement === 'left' && <LeftPanelResize />}
+      {placement === 'left' && !compact && <LeftPanelResize />}
       {placement === 'free' && (
         <button
           type="button"
