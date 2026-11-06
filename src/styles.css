@@ -135,6 +135,17 @@ body,
   height: 100%;
   cursor: crosshair;
 }
+.p03-side-resizer {
+  flex: 0 0 8px;
+  cursor: col-resize;
+  touch-action: none;
+  background: linear-gradient(to right, transparent 3px, #ddd8cc 3px, #ddd8cc 5px, transparent 5px);
+}
+.p03-side-resizer:hover,
+.p03-side-resizer:focus-visible {
+  background: #cad5e7;
+  outline: none;
+}
 .p03-side {
   width: 260px;
   flex: none;

@@ -92,6 +92,8 @@ import { useDevTools } from '../store/devTools'
 const ZONES: Zone[] = ['低層住専', '田園住居', '中高層住専', '住居系', '商業系', '準工・工業系', '高層住居誘導', '指定なし']
 
 export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
+  const [sideWidth, setSideWidth] = useState(260)
+  const sideDrag = useRef<{ x: number; width: number } | null>(null)
   const devShown = useDevTools((s) => s.shown)
   // P2 の敷地: 確定した敷地の筆（P1 の「この敷地で確定」）。確定していなければダミー（統括の依頼 2026-11-06。1）
   const confirmed = useConfirmedSite((s) => s.confirmed)
@@ -518,7 +520,43 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             <CircleMenu />
           </div>
         )}
-        <aside className="p03-side">
+        <div
+          className="p03-side-resizer"
+          role="separator"
+          aria-label="右サイドメニューの幅"
+          aria-orientation="vertical"
+          aria-valuemin={220}
+          aria-valuemax={600}
+          aria-valuenow={sideWidth}
+          tabIndex={0}
+          title="ドラッグで幅を変更（左右キーでも調整）"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.preventDefault()
+            sideDrag.current = { x: e.clientX, width: sideWidth }
+            e.currentTarget.setPointerCapture(e.pointerId)
+          }}
+          onPointerMove={(e) => {
+            const drag = sideDrag.current
+            if (!drag) return
+            const available = e.currentTarget.parentElement!.clientWidth
+            const max = Math.max(220, Math.min(600, available - 280))
+            setSideWidth(Math.min(max, Math.max(220, drag.width + drag.x - e.clientX)))
+          }}
+          onPointerUp={(e) => {
+            sideDrag.current = null
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+          }}
+          onPointerCancel={() => { sideDrag.current = null }}
+          onLostPointerCapture={() => { sideDrag.current = null }}
+          onKeyDown={(e) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home'].includes(e.key)) return
+            e.preventDefault()
+            const max = Math.max(220, Math.min(600, e.currentTarget.parentElement!.clientWidth - 280))
+            setSideWidth(e.key === 'Home' ? Math.min(260, max) : Math.min(max, Math.max(220, sideWidth + (e.key === 'ArrowLeft' ? 16 : -16))))
+          }}
+        />
+        <aside className="p03-side" style={{ width: sideWidth }}>
           <section style={tileStyle('p2-outline')}>
             <TileClose title="外形" onHide={() => hideTile('p2-outline')} />
             <h2>外形（基準線: {baselineLabelOf(baselineOpts)}）</h2>
