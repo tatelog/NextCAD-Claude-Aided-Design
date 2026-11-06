@@ -104,7 +104,7 @@ export function P1Map(props: Props) {
     map.doubleClickZoom.disable()
     map.on('dblclick', (e) => {
       e.preventDefault()
-      map.easeTo({ ...topViewAt(e.lngLat.lng, e.lngLat.lat, DEMO_INITIAL_VIEW.zoom), duration: 300 })
+      map.jumpTo(topViewAt(e.lngLat.lng, e.lngLat.lat, DEMO_INITIAL_VIEW.zoom))
     })
     map.addControl(new ScaleControl({ maxWidth: 160, unit: 'metric' }), 'bottom-left')
     const magnification = document.createElement('div')
