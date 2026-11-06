@@ -1,8 +1,11 @@
+import { MiniMap } from './MiniMap'
+import { boundsOf } from './mapBounds'
+import { scaleBarOf } from './scaleBar'
 // 描くキャンバス（共通部品）。指・マウス・ペンを Pointer Events で一つに扱い、入力の種類で挙動を変えない（G23）。
 // 振り分けは input/gesture.ts（本数と中ボタン・Shift だけ見る）。1 本 = 描く。2 本 = パンとズーム。
 // ホイール = カーソル位置でズーム。中ボタン／Shift + ドラッグ = パン。ダブルタップ・右クリック = サークルメニュー（G52）。
 // 外形が閉じていれば、角（四角）と辺の中点（丸）につまみを出す。つまみの上で押したら線は描かず、つまんで外形を動かす（G65）。
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
@@ -139,6 +142,15 @@ export function DrawingCanvas({ panOnly = false, siteOverride }: { panOnly?: boo
   const panOnlyRef = useRef(panOnly)
   panOnlyRef.current = panOnly
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const observer = new ResizeObserver(([entry]) => { if (entry) setCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height }) })
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [])
+  const showMiniMap = useUi(s => s.showMiniMap)
   const viewport = useDrawing((s) => s.viewport)
   const setViewport = useDrawing((s) => s.setViewport)
   const fitViewport = useDrawing((s) => s.fitViewport)
@@ -604,7 +616,20 @@ export function DrawingCanvas({ panOnly = false, siteOverride }: { panOnly?: boo
     }
   }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels])
 
-  return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
+  const bar = scaleBarOf(viewport.mmPerPx)
+  // SVG は下向き Y。作図座標の Y を反転して向きをそろえる。
+  const overview = [lot, ...shownSegments.map(segment => polylineOfSegment(segment))].map(poly => poly.map(p => ({ x: p.x, y: -p.y })))
+  const overviewBounds = boundsOf(overview)
+  const topLeft = pxToMm(viewport, { x: 0, y: 0 })
+  const bottomRight = pxToMm(viewport, { x: canvasSize.width, y: canvasSize.height })
+  return <>
+    <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
+    <div aria-label="縮尺表示" style={{ position: 'absolute', left: 12, bottom: 12, padding: '6px 8px', background: 'rgba(255,255,255,.92)', borderRadius: 4, pointerEvents: 'none', fontSize: 11 }}>
+      <div>{bar.lengthMm >= 1000 ? `${bar.lengthMm / 1000} m` : `${bar.lengthMm} mm`}</div>
+      <div style={{ width: bar.widthPx, height: 6, border: '1px solid #536174', borderTop: 0, boxSizing: 'border-box' }} />
+    </div>
+    {showMiniMap && overviewBounds && <MiniMap bounds={overviewBounds} polygons={overview} frame={{ x0: topLeft.x, y0: -topLeft.y, x1: bottomRight.x, y1: -bottomRight.y }} />}
+  </>
 }
 
 function paint(
