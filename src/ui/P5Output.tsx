@@ -9,7 +9,11 @@ import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { permitInputFromVolume } from '../law/permitInput'
 import { requiredPermitDocuments } from '../law/permitRequired'
-import { frameSvg } from '../law/permitFrameSvg'
+import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
+import { floorPlanBodyOf, siteLayoutBodyOf } from '../export/drawingSvg'
+import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { neighborOutlinesOf } from '../volume/neighborFrame'
+import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import { PermitViewer } from './PermitViewer'
 import permitDocsJson from '../law/permitDocuments.json'
 import { buildZip } from '../export/zipWriter'
@@ -100,17 +104,48 @@ export function P5Output() {
     }
   }, [outline, storeys, height, wall, schema])
 
-  // 一式の中身（図枠・IFC・書類一覧・空欄の一覧）。判定が無いときは null
+  // 配置図と各階平面図の中身（図枠の作図領域の中）。元のデータが無いものは null
+  const confirmedNow = useConfirmedSite((s) => s.confirmed)
+  const buildingsNow = useConfirmedSite((s) => s.buildings)
+  const planResult = useSite((s) => s.plan)
+  const drawingSvgs = useMemo(() => {
+    const size = frameSizeOf(frame)
+    const area = drawingAreaOf(size)
+    const sheet = (body: string | null): string | null => (body === null ? null : frameSvg({ size, values: {}, body }).svg)
+    const site = sheet(
+      siteLayoutBodyOf({
+        lot: lotOfConfirmed(confirmedNow),
+        footprint: outline.ok ? outline.footprint : null,
+        neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
+        area,
+      }),
+    )
+    const floorPlan =
+      planResult === null
+        ? null
+        : sheet(
+            floorPlanBodyOf({
+              widthMm: planResult.widthMm,
+              depthMm: planResult.depthMm,
+              gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
+              units: planResult.cells,
+              area,
+            }),
+          )
+    return { site, floorPlan }
+  }, [frame, confirmedNow, buildingsNow, outline, planResult])
+
+  // 一式の中身（図面・IFC・書類一覧・空欄の一覧）。判定が無いときは null
   const packageFiles = useMemo(() => {
     if (!judgement) return null
     return permitPackageFilesOf({
       judgement,
       docs: permitDocsJson.documents,
-      frameSvg: frameSvg({ size: frameSizeOf(frame), values: {} }).svg,
+      drawings: drawingSvgs,
       ifcText,
       ifcFileName: `model-${schema.toLowerCase()}.ifc`,
     })
-  }, [judgement, frame, ifcText, schema])
+  }, [judgement, drawingSvgs, ifcText, schema])
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {
@@ -366,8 +401,8 @@ export function P5Output() {
                   <PermitViewer
                     judgement={judgement}
                     docs={permitDocsJson.documents}
-                    frame={frame}
                     ifcText={ifcText}
+                    drawingSvgs={drawingSvgs}
                     checkOf={(name) => {
                       const c = legalCheckOfDoc(name, legal)
                       return c ? { text: c.text, color: TONE_COLOR[c.tone] } : null

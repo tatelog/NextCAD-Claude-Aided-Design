@@ -1,9 +1,8 @@
-// 出力のビューア（1-a）。左に出す書類の一覧（判定の一覧・IFC、続けて要る・要確認・要らない）、右に選んだ項目の中身。判定の結果はそのまま使う。
+// 出力のビューア（1-a・1-c）。左に出す書類の一覧（判定の一覧・IFC、続けて要る・要確認・要らない）、右に選んだ項目の中身。判定の結果はそのまま使う。
 import { useState } from 'react'
-import { frameSvg } from '../law/permitFrameSvg'
 import type { PermitJudgement } from '../law/permitRequired'
-import { applicabilityTextOf, frameSizeOf } from '../permit/p5Judgement'
-import { CONTENT_LABEL, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
+import { applicabilityTextOf } from '../permit/p5Judgement'
+import { DRAWING_KEY_OF_NAME, FIXED_VIEWER_ITEMS, ifcSummaryOf, viewerRowsOf, type ViewerGroup, type ViewerRow } from '../permit/permitViewer'
 
 const GROUPS: readonly ViewerGroup[] = ['要る', '要確認', '要らない']
 const JUDGE_KEY: string = FIXED_VIEWER_ITEMS[0]
@@ -26,16 +25,17 @@ export interface PermitViewerProps {
   judgement: PermitJudgement
   /** 書類の定義（名前と区分）。判定の名前を区分に当てるのに使う */
   docs: readonly { name: string; kind: string }[]
-  frame: 'A3横' | 'A1'
   /** IFC の文字。外形が閉じていなければ null */
   ifcText: string | null
+  /** 配置図と各階平面図の中身（図枠つきの SVG）。作れないものは null */
+  drawingSvgs?: { site: string | null; floorPlan: string | null }
   /** 要る図書の法的チェック（文と色）。無ければ出さない */
   checkOf?: (name: string) => { text: string; color: string } | null
   /** 最初に選ぶ項目の鍵（省略は判定の一覧） */
   initialKey?: string
 }
 
-export function PermitViewer({ judgement, docs, frame, ifcText, checkOf, initialKey = JUDGE_KEY }: PermitViewerProps) {
+export function PermitViewer({ judgement, docs, ifcText, drawingSvgs = { site: null, floorPlan: null }, checkOf, initialKey = JUDGE_KEY }: PermitViewerProps) {
   const rows = viewerRowsOf(judgement, docs)
   const [selected, setSelected] = useState(initialKey)
   const item = (key: string, label: string) => (
@@ -69,6 +69,8 @@ export function PermitViewer({ judgement, docs, frame, ifcText, checkOf, initial
     )
   } else if (selectedRow) {
     const check = selectedRow.group === '要る' && checkOf ? checkOf(selectedRow.name) : null
+    const key = DRAWING_KEY_OF_NAME[selectedRow.name]
+    const svg = key === undefined ? null : drawingSvgs[key]
     pane = (
       <>
         <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>{selectedRow.name}</h3>
@@ -76,9 +78,11 @@ export function PermitViewer({ judgement, docs, frame, ifcText, checkOf, initial
         {selectedRow.reason ? <p style={{ fontSize: 12, color: '#666', margin: '0 0 4px' }}>{selectedRow.reason}</p> : null}
         {check ? <p style={{ fontSize: 12, color: check.color, margin: '0 0 4px' }}>{check.text}</p> : null}
         <p style={{ fontSize: 12, color: '#444' }}>{`中身: ${selectedRow.content}`}</p>
-        {selectedRow.content === CONTENT_LABEL.drawing ? (
-          <div dangerouslySetInnerHTML={{ __html: frameSvg({ size: frameSizeOf(frame), values: {} }).svg }} />
-        ) : null}
+        {key === undefined ? null : svg !== null ? (
+          <div dangerouslySetInnerHTML={{ __html: svg }} />
+        ) : (
+          <p style={{ fontSize: 12, color: '#a33' }}>{key === 'site' ? '敷地を確定すると出せます。' : '平面を作ると出せます。'}</p>
+        )}
       </>
     )
   }

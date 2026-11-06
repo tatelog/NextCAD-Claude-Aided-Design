@@ -1,7 +1,7 @@
 // 確認申請の一式の中身（統括の依頼 2026-11-06。1-b）。フォルダ名とファイル名はここ（PACKAGE_LAYOUT）の一か所だけ。分け方は設計グリルで確認中。
 import type { PermitJudgement } from '../law/permitRequired'
 import { applicabilityTextOf } from '../permit/p5Judgement'
-import { viewerRowsOf, type ViewerGroup } from '../permit/permitViewer'
+import { DRAWING_KEY_OF_NAME, viewerRowsOf, type ViewerGroup } from '../permit/permitViewer'
 
 export const PACKAGE_LAYOUT = {
   /** 直下: 表紙の役（判定の一覧） */
@@ -9,13 +9,15 @@ export const PACKAGE_LAYOUT = {
   /** 直下: まだ埋まっていないもの */
   blankFile: '空欄の一覧.txt',
   folders: { form: '01_申請書', drawing: '02_図面', bim: '03_BIM' },
+  /** 図面のファイル名（02_図面 の中） */
+  drawingFiles: { site: '配置図.svg', floorPlan: '各階平面図.svg' },
 } as const
 
 export interface PackageInput {
   judgement: PermitJudgement
   docs: readonly { name: string; kind: string }[]
-  /** 図枠の SVG（1-c のあとは中身つきの図面） */
-  frameSvg: string
+  /** 配置図と各階平面図の SVG（図枠つき）。作れないものは null */
+  drawings: { site: string | null; floorPlan: string | null }
   /** IFC の文字。外形が閉じていなければ null */
   ifcText: string | null
   /** IFC のファイル名（例: model-ifc4.ifc） */
@@ -42,11 +44,15 @@ export function judgementTextOf(j: PermitJudgement, docs: PackageInput['docs']):
   return lines.join('\n')
 }
 
-/** 空欄の一覧.txt の中身。要る・要確認の書類を中身の種類つきで並べ、IFC が無ければその旨を出す */
-export function blankListTextOf(j: PermitJudgement, docs: PackageInput['docs'], ifcText: string | null): string {
-  const lines = viewerRowsOf(j, docs)
-    .filter((r) => r.group !== '要らない')
-    .map((r) => `${r.name}：${r.content}`)
+/** 空欄の一覧.txt の中身。配置図と各階平面図が無ければ理由を出す。要る・要確認の書類は中身の種類つき。IFC が無ければその旨 */
+export function blankListTextOf(j: PermitJudgement, docs: PackageInput['docs'], ifcText: string | null, drawings: PackageInput['drawings']): string {
+  const lines: string[] = []
+  if (drawings.site === null) lines.push('配置図：敷地を確定すると出せます')
+  if (drawings.floorPlan === null) lines.push('各階平面図：平面を作ると出せます')
+  for (const r of viewerRowsOf(j, docs)) {
+    if (r.group === '要らない' || DRAWING_KEY_OF_NAME[r.name] !== undefined) continue
+    lines.push(`${r.name}：${r.content}`)
+  }
   if (ifcText === null) lines.push('IFC（BIM のモデル）：ボリュームで外形を閉じると作れます')
   return lines.join('\n') + '\n'
 }
@@ -55,9 +61,14 @@ export function blankListTextOf(j: PermitJudgement, docs: PackageInput['docs'], 
 export function permitPackageFilesOf(input: PackageInput): PackageFile[] {
   const files: PackageFile[] = [
     { path: PACKAGE_LAYOUT.judgementFile, text: judgementTextOf(input.judgement, input.docs) },
-    { path: PACKAGE_LAYOUT.blankFile, text: blankListTextOf(input.judgement, input.docs, input.ifcText) },
-    { path: `${PACKAGE_LAYOUT.folders.drawing}/図枠.svg`, text: input.frameSvg },
+    { path: PACKAGE_LAYOUT.blankFile, text: blankListTextOf(input.judgement, input.docs, input.ifcText, input.drawings) },
   ]
+  if (input.drawings.site !== null) {
+    files.push({ path: `${PACKAGE_LAYOUT.folders.drawing}/${PACKAGE_LAYOUT.drawingFiles.site}`, text: input.drawings.site })
+  }
+  if (input.drawings.floorPlan !== null) {
+    files.push({ path: `${PACKAGE_LAYOUT.folders.drawing}/${PACKAGE_LAYOUT.drawingFiles.floorPlan}`, text: input.drawings.floorPlan })
+  }
   if (input.ifcText !== null) files.push({ path: `${PACKAGE_LAYOUT.folders.bim}/${input.ifcFileName}`, text: input.ifcText })
   return files
 }

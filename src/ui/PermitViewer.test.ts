@@ -19,7 +19,7 @@ const JUDGEMENT: PermitJudgement = {
 }
 
 const html = (ifcText: string | null, initialKey?: string) =>
-  renderToStaticMarkup(createElement(PermitViewer, { judgement: JUDGEMENT, docs, frame: 'A3横', ifcText, initialKey }))
+  renderToStaticMarkup(createElement(PermitViewer, { judgement: JUDGEMENT, docs, ifcText, initialKey }))
 
 describe('出力のビューアの一覧（仕様 V6）', () => {
   it('V6: 先頭に「判定の一覧」「IFC（BIM のモデル）」、続けて要る・要確認・要らない（件数つき）の見出し', () => {

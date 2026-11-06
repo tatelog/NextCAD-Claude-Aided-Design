@@ -36,10 +36,20 @@ describe('ビューアの中身の種類（仕様 V2・V3）', () => {
     expect(CONTENT_LABEL.form).toBe('様式が未配置（様式を置けば記入して出す）')
   })
 
-  it('V2: 計算・その他は「人が用意する書類」、図面は「図枠（空欄つき）」', () => {
+  it('V2: 計算・その他は「人が用意する書類」。図面は配置図と各階平面図以外「未作成」', () => {
     const rows = viewerRowsOf(JUDGEMENT, docs)
     expect(rows[1]!.content).toBe('人が用意する書類')
-    expect(rows[2]!.content).toBe('図枠（空欄つき）')
+    expect(rows[2]!.content).toBe(CONTENT_LABEL.notMade)
+    expect(CONTENT_LABEL.notMade).toBe('未作成')
+  })
+
+  it('V8: 配置図と各階平面図は、それぞれの中身の種類を持つ', () => {
+    const j: PermitJudgement = { ...JUDGEMENT, required: ['配置図', '各階平面図'], notRequired: [], needsCheck: [] }
+    const rows = viewerRowsOf(j, docs)
+    expect(rows[0]!.content).toBe(CONTENT_LABEL.site)
+    expect(rows[1]!.content).toBe(CONTENT_LABEL.floorPlan)
+    expect(CONTENT_LABEL.site).toBe('配置図（確定した敷地と周辺建物の輪郭）')
+    expect(CONTENT_LABEL.floorPlan).toBe('各階平面図（基準階 1 枚）')
   })
 
   it('V3: 書類の定義に当たらない名前は「人が用意する書類」にする（落とさない）', () => {

@@ -1,4 +1,4 @@
-// 出力のビューア（1-a）の中身を作る。判定の結果はそのまま使い、判定は変えない（統括の依頼 2026-11-06）。
+// 出力のビューア（1-a・1-c）の中身を作る。判定の結果はそのまま使い、判定は変えない（統括の依頼 2026-11-06）。
 import type { PermitJudgement } from '../law/permitRequired'
 
 export type ViewerGroup = '要る' | '要確認' | '要らない'
@@ -7,8 +7,16 @@ export type ViewerGroup = '要る' | '要確認' | '要らない'
 export const CONTENT_LABEL = {
   form: '様式が未配置（様式を置けば記入して出す）',
   user: '人が用意する書類',
-  drawing: '図枠（空欄つき）',
+  site: '配置図（確定した敷地と周辺建物の輪郭）',
+  floorPlan: '各階平面図（基準階 1 枚）',
+  notMade: '未作成',
 } as const
+
+/** 中身を作れる図面（名前で決まる）。ほかの図面は「未作成」 */
+export const DRAWING_KEY_OF_NAME: Record<string, 'site' | 'floorPlan' | undefined> = {
+  配置図: 'site',
+  各階平面図: 'floorPlan',
+}
 
 /** 左の一覧の先頭に出す、判定とモデルの項目 */
 export const FIXED_VIEWER_ITEMS = ['判定の一覧', 'IFC（BIM のモデル）'] as const
@@ -26,9 +34,12 @@ interface DocLike {
 }
 
 function contentOf(name: string, docs: readonly DocLike[]): string {
+  const key = DRAWING_KEY_OF_NAME[name]
+  if (key === 'site') return CONTENT_LABEL.site
+  if (key === 'floorPlan') return CONTENT_LABEL.floorPlan
   const doc = docs.find((d) => d.name === name)
   if (doc?.kind === 'form') return CONTENT_LABEL.form
-  if (doc?.kind === 'drawing') return CONTENT_LABEL.drawing
+  if (doc?.kind === 'drawing') return CONTENT_LABEL.notMade
   return CONTENT_LABEL.user
 }
 

@@ -29,7 +29,7 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-export function frameSvg(input: { size: FrameSize; values: Partial<Record<FrameFieldId, string>> }): { svg: string; fields: FrameFieldText[] } {
+export function frameSvg(input: { size: FrameSize; values: Partial<Record<FrameFieldId, string>>; body?: string }): { svg: string; fields: FrameFieldText[] } {
   const sheet = f.sheets.find((s) => s.size === input.size)
   if (!sheet) throw new Error(`用紙の寸法が無い: ${input.size}`)
 
@@ -70,7 +70,17 @@ export function frameSvg(input: { size: FrameSize; values: Partial<Record<FrameF
     `<g transform="translate(${originX} ${originY})">` +
     `<rect width="${tb.widthMm}" height="${tb.heightMm}" fill="none" stroke="#000" stroke-width="0.35"/>` +
     cells +
-    `</g></svg>`
+    `</g>${input.body ?? ''}</svg>`
 
   return { svg, fields }
+}
+
+/** 作図領域（mm）。余白の内側で、右下のタイトル欄の上。図面の中身はここに収める */
+export function drawingAreaOf(size: FrameSize): { x0: number; y0: number; x1: number; y1: number } {
+  const sheet = f.sheets.find((s) => s.size === size)
+  if (!sheet) throw new Error(`用紙の寸法が無い: ${size}`)
+  const m = f.marginMm
+  const tb = f.titleBlock
+  const pad = 5
+  return { x0: m.left + pad, y0: m.top + pad, x1: sheet.widthMm - m.right - pad, y1: sheet.heightMm - m.bottom - tb.heightMm - pad }
 }
