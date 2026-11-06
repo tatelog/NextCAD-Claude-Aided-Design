@@ -322,8 +322,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   // 斜線の面は、建物の高さに届くところまで（統括の依頼 2026-11-06）
   const shownBoundaries = useMemo(() => visibleSlopeBoundaries(legal.boundaries, slopeVisibility), [legal, slopeVisibility])
   const slopeSheets = useMemo(
-    () => slopeSheetsOf(shownBoundaries, slopeExtentMm, volume ? volume.total_height : undefined),
-    [shownBoundaries, slopeExtentMm, volume],
+    () => slopeSheetsOf(shownBoundaries, slopeExtentMm, volume?.total_height ?? storeyCount * storeyHeightMm, lot),
+    [shownBoundaries, slopeExtentMm, volume, storeyCount, storeyHeightMm, lot],
   )
   const overrunFloors = useMemo(
     () => (volume && shownBoundaries.length > 0 ? overrunFloorsOf(volume.footprint, shownBoundaries, volume) : []),

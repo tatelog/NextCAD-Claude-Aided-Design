@@ -96,6 +96,17 @@ describe('階ごとの食い込み（仕様 K5・K6）', () => {
 import { legalBoundaries } from './legalSlope'
 import { DUMMY_PARCEL } from '../plan/dummyParcel'
 
+it('敷地に対応する道路面は反対側境界から始まり、敷地の横幅と設定高さで止まる', () => {
+  const legal = legalBoundaries({ footprint: DUMMY_PARCEL, roadEdgeIndex: 0, roadWidthMm: 6000, zone: '準工・工業系', farPercent: 200 })
+  const sheets = slopeSheetsOf(legal.boundaries, 100000, 15000, DUMMY_PARCEL)
+  expect(sheets).toHaveLength(1)
+  const vertices = sheets[0]!
+  expect(Math.min(...vertices.map(v => v.x))).toBe(0)
+  expect(Math.max(...vertices.map(v => v.x))).toBe(20000)
+  expect(vertices.filter(v => v.hMm === 0).every(v => v.y === -6000)).toBe(true)
+  expect(vertices.filter(v => v.hMm === 15000).every(v => v.y === 4000)).toBe(true)
+})
+
 describe('5a の確かめ: 住居系・前面道路 6 m・高さ 15 m（外形 = ダミー筆界）', () => {
   const legal = legalBoundaries({ footprint: DUMMY_PARCEL, roadEdgeIndex: 0, roadWidthMm: 6_000, zone: '住居系', farPercent: 200 })
 
