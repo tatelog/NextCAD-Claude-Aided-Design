@@ -10,34 +10,56 @@ import * as THREE from 'three'
 import type { Point } from '../geom/viewport'
 import { buildVolumeMesh, stackedMesh, type VolumeMesh } from '../volume/mesh'
 import { triangulatePolygon } from '../geom/triangulate'
-import { cameraForFace, type Face } from './viewFaces'
+import { ViewCube } from './ViewCubePanel'
+import type { CubeTarget, Dir } from './viewCube'
 import { VolumeKnobs, type KnobPreview } from './VolumeKnobs'
 import type { RotationStep } from '../volume/rotation'
 import type { SetbackLine } from '../volume/setbackLines'
 import { screenPointOf } from './setbackLabelScreen'
 
-const FACE_LABELS: { face: Face; label: string }[] = [
-  { face: 'top', label: '上' },
-  { face: 'bottom', label: '下' },
-  { face: 'front', label: '正面' },
-  { face: 'back', label: '背面' },
-  { face: 'left', label: '左' },
-  { face: 'right', label: '右' },
-]
+// 押した向き（キューブの面・辺・隅）。token が変わると、その向きへ動かす
+type FaceRequest = { dir: Dir; token: number }
 
-type FaceRequest = { face: Face; token: number }
+// 初期のカメラの向き（既定の位置 (40, 40, 50) から、注視点へ向かう逆向き）
+const DEFAULT_TO_CAMERA: Dir = (() => {
+  const l = Math.hypot(40, 40, 50)
+  return { x: 40 / l, y: 40 / l, z: 50 / l }
+})()
 
-// ビューキューブで選ばれた面へ視点を向ける（Canvas の中で、カメラを直接動かす）。
-function CameraDirector({ request }: { request: FaceRequest | null }) {
+// ビューキューブで選ばれた向きへ視点を向ける（Canvas の中で、カメラを直接動かす）。距離は今のまま、注視点の周りを回る（代表の依頼 2026-11-06。3）
+function CameraDirector({ request, controlsRef }: { request: FaceRequest | null; controlsRef: { current: ComponentRef<typeof OrbitControls> | null } }) {
   const { camera } = useThree()
   const last = useRef<number | null>(null)
   useEffect(() => {
     if (!request || request.token === last.current) return
     last.current = request.token
-    const p = cameraForFace(request.face, 60)
-    camera.position.set(p.x, p.y, p.z)
-    camera.lookAt(0, 0, 0)
-  }, [request, camera])
+    const controls = controlsRef.current
+    const t = controls ? controls.target : new THREE.Vector3(0, 0, 0)
+    const dist = camera.position.distanceTo(t) || 60
+    camera.position.set(t.x + request.dir.x * dist, t.y + request.dir.y * dist, t.z + request.dir.z * dist)
+    camera.lookAt(t)
+    controls?.update()
+  }, [request, camera, controlsRef])
+  return null
+}
+
+// カメラの今の向き（注視点からカメラへ）を、キューブへ渡す。毎フレーム見て、変わったときだけ渡す
+function ViewDirSync({ controlsRef, onView }: { controlsRef: { current: ComponentRef<typeof OrbitControls> | null }; onView: (d: Dir) => void }) {
+  const { camera } = useThree()
+  const last = useRef('')
+  useFrame(() => {
+    const t = controlsRef.current?.target
+    if (!t) return
+    const dx = camera.position.x - t.x
+    const dy = camera.position.y - t.y
+    const dz = camera.position.z - t.z
+    const l = Math.hypot(dx, dy, dz) || 1
+    const d = { x: dx / l, y: dy / l, z: dz / l }
+    const key = `${d.x.toFixed(3)},${d.y.toFixed(3)},${d.z.toFixed(3)}`
+    if (key === last.current) return
+    last.current = key
+    onView(d)
+  })
   return null
 }
 
@@ -268,6 +290,8 @@ export function Volume3D({
   const ground = useMemo(() => (groundSource && groundSource.length > 0 ? groundSize(groundSource) : null), [groundSource])
 
   const [faceRequest, setFaceRequest] = useState<FaceRequest | null>(null)
+  // カメラの今の向き（キューブの見え方に使う）
+  const [viewDir, setViewDir] = useState<Dir>(DEFAULT_TO_CAMERA)
 
   // ホームの押下: 敷地の初期の視点があれば、FrameCamera が同じ視点へ戻す。無ければ、今までどおり既定に戻す
   const lastHome = useRef(homeToken)
@@ -279,7 +303,8 @@ export function Volume3D({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas camera={{ position: [40, 40, 50], fov: 40 }}>
-      <CameraDirector request={faceRequest} />
+      <CameraDirector request={faceRequest} controlsRef={controlsRef} />
+      <ViewDirSync controlsRef={controlsRef} onView={setViewDir} />
       <FrameCamera frame={sceneFrame} controlsRef={controlsRef} homeToken={homeToken} />
       <ClipPlanes frame={sceneFrame} controlsRef={controlsRef} />
       <color attach="background" args={['#f4f4f2']} />
@@ -356,17 +381,8 @@ export function Volume3D({
         高さ {knobPreview.storeyCount} 階（{(knobPreview.heightMm / 1000).toFixed(1)} m）
       </div>
     )}
-    <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 4 }}>
-      {FACE_LABELS.map(({ face, label }) => (
-        <button
-          key={face}
-          type="button"
-          onClick={() => setFaceRequest((prev) => ({ face, token: (prev?.token ?? 0) + 1 }))}
-          style={{ font: 'inherit', fontSize: 12, padding: '2px 6px', border: '1px solid #b8b2a4', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
-        >
-          {label}
-        </button>
-      ))}
+    <div style={{ position: 'absolute', top: 8, right: 8 }}>
+      <ViewCube toCamera={viewDir} onPick={(t: CubeTarget) => setFaceRequest((prev) => ({ dir: t.dir, token: (prev?.token ?? 0) + 1 }))} />
     </div>
     </div>
   )
