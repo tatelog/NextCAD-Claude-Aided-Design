@@ -13,6 +13,9 @@ export interface FormValue {
   from: 'ボリューム' | '案件' | '公図' | '公図の参考値' | '法規' | RoadWidthSource
 }
 
+/** 第五面（用途別床面積）の未決の点（空欄の一覧に出す）。記号の表の出どころと、階ごとに 1 枚（注②）の枚数が決まるまで */
+export const FIFTH_OPEN_NOTE = '第五面：用途の区分の記号は空欄（記号の表が未決）。階ごとに 1 枚（注②）の枚数は未決'
+
 /** 新築として、申請部分と合計に同じ値を書いたことの一行（空欄の一覧に出す。統括の判断 2026-11-06） */
 export const NEW_BUILDING_NOTE = '新築として申請部分＝合計で記入'
 
@@ -84,8 +87,8 @@ export function formValuesFromVolume(
   v['F2-4-12'] = vol(m2(volume.gross_floor_area_mm2))
   // 各階の床面積（階ごと。箱の形なので、各階は建築面積と同じ。階の番号は欄の id の中の数）
   for (let f = 1; f <= volume.storey_count; f++) v[`F2-4-12.階別${f}`] = vol(m2(volume.building_area_mm2))
-  // 用途別床面積（第五面）: 延べ面積は、共同住宅の行の床面積（3 番目）。用途は案件の入力（下で入れる）
-  v['F2-5-07.延べ面積'] = vol(m2(volume.gross_floor_area_mm2))
+  // 用途別床面積（第五面）: 共同住宅の行の床面積（3 番目）は、その階の床面積（箱の形なので建築面積）。延べ床面積（第四面の 12 欄の合計）ではない。用途は案件の入力（下で入れる）
+  v['F2-5-07.床面積'] = vol(m2(volume.building_area_mm2))
   // 第二号様式 第六面（建築物独立部分別概要）
   v['F2-6-01'] = vol('1')
   v['F2-6-02'] = vol(m2(volume.gross_floor_area_mm2))
