@@ -1,7 +1,7 @@
 // P1 の地図（MapLibre GL JS）。基図は国土地理院の標準地図（彩度を下げる）。
 // 道路・筆・建物（LOD1）は、利用者が準備して public/local-data/ に置いたファイルを読む。無ければ「未取得」と出す（同梱しない）。
 import { useEffect, useRef } from 'react'
-import { Map as MaplibreMap, NavigationControl, ScaleControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import { Map as MaplibreMap, Marker, NavigationControl, ScaleControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
 import { relativeMapMagnification } from '../map/magnification'
 import { topViewAt } from '../map/topView'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -61,6 +61,7 @@ function toRoadFeatures(roads: { w: number; c: number; g: unknown }[]) {
 export function P1Map(props: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MaplibreMap | null>(null)
+  const markerRef = useRef<Marker | null>(null)
   const latest = useRef<Latest>(props)
   latest.current = props
   const selectedRef = useRef<string | null>(null)
@@ -130,26 +131,25 @@ export function P1Map(props: Props) {
       onRemove: () => { map.off('zoom', updateMagnification); magnification.remove() },
     }, 'bottom-left')
     mapRef.current = map
+    const marker = new Marker({ color: '#dc2626', anchor: 'bottom', pitchAlignment: 'viewport', rotationAlignment: 'viewport' })
+    marker.getElement().style.pointerEvents = 'none'
+    marker.getElement().setAttribute('aria-label', '選択地点')
+    markerRef.current = marker
+    syncSite(map, marker, latest.current.site)
     const resize = new ResizeObserver(() => map.resize())
     resize.observe(elRef.current)
 
     map.on('load', () => {
       map.addSource('neighbors', { type: 'geojson', data: emptyFc() })
-      map.addSource('site', { type: 'geojson', data: emptyFc() })
+
       map.addLayer({
         id: 'neighbors',
         type: 'fill',
         source: 'neighbors',
         paint: { 'fill-color': '#46505c', 'fill-opacity': 0.45 },
       })
-      map.addLayer({
-        id: 'site',
-        type: 'circle',
-        source: 'site',
-        paint: { 'circle-radius': 7, 'circle-color': 'rgba(211,51,51,0.25)', 'circle-stroke-color': '#d33', 'circle-stroke-width': 2 },
-      })
       syncNeighbors(map, latest.current.neighborRings)
-      syncSite(map, latest.current.site)
+
       void loadLocalLayers(map, latest.current.onStatus, selectedRef)
     })
 
@@ -169,6 +169,8 @@ export function P1Map(props: Props) {
 
     return () => {
       resize.disconnect()
+      marker.remove()
+      markerRef.current = null
       map.remove()
       mapRef.current = null
     }
@@ -177,7 +179,7 @@ export function P1Map(props: Props) {
   // 対象地点の表示
   useEffect(() => {
     const map = mapRef.current
-    if (map && map.isStyleLoaded()) syncSite(map, props.site)
+    if (map && markerRef.current) syncSite(map, markerRef.current, props.site)
   }, [props.site])
 
   // 周辺建物の表示
@@ -204,14 +206,9 @@ function emptyFc() {
   return { type: 'FeatureCollection' as const, features: [] }
 }
 
-function syncSite(map: MaplibreMap, site: LonLat | null) {
-  const src = map.getSource('site') as GeoJSONSource | undefined
-  if (!src) return
-  src.setData(
-    site
-      ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } }] }
-      : emptyFc(),
-  )
+function syncSite(map: MaplibreMap, marker: Marker, site: LonLat | null) {
+  if (site) marker.setLngLat([site.lon, site.lat]).addTo(map)
+  else marker.remove()
 }
 
 function syncNeighbors(map: MaplibreMap, rings: [number, number][][]) {
