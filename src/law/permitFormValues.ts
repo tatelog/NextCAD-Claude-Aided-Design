@@ -77,6 +77,8 @@ export function formValuesFromVolume(
   v['F2-4-08'] = vol(String(volume.storey_count))
   v['F2-4-09.最高の高さ'] = vol(m(volume.total_height))
   v['F2-4-12'] = vol(m2(volume.gross_floor_area_mm2))
+  // 各階の床面積（階ごと。箱の形なので、各階は建築面積と同じ。階の番号は欄の id の中の数）
+  for (let f = 1; f <= volume.storey_count; f++) v[`F2-4-12.階別${f}`] = vol(m2(volume.building_area_mm2))
   // 第二号様式 第六面（建築物独立部分別概要）
   v['F2-6-01'] = vol('1')
   v['F2-6-02'] = vol(m2(volume.gross_floor_area_mm2))

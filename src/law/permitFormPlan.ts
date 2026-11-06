@@ -3,6 +3,9 @@
 // 細目は、親の見出しの段落を含めて親の後ろを探す。
 import { normalizeLabel } from '../export/docxRead'
 
+/** 各階の床面積の行の数（東京都の版は、見出しと次の 5 段落。統括の依頼 2026-11-06。8） */
+export const FLOOR_ROWS = 6
+
 export interface TokyoSubitem {
   heading: string
   in?: string
@@ -166,12 +169,28 @@ export function planRowsOf(form: FormDef, paragraphs: readonly string[], values:
         const name = subLabelOf(sub.inlineHeading ?? sub.heading)
         const sidx = locateSubitemOf(paragraphs, range, idx, sub.heading, sub.occurrence ?? 1)
         const subRow = { fieldId: `${field.id}.${name}`, label: `${field.label}（${name}）`, face: face.title, heading: sub.heading }
-        const action: PlanAction = sidx === null ? { kind: 'notFound' } : actionOf(keyOf(field.id, name), sub.note, vals)
+        const floorAction = name === '階別' ? floorActionOf(keyOf(field.id, name), vals) : null
+        const action: PlanAction = sidx === null ? { kind: 'notFound' } : (floorAction ?? actionOf(keyOf(field.id, name), sub.note, vals))
         rows.push({ ...subRow, action, note: sub.note ?? '' })
       }
     }
   }
   return rows
+}
+
+/** 各階の床面積（階別）の行。階ごとの値（「prefix」＋階の番号）があれば、最上階までを「入れる」と出す。行が足りない（行の数を超える）ときは出さない */
+function floorActionOf(prefix: string, vals: Map<string, { value: string; from: string }>): PlanAction | null {
+  let count = 0
+  let top: { n: number; from: string } | null = null
+  for (const [k, v] of vals) {
+    if (!k.startsWith(prefix)) continue
+    const n = Number(k.slice(prefix.length))
+    if (!Number.isInteger(n) || n < 1) continue
+    count++
+    if (top === null || n > top.n) top = { n, from: v.from }
+  }
+  if (top === null || count > FLOOR_ROWS) return null
+  return { kind: 'fill', value: `最上階 ${top.n} 階まで（各階）`, from: top.from }
 }
 
 /** 欄の行動。行政の欄は書かない。値があれば入れる。それ以外は人が入れる */
