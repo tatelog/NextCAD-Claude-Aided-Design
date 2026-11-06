@@ -48,6 +48,11 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; br
   'F3-2-06.敷地と接している部分の長さ': { field: 'F3-2-06', sub: '【ロ.敷地と接している部分の長さ】' },
   'F3-2-07.敷地面積': { field: 'F3-2-07', sub: '【イ.敷地面積】', bracket: 0, subPlace: 'fillBlanks' },
   'F3-2-07.用途地域等': { field: 'F3-2-07', sub: '【ロ.用途地域等】', bracket: 0, subPlace: 'fillBlanks' },
+  // 容積率・建蔽率（7 欄のハ・ニ）: 用途地域等と同じ列（1 列目）。括弧は見出しの次の段落（統括の依頼 2026-11-06）
+  'F2-3-07.容積率': { field: 'F2-3-07', sub: '【ﾊ.建築基準法第52条第１項及び第２項の規定による建築物の容積率】', bracket: 0 },
+  'F2-3-07.建蔽率': { field: 'F2-3-07', sub: '【ﾆ.建築基準法第53条第１項の規定による建築物の建蔽率】', bracket: 0 },
+  'F3-2-07.容積率': { field: 'F3-2-07', sub: '【ハ.建築基準法第52条第１項及び第２項の規定による建築物の容積率】', bracket: 0, subPlace: 'nextParagraphs' },
+  'F3-2-07.建蔽率': { field: 'F3-2-07', sub: '【ニ.建築基準法第53条第１項の規定による建築物の建蔽率】', bracket: 0, subPlace: 'nextParagraphs' },
   'F3-2-10': { field: 'F3-2-10', sub: '【イ.建築物全体】', brackets: [0, 2], subPlace: 'fillBlanks' },
   'F3-2-11': { field: 'F3-2-11', sub: '【イ.建築物全体】', brackets: [0, 2], subPlace: 'fillBlanks' },
   'F3-2-12': { field: 'F3-2-12', sub: '【イ.申請に係る建築物の数】', subPlace: 'afterHeading' },
@@ -174,7 +179,7 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       const item =
         route.before !== undefined
           ? { kind: 'beforeUnit' as const, heading: sub.inlineHeading ?? sub.heading, unit: route.before }
-          : placeOf(sub.place ?? '', sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
+          : placeOf(sub.place === 'nextParagraphs' ? 'fillBlanks' : (sub.place ?? ''), sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
       if (item === null) {
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（${sub.place}）` })
         continue
@@ -183,11 +188,13 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `単位が無い（${item.unit ?? ''}）` })
         continue
       }
-      if (item.kind === 'blanks' && bracketsOf(paragraphs[idx]!).length <= Math.max(item.bracket ?? 0, ...(route.brackets ?? []))) {
+      // 括弧が見出しの次の段落にある細目（容積率・建蔽率など）は、次の段落に入る
+      const at = sub.place === 'nextParagraphs' ? idx + 1 : idx
+      if (at >= range[1] || (item.kind === 'blanks' && bracketsOf(paragraphs[at]!).length <= Math.max(item.bracket ?? 0, ...(route.brackets ?? [])))) {
         unwritten.push({ fieldId: key, reason: `括弧が見つからない（${sub.heading}）` })
         continue
       }
-      for (const x of expandOf(item, route.brackets)) instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: idx, ...x, value: v.value })
+      for (const x of expandOf(item, route.brackets)) instructions.push({ fieldId: key, label: entry.field.label, paragraphIndex: at, ...x, value: v.value })
       continue
     }
     if (isDefault && t.place !== 'afterHeading') {
