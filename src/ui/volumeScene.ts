@@ -62,10 +62,21 @@ export function sceneFrameOf(polygonsMm: readonly (readonly Point[])[], fovDeg: 
   }
 }
 
-/** 範囲に合わせるカメラの近い平面と遠い平面（m）。範囲の点は、この間に必ず入る（既定の遠い平面 1000 m では、範囲が切れて空に見えた。統括の依頼 2026-11-06） */
+/** 範囲に合わせるカメラの近い平面と遠い平面（m）。初期の距離（枠を作ったときの距離）で決める。範囲の点は、この間に必ず入る（既定の遠い平面 1000 m では、範囲が切れて空に見えた。統括の依頼 2026-11-06） */
 export function clipPlanesOf(frame: SceneFrame): { near: number; far: number } {
+  return clipPlanesAt(frame.distanceM, frame.radiusM)
+}
+
+/**
+ * カメラが目標から distanceM の距離にあるときの、近い平面と遠い平面（m）。範囲は目標から radiusM 以内。
+ * 近い平面は、範囲の一番近い点（d − r）の半分まで（0.01 m 未満にはしない）。遠い平面は一番遠い点（d + r）の 2 倍まで。
+ * カメラが動くたびに、今の距離で作り直す。初期の距離のままだと、寄せたときに範囲が近い平面の手前に入って消える（統括の依頼 2026-11-06。最優先）
+ */
+export function clipPlanesAt(distanceM: number, radiusM: number): { near: number; far: number } {
+  const d = Math.max(0, distanceM)
+  const r = Math.max(0, radiusM)
   return {
-    near: Math.max(0.01, (frame.distanceM - frame.radiusM) * 0.5),
-    far: (frame.distanceM + frame.radiusM) * 2,
+    near: Math.max(0.01, (d - r) * 0.5),
+    far: (d + r) * 2,
   }
 }
