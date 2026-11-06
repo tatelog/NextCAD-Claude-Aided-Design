@@ -1,8 +1,8 @@
 // 仕様（統括の依頼 2026-11-06。2-a: 取り込んだ Word が、どの様式かを見分ける）:
 // K1: 第二号様式（確認申請書（建築物））の見出しで、F2 と分かる。
 // K2: 第三号様式（建築計画概要書。字間に空白があっても）で、F3 と分かる。
-// K3: 第八号様式の「昇降機以外の建築設備」で、F8O と分かる。
-// K4: 第八号様式の「昇降機」で、F8E と分かる。
+// K3: 第八号様式の「昇降機以外の建築設備」で、F8E と分かる（調査の ID に合わせた）。
+// K4: 第八号様式の「昇降機」で、F8 と分かる。
 // K5: どれでもなければ null（「どの様式か分からない」と出す）。
 import { describe, expect, it } from 'vitest'
 import { formKindOf } from './permitFormKind'
@@ -21,12 +21,12 @@ describe('様式の見分け（仕様 K1〜K5）', () => {
     expect(formKindOf(F3)).toBe('F3')
   })
 
-  it('K3: 第八号様式の昇降機以外は F8O', () => {
-    expect(formKindOf(F8O)).toBe('F8O')
+  it('K3: 第八号様式の昇降機以外は F8E', () => {
+    expect(formKindOf(F8O)).toBe('F8E')
   })
 
-  it('K4: 第八号様式の昇降機は F8E', () => {
-    expect(formKindOf(F8E)).toBe('F8E')
+  it('K4: 第八号様式の昇降機は F8', () => {
+    expect(formKindOf(F8E)).toBe('F8')
   })
 
   it('K5: どれでもなければ null', () => {
