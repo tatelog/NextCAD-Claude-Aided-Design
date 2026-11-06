@@ -119,7 +119,8 @@ export function locateSubitemOf(
 /** 細目の名前（【ｲ.最高の高さ】→「最高の高さ」）。全角半角をそろえ、括弧と「イ.」などの記号を除く */
 export function subLabelOf(heading: string): string {
   const s = normalizeLabel(heading).replace(/^[【[]/, '').replace(/[】\]]$/, '')
-  return s.replace(/^[^.]*\./, '')
+  // 「ﾆ.】構造」のように、東京都の版の見出しに残る括弧は、名前から外す（統括の依頼 2026-11-06。構造の直し）
+  return s.replace(/^[^.]*\./, '').replace(/^[】\]]+/, '')
 }
 
 const keyOf = (fieldId: string, sub?: string): string => normalizeLabel(sub === undefined ? fieldId : `${fieldId}.${sub}`)

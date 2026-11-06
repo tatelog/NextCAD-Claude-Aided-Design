@@ -9,6 +9,7 @@ import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
 import { APP_STRUCTURE, permitInputFromVolume } from '../law/permitInput'
 import { AREA_REFERENCE_NOTE, fireLabelOf, formValuesFromVolume, frontEdgeLengthM, siteAreaM2Of } from '../law/permitFormValues'
+import { unwrittenNotesOf } from '../law/permitFormNotes'
 import { chibanOf } from '../map/parcelInfo'
 import { parcelPropsOf } from '../map/selectedParcel'
 import { requiredPermitDocuments } from '../law/permitRequired'
@@ -172,6 +173,7 @@ export function P5Output() {
 
   // 一式の中身（図面・IFC・書類一覧・空欄の一覧・記入した様式）。判定が無いときは null
   const filledNow = usePermitForms((s) => s.filled)
+  const formsNow = usePermitForms((s) => s.forms)
   const packageFiles = useMemo(() => {
     if (!judgement) return null
     return permitPackageFilesOf({
@@ -188,9 +190,11 @@ export function P5Output() {
         ...(formValues['F2-3-06.幅員'] !== undefined
           ? [`前面道路の幅員：${formValues['F2-3-06.幅員'].value} m（出どころ：${formValues['F2-3-06.幅員'].from}）`]
           : []),
+        // 書けなかった欄（取り込んだ様式ごと）は、黙って抜かず、空欄の一覧に出す（統括の依頼 2026-11-06）
+        ...unwrittenNotesOf(formsNow, formValues),
       ],
     })
-  }, [judgement, drawingSvgs, ifcText, schema, filledNow, formValues])
+  }, [judgement, drawingSvgs, ifcText, schema, filledNow, formValues, formsNow])
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {

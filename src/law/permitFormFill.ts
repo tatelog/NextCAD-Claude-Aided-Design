@@ -6,7 +6,7 @@ import { faceRangesOf, locateHeadingOf, locateSubitemOf, type FormDef, type Toky
 import { normalizeLabel } from '../export/docxRead'
 
 /** 値の行き先。sub は細目の見出し（対応表のまま）、bracket は括弧の番目（0 から）。 */
-const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> = {
+const ROUTES: Record<string, { field: string; sub?: string; bracket?: number; before?: string }> = {
   'F2-3-10': { field: 'F2-3-10', sub: '【ｲ.建築物全体】', bracket: 2 },
   'F2-3-11': { field: 'F2-3-11', sub: '【ｲ.建築物全体】', bracket: 2 },
   'F2-3-12': { field: 'F2-3-12', sub: '【ｲ.申請に係る建築物の数】' },
@@ -24,8 +24,10 @@ const ROUTES: Record<string, { field: string; sub?: string; bracket?: number }> 
   'F2-3-07.敷地面積の合計': { field: 'F2-3-07', sub: '【ﾎ.敷地面積の合計】' },
   // 防火地域（見出しと同じ段落の □ を、選んだ語で ■ にする。値は語そのもの）。構造は「造」の前の括弧（1 つ目）。道路の接する長さは、前面道路の辺の長さ（統括の依頼 2026-11-06。4・5・6）
   'F2-3-04': { field: 'F2-3-04' },
-  'F2-4-04': { field: 'F2-4-04', bracket: 0 },
-  'F2-3-13.構造': { field: 'F2-3-13', sub: '【ﾊ.構造】', bracket: 0 },
+  // 構造は「造」の前に入る（東京都の版は括弧が無く、「造」の前の空白。統括の依頼 2026-11-06。構造の直し）
+  'F2-4-04': { field: 'F2-4-04', before: '造' },
+  'F2-6-03.構造': { field: 'F2-6-03', sub: '【ﾆ.】構造】', before: '造' },
+  'F2-3-13.構造': { field: 'F2-3-13', sub: '【ﾊ.構造】', before: '造' },
   'F2-3-06.敷地と接している部分の長さ': { field: 'F2-3-06', sub: '【ﾛ.敷地と接している部分の長さ】' },
   'F2-3-06.幅員': { field: 'F2-3-06', sub: '【ｲ.幅員】' },
   'F2-6-01': { field: 'F2-6-01' },
@@ -105,7 +107,10 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（inlineHeading の細目は ${sub.place}）` })
         continue
       }
-      const item = placeOf(sub.place ?? '', sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
+      const item =
+        route.before !== undefined
+          ? { kind: 'beforeUnit' as const, heading: sub.inlineHeading ?? sub.heading, unit: route.before }
+          : placeOf(sub.place ?? '', sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
       if (item === null) {
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（${sub.place}）` })
         continue
@@ -125,7 +130,8 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       unwritten.push({ fieldId: key, reason: `入れ方が未対応（${t.place}）` })
       continue
     }
-    const item = placeOf(t.place, t.heading, route.bracket, t.unit)
+    const item =
+      route.before !== undefined ? { kind: 'beforeUnit' as const, heading: t.heading, unit: route.before } : placeOf(t.place, t.heading, route.bracket, t.unit)
     if (item === null) {
       unwritten.push({ fieldId: key, reason: `入れ方が未対応（${t.place}）` })
       continue

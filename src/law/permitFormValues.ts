@@ -71,6 +71,7 @@ export function formValuesFromVolume(
   v['F2-3-13.最高の高さ'] = vol(m(volume.total_height))
   v['F2-3-13.階数（地上）'] = vol(String(volume.storey_count))
   v['F2-3-13.構造'] = cas(structureLabelOf(project.structure))
+  v['F2-6-03.構造'] = cas(structureLabelOf(project.structure))
   // 第二号様式 第四面（建築物別概要）
   v['F2-4-04'] = cas(structureLabelOf(project.structure))
   v['F2-4-08'] = vol(String(volume.storey_count))
