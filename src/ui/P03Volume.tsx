@@ -21,7 +21,7 @@ import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
 import { shadowDrawing, shadowDrawingSummary } from '../law/shadowDrawing'
 import { cutFloors } from '../volume/slope'
-import { shadowOf } from '../volume/shadow'
+import { sunShadowsOf, winterSunAt } from '../volume/sunShadow'
 import { useUi } from '../store/ui'
 import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
@@ -32,7 +32,6 @@ import { ordinanceStatus } from '../law/ordinance'
 import { confirmMeasurement } from '../law/measurementConfirm'
 import { ICHI_NOTE } from '../law/fireIchi'
 import { useOrdinance } from '../store/ordinance'
-import { solarPosition } from '../law/solarPosition'
 import { siteRuleFromDistricts } from '../law/siteRule'
 import { suggestMeasurement } from '../law/shadowSuggest'
 import type { HeightDistrict } from '../law/shadowMeasure'
@@ -156,10 +155,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const [heightDistrict, setHeightDistrict] = useState<HeightDistrict | ''>('')
   // 日射（G53）: 冬至（2026-12-22）の時刻（日本時間）。場所は確定した敷地の中心（確定していなければ江東区の点）
   const [solarTime, setSolarTime] = useState('12:00')
-  const sun = useMemo(() => {
-    if (!/^\d{2}:\d{2}$/.test(solarTime)) return null
-    return solarPosition({ lat: sunSite.lat, lon: sunSite.lon, date: new Date(`2026-12-22T${solarTime}:00+09:00`) })
-  }, [solarTime, sunSite])
+  // 時刻 → 冬至の太陽（sunShadow.ts。統括の指示 2026-11-06。5b）
+  const sun = useMemo(() => winterSunAt(solarTime, sunSite), [solarTime, sunSite])
   const [zone, setZone] = useState<Zone>('住居系')
   // 前面道路の辺（P2 で選ぶ。店舗が持つので、確定の前に選んでも確定のまとめに入る。統括の依頼 2026-11-06。6）
   const roadEdge = useConfirmedSite((s) => s.roadEdge)
@@ -315,13 +312,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   // 点が 0 の階は brokenFloorsOf が除く（全部削られた階は出さない）
   const brokenFloors = useMemo(() => (volume ? brokenFloorsOf(floorsAll, volume.storey_height) : []), [floorsAll, volume])
   // 地面に落ちる日影（時刻の太陽の位置から、切り取った階ごとの影の形）。太陽が地平線の上のときだけ
-  const sunShadow = useMemo(
-    () =>
-      sun && sun.altitudeDeg > 0 && stackedFloors.length > 0
-        ? stackedFloors.map((b) => shadowOf(b.footprint, b.heightMm, sun.altitudeDeg, sun.azimuthFromSouthDeg))
-        : null,
-    [stackedFloors, sun],
-  )
+  const sunShadow = useMemo(() => sunShadowsOf(stackedFloors, sun), [stackedFloors, sun])
   const ordinanceEntries = useOrdinance((s) => s.entries)
   const setOrdinanceEntry = useOrdinance((s) => s.setEntry)
   const confirmOrdinance = useOrdinance((s) => s.confirm)
