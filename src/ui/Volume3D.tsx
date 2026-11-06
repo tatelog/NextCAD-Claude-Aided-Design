@@ -1,3 +1,4 @@
+import { VolumeDrag } from './VolumeDrag'
 import { FloorLevels } from './FloorLevels'
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
 // 3D で見ただけでは線は変わらない（D-04 共通部品「3D への切替」）。描く入力は平面（DrawingCanvas）。
@@ -239,6 +240,7 @@ class TileErrorBoundary extends Component<{ children: ReactNode; onError: () => 
 }
 
 interface Volume3DProps {
+  onMove?: (dx: number, dy: number) => void
   gridAngleDeg?: number
   /** 外形（閉じているとき）。閉じていなければ null（敷地と周辺建物だけを見せる。統括の依頼 2026-11-06。4） */
   footprint: Point[] | null
@@ -278,6 +280,7 @@ interface Volume3DProps {
 }
 
 export function Volume3D({
+  onMove,
   footprint,
   gridAngleDeg = 0,
   lot,
@@ -410,12 +413,14 @@ export function Volume3D({
       <color attach="background" args={['#f4f4f2']} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[30, 50, 20]} intensity={0.8} />
+      <VolumeDrag onMove={onMove}>
       {geometry && (
         <mesh geometry={geometry}>
           <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
       )}
       {geometry && <FloorLevels geometry={geometry} count={shownStoreyCount} heightMm={storeyHeightMm} />}
+      </VolumeDrag>
       {lotPlate && (
         <mesh geometry={lotPlate}>
           <meshStandardMaterial color="#e9e1c9" side={THREE.DoubleSide} />

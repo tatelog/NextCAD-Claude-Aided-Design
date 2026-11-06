@@ -22,7 +22,7 @@ import { setbackLines } from '../volume/setbackLines'
 import { placeBySetback } from '../volume/placeBySetback'
 import { alignRoadDegOf } from '../volume/alignToRoad'
 import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
-import { rotateOutline } from '../canvas/outlineEdit'
+import { rotateOutline, moveOutlineVertices } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
 import { judgeShadow } from '../law/shadowRegulation'
@@ -491,6 +491,11 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
             <div style={{ flex: 1, minWidth: 0, minHeight: 420, position: 'relative' }}>
               <SceneErrorBoundary>
               <Volume3D
+                onMove={panOnly ? (dx, dy) => {
+                  if (!closure.closed || !closure.footprint || (!dx && !dy)) return
+                  const from = closure.footprint
+                  transform(es => moveOutlineVertices(es, from, from.map(p => ({ x: p.x + dx, y: p.y + dy }))))
+                } : undefined}
                 gridAngleDeg={confirmed?.lot && confirmed.lot.length > 1 ? -alignEdgeAngle(confirmed.lot, confirmed.planningEdge ?? (confirmed.lot.length > 7 ? 7 : 0)) : 0}
                 footprint={volume ? volume.footprint : null}
                 lot={parcel}
