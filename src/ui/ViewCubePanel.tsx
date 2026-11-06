@@ -7,6 +7,7 @@ const CENTER = SIZE / 2
 const HALF = 28
 
 export interface ViewCubeProps {
+  onHome?: () => void
   toCamera: Dir
   onPick: (target: CubeTarget) => void
 }
@@ -26,12 +27,12 @@ function pressProps(onPress: () => void) {
   }
 }
 
-export function ViewCube({ toCamera, onPick }: ViewCubeProps) {
+export function ViewCube({ toCamera, onPick, onHome }: ViewCubeProps) {
   const view = cubeViewOf(toCamera)
   const px = ([x, y]: [number, number]): [number, number] => [CENTER + x * HALF, CENTER - y * HALF]
   const cuts = [0, 0.2, 0.8, 1]
   return (
-    <div style={{ border: '1px solid #cbd0d8', borderRadius: 6, background: '#fff', lineHeight: 0 }}>
+    <div style={{ lineHeight: 0 }}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-label="ビューキューブ" role="group">
         <style>{`.view-cube-zone:hover,.view-cube-zone:focus{fill:#dce6f3;stroke:#566c8c;outline:none}`}</style>
         {view.faces.filter((f) => f.visible).map((f) => {
@@ -61,6 +62,9 @@ export function ViewCube({ toCamera, onPick }: ViewCubeProps) {
           </g>
         })}
       </svg>
+      {onHome && <button type="button" aria-label="ホーム" title="既定の視点に戻す" onClick={onHome} style={{ display: 'block', margin: '0 auto', padding: 5, border: 0, background: 'transparent', color: '#1f2a44', cursor: 'pointer' }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10 12 3l9 7M5 9v12h5v-7h4v7h5V9" /></svg>
+      </button>}
     </div>
   )
 }

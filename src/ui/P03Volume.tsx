@@ -498,6 +498,7 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
                 setbackLines={showDimensions ? setbackLinesOfVolume : null}
                 storeyCount={storeyCount}
                 storeyHeightMm={storeyHeightMm}
+                onHome={() => setHomeToken((n) => n + 1)}
                 homeToken={homeToken}
                 rotationStep={rotateStep}
                 onRotateStart={featureOn.knobs && featureOn.rotateOperation ? onKnobRotateStart : undefined}

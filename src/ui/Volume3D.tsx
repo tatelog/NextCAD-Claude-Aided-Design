@@ -248,6 +248,7 @@ interface Volume3DProps {
   floors?: { footprint: Point[]; heightMm: number }[]
   storeyCount: number
   storeyHeightMm: number
+  onHome?: () => void
   /** ホーム（既定の向きに戻す）を押した回数。変わると視点を戻す。 */
   homeToken: number
   /** 3D の角の回転つまみ（G71）をつまんだとき（つまんだ時点の外形を覚えるため）。 */
@@ -279,6 +280,7 @@ export function Volume3D({
   neighbors,
   storeyCount,
   storeyHeightMm,
+  onHome,
   homeToken,
   onRotateStart,
   onRotate,
@@ -494,7 +496,7 @@ export function Volume3D({
       </div>
     )}
     <div style={{ position: 'absolute', top: 8, right: 8 }}>
-      <ViewCube toCamera={viewDir} onPick={(t: CubeTarget) => setFaceRequest((prev) => ({ dir: t.dir, token: (prev?.token ?? 0) + 1 }))} />
+      <ViewCube onHome={onHome} toCamera={viewDir} onPick={(t: CubeTarget) => setFaceRequest((prev) => ({ dir: t.dir, token: (prev?.token ?? 0) + 1 }))} />
     </div>
     </div>
   )
