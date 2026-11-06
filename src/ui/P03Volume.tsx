@@ -13,7 +13,7 @@ import { setbackHintOf, setbackInitialOf, setbackInputsOf } from '../volume/setb
 import { setbackLabel } from '../plan/dimensionLabel'
 import { setbackLines } from '../volume/setbackLines'
 import { placeBySetback } from '../volume/placeBySetback'
-import { alignToDirection } from '../volume/alignToRoad'
+import { alignRoadDegOf } from '../volume/alignToRoad'
 import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
 import { rotateOutline } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, roundFootprintMm, snapAngle, type RotationStep } from '../volume/rotation'
@@ -183,8 +183,6 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const [baselineOffsetText, setBaselineOffsetText] = useState('0')
 
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
-  // 向き（G64）: 建物の最初の辺を、前面道路の辺に平行にそろえる。道路の向きは敷地の前面道路の辺から
-  const [aligned, setAligned] = useState(false)
   // 回転（G71）: 右パネルの角度（°）と刻み。「回す」で外形を重心のまわりに回し、store に確定する
   const [rotateText, setRotateText] = useState('0')
   const [rotateStep, setRotateStep] = useState<RotationStep>('free')
@@ -210,8 +208,6 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const onKnobRotate = (deg: number) => {
     const snapshot = knobSnapshotRef.current ?? useDrawing.getState().entries
     knobSnapshotRef.current = null
-    // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない（右の「回す」と同じ）
-    setAligned(false)
     transform(() => rotateOutline(snapshot, deg))
   }
   const roadDeg = (() => {
@@ -219,6 +215,13 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
     const b = lot[(edge + 1) % lot.length]!
     return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
   })()
+  // 道路に平行に合わせる（統括の決定 2026-11-06）: 平面の外形の線そのものを、重心まわりに回す。2D と 3D が同じ向きになり、Undo で戻せる
+  const alignRoadToRoad = () => {
+    if (!closure.closed || closure.footprint === null) return
+    const deg = alignRoadDegOf(closure.footprint, roadDeg)
+    if (deg === 0) return
+    transform((es) => rotateOutline(es, deg))
+  }
 
   // 基準線（G59・t52）: 描いた外形（中心線）を、内側または中心線からの量で動かした線にする。数でない量は 0
   const baselineOffset = Number(baselineOffsetText)
@@ -233,11 +236,11 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
   const placedFootprint = useMemo(() => {
     if (baseline === null || !baseline.ok) return null
     // 向きの出力は整数 mm に丸める（extrudeVolume は整数の外形しか受け付けない。丸めないと 3D も日影も消える）
-    const base = aligned ? roundFootprintMm(alignToDirection(baseline.footprint, roadDeg)) : baseline.footprint
+    const base = baseline.footprint
     const sb = setbackInputsOf(westText, southText)
     if (sb === null) return base
     return roundFootprintMm(placeBySetback(base, lot, { west: sb.westMm, south: sb.southMm }))
-  }, [baseline, westText, southText, aligned, roadDeg, lot])
+  }, [baseline, westText, southText, lot])
 
   // 立体が作れないときは理由を持つ（黙って消さない。3D の場所と判定の文言に出す）
   const extruded = useMemo<ExtrudeResult | null>(() => {
@@ -679,8 +682,8 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
             <p className="muted">採用: {roadWidthNote(roadSource, Number(roadWidth) || 0)}</p>
             <h3 style={{ fontSize: 13, margin: '10px 0 2px' }}>敷地との離れ{parcel === null ? '（筆界のダミーから）' : '（選んだ筆から）'}</h3>
             {setbackNoteOf(lot) && <p className="muted">{setbackNoteOf(lot)}</p>}
-            <button type="button" onClick={() => setAligned((v) => !v)} disabled={!closure.closed}>
-              {aligned ? '向きを戻す' : '道路に平行に合わせる'}
+            <button type="button" onClick={alignRoadToRoad} disabled={!closure.closed}>
+              道路に平行に合わせる
             </button>
             <label>
               西の離れ (mm)
@@ -737,8 +740,6 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               type="button"
               disabled={!closure.closed || rotateDeg === 0 || !featureOn.rotateOperation}
               onClick={() => {
-                // 向きの合わせ（aligned）のままだと最初の辺が道路へ戻されて、回転が効かない
-                setAligned(false)
                 transform((es) => rotateOutline(es, rotateDeg))
               }}
             >
