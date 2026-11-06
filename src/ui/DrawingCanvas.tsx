@@ -25,7 +25,7 @@ import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { neighborsShownOf } from './volumeDisplay'
-import { lotOf } from '../plan/lot'
+import { lotEdgeLabelsOf, lotOf, roadEdgeIndexOf, type LotEdgeLabel } from '../plan/lot'
 import { viewOfLot, viewOfSite } from '../plan/lotView'
 import { useUi } from '../store/ui'
 import { dragHandle, footprintHandles, hitTestHandle, type HandleRef } from '../volume/footprintHandles'
@@ -130,6 +130,11 @@ const handleSnapMm = (vp: Viewport): number => (useUi.getState().inputSnapGrid ?
 // 初期表示を合わせた敷地（未合わせは undefined）。画面を離れて戻っても、同じ筆なら動かさない
 let fittedLot: readonly Point[] | undefined
 
+/** 辺の番号の位置（外向きに、画面の px）と丸の半径・文字（画面の px で一定） */
+const EDGE_LABEL_OFFSET_PX = 16
+const EDGE_LABEL_RADIUS_PX = 9
+const EDGE_LABEL_FONT = '11px sans-serif'
+
 export function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewport = useDrawing((s) => s.viewport)
@@ -143,6 +148,8 @@ export function DrawingCanvas() {
   // 敷地（筆界）: 確定した敷地の筆、無ければダミー。点線で出す（統括の依頼 2026-11-06。1）
   const confirmedSite = useConfirmedSite((s) => s.confirmed)
   const lot = lotOf(lotOfConfirmed(confirmedSite))
+  // 筆界の辺の番号（統括の決定 2026-11-06）。いま選んでいる前面道路の辺を印にする
+  const edgeLabels = useMemo(() => lotEdgeLabelsOf(lot, roadEdgeIndexOf(lot, confirmedSite?.roadEdge ?? 0)), [lot, confirmedSite?.roadEdge])
   const siteFill = confirmedSite?.lot != null
   // 周辺建物の輪郭（確定した筆の枠で置いた。筆とずれない。統括の依頼 2026-11-06。5）
   const confirmedFrame = confirmedSite?.frame ?? null
@@ -231,8 +238,9 @@ export function DrawingCanvas() {
       layerById,
       lot,
       neighborOutlines,
+      edgeLabels,
     )
-  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines])
+  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -257,6 +265,7 @@ export function DrawingCanvas() {
         layerById,
         lot,
         neighborOutlines,
+        edgeLabels,
       )
 
     // 押さえ続けた線を、判定に送る（Drawing モード。G108・G112）。送るのは描いている線だけで、チャットの文は送らない
@@ -589,7 +598,7 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels])
 
   return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
 }
@@ -607,6 +616,7 @@ function paint(
   layerById: ReadonlyMap<string, { layer: LayerName; needsReview: boolean }>,
   lot: readonly Point[],
   neighborOutlines: readonly (readonly Point[])[],
+  edgeLabels: readonly LotEdgeLabel[],
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -660,6 +670,25 @@ function paint(
   ctx.closePath()
   ctx.stroke()
   ctx.setLineDash([])
+
+  // 筆界の辺の番号。丸と文字は画面の px で一定（拡大縮小しても読める）。外向きに置く。前面道路に選んだ辺は色を変える
+  for (const l of edgeLabels) {
+    const m = mmToPx(vp, l.mid)
+    const x = m.x + l.outward.x * EDGE_LABEL_OFFSET_PX
+    const y = m.y - l.outward.y * EDGE_LABEL_OFFSET_PX
+    ctx.beginPath()
+    ctx.arc(x, y, EDGE_LABEL_RADIUS_PX, 0, Math.PI * 2)
+    ctx.fillStyle = l.selected ? '#1f2a44' : '#ffffff'
+    ctx.fill()
+    ctx.strokeStyle = '#8a7f6a'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.fillStyle = l.selected ? '#ffffff' : '#444444'
+    ctx.font = EDGE_LABEL_FONT
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(l.index), x, y)
+  }
 
   // 周辺建物の輪郭（確定した筆の枠。細い灰色の線）
   ctx.strokeStyle = '#7d8790'
