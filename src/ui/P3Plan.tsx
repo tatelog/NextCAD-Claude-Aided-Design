@@ -99,9 +99,14 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [evCountText, setEvCountText] = useP3Field('evCountText')
   const sourceVolume = useSite((s) => s.volume)
   const boundaries = useSite((s) => s.slopeBoundaries)
-  const inherited = useMemo(() => inheritedFloors(sourceVolume ? { ...sourceVolume, storey_count: storeyCount, storey_height: storeyHeightMm } : null, boundaries ?? []), [sourceVolume, boundaries, storeyCount, storeyHeightMm])
+  const volumeInherited = useMemo(() => inheritedFloors(sourceVolume ? { ...sourceVolume, storey_count: storeyCount, storey_height: storeyHeightMm } : null, boundaries ?? []), [sourceVolume, boundaries, storeyCount, storeyHeightMm])
   const sourceKey = JSON.stringify([sourceVolume, boundaries, storeyCount, storeyHeightMm])
   const floorState = useFloorPlans()
+  const appliedRectangle = floorState.rectangle?.source === sourceKey ? floorState.rectangle : null
+  const inherited = useMemo(() => appliedRectangle ? {
+    origin:{x:0,y:appliedRectangle.depthMm}, widthMm:appliedRectangle.widthMm, depthMm:appliedRectangle.depthMm,
+    floors:Array.from({length:storeyCount},()=>[{x:0,y:0},{x:appliedRectangle.widthMm,y:0},{x:appliedRectangle.widthMm,y:appliedRectangle.depthMm},{x:0,y:appliedRectangle.depthMm}])
+  } : volumeInherited, [appliedRectangle,volumeInherited,storeyCount])
   const selectedFloor = Math.min(storeyCount, floorState.selected)
   const floorOutline = inherited?.floors[selectedFloor - 1] ?? []
   const auto = floorState.source === sourceKey ? floorState.plans[selectedFloor] ?? null : null
@@ -761,7 +766,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         )}
         </>}
       </aside>
-      {rectangleOpen && <RectangularStudyPanel initialWidth={inherited?.widthMm ?? 16000} initialLength={inherited?.depthMm ?? 42000} storeys={storeyCount} storeyHeightMm={storeyHeightMm} onClose={() => setRectangleOpen(false)} />}
+      {rectangleOpen && <RectangularStudyPanel initialWidth={inherited?.widthMm ?? 16000} initialLength={inherited?.depthMm ?? 42000} storeys={storeyCount} storeyHeightMm={storeyHeightMm} onApply={(plan) => { floorState.applyRectangle(sourceKey,plan,storeyCount); setCorridorText(String(plan.corridor.x1-plan.corridor.x0)); setRectangleOpen(false); setPlanZoom(1) }} onClose={() => setRectangleOpen(false)} />}
       {(() => {
         const cells = units.cells ? units.cells.cells : []
         const cell = cells.find((c) => c.id === detailUnitId)

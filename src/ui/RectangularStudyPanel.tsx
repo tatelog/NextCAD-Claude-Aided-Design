@@ -1,10 +1,11 @@
+import type {AutoPlan} from '../plan/autoPlan'
 import {useMemo,useState} from 'react'
 import {masterOf} from '../plan/unitTypeMaster'
 import candidates from '../plan/unitTypeCandidates.json'
 const UNIT_TYPES = masterOf(candidates)
 import {rectangularStudy,type StudyType} from '../plan/rectangularStudy'
 import {gravityStudy} from '../plan/gravityStudy'
-export function RectangularStudyPanel({storeys,storeyHeightMm,initialWidth,initialLength,onClose}:{storeys:number;storeyHeightMm:number;initialWidth:number;initialLength:number;onClose:()=>void}) {
+export function RectangularStudyPanel({storeys,storeyHeightMm,initialWidth,initialLength,onClose,onApply}:{storeys:number;storeyHeightMm:number;initialWidth:number;initialLength:number;onClose:()=>void;onApply:(plan:AutoPlan)=>void}) {
  const [width,setWidth]=useState(initialWidth),[length,setLength]=useState(initialLength),[corridor,setCorridor]=useState(2000),[column,setColumn]=useState(600),[floor,setFloor]=useState(1)
  const [types,setTypes]=useState<StudyType[]>(()=>UNIT_TYPES.map(t=>({id:t.id,frontageMm:t.frontage_mm??6000,depthMm:t.depth_mm??7000,psMm:600,wetEnd:'start'})))
  const [sequence,setSequence]=useState(['T-08-1LDK','T-08-2LDK'])
@@ -21,7 +22,7 @@ export function RectangularStudyPanel({storeys,storeyHeightMm,initialWidth,initi
  <header style={{display:'flex',justifyContent:'space-between'}}><strong>長方形比較案 — 元のボリュームは変更しません</strong><button disabled={!study} onClick={() => {
  const blob=new Blob([JSON.stringify({kind:'rectangular-study',inputs:{width,length,corridor,column,storeys,storeyHeightMm,types,sequence,dead,live,fc},result:study},null,2)],{type:'application/json'})
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='長方形比較案.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
-}}>比較案JSONを保存</button><button onClick={onClose}>閉じる</button></header>
+}}>比較案JSONを保存</button><button disabled={!plan} onClick={()=>{if(plan)onApply(plan)}}>この配置を各階の平面に反映</button><button onClick={onClose}>閉じる</button></header>
  <div style={{display:'grid',gridTemplateColumns:'260px minmax(0,1fr) 300px',flex:1,minHeight:0,gap:12,marginTop:12}}>
  <aside style={{overflow:'auto'}}>
  {field('短辺 mm',width,setWidth)}{field('長辺 mm',length,setLength)}{field('廊下幅 mm',corridor,setCorridor)}{field('柱角 mm',column,setColumn)}
@@ -42,7 +43,7 @@ export function RectangularStudyPanel({storeys,storeyHeightMm,initialWidth,initi
  {study.columns.map(c=><rect key={c.id} x={Math.min(width-column,Math.max(0,c.x-column/2))} y={Math.min(length-column,Math.max(0,c.y-column/2))} width={column} height={column} fill="#4e5a66"><title>{c.id} 負担面積{c.tributaryM2.toFixed(2)}㎡</title></rect>)}
  </svg>}
  </main>
- <aside style={{overflow:'auto'}}><h3>配置結果</h3>{plan&&<><p>{floor}階：{plan.unitsPerFloor}戸／全階 {plan.unitsPerFloor*storeys}戸</p><p>PS {plan.shafts.ps}・EPS 1・DS 1／階</p><p>柱候補 {study!.columns.length} 本／階</p><p>上下階：同一座標で連続</p></>}
+ <aside style={{overflow:'auto'}}><h3>配置結果</h3><p>反映すると各階の平面配置を置き換えます。ボリューム外形・斜線判定は変更しません。</p>{plan&&<><p>{floor}階：{plan.unitsPerFloor}戸／全階 {plan.unitsPerFloor*storeys}戸</p><p>PS {plan.shafts.ps}・EPS 1・DS 1／階</p><p>柱候補 {study!.columns.length} 本／階</p><p>上下階：同一座標で連続</p></>}
  <h3>鉛直荷重の概算</h3>{field('固定 kN/㎡',dead,setDead)}{field('積載 kN/㎡',live,setLive)}{field('Fc MPa',fc,setFc)}
  <p>初期値は比較用の仮置き。固定荷重は部材自重等を含む入力値として扱います。</p>
  {gravity&&<dl><dt>最大負担面積</dt><dd>{maxArea.toFixed(2)}㎡</dd><dt>当該階柱の軸力概算</dt><dd>{gravity.axialKN.toFixed(1)} kN</dd><dt>平均軸応力度 N/A</dt><dd>{gravity.averageMPa.toFixed(2)} MPa</dd><dt>N/(A・Fc)</dt><dd>{gravity.axialRatio.toFixed(3)}</dd><dt>単純梁の参考曲げ</dt><dd>{gravity.beamMomentKNM.toFixed(1)} kN·m</dd><dt>単純梁の参考せん断</dt><dd>{gravity.beamShearKN.toFixed(1)} kN</dd></dl>}
