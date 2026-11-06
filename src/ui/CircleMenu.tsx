@@ -30,7 +30,7 @@ export function CircleMenu() {
           key={it.label}
           type="button"
           role="menuitem"
-          className={circle-menu-item }
+          className={it.active ? 'circle-menu-item is-active' : 'circle-menu-item'}
           disabled={it.disabled}
           style={{ left: `${50 + 32 * Math.cos((-90 + i * 90) * Math.PI / 180)}%`, top: `${50 + 32 * Math.sin((-90 + i * 90) * Math.PI / 180)}%` }}
           onClick={() => {
