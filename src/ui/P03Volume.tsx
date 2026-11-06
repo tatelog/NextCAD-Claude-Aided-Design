@@ -80,7 +80,7 @@ import { recordWorkLog } from '../app/workLogStore'
 import { usePanelTiles } from '../store/panelTiles'
 import { isRightItemShown, useActiveMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
-import { OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
+import { OrdinanceForm, OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
 const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
 import { lotAreaMm2, lotCenterOf, lotNoteOf, lotOf, roadEdgeIndexOf, roadEdgeOptionsOf, setbackNoteOf, slopeLotNoteOf } from '../plan/lot'
@@ -709,6 +709,10 @@ export function P03Volume({ onNext }: { onNext?: () => void } = {}) {
               <p className="muted">外形が閉じると出る（敷地が矩形のときだけ離れを定義する）</p>
             )}
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
+            <details>
+              <summary>日影の条例値を設定</summary>
+              <OrdinanceForm compactSite />
+            </details>
             <p className="muted">{slopeLotNoteOf(parcel, chiban)}日影は建築基準法 別表第四の値で判定（住居系・中高層住専・低層住専のみ。条例の値は要確認）。</p>
           </section>
           <section style={{ ...tileStyle('p2-numeric'), ...(devShown ? {} : { display: 'none' }) }}>

@@ -10,7 +10,6 @@ import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
 import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
-import { OrdinanceForm } from './OrdinanceForm'
 import { useConfirmedSite, isConfirmedStaleOf, startSiteOf } from '../store/confirmedSite'
 import { districtStatusTextOf } from './districtFetch'
 import { geometryOfParcel } from '../map/selectedParcel'
@@ -158,7 +157,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           site={site}
           neighborRings={neighborRings}
           onSiteClick={moveSiteByMap}
-          onInfo={setMapInfo}
+          onInfo={(text) => setMapInfo(text.startsWith('道路の幅員区分') ? '' : text)}
           onStatus={setMapStatus}
           onView={(c, z) => {
             setCenter(c)
@@ -244,7 +243,6 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           </dl>
         </section>
         <section>
-          <OrdinanceForm compactSite />
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
