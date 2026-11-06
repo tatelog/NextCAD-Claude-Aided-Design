@@ -70,7 +70,7 @@ export function ChatTile({ screen, fillHeight = false }: ChatTileProps) {
       ) : null}
       </div>
       <form
-        style={{flexShrink:0, paddingTop:8, background:"#fff"}}
+        style={{flexShrink:0, marginTop:8, position:"relative", background:"#fff"}}
         onSubmit={(e) => {
           e.preventDefault()
           if (sending || !draft.trim()) return
@@ -97,10 +97,10 @@ export function ChatTile({ screen, fillHeight = false }: ChatTileProps) {
           title="Enterで送信・Ctrl＋Enterで改行"
           rows={2}
           placeholder="自由な文で指示する（例：階数を 5 にして）"
-          style={{ width: '100%', boxSizing:'border-box', resize:'vertical', maxHeight:160, font: 'inherit', fontSize: 13 }}
+          style={{ width: '100%', display:'block', padding:'8px 42px 36px 8px', minHeight:84, boxSizing:'border-box', resize:'vertical', maxHeight:160, font: 'inherit', fontSize: 13 }}
         />
-        <button type="submit" disabled={sending || draft.trim() === ''} style={{ font: 'inherit', fontSize: 12, padding: '3px 12px', marginTop: 4 }}>
-          送る
+        <button type="submit" aria-label="送る" title="送信（Enter）" disabled={sending || draft.trim() === ''} style={{ position:'absolute', right:10, bottom:10, width:28, height:28, padding:4, display:'grid', placeItems:'center', border:0, borderRadius:4, background:'transparent', color:sending || draft.trim() === '' ? '#b4b7bd' : '#243953', cursor:sending || draft.trim() === '' ? 'default' : 'pointer' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21 3-7 18-4-7-7-4 18-7Z"/><path d="m10 14 11-11"/></svg>
         </button>
       </form>
     </div>
