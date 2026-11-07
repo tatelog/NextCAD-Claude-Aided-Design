@@ -2,7 +2,7 @@
 // 鍵は Worker の Secrets（ブラウザに出さない）。ツールは Worker 側の固定の定義だけを使う。型に合わなければ 1 回だけ再試行し、
 // それでも合わなければ保留（PendingError）。黙って直さない（D-02 C12）。
 import { parseClaudeReply, type ClaudeReply } from '../chat/claudeReply'
-import { OPERATIONS_TOOL } from '../chat/chatRequest'
+import { CHAT_MODEL_DEFAULT, OPERATIONS_TOOL } from '../chat/chatRequest'
 import { PendingError, type Env } from './classify'
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
@@ -34,7 +34,8 @@ export async function chatReply(body: ChatBody, env: Env, fetchImpl: FetchLike):
   const key = env.ANTHROPIC_API_KEY
   if (!key) throw new Error('API キーが無い（Worker の Secrets に置く）')
   const sent: Record<string, unknown> = {
-    model: body.model,
+    // モデルは Worker 側で固定する（ブラウザが送ったモデル名は使わない。公開した Worker で高いモデルを呼ばせないため。統括 2026-11-08）
+    model: CHAT_MODEL_DEFAULT,
     max_tokens: body.max_tokens,
     system: body.system,
     messages: body.messages,

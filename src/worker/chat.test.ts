@@ -45,6 +45,19 @@ describe('返答（仕様 1・2）', () => {
     await chatReply({ ...body, tools: [{ name: 'evil' }] } as unknown as typeof body, { ANTHROPIC_API_KEY: 'k' }, fetchImpl)
     expect(sent!.tools.map((t) => t.name)).toEqual([OPERATIONS_TOOL.name])
   })
+
+  // 仕様 6（モデル。統括 2026-11-08、公開の前に）: モデルは Worker 側で claude-haiku-5-5 に固定する。ブラウザが送ったモデル名は使わない。
+  // 公開した Worker で、誰でもこちらの鍵で高いモデルを呼べないようにするため。
+  it('モデルは Worker 側の固定（claude-haiku-5-5）。ブラウザが送ったモデル名（高いモデルを含む）は使わない', async () => {
+    const models: string[] = []
+    const fetchImpl = async (_url: string, init: RequestInit) => {
+      models.push(String(JSON.parse(String(init.body)).model))
+      return toolUse(ok)
+    }
+    await chatReply({ ...body, model: 'claude-fable-5-1' }, { ANTHROPIC_API_KEY: 'k' }, fetchImpl)
+    await chatReply({ ...body, model: 'model-under-test' }, { ANTHROPIC_API_KEY: 'k' }, fetchImpl)
+    expect(models).toEqual(['claude-haiku-5-5', 'claude-haiku-5-5'])
+  })
 })
 
 describe('検査（仕様 3）', () => {
