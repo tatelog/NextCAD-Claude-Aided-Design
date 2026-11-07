@@ -1,22 +1,22 @@
+import { loadRoadData, useRoadData } from '../store/roadData'
+import { associateRoads, roadLinkText, ROAD_DATA_SOURCE } from '../map/roadAssociation'
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
 import { useEffect, useMemo, useState } from 'react'
 import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
 import { neighborRings as toNeighborRings } from '../map/neighborRings'
 import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
-import { PARCEL_BOUNDARY_NOTE } from '../data/sources'
 import { P1Map } from './P1Map'
-import { POSTAL_UNAVAILABLE_NOTICE } from '../geocode/postalNotice'
 import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
 import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
-import { OrdinanceForm } from './OrdinanceForm'
 import { useConfirmedSite, isConfirmedStaleOf, startSiteOf } from '../store/confirmedSite'
 import { districtStatusTextOf } from './districtFetch'
-import { geometryOfParcel } from '../map/selectedParcel'
+import { geometryOfParcel, parcelPropsOf, parcelUidAt } from '../map/selectedParcel'
+import { chibanOf } from '../map/parcelInfo'
 import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
-import { parcelNoticeOf } from '../plan/lot'
+import { polygonAreaMm2 } from '../geom/polygon'
 import { interiorPointOf } from '../map/interiorPoint'
 import { useUi } from '../store/ui'
 import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
@@ -50,6 +50,16 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const parcelUid = useSite((s) => s.parcelUid)
   // 選んだ筆（地図で選んだもの）。注記に使う
   const parcel = useSite((s) => s.parcel)
+  const roadData = useRoadData(s=>s.roads)
+  const roadLoading = useRoadData(s=>s.loading)
+  const roadError = useRoadData(s=>s.error)
+  useEffect(()=>{void loadRoadData().catch(()=>{})},[])
+  const roadLinks=useMemo(()=>{
+    const geometry=parcelUid?geometryOfParcel(parcelUid):undefined
+    const lot=geometry?parcelRingOf(geometry):null, frame=geometry?parcelFrameOf(geometry):null
+    return lot && frame ? associateRoads(lot,frame,roadData) : []
+  },[parcelUid,parcel,roadData])
+
   const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
   const { loading: neighborLoading, error: neighborError } = useConfirmedSite((s) => s.buildings)
   // 住所検索（国土地理院の住所 API）。候補を選ぶと、その経緯度を対象地点にする
@@ -62,9 +72,16 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const parcelInfo = useSite((s) => s.parcelInfo)
   const showNeighbors = useUi((s) => s.showNeighbors)
   // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
-  const [mapInfo, setMapInfo] = useState('建物をクリックすると、高さを表示します。道路をクリックすると、幅員区分を表示します。')
+  const [mapInfo, setMapInfo] = useState('')
   const [mapStatus, setMapStatus] = useState('読み込み中…')
-  const [postalNotice, setPostalNotice] = useState<string | null>(null)
+  const [inspected, setInspected] = useState<{ address: string; roads: string[] } | null>(null)
+
+  const inspectSite = (p: LonLat, roads: string[]) => {
+    moveSiteByMap(p)
+    const uid = parcelUidAt(p.lon, p.lat)
+    const props = uid ? parcelPropsOf(uid) : undefined
+    setInspected({ address: props ? chibanOf(props) ?? '未取得' : '未取得（この地点の筆データなし）', roads })
+  }
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
@@ -75,26 +92,32 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   useEffect(() => {
     useConfirmedSite.getState().setCurrentSite(site)
   }, [site])
+  // 選択方法によらず現在の地点で取得する。連続クリック中は最後の地点を採る。
+  useEffect(() => {
+    useConfirmedSite.getState().resetDistrict()
+    if (!site) return
+    const timer = window.setTimeout(() => {
+      void useConfirmedSite.getState().fetchDistrictAt(site, cityCode)
+    }, 200)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [site, cityCode])
 
   // 経緯度の入力で対象地点を決める。入力が正しければ、地図の中心もそこへ寄せる
   const moveSiteByText = (lonValue: string, latValue: string) => {
+    setInspected(null)
     setLonText(lonValue)
     setLatText(latValue)
     const p = parseSitePoint(lonValue, latValue)
     if (p) setCenter(p)
-    useConfirmedSite.getState().resetDistrict()
   }
 
   // 地図のクリックで対象地点を置く（中心は動かさない）
   const moveSiteByMap = (p: LonLat) => {
+    setInspected(null)
     setLonText(String(Number(p.lon.toFixed(6))))
     setLatText(String(Number(p.lat.toFixed(6))))
-    useConfirmedSite.getState().resetDistrict()
-  }
-
-  const fetchDistricts = () => {
-    if (site === null) return
-    void useConfirmedSite.getState().fetchDistrictAt(site, cityCode)
   }
 
   const runAddressSearch = async () => {
@@ -103,6 +126,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
     try {
       const list = await searchAddress(addressText)
       setCandidates(list)
+      if (list.length === 1) pickCandidate(list[0]!)
       if (list.length === 0 && addressText.trim() !== '') setAddressError('該当する住所がありません')
     } catch (e) {
       setCandidates([])
@@ -122,20 +146,30 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   }
 
   // この敷地で確定（統括の依頼 2026-11-06。1）: 選んだ筆（無ければダミー）と、筆の中の点を一つにして店舗に固定し、その地点の用途地域と周辺建物を取り、P2 へ移る
-  const confirmSite = () => {
+  const confirmSite = async () => {
     if (site === null) return
     const uid = useSite.getState().parcelUid
     const geometry = uid === null ? undefined : geometryOfParcel(uid)
     const center = (geometry === undefined ? null : interiorPointOf(geometry)) ?? site
+    let records=useRoadData.getState().roads
+    if(!records) { try { records=await loadRoadData() } catch { records=null } }
+    if(useSite.getState().parcelUid!==uid) return
+    const lot=geometry===undefined?null:parcelRingOf(geometry),frame=geometry===undefined?null:parcelFrameOf(geometry)
+    const links=lot&&frame?associateRoads(lot,frame,records):[]
+    const previous=useConfirmedSite.getState().confirmed
+    const same=uid!==null && previous?.parcelUid===uid
+    const selectedEdge=same?previous.roadEdge:links.find(l=>l.candidates.length>0)?.edgeIndex??0
     moveSiteByText(String(center.lon), String(center.lat))
     useConfirmedSite.getState().confirm({
+      cityCode,
       parcelUid: geometry === undefined ? null : uid,
       lot: geometry === undefined ? null : parcelRingOf(geometry),
       frame: geometry === undefined ? null : parcelFrameOf(geometry),
       center: { lat: center.lat, lon: center.lon },
-      roadEdge: useConfirmedSite.getState().roadEdge,
-      roadWidthMm: Number(useConfirmedSite.getState().roadWidth) || 0,
-      roadSource: useConfirmedSite.getState().roadSource,
+      roadEdge: selectedEdge,
+      roadLinks: same && previous.roadLinks ? previous.roadLinks : links,
+      roadWidthMm: same ? previous.roadWidthMm : 0,
+      roadSource: same ? previous.roadSource : '数値指定',
     })
     void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
     void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)
@@ -152,14 +186,15 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
-      <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
+      <div data-tutorial="site-map" style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
         <P1Map
           center={center}
           zoom={zoom}
           site={site}
           neighborRings={neighborRings}
           onSiteClick={moveSiteByMap}
-          onInfo={setMapInfo}
+          onSiteInspect={inspectSite}
+          onInfo={(text) => setMapInfo(text.startsWith('道路の幅員区分') ? '' : text)}
           onStatus={setMapStatus}
           onView={(c, z) => {
             setCenter(c)
@@ -168,22 +203,23 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
         />
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>敷地</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+          <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
+          <button data-tutorial="site-confirm" type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
+        </div>
+
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
-        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{parcelInfo ?? ''}</p>
         <div style={{ margin: '0 0 8px' }}>
-          <button type="button" onClick={confirmSite} disabled={site === null} style={{ fontWeight: 700 }}>この敷地で確定（ボリュームへ）</button>
-          {confirmed === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>まだ確定していない（ボリュームはダミーの筆界）</p> : null}
           {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
           {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
         </div>
-        <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>
-        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>{PARCEL_BOUNDARY_NOTE}</p>
+        {mapInfo && <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>}
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             住所
             <input
+              data-tutorial="site-address"
               value={addressText}
               onChange={(e) => setAddressText(e.target.value)}
               onKeyDown={(e) => {
@@ -209,16 +245,82 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             </ul>
           )}
         </div>
-        <div style={{ marginBottom: 12, opacity: 0.45 }}>
+        {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
+          <div style={{ position: 'relative' }}>
+            <strong>選択地点の情報</strong>
+            <span className="site-note" tabIndex={0} aria-label="所在地と道路情報の補足" style={{ fontSize: 11 }}>
+              ※<span className="site-note-content" role="tooltip" style={{ top: '100%', bottom: 'auto' }}>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</span>
+            </span>
+          </div>
+          <dl style={{ margin: '8px 0 0' }}>
+            <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected?.address ?? (parcelUid ? chibanOf(parcelPropsOf(parcelUid) ?? {}) : null) ?? '未取得'}</dd>
+            <dt>敷地面積（公図から算出）</dt><dd style={{ margin: '0 0 8px' }}>{parcel ? `${(polygonAreaMm2(parcel) / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} ㎡` : '未取得'}</dd>
+            <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（以下に併記）' : '未取得'}</dd>
+          {result && result.fireMatches.length === 0 && result.file !== null && <dd style={{ margin: '0 0 8px' }}>防火地域・準防火地域: この地点には無い（境界上を含めない）。</dd>}
+          {result && result.fireMatches.map((f) => (
+            <dd key={f.id} style={{ position: 'relative', margin: '0 0 8px' }}>
+              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
+              <span className="site-note" tabIndex={0} aria-label="防火地域の詳細と判定の補足">
+                ※<span className="site-note-content" role="tooltip">
+                  {f.usage === null ? '用途 未取得' : `用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}`}<br />
+                  {f.notificationNumber ?? '告示番号 未取得'}<br />
+                  {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>区分と用途が合わない。元データの確認が要る。<br /></span> : null}
+                  {fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}
+                </span>
+              </span>
+            </dd>
+          ))}
+            <dt>建蔽率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.buildingCoverageRatePercent != null ? `${siteDistrict.buildingCoverageRatePercent} %` : '未取得'}</dd>
+            <dt>容積率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.floorAreaRatePercent != null ? `${siteDistrict.floorAreaRatePercent} %` : '未取得'}</dd>
+            <dt>高さの上限</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.heightLimitM != null ? `${siteDistrict.heightLimitM} m` : '未取得'}</dd>
+          {result && result.heightMatches.length === 0 && result.file !== null && <dd style={{ margin: '0 0 8px' }} title="この地点に該当する高度地区なし（境界上を含めない）">高度地区: 無し</dd>}
+          {result && result.heightMatches.map((h) => (
+            <dd key={h.id} style={{ margin: '0 0 8px' }}>
+              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
+              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
+            </dd>
+          ))}
+            <dt>告示番号</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.notificationNumber ?? '未取得'}</dd>
+            <dt>敷地辺ごとの道路情報</dt><dd style={{margin:0}}>
+              {roadLoading ? '道路データを照合中…' : roadError ? '道路データ未取得' : null}
+              {roadLinks.map(l=><div key={l.edgeIndex}>辺 {l.edgeIndex}（{(l.edgeLengthMm/1000).toFixed(1)}m）：{roadLinkText(l)}</div>)}
+              {!roadLinks.length && '筆を選ぶと各辺に照合します。'}
+              <small>中心線による候補照合です。接道・正確な幅員は未確定。出典：<a href={ROAD_DATA_SOURCE} target="_blank" rel="noreferrer">国土交通省 N13</a></small>
+            </dd>
+          </dl>
+
+          <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
-            郵便番号
-            <input placeholder="例: 135-8383" style={{ width: '100%' }} />
+            区のコード（例: 13108 は江東区）
+            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
           </label>
-          <button type="button" onClick={() => setPostalNotice(POSTAL_UNAVAILABLE_NOTICE)}>
-            郵便番号で探す
-          </button>
-          {postalNotice ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>{postalNotice}</p> : null}
-        </div>
+          </div>
+          {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
+          {error && <p style={{ color: '#a33' }}>{error}</p>}
+          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
+          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
+          {result && result.matches.length > 1 && result.matches.map((m) => (
+            <dl key={m.id} style={{ margin: '6px 0' }}>
+              <dt>区分コード</dt>
+              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
+              <dt>容積率</dt>
+              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
+            <dt>建蔽率</dt>
+              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
+              <dt>高さの上限</dt>
+              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
+              <dt>告示番号</dt>
+              <dd>{m.notificationNumber ?? '未取得'}</dd>
+            </dl>
+          ))}
+          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
+            <p style={{ color: '#a33' }}>
+              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
+            </p>
+          )}
+
+          {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
+        </section>}
         <div style={devShown ? undefined : { display: 'none' }}>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
@@ -233,74 +335,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <input type="number" min={0} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(clampZoom(Number(e.target.value)))} style={{ width: '100%' }} />
         </label>
         </div>
-        <section>
-          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法規の値</h3>
-          <dl style={{ margin: 0 }}>
-            <dt>用途地域・建蔽率・容積率</dt>
-            <dd>
-              {siteDistrict
-                ? `建蔽率 ${siteDistrict.buildingCoverageRatePercent ?? '未取得'} %、容積率 ${siteDistrict.floorAreaRatePercent ?? '未取得'} %`
-                : '未取得（地点を入れて「この地点の用途地域を取る」）'}
-            </dd>
-            <dt>前面道路の幅員</dt>
-            <dd>{parcelNoticeOf(parcel)}</dd>
-          </dl>
-        </section>
-        <section>
-          <OrdinanceForm />
-          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
-          <div style={devShown ? undefined : { display: 'none' }}>
-          <label style={{ display: 'block', marginBottom: 6 }}>
-            区のコード（例: 13108 は江東区）
-            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
-          </label>
-          </div>
-          <button type="button" onClick={fetchDistricts} disabled={loading}>
-            {loading ? '取得中…' : 'この地点の用途地域を取る'}
-          </button>
-          {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
-          {error && <p style={{ color: '#a33' }}>{error}</p>}
-          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
-          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
-          {result && result.matches.map((m) => (
-            <dl key={m.id} style={{ margin: '6px 0' }}>
-              <dt>区分コード</dt>
-              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
-              <dt>容積率</dt>
-              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
-              <dt>建蔽率</dt>
-              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
-              <dt>高さの上限</dt>
-              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
-              <dt>告示番号</dt>
-              <dd>{m.notificationNumber ?? '未取得'}</dd>
-            </dl>
-          ))}
-          {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
-          {result && result.fireMatches.map((f) => (
-            <p key={f.id}>
-              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
-              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}）`}
-              {f.notificationNumber ? `、${f.notificationNumber}` : ''}
-              {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>（区分と用途が合わない。元データの確認が要る）</span> : null}
-            </p>
-          ))}
-          {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
-          {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
-          {result && result.heightMatches.map((h) => (
-            <p key={h.id}>
-              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
-              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
-            </p>
-          ))}
-          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
-            <p style={{ color: '#a33' }}>
-              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
-            </p>
-          )}
-          <p style={{ color: '#666', fontSize: 12 }}>斜線・日影は urf に無い（条例で補う）。</p>
-        </section>
-        <section>
+        <section hidden>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
           <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>

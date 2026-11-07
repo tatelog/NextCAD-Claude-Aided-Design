@@ -52,6 +52,7 @@ export function outerLonLatOf(geometry: unknown): LonLat[] | null {
 
 /** 筆の平面の枠（経緯度を平面（mm）に写す式）。基準は筆の頂点の平均（経緯度）。cx・cy は面積の重心の移動量 */
 export interface ParcelFrame {
+  readonly rotationDeg?: number
   readonly lon0: number
   readonly lat0: number
   readonly kx: number
@@ -97,7 +98,9 @@ export const PLANE_TRUE_NORTH: { readonly x: number; readonly y: number } = { x:
 
 /** 経緯度を、筆の平面（mm。整数に丸めない）にする。周辺建物も同じ枠で置くと、筆とずれない */
 export function planeOfLonLat(frame: ParcelFrame, lon: number, lat: number): Point {
-  return { x: (lon - frame.lon0) * frame.kx - frame.cx, y: (lat - frame.lat0) * frame.ky - frame.cy }
+  const x = (lon - frame.lon0) * frame.kx - frame.cx, y = (lat - frame.lat0) * frame.ky - frame.cy
+  const a = (frame.rotationDeg ?? 0) * Math.PI / 180
+  return { x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) }
 }
 
 /** 筆の図形（GeoJSON）を、筆の重心を原点にした平面（mm）の多角形にする。取れないときは null */

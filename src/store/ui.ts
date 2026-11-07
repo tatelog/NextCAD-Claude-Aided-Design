@@ -101,7 +101,7 @@ export const useUi = create<UiState>((set) => ({
 
   volumeMap: true,
   volumeNeighbors: false,
-  volumeShadow: false,
+  volumeShadow: true,
   setVolumeMap: (on) => set({ volumeMap: on }),
   setVolumeNeighbors: (on) => set({ volumeNeighbors: on }),
   setVolumeShadow: (on) => set({ volumeShadow: on }),

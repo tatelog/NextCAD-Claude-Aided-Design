@@ -62,23 +62,48 @@
   user-select: none;
 }
 
-.circle-menu {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: 180px;
-  gap: 6px;
-  padding: 10px;
-  background: #fff;
-  border: 1px solid #d8d6cf;
-  border-radius: 999px;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
-  z-index: 5;
-}
+.circle-menu { position: absolute; transform: translate(-50%, -50%); width: 200px; height: 200px; border-radius: 50%; background: rgba(248,250,252,.96); border: 1px solid #cbd2dc; box-shadow: 0 8px 28px #1f2a4430; z-index: 5; }
 
 .circle-menu button.is-active {
   background: #1f2a44;
   color: #fff;
 }
+
+/* 固定時は一列。独立パレットの折返しは維持する。 */
+.pen-toolbar.is-left { flex-wrap: nowrap; padding: 4px; margin-right: 0; }
+.pen-toolbar.is-left .pen-toolbar-group { flex-direction: column; flex-wrap: nowrap; }
+.pen-toolbar.is-top { flex-direction: row; flex-wrap: nowrap; width: max-content; max-width: 100%; overflow-x: auto; }
+.pen-toolbar.is-top .pen-toolbar-group { flex-wrap: nowrap; }
+.pen-toolbar.is-left button,
+.pen-toolbar.is-top button { width: 34px; height: 32px; padding: 4px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+.pen-toolbar.is-top .pen-toolbar-group { flex: 0 0 auto; }
+
+
+.circle-menu-item { position: absolute; transform: translate(-50%, -50%); width: 62px; height: 62px; border: 1px solid transparent; border-radius: 50%; background: transparent; color: #1f2a44; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; cursor: pointer; font-size: 11px; }
+.circle-menu-item:hover:not(:disabled), .circle-menu-item:focus-visible { border-color: #8d9bb1; background: #e1e8f2; }
+.circle-menu-item:disabled { opacity: .3; cursor: default; }
+.circle-menu-close { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cbd2dc; background: #fff; color: #536078; display: grid; place-items: center; cursor: pointer; }
+
+.pen-toolbar button.pen-toolbar-handle, .pen-toolbar button.pen-toolbar-close { border:0; background:transparent; box-shadow:none; color:#9ba3ad; min-width:0; height:18px; padding:2px; }
+.pen-grip-bar { display:block; width:20px; height:3px; border-radius:2px; background:#c4c9d0; }
+.pen-toolbar.is-top button.pen-toolbar-handle { width:18px; height:32px; }
+.pen-toolbar.is-top .pen-grip-bar { width:3px; height:20px; }
+#volume-display-controls .p03-mode, #volume-display-controls .p03-layers { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+
+.volume-preview-workspace {position:relative;display:flex;flex:1;min-width:0;min-height:0;overflow:hidden}
+.docked-pen {position:absolute;z-index:12;display:flex;gap:2px;align-items:center;background:#fff;border:1px solid #d8d6cf;border-radius:6px;padding:3px;max-width:100%;max-height:100%;overflow:auto;box-sizing:border-box}
+.docked-pen.vertical {flex-direction:column}
+.docked-pen .pen-toolbar {border:0;padding:0;margin:0;box-shadow:none;background:transparent}
+.docked-pen button.dock-grip,.docked-pen button.dock-close {border:0;background:transparent;box-shadow:none;padding:2px;color:#9ba3ad;flex-shrink:0;width:18px;height:24px;display:grid;place-items:center}
+.docked-pen button.dock-grip {cursor:grab;touch-action:none}
+.dock-grip span {display:block;width:3px;height:20px;background:#c4c9d0;border-radius:2px}
+.vertical .dock-grip span {width:20px;height:3px}
+.docked-pen.vertical button.dock-grip,.docked-pen.vertical button.dock-close {width:32px;height:18px}
+.toolbar-dock-preview {position:absolute;background:#408eff99;z-index:11;pointer-events:none}
+.toolbar-dock-preview.dock-left {left:0;top:0;bottom:0;width:4px}
+.toolbar-dock-preview.dock-right {right:0;top:0;bottom:0;width:4px}
+.toolbar-dock-preview.dock-top {left:0;right:0;top:0;height:4px}
+.toolbar-dock-preview.dock-bottom {left:0;right:0;bottom:0;height:4px}
+
+.pen-toolbar-separator { flex: 0 0 auto; width: 1px; height: 24px; margin: 4px 3px; background: #cbd0d8; }
+.pen-toolbar.is-left .pen-toolbar-separator { width: 24px; height: 1px; margin: 3px 4px; }

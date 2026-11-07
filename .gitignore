@@ -21,6 +21,8 @@ _workspace/
 .wrangler/
 # 画面確認のスクリーンショットなど（検証用）
 .playwright-mcp/
+# Codex の確かめ用の出力（結果の JSON・ログ・確認ページ。93 MB になる）
+work/
 __pycache__/
 .venv/
 .DS_Store

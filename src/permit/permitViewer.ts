@@ -16,7 +16,8 @@ export const CONTENT_LABEL = {
 } as const
 
 /** 中身を作れる図面（名前で決まる）。ほかの図面は「未作成」 */
-export const DRAWING_KEY_OF_NAME: Record<string, 'site' | 'floorPlan' | undefined> = {
+export const DRAWING_KEY_OF_NAME: Record<string, 'site' | 'floorPlan' | 'shadow' | undefined> = {
+  日影図: 'shadow',
   配置図: 'site',
   各階平面図: 'floorPlan',
 }
@@ -44,6 +45,7 @@ interface DocLike {
 
 function contentOf(name: string, docs: readonly DocLike[]): string {
   const key = DRAWING_KEY_OF_NAME[name]
+  if (key === 'shadow') return '日影図（時刻日影・地盤面）'
   if (key === 'site') return CONTENT_LABEL.site
   if (key === 'floorPlan') return CONTENT_LABEL.floorPlan
   const doc = docs.find((d) => d.name === name)

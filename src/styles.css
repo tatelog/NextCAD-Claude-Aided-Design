@@ -135,6 +135,43 @@ body,
   height: 100%;
   cursor: crosshair;
 }
+.site-note {
+  display: inline-block;
+  margin-left: 4px;
+  color: #8b6500;
+  cursor: help;
+}
+.site-note-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  width: 220px;
+  max-width: 65vw;
+  padding: 10px;
+  border: 1px solid #ddd8cc;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2a44;
+  font-size: 12px;
+  box-shadow: 0 4px 16px #0002;
+  z-index: 10;
+}
+.site-note:hover .site-note-content,
+.site-note:focus .site-note-content {
+  display: block;
+}
+.p03-side-resizer {
+  flex: 0 0 8px;
+  cursor: col-resize;
+  touch-action: none;
+  background: linear-gradient(to right, transparent 3px, #ddd8cc 3px, #ddd8cc 5px, transparent 5px);
+}
+.p03-side-resizer:hover,
+.p03-side-resizer:focus-visible {
+  background: #cad5e7;
+  outline: none;
+}
 .p03-side {
   width: 260px;
   flex: none;
@@ -198,3 +235,33 @@ body,
   font-size: 12px;
   margin: 6px 0 0;
 }
+
+.left-panel-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; z-index: 4; }
+.left-panel-resize:hover, .left-panel-resize:focus-visible { background: #cad5e7; outline: none; }
+
+/* メニューのチェックは枠なしのグレーの印で統一する。 */
+.app-menu input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  vertical-align: middle;
+  display: inline-grid;
+  place-content: center;
+  color: #6b7077;
+  cursor: pointer;
+}
+.app-menu input[type="checkbox"]:checked::before {
+  content: '✓';
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+.app-menu input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+.menu-check-row:focus-visible,
+.menu-fold-heading:focus-visible,
+.app-menu input[type="checkbox"]:focus-visible { outline: 2px solid #6b7077; outline-offset: 2px; }

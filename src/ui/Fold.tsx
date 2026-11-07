@@ -14,10 +14,10 @@ export function Fold({ title, defaultOpen = true, children }: FoldProps) {
     <section style={{ marginBottom: 10, paddingTop: 8, borderTop: '1px solid #ddd8cc' }}>
       <button
         type="button"
-        className="btn-text"
+        className="menu-fold-heading"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        style={{ display: 'block', width: '100%', padding: '2px 0', background: 'transparent', font: 'inherit', fontSize: 13, fontWeight: 700, textAlign: 'left', cursor: 'pointer', color: 'inherit' }}
+        style={{ display: 'block', width: '100%', padding: '2px 0', border: 0, background: 'transparent', font: 'inherit', fontSize: 13, fontWeight: 700, textAlign: 'left', cursor: 'pointer', color: 'inherit' }}
       >
         {`${open ? '▾' : '▸'} ${title}`}
       </button>

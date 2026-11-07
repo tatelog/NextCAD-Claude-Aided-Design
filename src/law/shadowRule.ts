@@ -12,6 +12,9 @@ export type ShadowLevel = 1 | 2 | 3
 export const PROJECT_WARD = '江東区' as const
 
 export interface ShadowRuleContext {
+  /** PLATEAUの用途地域原コード。11=準工業、12=工業、13=工業専用。 */
+  urfFunction?: number
+
   /** 高度地区。第三種のときだけ測定面を切り替える */
   koudo?: '第三種' | 'その他'
   /** 区。江東区のときだけ、別表第四6 の 4 m を使う */

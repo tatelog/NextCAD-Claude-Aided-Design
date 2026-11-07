@@ -1,3 +1,8 @@
+import {useFloorPlans} from '../store/floorPlans'
+import {useSolarSettings} from '../store/solarSettings'
+import {detailedFloorSvg,shadowSheetSvg} from '../export/designSheets'
+import {cutFloorParts} from '../volume/slope'
+import {tutorialDone} from '../tutorial/state'
 // P5 出力（D-04 P5、D-02 C9・C10・C11、t91・G46）。IFC と確認申請の図書は、P2 で描いた外形から作る。
 // 図書の一覧は判定（requiredPermitDocuments）の結果で出す。要る・要らない（理由）・要確認（理由）の三区分。要確認は隠さない。
 // 外形が閉じていなければ IFC と判定は出さず、「外形が未作成」と出す（ダミーの外形では代えない）。
@@ -15,11 +20,10 @@ import { chibanOf } from '../map/parcelInfo'
 import { parcelPropsOf } from '../map/selectedParcel'
 import { requiredPermitDocuments } from '../law/permitRequired'
 import { drawingAreaOf, frameSvg } from '../law/permitFrameSvg'
-import { floorPlanOf, siteLayoutStateOf, siteMissingTextOf } from '../export/drawingSvg'
+import { siteLayoutStateOf, siteMissingTextOf } from '../export/drawingSvg'
 import { DRAWING_MISSING_DEFAULT } from '../permit/permitViewer'
 import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
-import { objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
 import { PermitViewer } from './PermitViewer'
 import { PermitFormImport } from './PermitFormImport'
 import { PermitFormPlan } from './PermitFormPlan'
@@ -150,6 +154,10 @@ export function P5Output() {
   const confirmedNow = useConfirmedSite((s) => s.confirmed)
   const buildingsNow = useConfirmedSite((s) => s.buildings)
   const planResult = useSite((s) => s.plan)
+  const floorPlans=useFloorPlans(s=>s.plans)
+  const twinNote=Object.values(floorPlans).some(p=>p.layout==='ツイン')?'ツインの吹抜けは各階平面図に反映しています。3D・IFC・申請様式の床面積・日影図は外形モデルのままで、吹抜け未反映です。':null
+  const selectedFloor=useFloorPlans(s=>s.selected)
+  const solarDate=useSolarSettings(s=>s.date)
   const drawingSvgs = useMemo(() => {
     const size = frameSizeOf(frame)
     const area = drawingAreaOf(size)
@@ -161,23 +169,19 @@ export function P5Output() {
       neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
       area,
     })
-    const floorLayout =
-      planResult === null
-        ? null
-        : floorPlanOf({
-            widthMm: planResult.widthMm,
-            depthMm: planResult.depthMm,
-            gridLines: objectSourcesOfPlan(planResult, []).gridLines ?? [],
-            units: planResult.cells,
-            area,
-          })
+    const floors=Object.entries(floorPlans).flatMap(([floor,p])=>{const svg=detailedFloorSvg(p,Number(floor));return svg?[{name:`${floor}階平面図`,svg}]:[]})
+    const floorLayout=planResult?detailedFloorSvg(planResult,selectedFloor):null
+    const lot=lotOfConfirmed(confirmedNow)
+    const parts=outline.ok?cutFloorParts(outline.footprint,slopeBoundaries??[],{storey_count:storeys,storey_height:height}):[]
+    const shadowSvg=lot&&confirmedNow?.center?shadowSheetSvg({lot,floors:parts.flatMap((ps,i)=>ps.map(footprint=>({footprint,heightMm:(i+1)*height}))),...confirmedNow.center,date:solarDate,rotation:confirmedNow.frame?.rotationDeg??0}):null
     return {
       site: siteState.kind === 'ok' ? sheet(siteState.body, siteState.denominator) : null,
-      floorPlan: floorLayout === null ? null : sheet(floorLayout.body, floorLayout.denominator),
+      floorPlan: floorLayout,
+      shadow:shadowSvg, floors,
       // 作れないときの理由（縮尺が無い・敷地を確定していない で言い分ける）
       reasons: { site: siteMissingTextOf(siteState) ?? DRAWING_MISSING_DEFAULT.site, floorPlan: DRAWING_MISSING_DEFAULT.floorPlan },
     }
-  }, [frame, confirmedNow, buildingsNow, outline, planResult])
+  }, [frame, confirmedNow, buildingsNow, outline, planResult, floorPlans,selectedFloor,solarDate,slopeBoundaries,storeys,height])
 
   // 一式の中身（図面・IFC・書類一覧・空欄の一覧・記入した様式）。判定が無いときは null
   const filledNow = usePermitForms((s) => s.filled)
@@ -194,6 +198,7 @@ export function P5Output() {
       // 敷地面積が公図の参考値なら、空欄の一覧に参考値の文を添える（統括の依頼 2026-11-06。3）
       // 幅員は出どころ（入力の値など）を添える（統括の依頼 2026-11-06）
       notes: [
+        ...(twinNote?[twinNote]:[]),
         ...(formValues['F2-3-07.敷地面積']?.from === '公図の参考値' ? [AREA_REFERENCE_NOTE] : []),
         ...(formValues['F2-3-06.幅員'] !== undefined
           ? [`前面道路の幅員：${formValues['F2-3-06.幅員'].value} m（出どころ：${formValues['F2-3-06.幅員'].from}）`]
@@ -217,7 +222,7 @@ export function P5Output() {
         ...unwrittenNotesOf(formsNow, formValues),
       ],
     })
-  }, [judgement, drawingSvgs, ifcText, schema, filledNow, formValues, formsNow, districtForForm])
+  }, [twinNote, judgement, drawingSvgs, ifcText, schema, filledNow, formValues, formsNow, districtForForm])
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {
@@ -229,6 +234,7 @@ export function P5Output() {
     a.href = url
     a.download = '確認申請一式.zip'
     a.click()
+    tutorialDone('tutorial-output')
     URL.revokeObjectURL(url)
   }
 
@@ -246,9 +252,10 @@ export function P5Output() {
   const legal = { roadSlope, shadow, applicantFilled: applicant.trim() !== '' }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', height: '100%' }}>
+    <div data-tutorial="tutorial-output" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', height: '100%' }}>
       <div style={{ padding: 16, maxWidth: 720 }}>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>出力</h2>
+        {twinNote&&<p role="note">{twinNote}</p>}
         {outlineReason ? (
           <p style={{ color: '#a33' }}>{outlineReason}（ボリュームで外形を閉じてください。IFC と判定はそれまで出しません）</p>
         ) : (
@@ -475,6 +482,7 @@ export function P5Output() {
                     </tbody>
                   </table>
                   <div dangerouslySetInnerHTML={{ __html: frameSvg({ size: frameSizeOf(frame), values: {} }).svg }} />
+                  {[drawingSvgs.site,...drawingSvgs.floors.map(f=>f.svg),drawingSvgs.shadow].filter((s):s is string=>!!s).map((svg,i)=><div key={i} style={{breakBefore:'page'}} dangerouslySetInnerHTML={{__html:svg}} />)}
                 </div>
 
                 <section style={{ marginBottom: 16 }}>

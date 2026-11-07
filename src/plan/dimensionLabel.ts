@@ -3,7 +3,7 @@
 
 /** 寸法の値（mm）を、整数の mm の表記にする */
 export function mmLabel(valueMm: number): string {
-  return `${Math.round(valueMm)} mm`
+  return `${(Math.round(valueMm) || 0).toLocaleString("ja-JP")} mm`
 }
 
 /** 敷地からの離れ（mm）を、m・小数 2 桁の表記にする（G134 の例外。設計グリル・統括 2026-11-05、t72）。負の値は符号を付ける */

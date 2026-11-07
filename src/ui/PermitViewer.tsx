@@ -32,9 +32,9 @@ export interface PermitViewerProps {
   /** IFC の文字。外形が閉じていなければ null */
   ifcText: string | null
   /** 配置図と各階平面図の中身（図枠つきの SVG）。作れないものは null */
-  drawingSvgs?: { site: string | null; floorPlan: string | null }
+  drawingSvgs?: { site: string | null; floorPlan: string | null; shadow?: string | null }
   /** 作れない図の理由（図ごと）。無ければ既定の文 */
-  drawingReasons?: { site: string; floorPlan: string }
+  drawingReasons?: { site: string; floorPlan: string; shadow?: string }
   /** 要る図書の法的チェック（文と色）。無ければ出さない */
   checkOf?: (name: string) => { text: string; color: string } | null
   /** 最初に選ぶ項目の鍵（省略は判定の一覧） */
@@ -87,13 +87,13 @@ export function PermitViewer({
   } else if (selectedRow) {
     const check = selectedRow.group === '要る' && checkOf ? checkOf(selectedRow.name) : null
     const key = DRAWING_KEY_OF_NAME[selectedRow.name]
-    const svg = key === undefined ? null : drawingSvgs[key]
+    const svg = key === undefined ? null : (drawingSvgs[key]??null)
     // 第二号・第三号は、記入した様式があれば様式のまま描く（統括の依頼 2026-11-06。代表承認）。描けなければ、一覧の文に戻す
     const docx = previewPlanOf(selectedRow.name, filledForms)
     const drawingBlock = key === undefined ? null : svg !== null ? (
       <div style={{ width: '100%' }} dangerouslySetInnerHTML={{ __html: fitSvgForView(svg) }} />
     ) : (
-      <p style={{ fontSize: 12, color: '#a33' }}>{`${drawingReasons[key]}。`}</p>
+      <p style={{ fontSize: 12, color: '#a33' }}>{`${drawingReasons[key]??"元データが未作成です"}。`}</p>
     )
     pane = (
       <>

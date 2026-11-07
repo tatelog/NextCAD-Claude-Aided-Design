@@ -1,7 +1,10 @@
+import { loadRoadData } from '../store/roadData'
 // P1 の地図（MapLibre GL JS）。基図は国土地理院の標準地図（彩度を下げる）。
 // 道路・筆・建物（LOD1）は、利用者が準備して public/local-data/ に置いたファイルを読む。無ければ「未取得」と出す（同梱しない）。
 import { useEffect, useRef } from 'react'
-import { Map as MaplibreMap, NavigationControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import { Map as MaplibreMap, Marker, NavigationControl, ScaleControl, setWorkerUrl, type GeoJSONSource, type GeoJSONSourceSpecification, type Point } from 'maplibre-gl'
+import { relativeMapMagnification } from '../map/magnification'
+import { topViewAt } from '../map/topView'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { GSI_BASEMAP_ATTRIBUTION, GSI_BASEMAP_TILES, gsiBasemapLayer } from '../map/basemap'
 import { ROAD_WIDTH_CLASSES } from '../map/roadStyle'
@@ -27,6 +30,7 @@ type Props = {
   // 周辺建物の輪郭（経度・緯度の環の配列）。表示する
   neighborRings: [number, number][][]
   onSiteClick: (p: LonLat) => void
+  onSiteInspect?: (p: LonLat, roads: string[]) => void
   onInfo: (text: string) => void
   onStatus: (text: string) => void
   onView: (center: LonLat, zoom: number) => void
@@ -58,6 +62,7 @@ function toRoadFeatures(roads: { w: number; c: number; g: unknown }[]) {
 export function P1Map(props: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MaplibreMap | null>(null)
+  const markerRef = useRef<Marker | null>(null)
   const latest = useRef<Latest>(props)
   latest.current = props
   const selectedRef = useRef<string | null>(null)
@@ -99,27 +104,57 @@ export function P1Map(props: Props) {
       maxPitch: 85,
     })
     map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
+    map.doubleClickZoom.disable()
+    const inspectPoint = (p:LonLat) => {
+      map.jumpTo(topViewAt(p.lon, p.lat, DEMO_INITIAL_VIEW.zoom))
+      const uid = selectParcelAt(p.lon, p.lat)
+      showSelectedParcel(map, selectedRef, uid)
+      const point = map.project([p.lon,p.lat])
+      const layers = ROAD_WIDTH_CLASSES.map((w) => `roads-w${w.k}`).filter((id) => map.getLayer(id))
+      const roads = layers.length ? map.queryRenderedFeatures([[point.x - 100, point.y - 100], [point.x + 100, point.y + 100]], { layers }) : []
+      const labels = [...new Set(roads.flatMap((r) => {
+        const width = ROAD_WIDTH_CLASSES.find((w) => w.k === Number(r.properties.w))
+        return width ? [width.label] : []
+      }))]
+      latest.current.onSiteInspect?.(p, labels)
+      window.dispatchEvent(new Event('tutorial-site-inspected'))
+    }
+    map.on('dblclick',e=>{e.preventDefault();inspectPoint({lon:e.lngLat.lng,lat:e.lngLat.lat})})
+    const inspectSelected=()=>{const p=latest.current.site;if(p)inspectPoint(p)}
+    window.addEventListener('tutorial-inspect-selected',inspectSelected)
+    map.addControl(new ScaleControl({ maxWidth: 160, unit: 'metric' }), 'bottom-left')
+    const magnification = document.createElement('div')
+    magnification.className = 'maplibregl-ctrl'
+    magnification.style.cssText = 'background:rgba(255,255,255,.92);color:#222;padding:4px 8px;border-radius:4px;font-size:12px;pointer-events:none'
+    const updateMagnification = () => {
+      magnification.textContent = `倍率 ${relativeMapMagnification(map.getZoom(), DEMO_INITIAL_VIEW.zoom).toFixed(2)}×（初期比）`
+    }
+    map.addControl({
+      onAdd: () => { updateMagnification(); map.on('zoom', updateMagnification); return magnification },
+      onRemove: () => { map.off('zoom', updateMagnification); magnification.remove() },
+    }, 'bottom-left')
     mapRef.current = map
+    const marker = new Marker({ color: '#dc2626', anchor: 'bottom', pitchAlignment: 'viewport', rotationAlignment: 'viewport' })
+    marker.getElement().style.pointerEvents = 'none'
+    marker.getElement().setAttribute('aria-label', '選択地点')
+    marker.getElement().setAttribute('data-tutorial', 'site-selected')
+    map.on('render',()=>window.dispatchEvent(new Event('tutorial-target-change')))
+    markerRef.current = marker
+    syncSite(map, marker, latest.current.site)
     const resize = new ResizeObserver(() => map.resize())
     resize.observe(elRef.current)
 
     map.on('load', () => {
       map.addSource('neighbors', { type: 'geojson', data: emptyFc() })
-      map.addSource('site', { type: 'geojson', data: emptyFc() })
+
       map.addLayer({
         id: 'neighbors',
         type: 'fill',
         source: 'neighbors',
         paint: { 'fill-color': '#46505c', 'fill-opacity': 0.45 },
       })
-      map.addLayer({
-        id: 'site',
-        type: 'circle',
-        source: 'site',
-        paint: { 'circle-radius': 7, 'circle-color': 'rgba(211,51,51,0.25)', 'circle-stroke-color': '#d33', 'circle-stroke-width': 2 },
-      })
       syncNeighbors(map, latest.current.neighborRings)
-      syncSite(map, latest.current.site)
+
       void loadLocalLayers(map, latest.current.onStatus, selectedRef)
     })
 
@@ -139,6 +174,9 @@ export function P1Map(props: Props) {
 
     return () => {
       resize.disconnect()
+      window.removeEventListener('tutorial-inspect-selected',inspectSelected)
+      marker.remove()
+      markerRef.current = null
       map.remove()
       mapRef.current = null
     }
@@ -147,7 +185,7 @@ export function P1Map(props: Props) {
   // 対象地点の表示
   useEffect(() => {
     const map = mapRef.current
-    if (map && map.isStyleLoaded()) syncSite(map, props.site)
+    if (map && markerRef.current) syncSite(map, markerRef.current, props.site)
   }, [props.site])
 
   // 周辺建物の表示
@@ -174,14 +212,10 @@ function emptyFc() {
   return { type: 'FeatureCollection' as const, features: [] }
 }
 
-function syncSite(map: MaplibreMap, site: LonLat | null) {
-  const src = map.getSource('site') as GeoJSONSource | undefined
-  if (!src) return
-  src.setData(
-    site
-      ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } }] }
-      : emptyFc(),
-  )
+function syncSite(map: MaplibreMap, marker: Marker, site: LonLat | null) {
+  if (site) marker.setLngLat([site.lon, site.lat]).addTo(map)
+  else marker.remove()
+  window.dispatchEvent(new Event('tutorial-target-change'))
 }
 
 function syncNeighbors(map: MaplibreMap, rings: [number, number][][]) {
@@ -213,7 +247,7 @@ async function loadLocalLayers(
 ) {
   const missing: string[] = []
   try {
-    const roadsJson = (await loadLocal('roads-koto.json')) as { roads: { w: number; c: number; g: unknown }[] }
+    const roadsJson = { roads: await loadRoadData() }
     map.addSource('roads', { type: 'geojson', data: { type: 'FeatureCollection', features: toRoadFeatures(roadsJson.roads) } })
     for (const w of ROAD_WIDTH_CLASSES) {
       map.addLayer({

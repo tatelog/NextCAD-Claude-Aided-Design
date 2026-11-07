@@ -2,7 +2,10 @@
 import type { CSSProperties } from 'react'
 
 export const TOOL_ICONS = {
+  cursor: ['M5 3 L19 13 L12 14 L9 21 Z'],
   line: ['M4 20 L20 4'],
+  pencil: ['M4 20 L5 15 L16 4 Q17 3 18 4 L20 6 Q21 7 20 8 L9 19 Z', 'M14 6 L18 10', 'M5 15 L9 19'],
+  hand: ['M8 12 V6 A1.5 1.5 0 0 1 11 6 V11', 'M11 11 V4 A1.5 1.5 0 0 1 14 4 V11', 'M14 11 V5 A1.5 1.5 0 0 1 17 5 V12', 'M17 12 V8 A1.5 1.5 0 0 1 20 8 V15 C20 19 18 21 14 21 H12 C10 21 9 20 8 19 L3 13 Q2 11 4 10 Q5 10 6 11 L8 13'],
   curve: ['M4 20 C4 8 12 4 20 4'],
   undo: ['M9 14 L4 9 L9 4', 'M4 9 H14 A6 6 0 0 1 14 21 H11'],
   redo: ['M15 14 L20 9 L15 4', 'M20 9 H10 A6 6 0 0 0 10 21 H13'],

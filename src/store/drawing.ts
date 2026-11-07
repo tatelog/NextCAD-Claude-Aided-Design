@@ -43,7 +43,7 @@ export interface DrawingState {
   fitted: boolean
   fitViewport: (vp: Viewport) => void
   /** 1 本のストロークを 1 単位として追加。gridMm は入力スナップのグリッド（null で無効）。screen 'P3' は P3 の線（端点は P3 の線の中だけに吸着する） */
-  addStroke: (stroke: Stroke, gridMm?: number | null, screen?: 'P3') => void
+  addStroke: (stroke: Stroke, gridMm?: number | null, screen?: 'P3', resolvedPoints?: boolean) => void
   /**
    * 線分をまとめて変える操作（変形）。1 回の呼び出しが 1 単位。
    * 動いた線（座標または revision が変わった線）のうち種類を持つものは、意味づけの店舗で「要確認」にする（G65 の既定。仮置き）
@@ -86,14 +86,14 @@ export const useDrawing = create<DrawingState>((set, get) => {
       if (get().fitted) return
       set({ viewport, fitted: true })
     },
-    addStroke: (stroke, gridMm = null, screen) => {
+    addStroke: (stroke, gridMm = null, screen, resolvedPoints = false) => {
       const entries = get().entries
       // 吸着と交点は、同じ画面の線の中だけで見る（P3 の線は P2 の端点に吸わない。P2 の線は今までどおり）
       const scope = screen === 'P3' ? p3Entries(entries) : p2Entries(entries)
       const { segments, nodes } = strokeToSegments(
         stroke,
         scope.flatMap((e) => e.nodes),
-        segmentOptionsOf(stroke, gridMm),
+        resolvedPoints ? { rdpTolerancePx: 0, axisSnapDeg: 0, snapRadiusMm: 0, gridMm: null } : segmentOptionsOf(stroke, gridMm),
         scope.flatMap((e) => e.segments),
       )
       if (segments.length === 0) return

@@ -16,7 +16,7 @@ export function TileClose({ title, onHide }: { title: string; onHide: () => void
       className="btn-text"
       aria-label={`${title}を閉じる`}
       onClick={onHide}
-      style={{ position: 'absolute', top: 0, right: 0, background: 'transparent', color: '#888', font: 'inherit', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}
+      style={{ width: 'auto', minWidth: 0, border: 0, position: 'absolute', top: 0, right: 0, background: 'transparent', color: '#888', font: 'inherit', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}
     >
       ×
     </button>

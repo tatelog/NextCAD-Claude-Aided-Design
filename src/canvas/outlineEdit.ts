@@ -106,6 +106,7 @@ export function moveOutlineVertices<E extends OutlineEntry>(entries: readonly E[
 export function rotateOutline<E extends OutlineEntry>(entries: readonly E[], deg: number): E[] {
   const closure = findClosedOutline(entries.flatMap((e) => e.segments))
   if (!closure.closed) return [...entries]
+  const outlinePoints = new Set(closure.footprint.map(p => keyOf(p.x, p.y)))
   const pivot = outlineCentroid(closure.footprint)
   if (!pivot) return [...entries]
 
@@ -119,12 +120,23 @@ export function rotateOutline<E extends OutlineEntry>(entries: readonly E[], deg
   return entries.map((e) => ({
     ...e,
     nodes: e.nodes.map((n) => {
+      if (!outlinePoints.has(keyOf(n.x, n.y))) return n
       const q = rotate(n)
       return q.x === n.x && q.y === n.y ? n : { ...n, x: q.x, y: q.y }
     }),
     segments: e.segments.map((s) => {
+      if (!outlinePoints.has(keyOf(s.x1, s.y1)) || !outlinePoints.has(keyOf(s.x2, s.y2))) return s
       const next = reshapeSegment(s, rotate({ x: s.x1, y: s.y1 }), rotate({ x: s.x2, y: s.y2 }), rotate, rotateExact)
       return sameGeometry(s, next) ? s : next
     }),
+  }))
+}
+
+/** 基準座標の変更。閉合前の線・曲線も原点まわりに移す。 */
+export function rebaseEntries<E extends OutlineEntry>(entries: readonly E[], deg: number): E[] {
+  const rotate = (p: Point) => rotateFootprint([p], { x: 0, y: 0 }, deg)[0]!
+  return entries.map(e => ({ ...e,
+    nodes: e.nodes.map(n => ({ ...n, ...rotate(n) })),
+    segments: e.segments.map(s => reshapeSegment(s, rotate({x:s.x1,y:s.y1}), rotate({x:s.x2,y:s.y2}), rotate, rotate)),
   }))
 }

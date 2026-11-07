@@ -9,12 +9,12 @@ import { mmLabel, setbackLabel } from './dimensionLabel'
 
 describe('寸法線の表記（G134）', () => {
   it('仕様 1: 整数の mm はそのまま出す', () => {
-    expect(mmLabel(6000)).toBe('6000 mm')
+    expect(mmLabel(6000)).toBe('6,000 mm')
   })
 
   it('仕様 2: 小数は四捨五入する', () => {
-    expect(mmLabel(20000.4)).toBe('20000 mm')
-    expect(mmLabel(6000.5)).toBe('6001 mm')
+    expect(mmLabel(20000.4)).toBe('20,000 mm')
+    expect(mmLabel(6000.5)).toBe('6,001 mm')
   })
 
   it('仕様 3: ゼロと負の値も整数で出す', () => {

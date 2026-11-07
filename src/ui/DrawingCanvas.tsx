@@ -1,8 +1,20 @@
+import {tutorialDone} from '../tutorial/state'
+import { placementAllowed } from '../volume/placementGuard'
+import { previewSetbackLines as setbackLines } from '../volume/setbackLines'
+import { deleteSelectedSegments } from '../store/deleteSelection'
+import { findClosedOutlines } from '../canvas/closure'
+import { alignPlanningEdge } from '../store/planningOrientation'
+import { lineClick, lineEnd } from '../input/twoPointLine'
+import { snapPoint, snapRadiusMm } from '../input/snap'
+import { hitEdgeLabel } from './edgeLabelHit'
+import { MiniMap } from './MiniMap'
+import { boundsOf } from './mapBounds'
+import { scaleBarOf } from './scaleBar'
 // 描くキャンバス（共通部品）。指・マウス・ペンを Pointer Events で一つに扱い、入力の種類で挙動を変えない（G23）。
 // 振り分けは input/gesture.ts（本数と中ボタン・Shift だけ見る）。1 本 = 描く。2 本 = パンとズーム。
 // ホイール = カーソル位置でズーム。中ボタン／Shift + ドラッグ = パン。ダブルタップ・右クリック = サークルメニュー（G52）。
 // 外形が閉じていれば、角（四角）と辺の中点（丸）につまみを出す。つまみの上で押したら線は描かず、つまんで外形を動かす（G65）。
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { findClosedOutline } from '../canvas/closure'
 import { moveOutlineVertices } from '../canvas/outlineEdit'
 import { ENDPOINT_RING_RADIUS_PX, ringCentersPx, strokeStartPx } from '../input/endpointPick'
@@ -22,7 +34,7 @@ import { nextTap, type TapRecord } from '../input/tap'
 import { mmToPx, pxToMm, zoomAt, type Point, type Viewport } from '../geom/viewport'
 import type { Node, Segment, Stroke } from '../model/schema'
 import { p2Entries, segmentOptionsOf, useDrawing } from '../store/drawing'
-import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { lotOfConfirmed, useConfirmedSite, type ConfirmedSite } from '../store/confirmedSite'
 import { neighborOutlinesOf } from '../volume/neighborFrame'
 import { neighborsShownOf } from './volumeDisplay'
 import { lotEdgeLabelsOf, lotOf, roadEdgeIndexOf, type LotEdgeLabel } from '../plan/lot'
@@ -96,6 +108,7 @@ interface HandleDragView {
 interface HandleDrag {
   pointerId: number
   handle: HandleRef
+  moveStart?: Point
   from: Point[]
   view: HandleDragView
 }
@@ -135,8 +148,24 @@ const EDGE_LABEL_OFFSET_PX = 16
 const EDGE_LABEL_RADIUS_PX = 9
 const EDGE_LABEL_FONT = '11px sans-serif'
 
-export function DrawingCanvas() {
+export function DrawingCanvas({ onDimensionRequest, panOnly = false, selectOnly = false, siteOverride, overviewShadows = [], showRoadNumbers = true }: { onDimensionRequest?:()=>void; panOnly?: boolean; selectOnly?: boolean; showRoadNumbers?: boolean; siteOverride?: ConfirmedSite | null; overviewShadows?: {x: number; y: number}[][] } = {}) {
+  const dimensionRequestRef=useRef(onDimensionRequest)
+  dimensionRequestRef.current=onDimensionRequest
+  const dimensionHandleRef=useRef<HandleRef|null>(null)
+  const selectOnlyRef = useRef(selectOnly)
+  selectOnlyRef.current = selectOnly
+  const panOnlyRef = useRef(panOnly)
+  panOnlyRef.current = panOnly
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const observer = new ResizeObserver(([entry]) => { if (entry) setCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height }) })
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [])
+  const showMiniMap = useUi(s => s.showMiniMap)
   const viewport = useDrawing((s) => s.viewport)
   const setViewport = useDrawing((s) => s.setViewport)
   const fitViewport = useDrawing((s) => s.fitViewport)
@@ -146,10 +175,12 @@ export function DrawingCanvas() {
   const drawnAll = useDrawing((s) => s.entries)
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   // 敷地（筆界）: 確定した敷地の筆、無ければダミー。点線で出す（統括の依頼 2026-11-06。1）
-  const confirmedSite = useConfirmedSite((s) => s.confirmed)
+  const selectedRoadEdge = useConfirmedSite((s) => s.roadEdge)
+  const storedSite = useConfirmedSite((s) => s.confirmed)
+  const confirmedSite = siteOverride === undefined ? storedSite : siteOverride
   const lot = lotOf(lotOfConfirmed(confirmedSite))
   // 筆界の辺の番号（統括の決定 2026-11-06）。いま選んでいる前面道路の辺を印にする
-  const edgeLabels = useMemo(() => lotEdgeLabelsOf(lot, roadEdgeIndexOf(lot, confirmedSite?.roadEdge ?? 0)), [lot, confirmedSite?.roadEdge])
+  const edgeLabels = useMemo(() => showRoadNumbers ? lotEdgeLabelsOf(lot, roadEdgeIndexOf(lot, confirmedSite?.roadEdge ?? selectedRoadEdge)) : [], [lot, confirmedSite?.roadEdge, selectedRoadEdge, showRoadNumbers])
   const siteFill = confirmedSite?.lot != null
   // 周辺建物の輪郭（確定した筆の枠で置いた。筆とずれない。統括の依頼 2026-11-06。5）
   const confirmedFrame = confirmedSite?.frame ?? null
@@ -184,6 +215,14 @@ export function DrawingCanvas() {
     return c.closed ? c.footprint : null
   }, [segments])
 
+  const lineStartRef = useRef<Point | null>(null)
+  const linePreviewRef = useRef<Point[] | null>(null)
+  const penMode = useUi(s => s.penMode)
+  const mode = useMode(s => s.mode)
+  useEffect(() => {
+    lineStartRef.current = null
+    linePreviewRef.current = null
+  }, [penMode, mode, panOnly, selectOnly])
   const drawingRef = useRef<{ pointerId: number; pointerType: string; points: Point[] } | null>(null)
   // 押さえている間の判定（Drawing モード。t69）
   const holdRef = useRef<HoldState | null>(null)
@@ -231,7 +270,7 @@ export function DrawingCanvas() {
       shownSegments,
       nodes,
       footprint,
-      drawingRef.current?.points ?? arcPreviewPx(arcRef.current, viewportRef.current, hoverRef.current),
+      linePreviewRef.current?.map(p => mmToPx(viewportRef.current, p)) ?? drawingRef.current?.points ?? arcPreviewPx(arcRef.current, viewportRef.current, hoverRef.current),
       displayGrid,
       useFeatures.getState().on.endpointRing ? hoverRef.current : null,
       handleDragRef.current?.view ?? null,
@@ -240,7 +279,7 @@ export function DrawingCanvas() {
       neighborOutlines,
       edgeLabels,
     )
-  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels])
+  }, [viewport, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels, penMode, mode, panOnly, selectOnly])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -258,7 +297,7 @@ export function DrawingCanvas() {
         shownSegments,
         nodes,
         footprint,
-        drawingRef.current?.points ?? arcPreviewPx(arcRef.current, viewportRef.current, hoverRef.current),
+        linePreviewRef.current?.map(p => mmToPx(viewportRef.current, p)) ?? drawingRef.current?.points ?? arcPreviewPx(arcRef.current, viewportRef.current, hoverRef.current),
         displayGrid,
         useFeatures.getState().on.endpointRing ? hoverRef.current : null,
         handleDragRef.current?.view ?? null,
@@ -344,14 +383,33 @@ export function DrawingCanvas() {
       if (hold.judged) applyHeldSuggestions(hold)
     }
 
+    const linePoint = (p: Point, shift: boolean): Point => {
+      const vp = viewportRef.current
+      const ui = useUi.getState()
+      const raw = pxToMm(vp, p)
+      const snapped = snapPoint({x:Math.round(raw.x), y:Math.round(raw.y)}, {
+        nodes, segments, prev: null, radiusMm: snapRadiusMm(vp.mmPerPx), axisDeg: 0,
+        gridMm: ui.inputSnapGrid ? gridStepFor(vp.mmPerPx).snapMm : null,
+      })
+      const point = {x:snapped.x, y:snapped.y}
+      return lineStartRef.current ? lineEnd(lineStartRef.current, point, shift) : point
+    }
     const onDown = (e: PointerEvent) => {
       const p = local(e)
-      const intent = classifyPointerDown({
+      if (selectOnlyRef.current && e.button === 0) {
+        const edge = hitEdgeLabel(p, edgeLabels, viewportRef.current)
+        if (edge !== null) {
+          alignPlanningEdge(edge)
+          return
+        }
+      }
+      let intent = classifyPointerDown({
         pointerType: e.pointerType,
         button: e.button,
         shiftKey: e.shiftKey,
         activeCount: pointersRef.current.size + 1,
       })
+      if (panOnlyRef.current && intent !== 'none' && intent !== 'pan-zoom') intent = 'pan'
       // 右クリックは描かない（サークルメニューは contextmenu で開く）
       if (intent === 'none') return
       // サークルメニューが開いているときの押下は、メニューを閉じるだけ（線は描かない）
@@ -362,6 +420,8 @@ export function DrawingCanvas() {
       canvas.setPointerCapture(e.pointerId)
       pointersRef.current.set(e.pointerId, { id: e.pointerId, last: p })
       if (intent === 'pan-zoom') {
+        lineStartRef.current = null
+        linePreviewRef.current = null
         // 2 本目が来たら描くのも、つまみを動かすのもやめてパン・ズームに切り替える（つまみは確定せずに元の形へ）
         drawingRef.current = null
         handleDragRef.current = null
@@ -382,19 +442,32 @@ export function DrawingCanvas() {
         chatTapRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
         return
       }
-      const tap = nextTap(lastTapRef.current, { t: e.timeStamp, x: p.x, y: p.y })
-      lastTapRef.current = tap.next
-      if (tap.double) {
-        drawingRef.current = null
-        hoverRef.current = null
-        repaint()
-        if (useFeatures.getState().on.circleMenu) openCircleMenu(p)
-        return
+      if (selectOnlyRef.current) {
+        const point = pxToMm(viewportRef.current, p)
+        const hit = segmentPickAt(shownSegments, point, CHAT_PICK_PX * viewportRef.current.mmPerPx)
+        let ids = hit ? [hit] : []
+        if (!hit) {
+          for (const outline of findClosedOutlines(shownSegments).reverse()) {
+            let inside=false
+            for(let i=0,j=outline.length-1;i<outline.length;j=i++) {
+              const a=outline[i]!,b=outline[j]!
+              if((a.y>point.y)!==(b.y>point.y) && point.x<(b.x-a.x)*(point.y-a.y)/(b.y-a.y)+a.x) inside=!inside
+            }
+            if(inside) {
+              const keys=new Set(outline.map(q=>`${q.x},${q.y}`))
+              ids=shownSegments.filter(s=>keys.has(`${s.x1},${s.y1}`)&&keys.has(`${s.x2},${s.y2}`)).map(s=>s.id)
+              break
+            }
+          }
+        }
+        useSelection.getState().setSegmentIds(ids)
       }
       // つまみ（外形の角・辺の中点。12 px 以内）の上で押したら、線は描き始めずにそのつまみを動かす。つまみが優先（G65）
       const vp = viewportRef.current
       const handle = footprint ? hitTestHandle(footprintHandles(footprint), pxToMm(vp, p), vp.mmPerPx) : null
       if (footprint && handle) {
+        dimensionHandleRef.current={kind:handle.kind,index:handle.index}
+        canvas.focus({preventScroll:true})
         const active: HandleRef = { kind: handle.kind, index: handle.index }
         drawingRef.current = null
         hoverRef.current = null
@@ -405,6 +478,42 @@ export function DrawingCanvas() {
           view: { segments, footprint, active, valid: true },
         }
         repaint()
+        return
+      }
+      if (selectOnlyRef.current) {
+        const point = pxToMm(viewportRef.current, p)
+        let inside = false
+        if (footprint) for (let i=0,j=footprint.length-1;i<footprint.length;j=i++) {
+          const a=footprint[i]!, b=footprint[j]!
+          if ((a.y>point.y)!==(b.y>point.y) && point.x<(b.x-a.x)*(point.y-a.y)/(b.y-a.y)+a.x) inside=!inside
+        }
+        if (inside && footprint) {
+          const active: HandleRef = {kind:'corner',index:0}
+          handleDragRef.current = {pointerId:e.pointerId,handle:active,moveStart:point,from:footprint,view:{segments,footprint,active,valid:true}}
+        }
+        repaint()
+        return
+      }
+      if (useUi.getState().penMode === 'line') {
+        const step = lineClick(lineStartRef.current, linePoint(p, e.shiftKey), e.shiftKey)
+        lineStartRef.current = step.start
+        linePreviewRef.current = step.start ? [step.start, step.start] : null
+        lastTapRef.current = null
+        if (step.commit) {
+          addStroke({id:crypto.randomUUID(),points:step.commit.map(q=>({px:q.x,py:-q.y})),
+            view_scale:1,view_origin:{px:0,py:0},stage:strokeStageOf(useMode.getState().mode),
+            pen_mode:'line',created_at:new Date().toISOString(),pen_input:toPenInput(e.pointerType)}, null, undefined, true)
+        }
+        repaint()
+        return
+      }
+      const tap = nextTap(lastTapRef.current, { t: e.timeStamp, x: p.x, y: p.y })
+      lastTapRef.current = tap.next
+      if (tap.double) {
+        drawingRef.current = null
+        hoverRef.current = null
+        repaint()
+        if (useFeatures.getState().on.circleMenu) openCircleMenu(p)
         return
       }
       // 二点の円弧（t70）: 曲線モードで二点の円弧の道具が選ばれているときは、押した点（端点へ吸着した位置）で一点目・二点目・中心を決める
@@ -433,6 +542,12 @@ export function DrawingCanvas() {
       // チャットのモードのタップ: 動いた距離が閾値を超えたら、タップではない（描く操作ではないので、ここでは何もしない）
       if (chatTapRef.current && chatTapRef.current.pointerId === e.pointerId) {
         if (isTapMove(e.clientX - chatTapRef.current.x, e.clientY - chatTapRef.current.y, CHAT_TAP_PX)) chatTapRef.current.moved = true
+        return
+      }
+      if (lineStartRef.current && useUi.getState().penMode === 'line' && !panOnlyRef.current && !selectOnlyRef.current && !panRef.current && pointersRef.current.size < 2) {
+        linePreviewRef.current = [lineStartRef.current, linePoint(p, e.shiftKey)]
+        hoverRef.current = p
+        repaint()
         return
       }
       const track = pointersRef.current.get(e.pointerId)
@@ -477,7 +592,12 @@ export function DrawingCanvas() {
       const hd = handleDragRef.current
       if (hd && hd.pointerId === e.pointerId) {
         const vp = viewportRef.current
-        const r = dragHandle(hd.from, hd.handle, pxToMm(vp, p), handleSnapMm(vp))
+        const point = pxToMm(vp, p)
+        const step = handleSnapMm(vp) || 1
+        const dx = hd.moveStart ? Math.round((point.x-hd.moveStart.x)/step)*step : 0
+        const dy = hd.moveStart ? Math.round((point.y-hd.moveStart.y)/step)*step : 0
+        const r = hd.moveStart ? {valid:true,footprint:hd.from.map(q=>({x:q.x+dx,y:q.y+dy}))} : dragHandle(hd.from, hd.handle, point, handleSnapMm(vp))
+        if (!r.valid || !placementAllowed(lot, r.footprint, roadEdgeIndexOf(lot, confirmedSite?.roadEdge ?? selectedRoadEdge))) return
         hd.view = {
           segments: moveOutlineVertices(entries, hd.from, r.footprint).flatMap((en) => en.segments),
           footprint: r.footprint,
@@ -558,6 +678,8 @@ export function DrawingCanvas() {
 
     // キャンセル（OS がジェスチャを奪った等）は、描きかけの線も、動かしかけのつまみも、確定せずに捨てる
     const onCancel = (e: PointerEvent) => {
+      lineStartRef.current = null
+      linePreviewRef.current = null
       pointersRef.current.delete(e.pointerId)
       if (drawingRef.current?.pointerId === e.pointerId) drawingRef.current = null
       if (handleDragRef.current?.pointerId === e.pointerId) handleDragRef.current = null
@@ -579,6 +701,24 @@ export function DrawingCanvas() {
       if (useFeatures.getState().on.circleMenu) openCircleMenu(local(e))
     }
 
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if(e.type==='keydown'&&e.key==='Tab'&&e.shiftKey&&document.activeElement===canvas&&dimensionHandleRef.current&&dimensionRequestRef.current){
+        e.preventDefault();handleDragRef.current=null;drawingRef.current=null;repaint();dimensionRequestRef.current();return
+      }
+      if (e.type === 'keydown' && selectOnlyRef.current && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault(); deleteSelectedSegments(); return
+      }
+
+      if (e.key === 'Escape') { lineStartRef.current = null; linePreviewRef.current = null; repaint() }
+      if (e.key === 'Shift' && lineStartRef.current && hoverRef.current) {
+        linePreviewRef.current = [lineStartRef.current, linePoint(hoverRef.current, e.shiftKey)]
+        repaint()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKey)
     canvas.addEventListener('pointerdown', onDown)
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup', onUp)
@@ -590,6 +730,8 @@ export function DrawingCanvas() {
     const unsubSelection = useSelection.subscribe(() => repaint())
     return () => {
       unsubSelection()
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKey)
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
@@ -598,9 +740,34 @@ export function DrawingCanvas() {
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels])
+  }, [addStroke, transform, setViewport, openCircleMenu, entries, shownSegments, layerById, nodes, footprint, displayGrid, lot, neighborOutlines, edgeLabels, penMode, mode, panOnly, selectOnly])
 
-  return <canvas ref={canvasRef} className="drawing-canvas" style={{ touchAction: 'none' }} />
+  useEffect(()=>{const id=requestAnimationFrame(()=>window.dispatchEvent(new Event('tutorial-target-change')));return()=>cancelAnimationFrame(id)},[viewport,edgeLabels,selectOnly])
+  const selectedCount = useSelection(s => s.segmentIds.length)
+  const bar = scaleBarOf(viewport.mmPerPx)
+  // SVG は下向き Y。作図座標の Y を反転して向きをそろえる。
+  const overview = [lot, ...shownSegments.map(segment => polylineOfSegment(segment))].map(poly => poly.map(p => ({ x: p.x, y: -p.y })))
+  const shadowOverview = overviewShadows.map(poly => poly.map(p => ({x: p.x, y: -p.y})))
+  const overviewBounds = boundsOf([...overview, ...shadowOverview])
+  const topLeft = pxToMm(viewport, { x: 0, y: 0 })
+  const bottomRight = pxToMm(viewport, { x: canvasSize.width, y: canvasSize.height })
+  return <>
+    {showRoadNumbers && lot.length >= 3 && <div style={{position:'absolute',left:16,top:12,zIndex:2,pointerEvents:'none',fontSize:12,color:'#536174'}}>境界番号をクリックすると、その辺が水平になります</div>}
+    {selectOnly && selectedCount > 0 && <button type="button" onClick={deleteSelectedSegments} style={{position:'absolute',left:12,top:100,zIndex:3}}>選択を削除</button>}
+    {selectOnly && edgeLabels.map(label => {
+      const m = mmToPx(viewport, label.mid)
+      return <button key={label.index} type="button" aria-label={`敷地境界 ${label.index}`} data-tutorial={label.index === 6 ? 'tutorial-road' : undefined}
+        style={{position:'absolute',left:m.x+label.outward.x*EDGE_LABEL_OFFSET_PX-12,top:m.y-label.outward.y*EDGE_LABEL_OFFSET_PX-12,width:24,height:24,padding:0,border:0,background:'transparent',borderRadius:'50%',zIndex:3,cursor:'pointer'}}
+        onClick={()=>{alignPlanningEdge(label.index);if(label.index===6&&useConfirmedSite.getState().confirmed?.planningEdge===6)tutorialDone('tutorial-road')}} />
+    })}
+    <canvas ref={canvasRef} tabIndex={0} aria-label="ボリューム作図キャンバス" className="drawing-canvas" style={{ touchAction: 'none' }} />
+    <div aria-label="縮尺表示" style={{ position: 'absolute', left: 12, bottom: 12, padding: '6px 8px', background: 'rgba(255,255,255,.92)', borderRadius: 4, pointerEvents: 'none', fontSize: 12, color: '#253247', zIndex: 2, minWidth: 120 }}>
+      <div title="96dpi換算。画面上の物理的な縮尺は端末やブラウザー倍率により異なります。" style={{ fontWeight: 600, marginBottom: 6 }}>表示縮尺（目安） 1:{Math.round(viewport.mmPerPx * 96 / 25.4).toLocaleString('ja-JP')}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: bar.widthPx }}><span>0</span><span>{bar.lengthMm >= 1000 ? `${bar.lengthMm / 1000} m` : `${bar.lengthMm} mm`}</span></div>
+      <div style={{ width: bar.widthPx, height: 6, border: '1px solid #536174', borderTop: 0, boxSizing: 'border-box' }} />
+    </div>
+    {showMiniMap && overviewBounds && <MiniMap bounds={overviewBounds} site={overview[0]} shadows={shadowOverview} polygons={overview.slice(1)} frame={{ x0: topLeft.x, y0: -topLeft.y, x1: bottomRight.x, y1: -bottomRight.y }} />}
+  </>
 }
 
 function paint(
@@ -670,6 +837,19 @@ function paint(
   ctx.closePath()
   ctx.stroke()
   ctx.setLineDash([])
+
+  if (shownFootprint) {
+    ctx.save()
+    ctx.strokeStyle='#64748b';ctx.fillStyle='#34445b';ctx.font='12px sans-serif';ctx.lineWidth=1
+    for(const dimension of setbackLines(lot,shownFootprint)??[]) {
+      const a=mmToPx(vp,dimension.from),b=mmToPx(vp,dimension.to)
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()
+      const x=(a.x+b.x)/2,y=(a.y+b.y)/2
+      ctx.strokeStyle='#fafaf7';ctx.lineWidth=3;ctx.strokeText(dimension.label,x+4,y-4)
+      ctx.fillText(dimension.label,x+4,y-4);ctx.strokeStyle='#64748b';ctx.lineWidth=1
+    }
+    ctx.restore()
+  }
 
   // 筆界の辺の番号。丸と文字は画面の px で一定（拡大縮小しても読める）。外向きに置く。前面道路に選んだ辺は色を変える
   for (const l of edgeLabels) {

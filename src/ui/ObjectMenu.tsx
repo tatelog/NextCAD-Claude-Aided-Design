@@ -1,3 +1,4 @@
+import { LeftPanelResize, useLeftPanelWidth } from './LeftPanelResize'
 // 左メニューの部品（ハブ A-03 G55、D-04 共通部品「左メニュー」）。P2 の 2D 平面・P3・P4 で共通に使う。
 // 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びと開閉は呼び出し側が持つ。
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
@@ -19,6 +20,7 @@ export function objectMenuWidthOf(folded: boolean): number {
 
 export interface ObjectMenuProps {
   /** 種類ごとの結果（件数と中身の入力）。作り方は objectSourcesOfPlan・objectSourcesOfFootprint（plan/objectSourcesOfPlan.ts） */
+  width?: number
   sources: ObjectDetailSources
   /** 選んでいる種類。選んでいなければ null */
   selectedKind: ObjectKind | null
@@ -41,6 +43,7 @@ export interface ObjectMenuProps {
 }
 
 export function ObjectMenu({
+  width = OBJECT_MENU_WIDTH,
   sources,
   selectedKind,
   onSelect,
@@ -56,7 +59,8 @@ export function ObjectMenu({
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
   const groupSummary = objectRows ? unitGroupSummary(objectRows) : null
   const frame = {
-    width: objectMenuWidthOf(folded),
+    width: folded ? OBJECT_MENU_FOLDED_WIDTH : width,
+    position: 'relative' as const,
     boxSizing: 'border-box' as const,
     flex: 'none',
     padding: folded ? 4 : 12,
@@ -83,6 +87,7 @@ export function ObjectMenu({
   if (folded) return <aside style={frame}>{toggle}</aside>
   return (
     <aside style={frame}>
+      <LeftPanelResize />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <h2 style={{ fontSize: 14, margin: '0 0 4px' }}>オブジェクト</h2>
         {toggle}
@@ -91,13 +96,15 @@ export function ObjectMenu({
       {notice ? <p style={{ fontSize: 11, color: '#a33', margin: '0 0 8px' }}>{notice}</p> : null}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
         {rows.map((r) => (
-          <li key={r.kind} style={{ borderBottom: '1px dashed #e6e4dc' }}>
+          <li key={r.kind} style={{}}>
             <button
               type="button"
               className="btn-text"
               aria-pressed={selectedKind === r.kind}
+              aria-expanded={selectedKind === r.kind}
               onClick={() => onSelect(toggleKind(selectedKind, r.kind))}
               style={{
+                border: 0, borderRadius: 0, boxShadow: 'none',
                 display: 'flex',
                 justifyContent: 'space-between',
                 gap: 8,
@@ -110,12 +117,33 @@ export function ObjectMenu({
                 cursor: 'pointer',
               }}
             >
-              <span>{r.label}</span>
+              <span><span aria-hidden="true">{selectedKind === r.kind ? '▾ ' : '▸ '}</span>{r.label}</span>
               <span>
                 <strong>{r.count}</strong>
                 {r.note ? <span style={{ color: '#a33', fontSize: 11, marginLeft: 4 }}>（{r.note}）</span> : null}
               </span>
             </button>
+            {selectedKind === r.kind && detail ? (
+        <section aria-label={`${detail.label}の中身`} style={{ marginTop: 4, marginLeft: 20 }}>
+          <h3 style={{ fontSize: 13, margin: '0 0 4px' }}>{detail.label}の中身</h3>
+          {detail.emptyText ? (
+            <p style={{ fontSize: 12, color: '#666', margin: 0 }}>{detail.emptyText}</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+              {detail.entries.map((e, i) => (
+                <li key={i} style={{ padding: '4px 0', borderBottom: '1px dashed #e6e4dc' }}>
+                  <strong>{e.title}</strong>
+                  {e.lines.map((line, j) => (
+                    <div key={j} style={{ color: '#444' }}>
+                      {line}
+                    </div>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
           </li>
         ))}
       </ul>
@@ -136,27 +164,12 @@ export function ObjectMenu({
         ))}
         <div style={{ color: '#a33', fontSize: 11 }}>1F は、基準階の区画に 1F の名前を付けた数</div>
       </div>
-      {detail ? (
-        <section aria-label={`${detail.label}の中身`} style={{ marginTop: 12 }}>
-          <h3 style={{ fontSize: 13, margin: '0 0 4px' }}>{detail.label}の中身</h3>
-          {detail.emptyText ? (
-            <p style={{ fontSize: 12, color: '#666', margin: 0 }}>{detail.emptyText}</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
-              {detail.entries.map((e, i) => (
-                <li key={i} style={{ padding: '4px 0', borderBottom: '1px dashed #e6e4dc' }}>
-                  <strong>{e.title}</strong>
-                  {e.lines.map((line, j) => (
-                    <div key={j} style={{ color: '#444' }}>
-                      {line}
-                    </div>
-                  ))}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+
     </aside>
   )
+}
+
+export function ResizableObjectMenu(props: ObjectMenuProps) {
+  const width = useLeftPanelWidth((s) => s.width)
+  return <ObjectMenu {...props} width={width} />
 }

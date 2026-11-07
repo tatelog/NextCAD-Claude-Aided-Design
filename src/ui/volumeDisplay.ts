@@ -10,3 +10,8 @@ export function neighborsShownOf(menuOn: boolean, volumeOn: boolean): boolean {
 export function shadowShownOf(menuOn: boolean, volumeOn: boolean): boolean {
   return menuOn && volumeOn
 }
+
+/** 位置に対応する地図タイルがある場合だけ表示を有効にする。 */
+export function mapShownOf(requested: boolean, tileCount: number): boolean {
+  return requested && tileCount > 0
+}

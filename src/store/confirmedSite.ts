@@ -1,3 +1,4 @@
+import type { RoadLink } from '../map/roadAssociation'
 // 確定した敷地（統括の依頼 2026-11-06。1: P1 の「この敷地で確定」）。選んだ筆・筆の中の点・枠・前面道路の辺を一つにまとめて、P2〜P5 が使う。
 // 用途地域と周辺建物は、確定のときに筆の中の点で取り、ここに持つ（P1 から P2 へ移っても残る）。古い取得の結果は採らない。画面の中だけで持つ（保存は 8 で別に扱う）。
 // 確定のあとに地点か筆を変えたら、「確定し直しが要る」（isConfirmedStaleOf）。
@@ -12,6 +13,9 @@ import { useSite } from './site'
 import { DEFAULT_ROAD_WIDTH_SOURCE, type RoadWidthSource } from '../volume/roadWidthSource'
 
 export interface ConfirmedSite {
+  cityCode?: string
+  roadLinks?: RoadLink[]
+  planningEdge?: number
   /** 確定した筆の UID。筆が無い地点で確定したときは null（ダミーの筆界で進む） */
   parcelUid: string | null
   /** 筆の平面（mm）。null なら、ダミーの筆界を使う */
@@ -44,11 +48,13 @@ interface ConfirmedState {
   confirmed: ConfirmedSite | null
   /** 前面道路の辺（P2 で選ぶ。確定の前から持つ。確定すると、確定のまとめに入る。統括の依頼 2026-11-06。6） */
   roadEdge: number
+  districtPoint: {lat:number;lon:number} | null
   district: FetchState<DistrictLoad>
   buildings: FetchState<PlateauBuilding[]>
   confirm: (c: ConfirmedSite) => void
   clear: () => void
   setRoadEdge: (roadEdge: number) => void
+  attachRoadLinks: (parcelUid: string | null, links: RoadLink[]) => void
   /** 前面道路の幅員（入力のままの文）。確定していれば、確定のまとめの幅員（mm）も変える */
   roadWidth: string
   roadSource: RoadWidthSource
@@ -70,27 +76,40 @@ export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   roadEdge: 0,
   roadWidth: '6000',
   roadSource: DEFAULT_ROAD_WIDTH_SOURCE,
+  districtPoint: null,
   district: IDLE,
   buildings: IDLE,
   // 確定したときは、今いる地点も確定の中心にする（確定の処理は P1 を離れるので、P1 は今いる地点を更新できない。統括の依頼 2026-11-06。不具合の直し）
-  confirm: (confirmed) => set({ confirmed, currentSite: confirmed.center }),
+  confirm: (confirmed) => set({ confirmed, currentSite: confirmed.center,
+    roadEdge: confirmed.roadEdge, roadWidth: confirmed.roadWidthMm > 0 ? String(confirmed.roadWidthMm) : '', roadSource: confirmed.roadSource }),
+  attachRoadLinks: (parcelUid, links) => {
+    const c=get().confirmed
+    if(!c || c.parcelUid!==parcelUid || c.roadLinks) return
+    // 既存案件の手入力値は維持し、新規P1選択時だけ未入力から始める。
+    set({confirmed:{...c,roadLinks:links.map(l=>l.edgeIndex===c.roadEdge && c.roadWidthMm>0?{...l,adoptedWidthMm:c.roadWidthMm,adoptedSource:c.roadSource}:l)}})
+  },
   clear: () => set({ confirmed: null }),
   setRoadEdge: (roadEdge) => {
     const c = get().confirmed
-    set({ roadEdge, confirmed: c !== null ? { ...c, roadEdge } : null })
+    if(c?.roadLinks) {
+      const link=c.roadLinks.find(l=>l.edgeIndex===roadEdge)
+      const width=link?.adoptedWidthMm ?? 0, source=link?.adoptedSource ?? DEFAULT_ROAD_WIDTH_SOURCE
+      set({roadEdge,roadWidth:width>0?String(width):'',roadSource:source,confirmed:{...c,roadEdge,roadWidthMm:width,roadSource:source}})
+    } else set({ roadEdge, confirmed: c !== null ? { ...c, roadEdge } : null })
   },
   setRoadWidth: (text) => {
     const c = get().confirmed
     const roadWidthMm = Number(text) || 0
-    set({ roadWidth: text, confirmed: c !== null ? { ...c, roadWidthMm } : null })
+    set({ roadWidth: text, confirmed: c !== null ? { ...c, roadWidthMm, roadLinks:c.roadLinks?.map(l=>l.edgeIndex===c.roadEdge?{...l,adoptedWidthMm:roadWidthMm>0?roadWidthMm:null,adoptedSource:c.roadSource}:l) } : null })
   },
   setRoadSource: (roadSource) => {
     const c = get().confirmed
-    set({ roadSource, confirmed: c !== null ? { ...c, roadSource } : null })
+    set({ roadSource, confirmed: c !== null ? { ...c, roadSource, roadLinks:c.roadLinks?.map(l=>l.edgeIndex===c.roadEdge?{...l,adoptedSource:roadSource}:l) } : null })
   },
   fetchDistrictAt: async (point, cityCode) => {
     const id = districtGate.begin()
-    set({ district: { data: null, loading: true, error: null } })
+    set({ districtPoint: point, district: { data: null, loading: true, error: null } })
+    useSite.getState().setMatches(null)
     try {
       const r = await loadDistrictsAt({ lat: point.lat, lon: point.lon, cityCode }, (url) => fetch(url))
       if (!districtGate.isLatest(id)) return
@@ -117,7 +136,8 @@ export const useConfirmedSite = create<ConfirmedState>((set, get) => ({
   },
   resetDistrict: () => {
     districtGate.begin()
-    set({ district: IDLE })
+    set({ districtPoint: null, district: IDLE })
+    useSite.getState().setMatches(null)
   },
   currentSite: null,
   setCurrentSite: (currentSite) => set({ currentSite }),
