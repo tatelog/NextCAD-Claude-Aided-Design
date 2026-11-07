@@ -1,0 +1,48 @@
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,4 @@
++import { useSiteDatabase } from './store/siteRepository'
+ import {usePlanZoom} from './store/planZoom'
+ // 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・モード・作業履歴・メニュー・保留）。
+ // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
+@@ -54,6 +55,7 @@
+ const WORKER_URL: string = appWorkerUrl()
+ 
+ export function App() {
++  useSiteDatabase()
+   const canUndo = useDrawing((s) => s.past.length > 0)
+   const canRedo = useDrawing((s) => s.redoStack.length > 0)
+   // 画面の Ctrl+Z・Ctrl+Y で、図面の Undo・Redo（G68）
+--- a/src/ui/P03Volume.tsx
++++ b/src/ui/P03Volume.tsx
+@@ -1,3 +1,4 @@
++import { useSiteRepository, siteKey } from '../store/siteRepository'
+ import { northSlopeRule } from '../law/slopeRules'
+ import { districtsAndZonesName } from '../plateau/codelist'
+ import { placementAllowed } from '../volume/placementGuard'
+@@ -247,19 +248,23 @@
+ 
+   // 法定の斜線を、敷地（選んだ筆、無ければダミー 20 m × 30 m）の辺に当てて切り取る。前面道路の辺・幅員・用途地域・容積率の限度は利用者が入れる
+   // P1 で用途地域が一つに決まっていれば、その区分と容積率の限度を使う（PLATEAU）。無ければ利用者の入力
++  const siteRecord = useSiteRepository(s => s.active)
++  const siteDbError = useSiteRepository(s => s.error)
+   const district = useConfirmedSite(s => s.district)
+   const districtPoint = useConfirmedSite(s => s.districtPoint)
+   const matchingDistrict = !!savedSite && districtPoint?.lat === savedSite.center.lat && districtPoint?.lon === savedSite.center.lon
++  const cachedDistrict = savedSite && siteRecord && siteKey(savedSite) === siteKey(siteRecord.site) && savedSite.center.lat === siteRecord.site.center.lat && savedSite.center.lon === siteRecord.site.center.lon ? siteRecord.district : null
+   // P1の取得結果を直接使う。保存DBの起動・障害で計算条件を失わない。
+-  const siteMatches = (matchingDistrict ? district.data?.matches : null) ?? null
++  const siteMatches = (matchingDistrict ? district.data?.matches : null) ?? cachedDistrict?.matches ?? null
+   useEffect(() => {
+     if (!savedSite) return
+     const state = useConfirmedSite.getState()
+     const same = state.districtPoint?.lat === savedSite.center.lat && state.districtPoint?.lon === savedSite.center.lon
+     if (same && (state.district.data || state.district.loading || state.district.error)) return
++    if (cachedDistrict) return
+     const cityCode = savedSite.cityCode
+     if (cityCode) void state.fetchDistrictAt(savedSite.center, cityCode)
+-  }, [savedSite?.center.lat, savedSite?.center.lon])
++  }, [savedSite?.center.lat, savedSite?.center.lon, cachedDistrict])
+   const siteRule = useMemo(() => (siteMatches ? siteRuleFromDistricts(siteMatches) : null), [siteMatches])
+   const effectiveZone = effectiveZoneOf(siteRule, zone)
+   const inheritedZoneName = siteMatches?.length === 1 && siteMatches[0]?.function != null ? districtsAndZonesName(siteMatches[0].function) : undefined
