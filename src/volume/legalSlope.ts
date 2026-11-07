@@ -56,10 +56,15 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
   // 道路
   const road = roadSlopeRule({ zone: input.zone, farPercent: input.farPercent })
   const nOut = outwardNormal(poly, input.roadEdgeIndex)
-  if (road.status === '適用') {
+  if (road.status === '適用' && (!(input.roadWidthMm > 0) || !Number.isFinite(input.roadWidthMm))) {
+    pending.push('道路斜線（正確な道路幅員が未確定）')
+  } else if (road.status === '適用') {
     const a = poly[input.roadEdgeIndex]!
     boundaries.push({
       point: { x: a.x + nOut.x * input.roadWidthMm, y: a.y + nOut.y * input.roadWidthMm },
+      displayEdge: [a, poly[(input.roadEdgeIndex + 1) % n]!].map(p => ({
+        x: p.x + nOut.x * input.roadWidthMm, y: p.y + nOut.y * input.roadWidthMm,
+      })) as [Point, Point],
       inward: { x: -nOut.x, y: -nOut.y },
       coefficient: road.coefficient,
       riseMm: 0,
@@ -83,6 +88,8 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
     const out = outwardNormal(poly, i)
     boundaries.push({
       point: { x: a.x, y: a.y },
+      segment: [a, poly[(i + 1) % n]!],
+      displayEdge: [a, poly[(i + 1) % n]!],
       inward: { x: -out.x, y: -out.y },
       kind: 'adjacent',
       coefficient: adjacent.coefficient,

@@ -46,6 +46,8 @@ export function nextGateOf(issues: readonly CheckIssue[]): 'go' | 'review' {
 }
 
 export interface P2NextInput {
+  /** 未取得の条件は結果欄に残し、遷移時の再確認を省く */
+  promptUnknown?: boolean
   /** 外形が閉じているか */
   closed: boolean
   /** 閉合の表示（閉じていないときの理由を含む） */
@@ -68,9 +70,9 @@ export function p2NextIssuesOf(input: P2NextInput): CheckIssue[] {
   issues.push(...brokenFloorIssuesOf(input.brokenFloors))
   if (input.slope === '超過') issues.push({ area: '斜線', text: '超過（外形が斜線の外に出ている）' })
   // 外形が閉じていないときは、斜線と日影は判定できない（閉合の一件で伝える。同じことを二度出さない）
-  if (input.closed && input.slope === null) issues.push({ area: '斜線', text: '判定する規則が無い（用途地域と容積率を入れる）' })
+  if (input.promptUnknown !== false && input.closed && input.slope === null) issues.push({ area: '斜線', text: '判定する規則が無い（用途地域と容積率を入れる）' })
   if (input.shadow === '不適合') issues.push({ area: '日影', text: input.shadowText })
-  if (input.shadow === null && input.closed) issues.push({ area: '日影', text: input.shadowText })
+  if (input.promptUnknown !== false && input.shadow === null && input.closed) issues.push({ area: '日影', text: input.shadowText })
   return issues
 }
 

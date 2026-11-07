@@ -52,11 +52,14 @@ describe('型の室数から、部屋割りを決める', () => {
 // 仕様 G99（統括の依頼 t56 の続き、2026-11-04）: 列の型は、列の幅（スパン）と間口が同じ型だけ。
 // 列の幅は一つの計画で同じ（spanMm）なので、一つの計画に入る型は、間口がスパンと同じ型になる。
 describe('自動作成で、列の幅と間口が同じ型の部屋割りを使う（G89・G99）', () => {
-  it('2LDK（間口 8400）の列では、スパン 8400 の計画に 2LDK が全列に入り、部屋数は 4', () => {
+  it('2LDK（間口 8400）の列では、スパン 8400 の計画に 2LDK が全列に入り、39案の詳細室を使う', () => {
     const wide = { ...base, spanMm: 8400 }
     const g = generateAutoPlan({ ...wide, unitTypes: master, unitTypeIds: ['T-08-2LDK'] })
     expect(g.spanTypes).toEqual(['T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK', 'T-08-2LDK'])
-    expect([0, 1, 2, 3, 4].map((k) => roomsInSpan({ ...g, rooms: g.rooms }, k, 8400))).toEqual([4, 4, 4, 4, 4])
+    // 代表の更新要件: 仮の4区画ではなく、39案の玄関・廊下・水回りを含む詳細を採用する。
+    for (const cell of g.cells) {
+      expect(g.rooms.filter(r => r.id.startsWith(cell.id + '-')).map(r => r.name).sort()).toEqual(['玄関', '廊下', '洋室1', '洗面脱衣', 'WC', '洋室2', '浴室', 'LDK'].sort())
+    }
     expect(g.unsupportedSpans).toEqual([])
   })
 

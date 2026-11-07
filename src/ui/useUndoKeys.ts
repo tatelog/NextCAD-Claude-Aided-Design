@@ -18,7 +18,8 @@ export function useUndoKeys(): void {
       if (action === 'undo') useDrawing.getState().undo()
       else useDrawing.getState().redo()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // 3D や各パネルが伝播を止める前に、共通ショートカットを受け取る。
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [])
 }

@@ -49,16 +49,16 @@ export function candidateCells(input: CandidateInput): CandidateCells {
 
   if (input.layout === 'ツイン') {
     // 中廊下の変形（G106）: 帯の幅 = 3 cw。左の廊下・吹き抜け・右の廊下が cw ずつ。住戸は帯の両側に 1 スパン 2 戸
-    if (W !== 2 * ud + 3 * cw) throw new Error('ツインは建物の幅 = 住戸の奥行 × 2 + 廊下幅 × 3')
+    if (W < 2 * ud + 3 * cw) throw new Error('ツインには住戸奥行 × 2 + 廊下幅 × 3 以上の建物幅が必要です')
     const west: Rect = { id: 'corridor', x0: ud, y0: 0, x1: ud + cw, y1: D }
-    const east: Rect = { id: 'corridor-east', x0: ud + 2 * cw, y0: 0, x1: ud + 3 * cw, y1: D }
-    const atrium: Rect = { id: 'atrium', x0: ud + cw, y0: 0, x1: ud + 2 * cw, y1: D }
+    const east: Rect = { id: 'corridor-east', x0: W - ud - cw, y0: 0, x1: W - ud, y1: D }
+    const atrium: Rect = { id: 'atrium', x0: ud + cw, y0: 0, x1: W - ud - cw, y1: D }
     const cells: Rect[] = []
     for (let k = 0; k < lines.length - 1; k++) {
       const y0 = lines[k]!
       const y1 = lines[k + 1]!
       cells.push({ id: `L${k}`, x0: 0, y0, x1: ud, y1 })
-      cells.push({ id: `R${k}`, x0: ud + 3 * cw, y0, x1: W, y1 })
+      cells.push({ id: `R${k}`, x0: W - ud, y0, x1: W, y1 })
     }
     return { corridor: west, corridors: [west, east], cells, voids: [atrium] }
   }

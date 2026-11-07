@@ -7,6 +7,7 @@ import type { Quantity } from './quantities'
 
 export interface PlanExteriorInput {
   /** 廊下（基準階） */
+  corridors?: readonly Rect[]
   corridor: Rect
   /** コア（階段・EV）。廊下と重なる分を、廊下の面積から引く */
   cores: readonly Rect[]
@@ -41,7 +42,7 @@ export function railingQuantity(input: { cells: readonly Rect[]; outline: { W: n
 
 export function planExteriorQuantities(input: PlanExteriorInput): { balcony: Quantity; corridor: Quantity } {
   const { corridor, cores, cells, outline, storeyCount } = input
-  const corridorMm2 = (corridor.x1 - corridor.x0) * (corridor.y1 - corridor.y0) - cores.reduce((sum, c) => sum + overlapMm2(corridor, c), 0)
+  const corridorMm2 = (input.corridors??[corridor]).reduce((total,r)=>total+(r.x1-r.x0)*(r.y1-r.y0)-cores.reduce((sum,c)=>sum+overlapMm2(r,c),0),0)
   const balconyM2 = cells.reduce((sum, c) => sum + balconyOfUnit(c, { outline }).areaM2, 0)
   return {
     balcony: { item: 'バルコニー', category: '外装', quantity: balconyM2 * storeyCount, unit: 'm2', provisional: true },

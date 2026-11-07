@@ -1,0 +1,509 @@
+{
+  "id": "2LDK-C",
+  "type": "2LDK",
+  "title": "玄関・WC上段左・LDK横長",
+  "envelope": {
+    "W": 8400,
+    "D": 7400,
+    "balcony_depth": 1500
+  },
+  "area_m2": 62.2,
+  "orientation": "共用廊下を上（北）、バルコニーを下（南）として描いた。方位は計画上の仮定",
+  "rooms": [
+    {
+      "id": "ENT",
+      "code": "玄",
+      "name": "玄関",
+      "kind": "玄関",
+      "x": 0,
+      "y": 0,
+      "w": 2600,
+      "h": 2300,
+      "area_m2": 5.98
+    },
+    {
+      "id": "WC",
+      "code": "T",
+      "name": "WC",
+      "kind": "水回り",
+      "x": 2600,
+      "y": 0,
+      "w": 1800,
+      "h": 2300,
+      "area_m2": 4.14
+    },
+    {
+      "id": "BR1",
+      "code": "R1",
+      "name": "洋室1",
+      "kind": "居室",
+      "x": 4400,
+      "y": 0,
+      "w": 4000,
+      "h": 2300,
+      "area_m2": 9.2
+    },
+    {
+      "id": "HALL",
+      "code": "廊",
+      "name": "廊下",
+      "kind": "廊下",
+      "x": 0,
+      "y": 2300,
+      "w": 2600,
+      "h": 2400,
+      "area_m2": 6.24
+    },
+    {
+      "id": "LDK",
+      "code": "L",
+      "name": "LDK",
+      "kind": "居室",
+      "x": 2600,
+      "y": 2300,
+      "w": 5800,
+      "h": 2400,
+      "area_m2": 13.92
+    },
+    {
+      "id": "BATH",
+      "code": "B",
+      "name": "浴室",
+      "kind": "水回り",
+      "x": 0,
+      "y": 4700,
+      "w": 2600,
+      "h": 2700,
+      "area_m2": 7.02
+    },
+    {
+      "id": "WASH",
+      "code": "Y",
+      "name": "洗面脱衣",
+      "kind": "水回り",
+      "x": 2600,
+      "y": 4700,
+      "w": 1800,
+      "h": 2700,
+      "area_m2": 4.86
+    },
+    {
+      "id": "BR2",
+      "code": "R2",
+      "name": "洋室2",
+      "kind": "居室",
+      "x": 4400,
+      "y": 4700,
+      "w": 4000,
+      "h": 2700,
+      "area_m2": 10.8
+    }
+  ],
+  "doors": [
+    {
+      "id": "D01",
+      "between": [
+        "玄",
+        "C"
+      ],
+      "kind": "玄関ドア",
+      "width": 900,
+      "swing_into": "玄",
+      "position": {
+        "orientation": "h",
+        "coord": 0,
+        "start": 850
+      }
+    },
+    {
+      "id": "D02",
+      "between": [
+        "玄",
+        "廊"
+      ],
+      "kind": "開口",
+      "width": 900,
+      "swing_into": null,
+      "position": {
+        "orientation": "h",
+        "coord": 2300,
+        "start": 850
+      }
+    },
+    {
+      "id": "D03",
+      "between": [
+        "玄",
+        "T"
+      ],
+      "kind": "引戸",
+      "width": 700,
+      "swing_into": null,
+      "position": {
+        "orientation": "v",
+        "coord": 2600,
+        "start": 800
+      }
+    },
+    {
+      "id": "D04",
+      "between": [
+        "L",
+        "R1"
+      ],
+      "kind": "開き戸",
+      "width": 800,
+      "swing_into": "R1",
+      "position": {
+        "orientation": "h",
+        "coord": 2300,
+        "start": 6000
+      }
+    },
+    {
+      "id": "D05",
+      "between": [
+        "廊",
+        "L"
+      ],
+      "kind": "開口",
+      "width": 1000,
+      "swing_into": null,
+      "position": {
+        "orientation": "v",
+        "coord": 2600,
+        "start": 3000
+      }
+    },
+    {
+      "id": "D06",
+      "between": [
+        "廊",
+        "B"
+      ],
+      "kind": "開き戸",
+      "width": 700,
+      "swing_into": "B",
+      "position": {
+        "orientation": "h",
+        "coord": 4700,
+        "start": 950
+      }
+    },
+    {
+      "id": "D07",
+      "between": [
+        "L",
+        "Y"
+      ],
+      "kind": "引戸",
+      "width": 800,
+      "swing_into": null,
+      "position": {
+        "orientation": "h",
+        "coord": 4700,
+        "start": 3100
+      }
+    },
+    {
+      "id": "D08",
+      "between": [
+        "Y",
+        "B"
+      ],
+      "kind": "引戸",
+      "width": 700,
+      "swing_into": null,
+      "position": {
+        "orientation": "v",
+        "coord": 2600,
+        "start": 5700
+      }
+    },
+    {
+      "id": "D09",
+      "between": [
+        "L",
+        "R2"
+      ],
+      "kind": "開き戸",
+      "width": 800,
+      "swing_into": "R2",
+      "position": {
+        "orientation": "h",
+        "coord": 4700,
+        "start": 6000
+      }
+    },
+    {
+      "id": "D10",
+      "between": [
+        "R2",
+        "Bal"
+      ],
+      "kind": "引戸",
+      "width": 1800,
+      "swing_into": null,
+      "position": {
+        "orientation": "h",
+        "coord": 7400,
+        "start": 5500
+      }
+    }
+  ],
+  "windows": [
+    {
+      "id": "W01",
+      "room": "玄",
+      "room_id": "ENT",
+      "side": "W"
+    },
+    {
+      "id": "W02",
+      "room": "T",
+      "room_id": "WC",
+      "side": "N"
+    },
+    {
+      "id": "W03",
+      "room": "R1",
+      "room_id": "BR1",
+      "side": "N"
+    },
+    {
+      "id": "W04",
+      "room": "R1",
+      "room_id": "BR1",
+      "side": "E"
+    },
+    {
+      "id": "W05",
+      "room": "B",
+      "room_id": "BATH",
+      "side": "W"
+    },
+    {
+      "id": "W06",
+      "room": "R2",
+      "room_id": "BR2",
+      "side": "E"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "F01",
+      "kind": "便器",
+      "part_id": null,
+      "room": "T",
+      "room_id": "WC",
+      "x": 3000,
+      "y": 700,
+      "w": 400,
+      "h": 650
+    },
+    {
+      "id": "F02",
+      "kind": "洗濯機",
+      "part_id": null,
+      "room": "Y",
+      "room_id": "WASH",
+      "x": 2800,
+      "y": 4900,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "id": "F03",
+      "kind": "洗面化粧台",
+      "part_id": null,
+      "room": "Y",
+      "room_id": "WASH",
+      "x": 3600,
+      "y": 4900,
+      "w": 600,
+      "h": 500
+    },
+    {
+      "id": "F04",
+      "kind": "浴槽",
+      "part_id": null,
+      "room": "B",
+      "room_id": "BATH",
+      "x": 300,
+      "y": 5700,
+      "w": 1400,
+      "h": 1400
+    },
+    {
+      "id": "F05",
+      "kind": "キッチン",
+      "part_id": null,
+      "room": "L",
+      "room_id": "LDK",
+      "x": 4700,
+      "y": 2400,
+      "w": 2600,
+      "h": 600
+    },
+    {
+      "id": "F06",
+      "kind": "冷蔵庫",
+      "part_id": null,
+      "room": "L",
+      "room_id": "LDK",
+      "x": 7600,
+      "y": 2400,
+      "w": 600,
+      "h": 700
+    },
+    {
+      "id": "F07",
+      "kind": "ダイニングテーブル",
+      "part_id": null,
+      "room": "L",
+      "room_id": "LDK",
+      "x": 3400,
+      "y": 3600,
+      "w": 2000,
+      "h": 900
+    },
+    {
+      "id": "F08",
+      "kind": "ソファ",
+      "part_id": null,
+      "room": "L",
+      "room_id": "LDK",
+      "x": 5800,
+      "y": 3700,
+      "w": 2200,
+      "h": 800
+    },
+    {
+      "id": "F09",
+      "kind": "ベッド",
+      "part_id": null,
+      "room": "R1",
+      "room_id": "BR1",
+      "x": 4700,
+      "y": 200,
+      "w": 1200,
+      "h": 2000
+    },
+    {
+      "id": "F10",
+      "kind": "クローゼット",
+      "part_id": null,
+      "room": "R1",
+      "room_id": "BR1",
+      "x": 6900,
+      "y": 200,
+      "w": 1300,
+      "h": 900
+    },
+    {
+      "id": "F11",
+      "kind": "ベッド",
+      "part_id": null,
+      "room": "R2",
+      "room_id": "BR2",
+      "x": 4700,
+      "y": 5700,
+      "w": 1200,
+      "h": 1500
+    },
+    {
+      "id": "F12",
+      "kind": "クローゼット",
+      "part_id": null,
+      "room": "R2",
+      "room_id": "BR2",
+      "x": 7000,
+      "y": 5000,
+      "w": 1200,
+      "h": 900
+    },
+    {
+      "id": "F13",
+      "kind": "PS",
+      "part_id": null,
+      "room": "玄",
+      "room_id": "ENT",
+      "x": 150,
+      "y": 1500,
+      "w": 500,
+      "h": 700
+    },
+    {
+      "id": "F14",
+      "kind": "MB",
+      "part_id": null,
+      "room": "玄",
+      "room_id": "ENT",
+      "x": 2100,
+      "y": 100,
+      "w": 300,
+      "h": 400
+    },
+    {
+      "id": "F15",
+      "kind": "シューズ",
+      "part_id": null,
+      "room": "玄",
+      "room_id": "ENT",
+      "x": 900,
+      "y": 1200,
+      "w": 1000,
+      "h": 600
+    }
+  ],
+  "columns": [
+    {
+      "id": "C01",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "C02",
+      "x": 0,
+      "y": 3700
+    },
+    {
+      "id": "C03",
+      "x": 0,
+      "y": 7400
+    },
+    {
+      "id": "C04",
+      "x": 4200,
+      "y": 0
+    },
+    {
+      "id": "C05",
+      "x": 4200,
+      "y": 7400
+    },
+    {
+      "id": "C06",
+      "x": 8400,
+      "y": 0
+    },
+    {
+      "id": "C07",
+      "x": 8400,
+      "y": 3700
+    },
+    {
+      "id": "C08",
+      "x": 8400,
+      "y": 7400
+    }
+  ],
+  "intent": "玄関の隣に WC を置き、LDK を右上の横長にする。洋室は玄関側の右上と、奥の右下に分ける。",
+  "difference": "LDKを横長にして上段に寄せた。洋室は上下に分け、浴室は左下の角に置いた。",
+  "notice": [
+    "本企画用に新規作成した架空の住戸計画案",
+    "実在物件の図面ではありません",
+    "寸法・構造・設備は計画上の仮定であり、実施設計・法規適合確認前です"
+  ],
+  "status": "新規作成・未検証（寸法・構造・設備は仮定）"
+}

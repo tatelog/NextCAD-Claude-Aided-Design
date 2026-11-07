@@ -2,7 +2,7 @@
 // 建築面積は 1 階の切り取り後の面積（上の階は下の階の内側に収まるので、建築面積は 1 階で決まる）。
 import { polygonAreaMm2 } from '../geom/polygon'
 import { z } from 'zod'
-import { cutFloors, type SlopeBoundary } from './slope'
+import { cutFloorParts, type SlopeBoundary } from './slope'
 import { extrudeVolume, type ExtrudeInput } from './extrude'
 
 export interface CutVolume {
@@ -32,8 +32,8 @@ export function grossFloorAreaMm2(extrudeGrossMm2: number, floorAreasMm2: readon
 export function volumeAfterSlope(input: ExtrudeInput, boundaries: readonly SlopeBoundary[], parcelAreaMm2: number): CutVolume {
   const parcel = z.number().positive().parse(parcelAreaMm2)
   const v = extrudeVolume(input)
-  const floors = cutFloors(v.footprint, boundaries, { storey_count: v.storey_count, storey_height: v.storey_height })
-  const floorAreas = floors.map((f) => polygonAreaMm2(f))
+  const floors = cutFloorParts(v.footprint, boundaries, { storey_count: v.storey_count, storey_height: v.storey_height })
+  const floorAreas = floors.map((f) => f.reduce((sum, p) => sum + polygonAreaMm2(p), 0))
   const gross = floorAreas.reduce((sum, a) => sum + a, 0)
   return {
     floor_areas_mm2: floorAreas,

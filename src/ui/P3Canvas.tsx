@@ -1,3 +1,4 @@
+import { lineClick, lineEnd } from '../input/twoPointLine'
 // P3 の描く画面（D-04 P3、D-02 C1、G152）。ドラッグで線を描き、線分にして（strokeToSegments）、閉合を表示する（findClosedOutline）。
 // 直線モードは直線に整形し、曲線モードは曲線のまま残す（P2 と同じペンのモード。store の penMode）。
 // 曲線モードの「円弧（二点）」（t81・G152。P2 と同じ道具）: 二点を押し、中心線上を動かして中心を決め、押して確定する。
@@ -47,6 +48,18 @@ export function P3Canvas({ viewBox, overlay = false, drawing = true }: {
   // 選んでいる線（色を変える。G159）
   const selectedIds = useSelection((s) => s.segmentIds)
   /** 二点の円弧の道具の状態（t81）。道具を外したら一点目の待ちに戻る */
+  const lineStartRef = useRef<{x:number;y:number} | null>(null)
+  const penMode = useUi(s => s.penMode)
+  const mode = useMode(s => s.mode)
+  useEffect(() => { lineStartRef.current = null; if (trail !== null) setTrail(null) }, [penMode, mode, drawing])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const cancel = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { lineStartRef.current = null; setTrail(null) }
+    }
+    window.addEventListener('keydown', cancel)
+    return () => window.removeEventListener('keydown', cancel)
+  }, [])
   const arcRef = useRef<ArcToolState>(ARC_TOOL_START)
   const arcTwoPoint = useUi((s) => s.arcTwoPoint)
   useEffect(() => {
@@ -113,6 +126,18 @@ export function P3Canvas({ viewBox, overlay = false, drawing = true }: {
       chatTapRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
       return
     }
+    if (!drawing || e.button !== 0) return
+    if (useUi.getState().penMode === 'line') {
+      const point = p3PxToMm(strokeStartPx(nodes, p, P3_VIEWPORT))
+      const step = lineClick(lineStartRef.current, {x:Math.round(point.x), y:Math.round(point.y)}, e.shiftKey)
+      lineStartRef.current = step.start
+      setTrail(step.start ? toTrail([step.start, step.start]) : null)
+      if (step.commit) {
+        const stroke = p3StrokeOfTrail(toTrail(step.commit), 'line', crypto.randomUUID())
+        if (stroke) useDrawing.getState().addStroke(stroke, null, 'P3', true)
+      }
+      return
+    }
     if (arcOn()) {
       // 二点の円弧（t81）: 押した点（端点へ吸着した位置）で一点目・二点目・中心を決める
       const step = arcToolStep(arcRef.current, { type: 'click', point: p3PxToMm(strokeStartPx(nodes, p, P3_VIEWPORT)) })
@@ -131,6 +156,10 @@ export function P3Canvas({ viewBox, overlay = false, drawing = true }: {
       if (isTapMove(e.clientX - chatTapRef.current.x, e.clientY - chatTapRef.current.y, CHAT_TAP_PX)) chatTapRef.current.moved = true
       return
     }
+    if (useUi.getState().penMode === 'line') {
+      if (lineStartRef.current) setTrail(toTrail([lineStartRef.current, lineEnd(lineStartRef.current, p3PxToMm(strokeStartPx(nodes, p, P3_VIEWPORT)), e.shiftKey)]))
+      return
+    }
     if (arcOn()) {
       // 二点の円弧（t81）: 動かした位置で、中心線上の中心を決める（確定は押したとき）
       arcRef.current = arcToolStep(arcRef.current, { type: 'move', point: p3PxToMm(p) }).state
@@ -145,7 +174,7 @@ export function P3Canvas({ viewBox, overlay = false, drawing = true }: {
   // 直線モードは直線に整形し、曲線モードは曲線のまま残す（pen_mode）
   const finishTrail = () => {
     // 二点の円弧は押したときに決まる。離しても何もしない（軌跡は無い）
-    if (arcOn()) return
+    if (arcOn() || useUi.getState().penMode === 'line') return
     const stroke = p3StrokeOfTrail(trail, useUi.getState().penMode, crypto.randomUUID())
     if (stroke) addStroke(stroke)
     setTrail(null)
@@ -197,6 +226,7 @@ export function P3Canvas({ viewBox, overlay = false, drawing = true }: {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onPointerCancel={() => { lineStartRef.current = null; setTrail(null) }}
         onPointerLeave={onLeave}
         style={overlay ? { display: 'block', width: '100%', height: '100%', touchAction: 'none', cursor: drawing ? 'crosshair' : 'default' } : { border: '1px solid #ddd8cc', background: '#fff', touchAction: 'none', width: P3_W, height: P3_H, maxWidth: '100%' }}
         data-testid="p3-canvas"

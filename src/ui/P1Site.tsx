@@ -1,3 +1,5 @@
+import { loadRoadData, useRoadData } from '../store/roadData'
+import { associateRoads, roadLinkText, ROAD_DATA_SOURCE } from '../map/roadAssociation'
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
 import { useEffect, useMemo, useState } from 'react'
@@ -48,6 +50,16 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const parcelUid = useSite((s) => s.parcelUid)
   // 選んだ筆（地図で選んだもの）。注記に使う
   const parcel = useSite((s) => s.parcel)
+  const roadData = useRoadData(s=>s.roads)
+  const roadLoading = useRoadData(s=>s.loading)
+  const roadError = useRoadData(s=>s.error)
+  useEffect(()=>{void loadRoadData().catch(()=>{})},[])
+  const roadLinks=useMemo(()=>{
+    const geometry=parcelUid?geometryOfParcel(parcelUid):undefined
+    const lot=geometry?parcelRingOf(geometry):null, frame=geometry?parcelFrameOf(geometry):null
+    return lot && frame ? associateRoads(lot,frame,roadData) : []
+  },[parcelUid,parcel,roadData])
+
   const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
   const { loading: neighborLoading, error: neighborError } = useConfirmedSite((s) => s.buildings)
   // 住所検索（国土地理院の住所 API）。候補を選ぶと、その経緯度を対象地点にする
@@ -134,20 +146,30 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   }
 
   // この敷地で確定（統括の依頼 2026-11-06。1）: 選んだ筆（無ければダミー）と、筆の中の点を一つにして店舗に固定し、その地点の用途地域と周辺建物を取り、P2 へ移る
-  const confirmSite = () => {
+  const confirmSite = async () => {
     if (site === null) return
     const uid = useSite.getState().parcelUid
     const geometry = uid === null ? undefined : geometryOfParcel(uid)
     const center = (geometry === undefined ? null : interiorPointOf(geometry)) ?? site
+    let records=useRoadData.getState().roads
+    if(!records) { try { records=await loadRoadData() } catch { records=null } }
+    if(useSite.getState().parcelUid!==uid) return
+    const lot=geometry===undefined?null:parcelRingOf(geometry),frame=geometry===undefined?null:parcelFrameOf(geometry)
+    const links=lot&&frame?associateRoads(lot,frame,records):[]
+    const previous=useConfirmedSite.getState().confirmed
+    const same=uid!==null && previous?.parcelUid===uid
+    const selectedEdge=same?previous.roadEdge:links.find(l=>l.candidates.length>0)?.edgeIndex??0
     moveSiteByText(String(center.lon), String(center.lat))
     useConfirmedSite.getState().confirm({
+      cityCode,
       parcelUid: geometry === undefined ? null : uid,
       lot: geometry === undefined ? null : parcelRingOf(geometry),
       frame: geometry === undefined ? null : parcelFrameOf(geometry),
       center: { lat: center.lat, lon: center.lon },
-      roadEdge: useConfirmedSite.getState().roadEdge,
-      roadWidthMm: Number(useConfirmedSite.getState().roadWidth) || 0,
-      roadSource: useConfirmedSite.getState().roadSource,
+      roadEdge: selectedEdge,
+      roadLinks: same && previous.roadLinks ? previous.roadLinks : links,
+      roadWidthMm: same ? previous.roadWidthMm : 0,
+      roadSource: same ? previous.roadSource : '数値指定',
     })
     void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
     void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)
@@ -164,7 +186,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
-      <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
+      <div data-tutorial="site-map" style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
         <P1Map
           center={center}
           zoom={zoom}
@@ -183,7 +205,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
           <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
-          <button type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
+          <button data-tutorial="site-confirm" type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
         </div>
 
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
@@ -197,6 +219,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           <label style={{ display: 'block', marginBottom: 6 }}>
             住所
             <input
+              data-tutorial="site-address"
               value={addressText}
               onChange={(e) => setAddressText(e.target.value)}
               onKeyDown={(e) => {
@@ -258,7 +281,12 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             </dd>
           ))}
             <dt>告示番号</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.notificationNumber ?? '未取得'}</dd>
-            <dt>周辺道路の幅員区分</dt><dd style={{ margin: 0 }}>{inspected?.roads.length ? inspected.roads.join('、') : '未取得'}</dd>
+            <dt>敷地辺ごとの道路情報</dt><dd style={{margin:0}}>
+              {roadLoading ? '道路データを照合中…' : roadError ? '道路データ未取得' : null}
+              {roadLinks.map(l=><div key={l.edgeIndex}>辺 {l.edgeIndex}（{(l.edgeLengthMm/1000).toFixed(1)}m）：{roadLinkText(l)}</div>)}
+              {!roadLinks.length && '筆を選ぶと各辺に照合します。'}
+              <small>中心線による候補照合です。接道・正確な幅員は未確定。出典：<a href={ROAD_DATA_SOURCE} target="_blank" rel="noreferrer">国土交通省 N13</a></small>
+            </dd>
           </dl>
 
           <div style={devShown ? undefined : { display: 'none' }}>

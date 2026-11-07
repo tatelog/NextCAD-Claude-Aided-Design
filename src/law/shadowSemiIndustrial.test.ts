@@ -31,3 +31,20 @@ describe('準工・工業系の日影（仕様 SJ1〜SJ3）', () => {
     expect(shadowRuleFromOrdinance('住居系', confirmedAll).ok).toBe(true)
   })
 })
+
+it('PLATEAUで準工業と特定できた場合は確認済み条例値で判定できる',()=>{
+  expect(shadowRuleFromOrdinance('準工・工業系',confirmedAll,{urfFunction:11}).ok).toBe(true)
+})
+it('準工業と特定できても条例値を勝手に確定しない',()=>{
+  const r=shadowRuleFromOrdinance('準工・工業系',[],{urfFunction:11})
+  expect(r.ok).toBe(false)
+  if(!r.ok) expect(r.reason).toContain('未入力')
+})
+
+it('敷地の工業・工業専用コードを採用して区別する',()=>{
+ for(const code of [12,13]) {
+  const r=shadowRuleFromOrdinance('準工・工業系',[],{urfFunction:code})
+  expect(r.ok).toBe(false)
+  if(!r.ok) {expect(r.reason).toContain(code===12?'工業地域':'工業専用地域');expect(r.reason).toContain('周辺の対象区域')}
+ }
+})

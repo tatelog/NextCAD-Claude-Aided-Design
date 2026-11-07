@@ -1,3 +1,5 @@
+import {useTutorial} from './tutorial/state'
+import {Tutorial} from './tutorial/Tutorial'
 import {usePlanZoom} from './store/planZoom'
 // 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・モード・作業履歴・メニュー・保留）。
 // 決まっていない値は各画面に「未決」と明記し、推測で埋めない。
@@ -60,6 +62,7 @@ export function App() {
   useUndoKeys()
   const planZoom = usePlanZoom(s=>s.zoom)
   const setPlanZoom = usePlanZoom(s=>s.setZoom)
+  const tutorialActive=useTutorial(s=>s.active)
   const [screen, setScreen] = useState<ScreenId>('P1')
   // 開発用の道具（☰ の切替。既定は隠す）
   const devShown = useDevTools((s) => s.shown)
@@ -268,6 +271,7 @@ export function App() {
           </button>
         ))}
       </nav>
+        <button data-tutorial-exit type="button" className="hdr-btn" aria-label={tutorialActive?'チュートリアルを終了':'チュートリアル'} title={tutorialActive?'チュートリアルを終了':'チュートリアル'} aria-pressed={tutorialActive} onClick={()=>{if(tutorialActive){useTutorial.getState().setActive(false)}else{go('P1');window.dispatchEvent(new Event('tutorial-start'))}}}><svg aria-hidden="true" width="18" height="20" viewBox="0 0 24 28"><path d="M12 8 3.8 2.6Q2 1.5 2 3.8v14.5q0 1.3 1.1 2L12 26Z" fill="#c5ba85"/><path d="m12 8 8.2-5.4Q22 1.5 22 3.8v14.5q0 1.3-1.1 2L12 26Z" fill="#7c9b88"/><path d="M12 8 3.8 2.6Q2 1.5 2 3.8v14.5q0 1.3 1.1 2L12 26l8.9-5.7q1.1-.7 1.1-2V3.8q0-2.3-1.8-1.2Z" fill="none" stroke="#727d75" strokeWidth="1.2" strokeLinejoin="round"/></svg></button>
         <span aria-hidden="true" style={{color:"#b4b7bd", marginLeft:"auto", paddingLeft:24}}>｜</span>
         <span id="volume-display-controls" style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}} />
         <span aria-hidden="true" style={{color:"#b4b7bd"}}>｜</span>
@@ -324,13 +328,14 @@ export function App() {
       </header>
 
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <Tutorial screen={screen} />
         {screen === 'P1' && <P1Site onNext={() => go('P2')} />}
         {screen === 'P2' && <P03Volume onNext={() => go('P3')} onSelectSite={() => go('P1')} />}
         {screen === 'P3' && <P3Plan onNext={() => go('P4')} />}
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
         {screen === 'P5' && <P5Output />}
         {panel !== null && (
-          <aside ref={menuRef} aria-label={panel === 'menu' ? 'メニュー' : '作業履歴'} style={{ position: 'absolute', ...(panel === 'menu' ? { top: 8, right: 8, width: 380, maxWidth: 'calc(100% - 16px)', maxHeight: 'calc(100% - 16px)', boxSizing: 'border-box', border: '1px solid #ddd8cc', borderRadius: 10, boxShadow: '0 8px 28px #1f2a4433', overflowWrap: 'anywhere' } : { top: 0, right: 0, bottom: 0, width: 320, borderLeft: '1px solid #ddd8cc' }), background: '#fff', padding: 12, overflowY: 'auto', zIndex: 5 }}>
+          <aside className={panel === 'menu' ? 'app-menu' : undefined} ref={menuRef} aria-label={panel === 'menu' ? 'メニュー' : '作業履歴'} style={{ position: 'absolute', ...(panel === 'menu' ? { top: 8, right: 8, width: 380, maxWidth: 'calc(100% - 16px)', maxHeight: 'calc(100% - 16px)', boxSizing: 'border-box', border: '1px solid #ddd8cc', borderRadius: 10, boxShadow: '0 8px 28px #1f2a4433', overflowWrap: 'anywhere' } : { top: 0, right: 0, bottom: 0, width: 320, borderLeft: '1px solid #ddd8cc' }), background: '#fff', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'menu' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <strong>メニュー</strong>
               <button type="button" aria-label="メニューを閉じる" style={button} onClick={() => setPanel(null)}>閉じる</button>
@@ -373,13 +378,6 @@ export function App() {
             )}
             {panel === 'menu' && (
               <>
-                <Fold title="クレジット（出典）">
-                  {creditRowsOf().map((r) => (
-                    <p key={r.key} style={{ margin: '0 0 6px', fontSize: 12 }}>
-                      {r.name}：{r.text}
-                    </p>
-                  ))}
-                </Fold>
                 <label style={{ display: 'block', margin: '0 0 8px', fontSize: 12 }}>
                   <input type="checkbox" checked={devShown} onChange={(e) => setDevShown(e.target.checked)} /> 開発用の道具を出す（経緯度・ズーム・区のコード・CityGML・数値入力・回転・機能の調整の欄）
                 </label>
@@ -426,7 +424,7 @@ export function App() {
                 </Fold>
                 <Fold title="右パネルの項目（ボリュームの機能一覧。チェックで右パネルに出す）">
                   <MenuCheckRows
-                    groups={panelMenuGroupsOf(panelHidden, PANEL_TILES, modeHiddenTiles)}
+                    groups={panelMenuGroupsOf(panelHidden, PANEL_TILES.filter((tile) => !['p2-volume', 'p2-numeric', 'p2-rotate'].includes(tile.id)), modeHiddenTiles)}
                     onToggle={(id, shown) => {
                       // 今のモードで隠す項目は、押しても変えない（押すと、モードを替えたときに閉じた状態が残るため。G127）
                       if (modeHiddenTiles.includes(id)) return
@@ -437,8 +435,15 @@ export function App() {
                   />
                 </Fold>
                 <p style={{ fontSize: 11, color: '#666' }}>
-                  全体図は、ボリュームと平面の描く物の範囲を映す。敷地の地図の上には出していない。
+                  全体図は、敷地と描画した建物の位置関係を俯瞰できます。
                 </p>
+                <Fold title="クレジット（出典）" defaultOpen={false}>
+                  {creditRowsOf().map((r) => (
+                    <p key={r.key} style={{ margin: '0 0 6px', fontSize: 12 }}>
+                      {r.name}：{r.text}
+                    </p>
+                  ))}
+                </Fold>
               </>
             )}
           </aside>

@@ -1,3 +1,5 @@
+import { BoxPlot3D } from './BoxPlot3D'
+import { OrientationCompass } from './OrientationCompass'
 import { VolumeDrag } from './VolumeDrag'
 import { FloorLevels } from './FloorLevels'
 // P2 の 3D 表示（D-04 P2、G42）。押し出しの立体を読み取り専用で出す。
@@ -240,7 +242,11 @@ class TileErrorBoundary extends Component<{ children: ReactNode; onError: () => 
 }
 
 interface Volume3DProps {
+  onResize?: (edge: number, dx: number, dy: number) => void
+  boxPlot?: { onComplete: (a: Point, b: Point) => void; onCancel: () => void }
+  canPlace?: (footprint: readonly Point[]) => boolean
   onMove?: (dx: number, dy: number) => void
+  northAngleDeg?: number
   gridAngleDeg?: number
   /** 外形（閉じているとき）。閉じていなければ null（敷地と周辺建物だけを見せる。統括の依頼 2026-11-06。4） */
   footprint: Point[] | null
@@ -280,9 +286,13 @@ interface Volume3DProps {
 }
 
 export function Volume3D({
+  boxPlot,
   onMove,
+  canPlace,
+  onResize,
   footprint,
   gridAngleDeg = 0,
+  northAngleDeg = 0,
   lot,
   shadow,
   neighbors,
@@ -316,36 +326,33 @@ export function Volume3D({
   // 寸法の表記（DOM）の置き場。側ごとに一つ（SetbackLabels が位置を写す）
   const labelRefs = useRef<Record<string, HTMLDivElement | null>>({})
   // つまみを動かしている間の仮の形（表示だけ。store は変えない）。回している間は回した外形を、高さを動かしている間は仮の階数を見せる
+  const [objectSelected, setObjectSelected] = useState(false)
+  useEffect(() => { if (!onMove) setObjectSelected(false) }, [onMove])
   const [mapFailed, setMapFailed] = useState(false)
   const [mapRetry, setMapRetry] = useState(0)
   const mapKey = (mapTiles?.map((tile) => tile.url).join(',') ?? '') + ':' + mapRetry
   useEffect(() => { setMapFailed(false) }, [mapKey, showMap])
   const [knobPreview, setKnobPreview] = useState<KnobPreview | null>(null)
-  const shownFootprint = footprint === null ? null : knobPreview?.kind === 'rotate' ? knobPreview.footprint : footprint
+  const shownFootprint = footprint === null ? null : knobPreview && 'footprint' in knobPreview ? knobPreview.footprint : footprint
   const shownStoreyCount = knobPreview?.kind === 'height' ? knobPreview.storeyCount : storeyCount
+  // 確定形状はドラッグ中も維持し、プレビューだけを別のメッシュにする。
   const geometry = useMemo(() => {
-    if (footprint === null || shownFootprint === null) return null
-    // 段状に切った形は、つまみを動かしていない間だけ出す（動かしている間は外形の押し出しで仮の形を見せる）
-    if (floors && floors.length > 0 && !knobPreview) {
-      try {
-        return toGeometry(stackedMesh(floors, storeyHeightMm))
-      } catch {
-        // 段状の形が作れないときは、外形の押し出しで出す（画面を落とさない。壊れた階の理由は stackedMesh の floorProblemOf）
-      }
-    }
-    const build = (fp: Point[], storeys: number) => toGeometry(buildVolumeMesh({ footprint: fp, storey_count: storeys, storey_height: storeyHeightMm }))
-    // 仮の形が立体にならないとき（丸めで外形が崩れたとき）は、実際の形のまま見せる
-    if (shownFootprint !== footprint || shownStoreyCount !== storeyCount) {
-      try {
-        return build(shownFootprint, shownStoreyCount)
-      } catch {
-        return build(footprint, storeyCount)
-      }
-    }
-    return build(footprint, storeyCount)
-  }, [footprint, shownFootprint, storeyCount, shownStoreyCount, storeyHeightMm, floors, knobPreview])
-  // 仮の形を作り直すたびに、古い形の GPU の領域を解放する
+    if (!footprint) return null
+    try {
+      if (floors && floors.length > 0) return toGeometry(stackedMesh(floors, storeyHeightMm))
+    } catch { /* 確定外形から復元する */ }
+    try {
+      return toGeometry(buildVolumeMesh({ footprint, storey_count: storeyCount, storey_height: storeyHeightMm }))
+    } catch { return null }
+  }, [footprint, storeyCount, storeyHeightMm, floors])
+  const ghostGeometry = useMemo(() => {
+    if (!knobPreview || !shownFootprint) return null
+    try {
+      return toGeometry(buildVolumeMesh({ footprint: shownFootprint, storey_count: shownStoreyCount, storey_height: storeyHeightMm }))
+    } catch { return null }
+  }, [knobPreview, shownFootprint, shownStoreyCount, storeyHeightMm])
   useEffect(() => () => geometry?.dispose(), [geometry])
+  useEffect(() => () => ghostGeometry?.dispose(), [ghostGeometry])
   // 敷地の面と輪郭（外形の前から。外形と同じ平面の座標）
   const lotPlate = useMemo(() => {
     const triangles = lot ? lotPlateTrianglesOf(lot) : []
@@ -413,14 +420,22 @@ export function Volume3D({
       <color attach="background" args={['#f4f4f2']} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[30, 50, 20]} intensity={0.8} />
-      <VolumeDrag onMove={onMove}>
+      <VolumeDrag canMove={(dx,dy) => !footprint || !canPlace || canPlace(footprint.map(p=>({x:p.x+dx,y:p.y+dy})))} onMove={onMove} onSelect={() => setObjectSelected(true)}>
       {geometry && (
         <mesh geometry={geometry}>
-          <meshStandardMaterial color="#c9d3dc" side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+          <meshStandardMaterial color={objectSelected ? "#afc6df" : "#c9d3dc"} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
       )}
-      {geometry && <FloorLevels geometry={geometry} count={shownStoreyCount} heightMm={storeyHeightMm} />}
+      {geometry && <FloorLevels geometry={geometry} count={storeyCount} heightMm={storeyHeightMm} />}
       </VolumeDrag>
+      {ghostGeometry && <group raycast={() => null}>
+        <mesh geometry={ghostGeometry} raycast={() => null} renderOrder={8}>
+          <meshBasicMaterial color="#59a8e8" transparent opacity={0.3} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh geometry={ghostGeometry} raycast={() => null} renderOrder={9}>
+          <meshBasicMaterial color="#2477b8" wireframe transparent opacity={0.65} depthWrite={false} />
+        </mesh>
+      </group>}
       {lotPlate && (
         <mesh geometry={lotPlate}>
           <meshStandardMaterial color="#e9e1c9" side={THREE.DoubleSide} />
@@ -473,8 +488,9 @@ export function Volume3D({
           <meshBasicMaterial color="#3a4450" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
         </mesh>
       )}
-      {(onRotate || onStoreyCount) && footprint !== null && (
+      {(onRotate || onStoreyCount || onResize) && footprint !== null && (
         <VolumeKnobs
+          canPlace={canPlace}
           footprint={footprint}
           storeyCount={storeyCount}
           storeyHeightMm={storeyHeightMm}
@@ -483,10 +499,12 @@ export function Volume3D({
           rotationStep={rotationStep}
           onRotateStart={onRotateStart}
           onRotate={onRotate}
+          onResize={onResize}
           onStoreyCount={onStoreyCount}
         />
       )}
-      <OrbitControls ref={controlsRef} makeDefault mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }} />
+      {boxPlot && <BoxPlot3D heightMm={storeyCount * storeyHeightMm} {...boxPlot} />}
+      <OrbitControls enabled={!boxPlot} ref={controlsRef} makeDefault mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }} />
     </Canvas>
     {setbackLines?.map((l) => (
       <div
@@ -518,6 +536,7 @@ export function Volume3D({
       地図を読み込めませんでした。<button type="button" onClick={() => { mapTiles?.forEach((tile) => useLoader.clear(THREE.TextureLoader, tile.url)); setMapRetry((n) => n + 1) }}>再試行</button>
     </div>}
     <div style={{ position: 'absolute', top: 8, right: 8 }}>
+      <OrientationCompass angle={northAngleDeg} camera={viewDir} />
       <ViewCube onHome={onHome} toCamera={viewDir} onPick={(t: CubeTarget) => setFaceRequest((prev) => ({ dir: t.dir, token: (prev?.token ?? 0) + 1 }))} />
     </div>
     </div>

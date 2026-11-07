@@ -238,3 +238,30 @@ body,
 
 .left-panel-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; z-index: 4; }
 .left-panel-resize:hover, .left-panel-resize:focus-visible { background: #cad5e7; outline: none; }
+
+/* メニューのチェックは枠なしのグレーの印で統一する。 */
+.app-menu input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  vertical-align: middle;
+  display: inline-grid;
+  place-content: center;
+  color: #6b7077;
+  cursor: pointer;
+}
+.app-menu input[type="checkbox"]:checked::before {
+  content: '✓';
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+.app-menu input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+.menu-check-row:focus-visible,
+.menu-fold-heading:focus-visible,
+.app-menu input[type="checkbox"]:focus-visible { outline: 2px solid #6b7077; outline-offset: 2px; }

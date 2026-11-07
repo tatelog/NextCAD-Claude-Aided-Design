@@ -1,3 +1,4 @@
+import {fixturesFromPlans} from '../estimate/planFixtures'
 import {useFloorPlans} from '../store/floorPlans'
 // P4 積算（D-04 P4、D-02 C8、A-03 G19・G21・G22・G63）。単価は利用者が出典つきの CSV で置く（G20）。
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
@@ -127,8 +128,10 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   const confirmedSite = useConfirmedSite((s) => s.confirmed)
   const siteAreaMm2 = useMemo(() => lotAreaMm2(lotOf(lotOfConfirmed(confirmedSite))), [confirmedSite])
   // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
-  const fixtures = useFixtures((s) => s.fixtures)
-  const fixtureUnitIds = useFixtures((s) => s.unitIds)
+  const manualFixtures = useFixtures((s) => s.fixtures)
+  const fixtures=useMemo(()=>[...fixturesFromPlans(floorPlans),...manualFixtures],[floorPlans,manualFixtures])
+  const manualUnitIds = useFixtures((s) => s.unitIds)
+  const fixtureUnitIds = useMemo(() => [...(manualUnitIds ?? []), ...Object.entries(floorPlans).flatMap(([floor,p]) => p.cells.map(c => `${floor}F-${c.id}`))], [manualUnitIds,floorPlans])
   const fixtureUnitPriceTexts = useFixtures((s) => s.unitPriceTexts)
   const setFixtureUnitPriceText = useFixtures((s) => s.setUnitPriceText)
   // 工事原価（概算）に渡す什器の行（単価を入れて、1 台以上置いた品目。区分は内装）
@@ -148,17 +151,19 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
     const rows: ObjectRow[] = objectTableOf(tableInputOfPlan(plan, fixtures))
     // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
     if (volume) {
+      const areas=volume.floor_areas_mm2.map((area,i)=>Math.max(0,area-(plan&&Object.values(floorPlans).includes(plan)?(floorPlans[i+1]?.voids??[]).reduce((sum,v)=>sum+(v.x1-v.x0)*(v.y1-v.y0),0):0)))
       rows.push(
-        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2),
-        exteriorRow(volume.footprint, volume.storey_count, volume.storey_height, volume.floor_areas_mm2?.[0]),
+        slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, areas),
+        exteriorRow(volume.footprint, volume.storey_count, volume.storey_height, areas.at(-1)),
         siteRow(volume.footprint, siteAreaMm2),
       )
     }
     if (plan) {
       rows.push(
-        interiorRow(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM }),
+        interiorRow(Object.values(floorPlans).includes(plan) ? Object.values(floorPlans).flatMap(p=>p.rooms) : plan.rooms, { storeyCount: Object.values(floorPlans).includes(plan) ? 1 : plan.ev.storey_count, ceilingHeightMm: CEILING_MM }),
         planExteriorRow({
           corridor: plan.corridor,
+          corridors: [...(plan.corridors??[plan.corridor]),...(plan.bridges??[])],
           cores: plan.cores,
           cells: plan.cells,
           outline: { W: plan.widthMm, D: plan.depthMm },
@@ -300,7 +305,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
               {plan.rooms.map((r) => (
                 <rect key={r.id} x={r.x0} y={r.y0} width={r.x1 - r.x0} height={r.y1 - r.y0} fill={ROOM_FILL[r.kind]} stroke="#8a8478" strokeWidth={20} />
               ))}
-              <FixtureLayer cells={plan.cells} fixtures={fixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
+              <FixtureLayer cells={plan.cells} fixtures={manualFixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
             </svg>
             <figcaption style={{ fontSize: 12, color: '#666' }}>
               平面の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。
@@ -435,7 +440,8 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
         )}
       </div>
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>工事原価（概算）</h3>
+        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>計上済み金額（概算）</h3>
+          <p style={{color:"#a33",fontSize:12}}>未参照・未拾い・単価未入力の項目は含みません。建物全体の見積額ではありません。</p>
         {estimate && !('error' in estimate) ? (
           <>
             <p style={{ fontSize: 20, margin: '0 0 8px' }}>
@@ -462,7 +468,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
         )}
         {/* 次へ（D-04 P4）: 工事原価が出ているかを含めて確かめる。止めない（問題は一覧で出し、選ぶのは利用者） */}
         <div style={{ marginTop: 12 }}>
-          <button type="button" onClick={clickNextP4}>
+          <button data-tutorial="tutorial-p4-next" type="button" onClick={clickNextP4}>
             次へ（出力）
           </button>
           {nextIssues !== null ? (

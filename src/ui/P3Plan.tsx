@@ -1,10 +1,19 @@
+import {copyUnitLayout} from '../plan/copyUnitLayout'
+import {switchUnitVariant} from '../plan/switchUnitVariant'
+import {refreshUnitRoutes} from '../plan/refreshUnitRoutes'
+import {corridorForCell} from '../plan/planCorridors'
+import {applyReshapedUnit} from '../plan/applyReshapedUnit'
+import {inheritVolumePlan,useVolumePlan} from '../plan/volumePlan'
+import { ElevatorMenu } from './ElevatorMenu'
+import { UnitPlanDrawing } from './UnitPlanDrawing'
+import { arrangeCirculation, estimateResidentialLifts } from '../plan/automaticCirculation'
+import { CirculationLayer } from './CirculationLayer'
+import { PlacedUnitSummary } from './PlacedUnitSummary'
 import {usePlanZoom} from '../store/planZoom'
-import {movePlanCore} from '../plan/movePlanCore'
 import { IconModeDrawing } from './headerIcons'
 import { RectangularStudyPanel } from './RectangularStudyPanel'
 import { FloorPlanMenu } from './FloorPlanMenu'
 import { useLeftPanelWidth, LeftPanelResize } from './LeftPanelResize'
-import { fitFloorPlan } from '../plan/fitFloorPlan'
 import { inheritedFloors } from '../plan/inheritedFloors'
 import { useFloorPlans } from '../store/floorPlans'
 // P3 平面（D-04 P3、D-02 C6、A-03 G17）。柱割りの通り芯と、廊下の両側の住戸候補から住戸数を出す。
@@ -19,7 +28,6 @@ import { missingDimensionOf, missingTargetOf, plainErrorTextOf } from '../plan/i
 import { outlineFitTextOf } from '../plan/outlineFit'
 import { useP3Field } from './useP3Field'
 import { corridorDefaultOf } from '../plan/corridorDefaults'
-import type { RoomPattern } from '../plan/rooms'
 import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
@@ -89,19 +97,21 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
   const firstUnitType = UNIT_TYPES.find((t) => t.id === unitTypeIds[0])
   const unitType = firstUnitType ? unitTypeKind(firstUnitType) : 'ファミリー'
-  const [patternText, setPatternText] = useP3Field('patternText')
-  const [targetText, setTargetText] = useP3Field('targetText')
+  const [patternText] = useP3Field('patternText')
+  const targetText = '' // 目標戸数は使わず、実際の配置戸数を表示する
   const [coreText] = useP3Field('coreText')
   // 階数・階高は P2（ボリューム）の値を使う
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
-  const [evCountText, setEvCountText] = useP3Field('evCountText')
+  const roadSlope = useSite(s=>s.roadSlope)
   const sourceVolume = useSite((s) => s.volume)
   const boundaries = useSite((s) => s.slopeBoundaries)
   const volumeInherited = useMemo(() => inheritedFloors(sourceVolume ? { ...sourceVolume, storey_count: storeyCount, storey_height: storeyHeightMm } : null, boundaries ?? []), [sourceVolume, boundaries, storeyCount, storeyHeightMm])
   const sourceKey = JSON.stringify([sourceVolume, boundaries, storeyCount, storeyHeightMm])
+  const confirmedVolumePlan = useVolumePlan(s=>s.confirmed)
   const floorState = useFloorPlans()
   const appliedRectangle = floorState.rectangle?.source === sourceKey ? floorState.rectangle : null
+  const fixedVolumePlan = !appliedRectangle && confirmedVolumePlan?.source===sourceKey ? confirmedVolumePlan : null
   const inherited = useMemo(() => appliedRectangle ? {
     origin:{x:0,y:appliedRectangle.depthMm}, widthMm:appliedRectangle.widthMm, depthMm:appliedRectangle.depthMm,
     floors:Array.from({length:storeyCount},()=>[{x:0,y:0},{x:appliedRectangle.widthMm,y:0},{x:appliedRectangle.widthMm,y:appliedRectangle.depthMm},{x:0,y:appliedRectangle.depthMm}])
@@ -109,7 +119,36 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const selectedFloor = Math.min(storeyCount, floorState.selected)
   const floorOutline = useMemo(() => inherited?.floors[selectedFloor - 1] ?? [], [inherited, selectedFloor])
   const auto = floorState.source === sourceKey ? floorState.plans[selectedFloor] ?? null : null
-  const setAuto = (plan: AutoPlan | null) => floorState.put(sourceKey, selectedFloor, plan)
+  const setAuto = (plan: AutoPlan | null) => {
+    if(plan){try{plan=refreshUnitRoutes(plan)}catch(e){const error=plainErrorTextOf(e);setAutoError(error);return error}}
+    const fixed=fixedVolumePlan?.plans[selectedFloor]
+    if(fixed&&plan){
+      if(JSON.stringify(plan.shaftRects)!==JSON.stringify(fixed.shaftRects)){const error='縦シャフトの変更が必要です。ボリューム側で配置を見直してください';setAutoError(error);return error}
+      floorState.put(sourceKey,selectedFloor,{...plan,cores:fixed.cores,corridor:fixed.corridor,corridors:fixed.corridors,bridges:fixed.bridges,voids:fixed.voids,shaftRects:fixed.shaftRects,ev:fixed.ev,circulation:plan.circulation})
+    }else floorState.put(sourceKey, selectedFloor, plan)
+    setAutoError(null)
+    return null
+  }
+  const [peopleText,setPeopleText] = useState(() => String(auto?.circulation?.peoplePerUnit ?? 3))
+  const [residentsText,setResidentsText] = useState(() => auto?.circulation?.populationOverride ? String(auto.circulation.residents) : '')
+  const [evRecommendation,setEvRecommendation]=useState<number|null>(null)
+  const recalculateEv = () => {
+    if(!fixedVolumePlan){runAuto(true);return}
+    try {
+      const plans=floorState.plans, count=Object.values(plans).reduce((n,p)=>n+p.cells.length,0),upper=Object.entries(plans).filter(([f])=>Number(f)>1).reduce((n,[,p])=>n+p.cells.length,0)
+      const people=Number(peopleText),residents=residentsText.trim()?Number(residentsText):Math.ceil(count*people)
+      if(!(people>0)||!(residents>0)||!Number.isFinite(residents)||!count)throw Error('想定人数は正の数を入力してください')
+      const upperResidents=Math.ceil(residents*upper/count),estimate=estimateResidentialLifts(upperResidents,storeyCount,storeyHeightMm)
+      setEvRecommendation(estimate.count)
+      for(const [f,p] of Object.entries(plans)){if(!p.circulation)continue;const n=p.circulation.evCount;floorState.put(sourceKey,Number(f),{...p,circulation:{...p.circulation,residents,upperResidents,peoplePerUnit:people,populationOverride:!!residentsText.trim(),roundTripSeconds:estimate.roundTripSeconds,intervalSeconds:n?estimate.roundTripSeconds/n:0,capacityPerFiveMinutes:n? n*300*9*.8/estimate.roundTripSeconds:0}})}
+      setAutoError(null)
+    }catch(e){setAutoError(plainErrorTextOf(e))}
+  }
+  const installCirculation = (plan: AutoPlan, outlines = inherited?.floors) => {
+    if (!outlines) throw new Error('ボリューム外形がありません')
+    const result = arrangeCirculation(plan, outlines, Number(peopleText), residentsText.trim() ? Number(residentsText) : undefined)
+    for (const [floor,value] of Object.entries(result.plans)) floorState.put(sourceKey,Number(floor),value)
+  }
   useEffect(() => {
     if (inherited) { setWidthText(String(inherited.widthMm)); setDepthText(String(inherited.depthMm)) }
   }, [inherited, setWidthText, setDepthText])
@@ -176,7 +215,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     element.addEventListener('wheel', wheel, {passive:false})
     return () => { observer.disconnect(); element.removeEventListener('wheel', wheel) }
   }, [inherited !== null])
-  const runAuto = (allFloors = false, automaticTypes = false) => {
+  const runAuto = (_allFloors = false, automaticTypes = false, corridorChoice?: {layout: CorridorLayout; width: number}) => {
+    if(!appliedRectangle){setAutoError('柱割り・共用部・縦シャフトはボリューム側で計算・確認してください。住戸タイプは引継ぎ時に自動割付します');return}
     // 足りない入力は、一文で言う（ZodError の JSON は出さない。依頼 2b）
     const problem = (targetText.trim() ? missingTargetOf(Number(targetText)) : null) ?? missingDimensionOf({...dimensionsOf(),widthMm:inherited?.widthMm ?? 0,depthMm:inherited?.depthMm ?? 0})
     if (problem !== null) {
@@ -186,7 +226,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     }
     try {
       // P2 の外形が閉じた矩形なら、その幅・奥行きの中に割り付ける（依頼 C）。寸法は上書きしない。取れないときは今までどおり目標から寸法を決める
-      if (!inherited || floorOutline.length < 3) throw new Error('この階のボリューム外形がありません')
+      if (!inherited || floorOutline.length < 3) throw new Error(volumeInherited?.splitFloors.includes(selectedFloor) ? 'この階は複数の外形に分離しています。分離階の自動間取りは未対応です。' : 'この階のボリューム外形がありません')
       const outline = { widthMm: inherited.widthMm, depthMm: inherited.depthMm }
       const g = generateAutoPlan({
         targetPerFloor: targetText.trim() ? Number(targetText) : 1,
@@ -194,55 +234,37 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         storeyHeightMm,
         spanMm: Number(spanText),
         unitDepthMm: Number(unitDepthText),
-        corridorMm: Number(corridorText),
-        layout: layoutText,
+        corridorMm: corridorChoice?.width ?? Number(corridorText),
+        layout: corridorChoice?.layout ?? layoutText,
         unitType,
         unitTypes: UNIT_TYPES,
         unitTypeIds: automaticTypes ? UNIT_TYPES.map(t=>t.id) : unitTypeIds,
         orderedTypes: !automaticTypes,
         optimizeTypes: automaticTypes,
         pattern: patternText,
-        evCount: Number(evCountText),
+        evCount: 1,
         evStops: Array.from({ length: storeyCount }, (_, i) => i + 1),
         // 円弧の外形があるときは、四隅が円の内側の区画だけを作る（ハブ A-03 G5）
         outline,
       })
-      const targets = allFloors ? inherited.floors.map((_, i) => i + 1) : [selectedFloor]
-      const needsAdjustment: number[] = []
-      for (const floor of targets) {
-        const polygon = inherited.floors[floor - 1]!
-        if (polygon.length < 3) { floorState.put(sourceKey, floor, null); continue }
-        const plan = fitFloorPlan(g, polygon)
-        plan.shortfall = targetText.trim() ? Math.max(0, Number(targetText) - plan.unitsPerFloor) : 0
-        floorState.put(sourceKey, floor, plan)
-        if ([...plan.cores, plan.corridor].some(cell => countUnits({ outline: polygon, corridors: [], cores: [], cells: [cell] }).excluded.some(e => e.reasons.includes('outside')))) needsAdjustment.push(floor)
-      }
+      installCirculation(g)
       setWidthText(String(g.widthMm))
       setDepthText(String(g.depthMm))
       setAutoUsesOutline(outline !== undefined)
-      setAutoError(needsAdjustment.length ? `${needsAdjustment.join("・")}階は廊下・コアが外形からはみ出します。配置案の調整が必要です。` : null)
+      setAutoError(null)
     } catch (e) {
-      setAuto(null)
-      setAutoError(plainErrorTextOf(e))
+      setAutoError(`更新できません（前の配置を保持）：${plainErrorTextOf(e)}`)
     }
   }
 
-  const attemptedSource = useRef('')
-  useEffect(() => {
-    if (!inherited || attemptedSource.current === sourceKey) return
-    attemptedSource.current = sourceKey
-    if (floorState.source !== sourceKey || !Object.keys(floorState.plans).length) runAuto(true, true)
-  }, [sourceKey, inherited])
-  const [moveCoreId,setMoveCoreId] = useState('evHall')
-  const [moveX,setMoveX] = useState('0'), [moveY,setMoveY] = useState('0')
-  const moveCore = () => {
-    try {
-      if (!inherited) return
-      const updated = Object.entries(floorState.plans).map(([floor,plan]) => [Number(floor),movePlanCore(plan,moveCoreId,Number(moveX),Number(moveY),inherited.floors[Number(floor)-1] ?? [])] as const)
-      for (const [floor,plan] of updated) floorState.put(sourceKey,floor,plan)
-      setAutoError(null)
-    } catch(e) {setAutoError(plainErrorTextOf(e))}
-  }
+  useEffect(()=>{
+    const plans=inheritVolumePlan(confirmedVolumePlan,sourceKey)
+    const inheritedRevision=JSON.stringify(confirmedVolumePlan)
+    if(!plans||useFloorPlans.getState().inheritedRevision===inheritedRevision&&useFloorPlans.getState().source===sourceKey)return
+    useFloorPlans.setState({source:sourceKey,plans,rectangle:null,inheritedRevision})
+    const first=plans[1]
+    if(first){setPeopleText(String(first.circulation?.peoplePerUnit??3));setResidentsText(first.circulation?.populationOverride?String(first.circulation.residents):'');setEvRecommendation(null);setLayoutText(first.layout);if(first.layout==='ツイン')setUnitDepthText(String(first.corridor.x0));setSpanText(String(confirmedVolumePlan!.span));setCorridorText(String(first.corridor.x1-first.corridor.x0))}
+  },[confirmedVolumePlan,sourceKey])
 
   const lines = useMemo(() => {
     try {
@@ -256,7 +278,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
 
   const units = useMemo(() => {
     if (!inherited || floorOutline.length < 3) return { cells: null, result: null, error: 'ボリュームの外形がありません' }
-    const c = { corridor: auto?.corridor ?? { id: 'none', x0: 0, y0: 0, x1: 1, y1: 1 }, corridors: auto ? [auto.corridor] : [], cells: auto?.cells ?? [], voids: [] }
+    const c = { corridor: auto?.corridor ?? { id: 'none', x0: 0, y0: 0, x1: 1, y1: 1 }, corridors: auto ? [...(auto.corridors??[auto.corridor]),...(auto.bridges??[])] : [], cells: auto?.cells ?? [], voids: auto?.voids??[] }
     const result = countUnits({ outline: floorOutline, corridors: c.corridors, cores: auto?.cores ?? [], cells: c.cells })
     return { cells: c, result, error: null }
   }, [inherited, floorOutline, auto])
@@ -269,7 +291,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
 
   // 左メニュー（G55）: P3 の自動作成の結果から、種類ごとの件数と、選んだ種類の中身を出す。筆界は P1 の筆界がまだ入らないので 0 のまま（仮置き）
   // 什器（G69）は、店舗の一覧（置いた什器。区画なしも含む）をそのまま渡す
-  // 節目の要約（D-04 P3 の右側）。敷地・法規適合・階数階高・スパン・住戸数。確認申請に要る情報がここで揃う
+  // 入力・判定の状況（D-04 P3 の右側）。敷地・法規適合・階数階高・スパン・住戸数。確認申請に要る情報がここで揃う
   const siteMatches = useSite((s) => s.matches)
   const shadowResult = useSite((s) => s.shadow)
   const hiddenTiles = usePanelTiles((s) => s.hidden)
@@ -299,12 +321,13 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       milestoneSummary({
         zoneKnown: siteMatches !== null && siteMatches.length === 1,
         shadow: shadowResult,
+        roadSlope,
         storeyCount,
         storeyHeightMm,
         spanCount: auto ? auto.spans : null,
-        unitCount: units.cells ? units.cells.cells.length : 0,
+        unitCount: auto?.cells.length ?? 0,
       }),
-    [siteMatches, shadowResult, storeyCount, storeyHeightMm, auto, units.cells],
+    [siteMatches, shadowResult, roadSlope, storeyCount, storeyHeightMm, auto, units.cells],
   )
 
   // オブジェクト表（G58・G78）: 画面の状態（区画・外形・通り芯・コア枠・什器。自動作成の結果があれば、その住戸・部屋・縦シャフト・コア）から作った行。
@@ -367,7 +390,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const p3Issues = (): CheckIssue[] =>
     p3NextIssuesOf({
       spanJudge: judge,
-      unitCount: units.cells ? units.cells.cells.length : 0,
+      unitCount: auto?.cells.length ?? 0,
       unitError: units.error,
       shaftAligned: shaftCheck ? shaftCheck.aligned : null,
       corridorMm: Number(corridorText),
@@ -402,12 +425,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <h3 style={{fontSize:13}}>オブジェクト</h3>
           <div>住戸外形 1</div>
           <div>部屋 {auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).length ?? 0}</div>
-          <ul>{auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).map(r=><li key={r.id}>{r.kind}</li>)}</ul>
+          <ul>{auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).map(r=><li key={r.id}>{r.name ?? r.kind}</li>)}</ul>
           <div>PS {auto?.shaftRects.filter(r=>r.unitId===detailUnitId).length ?? 0}</div>
           <div>什器 {fixtures.filter(f=>f.unitId===detailUnitId).length}</div>
           <ul>{fixtures.filter(f=>f.unitId===detailUnitId).map(f=><li key={f.id}>{f.item}</li>)}</ul>
         </section> : <>
-        <FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} types={UNIT_TYPES} pattern={unitTypeIds} onPattern={(ids) => setUnitTypeIdsText(ids.join(','))} onApply={() => runAuto(true)} />
+        <div data-tutorial-review><FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} types={UNIT_TYPES} pattern={unitTypeIds} onPattern={(ids) => setUnitTypeIdsText(ids.join(','))} onApply={() => runAuto(true)} /></div>
       <ObjectMenu
         sources={objectSources}
         countSources={countSources}
@@ -422,7 +445,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </>}
       </div>
       <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
-        <button type="button" onClick={() => setRectangleOpen(true)}>長方形で配置を比較</button>
+        <button type="button" onClick={() => setRectangleOpen(true)}>別案を作る（長方形・中廊下）</button>
         <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:8}}>
           {activeMode !== 'system' && <button type="button" aria-label="道具" title="描画の道具" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}><IconModeDrawing /></button>}
         </div>
@@ -441,8 +464,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </div>}
         {lines && units.cells ? (
           <div ref={planViewport} style={{ position: 'relative', overflow:'auto', flex:1, minHeight:0, background:'#f4f4f2' }}>
-          <div style={{position:'relative', width:Math.max(1, Math.min(planSize.width, planSize.height * (W + 2500) / (D + 2500)) - 16) * planZoom, margin:'8px auto', aspectRatio:`${W + 2500} / ${D + 2500}`}}>
-          <svg width="100%" height="100%" viewBox={`-500 -500 ${W + 2500} ${D + 2500}`} style={{display:'block', background:'#fff'}}>
+          <div style={{position:'relative', width:Math.max(1, Math.min(planSize.width, planSize.height * (W + 6000) / (D + 6000)) - 16) * planZoom, margin:'8px auto', aspectRatio:`${W + 6000} / ${D + 6000}`}}>
+          <svg width="100%" height="100%" viewBox={`-500 -500 ${W + 6000} ${D + 6000}`} style={{display:'block', background:'#fff'}}>
             {showGrid ? (
               <g stroke="#e3e6df" strokeWidth={6}>
                 {Array.from({ length: Math.floor(W / 1000) + 1 }, (_, i) => (
@@ -455,23 +478,24 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             ) : null}
             <polygon points={floorOutline.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#1f2a44" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             {showDimensions ? (
-              <g stroke="#1f5f8b" strokeWidth={12} fontSize={Math.max(W, D) / 65} fill="#1f5f8b">
-                <line x1={0} y1={D + 700} x2={W} y2={D + 700} />
-                <text x={W / 2} y={D + 1000} textAnchor="middle">{mmLabel(W)}</text>
-                <line x1={W + 700} y1={0} x2={W + 700} y2={D} />
-                <text x={W + 1000} y={D / 2} textAnchor="middle" transform={`rotate(-90 ${W + 1000} ${D / 2})`}>{mmLabel(D)}</text>
+              <g stroke="#1f5f8b" strokeWidth={12} fontSize={Math.min(700, Math.max(W, D) / 90)} fill="#1f5f8b">
+                <line x1={0} y1={D + 3000} x2={W} y2={D + 3000} />
+                <text x={W / 2} y={D + 3900} textAnchor="middle">{mmLabel(W)}</text>
+                <line x1={W + 3000} y1={0} x2={W + 3000} y2={D} />
+                <text x={W + 3900} y={D / 2} textAnchor="middle" transform={`rotate(-90 ${W + 3900} ${D / 2})`}>{mmLabel(D)}</text>
                 {/* 通り芯のスパン（奥行き方向。右側の寸法の列） */}
                 {spanDimensions(auto ? lines : []).map((s) => (
                   <g key={`gs${s.fromMm}`}>
-                    <line x1={W + 1700} y1={s.fromMm} x2={W + 1700} y2={s.toMm} />
-                    <text x={W + 2000} y={(s.fromMm + s.toMm) / 2} textAnchor="middle" transform={`rotate(-90 ${W + 2000} ${(s.fromMm + s.toMm) / 2})`}>{mmLabel(s.lengthMm)}</text>
+                    <line x1={W + 900} y1={s.fromMm} x2={W + 900} y2={s.toMm} />
+                    <path d={`M ${W + 200} ${s.fromMm} H ${W + 1100} M ${W + 200} ${s.toMm} H ${W + 1100}`} fill="none" />
+                    <text stroke="none" fontSize={Math.min(700, Math.max(W, D) / 90, (s.toMm - s.fromMm) / (mmLabel(s.lengthMm).length * 0.65))} x={W + 1800} y={(s.fromMm + s.toMm) / 2} textAnchor="middle" transform={`rotate(-90 ${W + 1800} ${(s.fromMm + s.toMm) / 2})`}>{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
                 {/* 住戸の幅（幅方向。下側の寸法の行）。住戸の区画の境界で測る */}
-                {spanDimensions(units.cells.cells.flatMap((c) => [c.x0, c.x1])).map((s) => (
+                {spanDimensions(auto?.layout==='ツイン'?[0,W,...(auto.corridors??[]).flatMap(c=>[c.x0,c.x1])]:units.cells.cells.flatMap((c) => [c.x0, c.x1])).map((s) => (
                   <g key={`gu${s.fromMm}`}>
-                    <line x1={s.fromMm} y1={D + 1700} x2={s.toMm} y2={D + 1700} />
-                    <text x={(s.fromMm + s.toMm) / 2} y={D + 2000} textAnchor="middle">{mmLabel(s.lengthMm)}</text>
+                    <line x1={s.fromMm} y1={D + 900} x2={s.toMm} y2={D + 900} />
+                    <text stroke="none" fontSize={Math.min(700, Math.max(W, D) / 90, s.lengthMm / (mmLabel(s.lengthMm).length * 0.65))} x={(s.fromMm + s.toMm) / 2} y={D + 1800} textAnchor="middle">{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
               </g>
@@ -491,10 +515,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             {(arcCut ? arcCut.inside : units.cells.cells).map((c) => (
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
+            {auto?.circulation && <CirculationLayer plan={auto} />}
+            {auto && units.cells.cells.map(cell=><UnitPlanDrawing override={auto.unitPlanOverrides?.[cell.id]} key={`plan39-${cell.id}`} cell={cell} corridor={corridorForCell(auto,cell)} typeId={auto.unitTypeIdsByCell?.[cell.id]??''} variant={auto.unitPlanVariants?.[cell.id]??'A'} />)}
             <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
             {units.cells.cells.map(cell=>{
               const typeId=auto?.unitTypeIdsByCell?.[cell.id] ?? auto?.spanTypes[Math.floor(cell.y0/(auto.depthMm/auto.spans))]
-              const name=UNIT_TYPES.find(t=>t.id===typeId)?.name ?? 'タイプ未設定'
+              const name=auto?.unitPlanStatus?.[cell.id]==='ok'?'':UNIT_TYPES.find(t=>t.id===typeId)?.name ?? 'タイプ未設定'
               return <text key={`type-${cell.id}`} x={(cell.x0+cell.x1)/2} y={(cell.y0+cell.y1)/2} textAnchor="middle" dominantBaseline="middle" fontSize={Math.min(cell.x1-cell.x0,cell.y1-cell.y0)/7} fill="#1f2a44" pointerEvents="none">{name}</text>
             })}
 
@@ -519,7 +545,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               <path key={`outline-arc-${i}`} d={svgArcPath(arc)} fill="none" stroke="#1f5f8b" strokeWidth={20} />
             ))}
           </svg>
-          <P3Canvas overlay drawing={planDrawing} viewBox={{x:-500,y:-500,width:W+2500,height:D+2500}} />
+          <P3Canvas overlay drawing={planDrawing} viewBox={{x:-500,y:-500,width:W+6000,height:D+6000}} />
           </div>
           {showMiniMap && units.cells ? (() => {
             const rect = (r: { x0: number; y0: number; x1: number; y1: number }) => [
@@ -542,6 +568,22 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: activeMode === 'chat' ? 'hidden' : 'auto', minHeight:0 }}>
         {activeMode === 'chat' ? <section aria-label="チャット専用パネル" style={{height:"100%",minHeight:0,display:"flex",flexDirection:"column"}}><h2 style={{flexShrink:0}}>Claude（チャット）</h2><ChatTile screen="P3" fillHeight /></section> : <>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>
+        <section data-tutorial="tutorial-p3-next" style={{ marginBottom: 10 }}>
+          <button type="button" onClick={clickNextP3}>
+            積算へ
+          </button>
+          {nextIssues !== null ? (
+            <NextCheckPanel
+              issues={nextIssues}
+              goLabel="このまま進む（要確認として残す）"
+              onStay={() => setNextIssues(null)}
+              onGoAnyway={() => goNextP3Anyway(nextIssues)}
+            />
+          ) : null}
+        </section>
+
+        <PlacedUnitSummary plans={floorState.source === sourceKey ? floorState.plans : {}} types={UNIT_TYPES} selectedFloor={selectedFloor} storeyCount={storeyCount} />
+        {auto?.automaticUnitRejections && Object.keys(auto.automaticUnitRejections).length>0 && <details open><summary>自動調整で配置できなかった住戸</summary><p>面積・水回り・動線・家具の条件を満たさない候補は戸数に含めません。</p>{Object.entries(auto.automaticUnitRejections).map(([id,reasons])=><details key={id}><summary>{id}：{reasons[0]??'成立する候補がありません'}</summary><ul>{reasons.map((r,i)=><li key={i}>{r}</li>)}</ul></details>)}</details>}
         {Object.keys(hiddenTiles).length > 0 ? (
           <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
             閉じた項目:{' '}
@@ -552,15 +594,12 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             ))}
           </p>
         ) : null}
+        <fieldset disabled={!appliedRectangle} style={{border:0,padding:0}}><legend>ボリュームの寸法条件</legend>
         {!tileShown('p3-form') ? null : (
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
         <div role="group" aria-label="廊下タイプ" style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}>
-          {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm))}}>{next==='階段室'?'階段室型':next}</button>)}
+          {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm));runAuto(true,false,{layout:next,width:d?.mm ?? Number(corridorText)})}}>{next==='階段室'?'階段室型':next}</button>)}
         </div>
-        <label style={{ display: 'block', marginBottom: 6 }}>
-          目標の戸数
-          <input value={targetText} onChange={(e) => setTargetText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
-        </label>
         <label style={{ display: 'block', marginBottom: 4 }}>
           建物の幅 (mm)
           <input value={widthText} readOnly style={{ width: '100%' }} />
@@ -594,63 +633,17 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           許容範囲 最大 (mm)
           <input value={maxText} onChange={(e) => setMaxText(e.target.value)} placeholder="未入力" style={{ width: '100%' }} />
         </label>
-        {auto && <fieldset><legend>コアの配置調整</legend>
-          <p style={{fontSize:12}}>寸法は自動配置の仮置き値。移動は上下階を揃えて反映します。</p>
-          <div role="group" aria-label="移動するコア">{auto.cores.map(c=><button type="button" key={c.id} aria-pressed={moveCoreId===c.id} onClick={()=>setMoveCoreId(c.id)}>{c.id==='evHall'?'EV':c.id==='stairA'?'階段A':'階段B'}</button>)}</div>
-          <label>横移動 mm<input type="number" value={moveX} onChange={e=>setMoveX(e.target.value)}/></label>
-          <label>縦移動 mm<input type="number" value={moveY} onChange={e=>setMoveY(e.target.value)}/></label>
-          <button type="button" onClick={moveCore}>選択したコアを移動</button>
-        </fieldset>}
+        </fieldset>
         {!tileShown('auto') ? null : (
-        <PanelTile title="自動で作る（柱割り・間取り・縦シャフト）" onHide={() => hideTile('auto')}>
+        <PanelTile title="ボリュームからの引継ぎ" onHide={() => hideTile('auto')}>
         <fieldset style={{ border: '1px solid #ddd8cc', padding: 8, margin: '0 0 10px' }}>
-          <legend style={{ fontSize: 12 }}>自動で作る（柱割り・間取り・縦シャフト）</legend>
+          <legend style={{ fontSize: 12 }}>ボリュームからの引継ぎ</legend>
           <p style={{ margin: '0 0 6px', fontSize: 12 }}>
             階数・階高はボリュームの値を使う（{storeyCount} 階・階高 {storeyHeightMm} mm）
           </p>
-          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
-            EV の基数（全階停止）
-            <input value={evCountText} onChange={(e) => setEvCountText(e.target.value)} style={{ width: '100%' }} />
-          </label>
-          {auto ? (
-            <>
-              <p style={{ fontSize: 12, margin: '0 0 6px' }}>
-                住戸タイプ（柱列をまとめた単位。間口の整数倍の最小の範囲）: {unitTypeIds.length === 0 ? '未指定（列ごとの区画）' : auto.spanTypes.map((id, i) => `${i + 1} 列目 ${UNIT_TYPES.find((t) => t.id === id)?.name ?? '—'}`).join('、')}
-              </p>
-              <p style={{ fontSize: 12, margin: '0 0 6px' }}>住戸数は間口 × 列幅から決まる。</p>
-              {auto.provisionalSpans.length > 0 ? (
-                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
-                  要確認（仮の間口。間口が未確認の型、または範囲に入らない列）: {auto.provisionalSpans.map((k) => `${k + 1} 列目`).join('、')}
-                </p>
-              ) : null}
-              {auto.absorbedSpans.length > 0 ? (
-                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
-                  要確認（余りの列を前の住戸に含めて幅を広げた）: {auto.absorbedSpans.map((k) => `${k + 1} 列目`).join('、')}
-                </p>
-              ) : null}
-              {unitTypeIds.some((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null) ? (
-                <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
-                  間口が未確認の型（候補からは外さず、仮の間口で置く）: {unitTypeIds.filter((id) => UNIT_TYPES.find((t) => t.id === id)?.frontage_mm === null).map((id) => UNIT_TYPES.find((t) => t.id === id)?.name ?? id).join('、')}
-                </p>
-              ) : null}
-            </>
-          ) : null}
-          {auto && auto.unsupportedSpans.length > 0 ? (
-            <p style={{ fontSize: 12, margin: '0 0 6px', color: '#a86b00' }}>
-              室数に合う割り付けが無い列（個室 3 以上は未対応）は、田の字で仮置き: {auto.unsupportedSpans.map((k) => `${k + 1} 列目`).join('、')}
-            </p>
-          ) : null}
-          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
-            間取りパターン（ファミリー）
-            <select value={patternText} disabled={unitType === '単独'} onChange={(e) => setPatternText(e.target.value as RoomPattern)} style={{ width: '100%' }}>
-              <option value="田の字">田の字</option>
-              <option value="縦長">縦長</option>
-              <option value="角">角（両端の住戸だけ）</option>
-            </select>
-          </label>
-          <button type="button" onClick={() => runAuto()}>
-            {selectedFloor}階の配置案を作る
-          </button>
+          <ElevatorMenu plan={auto} peopleText={peopleText} residentsText={residentsText} onPeople={setPeopleText} onResidents={setResidentsText} onApply={recalculateEv} fixed={!!fixedVolumePlan} recommendation={evRecommendation} />
+          <details style={{fontSize:12,marginBottom:8}}><summary>階段・共用動線</summary><p>異なる2か所の階段入口への接続と指定廊下幅を幾何検査します。共用部寸法は計画仮定です。下記は玄関外から階段入口までの中心線距離で、室内経路を含む法定歩行距離ではありません。防火区画・地上出口・二方向避難の法規適合は未確認です。</p>{auto?.circulation?.routeMetrics&&<table><thead><tr><th>住戸</th><th>階段1</th><th>階段2</th><th>共通区間</th></tr></thead><tbody>{auto.circulation.routeMetrics.map(m=><tr key={m.unitId}><td>{m.unitId}</td><td>{(m.firstMm/1000).toFixed(1)}m</td><td>{(m.secondMm/1000).toFixed(1)}m</td><td>{(m.sharedMm/1000).toFixed(1)}m</td></tr>)}</tbody></table>}</details>
+          <p style={{fontSize:12}}>{fixedVolumePlan ? '柱割り・廊下・階段・EV・縦シャフト：P2で確認した配置を固定。住戸タイプは自動割付済み。' : '柱割り・共用部・縦シャフトはP2で未確認です。ボリュームで配置を計算・確認してください。'}</p>
           {autoError ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{autoError}</p> : null}
           {auto ? (
             <dl style={{ fontSize: 12, margin: '6px 0 0' }}>
@@ -666,12 +659,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               </dd>
               <dt>縦シャフト</dt>
               <dd>
-                PS {auto.shafts.ps}（住戸ごと）・EPS {auto.shafts.eps}・DS {auto.shafts.ds}（コア脇、仮置き）
-              </dd>
-              <dt>EV</dt>
-              <dd>
-                {auto.ev.ev_cores.length} 基・全 {auto.ev.storeys.length} 階停止
-                {auto.ev.unreachable_storeys.length > 0 ? `（停止しない階 ${auto.ev.unreachable_storeys.join(', ')}）` : ''}。配置: 階段 A・B は廊下の両端、EV ホールは中央（長さ 3 m の仮置き）
+                PS {auto.shafts.ps}（配置済み）・EPS {auto.shafts.eps}・DS {auto.shafts.ds}（コア脇、仮置き）
               </dd>
             </dl>
           ) : null}
@@ -695,12 +683,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               {units.result.plan_status === '成立' ? '' : '（不成立のため確定しない）'}
             </p>
             <p style={{ color: '#666', fontSize: 12 }}>
-              目標 {targetText === '' ? '未入力' : `${targetText} 戸`}
-              {targetText !== '' && units.result.plan_status === '成立'
-                ? `（差 ${units.result.usable_count - Number(targetText)} 戸）`
-                : ''}
-            </p>
-            <p style={{ color: '#666', fontSize: 12 }}>
               区画の作り方は仮置き（廊下タイプに従い、柱割りの通りごとに並べる）。除外: {units.result.excluded.length} 件
             </p>
           </>
@@ -710,27 +692,14 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </p>
         </PanelTile>
         )}
-        <section style={{ marginBottom: 10 }}>
-          <button type="button" onClick={clickNextP3}>
-            次へ（積算）
-          </button>
-          {nextIssues !== null ? (
-            <NextCheckPanel
-              issues={nextIssues}
-              goLabel="このまま進む（要確認として残す）"
-              onStay={() => setNextIssues(null)}
-              onGoAnyway={() => goNextP3Anyway(nextIssues)}
-            />
-          ) : null}
-        </section>
         {!tileShown('milestone') ? null : (
-          <PanelTile title="節目の要約" onHide={() => hideTile('milestone')}>
+          <PanelTile title="入力・判定の状況" onHide={() => hideTile('milestone')}>
             <section style={{ marginBottom: 10 }}>
-              <strong style={{ fontSize: 13 }}>節目の要約</strong>
+              <strong style={{ fontSize: 13 }}>入力・判定の状況</strong><p style={{fontSize:12}}>入力値と個別判定の状態です。設計全体の適合判定ではありません。</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
                 {milestoneRows.map((r) => (
                   <li key={r.label} style={{ fontSize: 12, color: r.status === 'ng' ? '#c8412a' : undefined }}>
-                    {r.status === 'ok' ? '済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
+                    {r.status === 'ok' ? '取得済' : r.status === 'ng' ? '不適合' : '未'}　{r.label}：{r.note}
                   </li>
                 ))}
               </ul>
@@ -765,7 +734,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         )}
         </>}
       </aside>
-      {rectangleOpen && <RectangularStudyPanel initialWidth={inherited?.widthMm ?? 16000} initialLength={inherited?.depthMm ?? 42000} storeys={storeyCount} storeyHeightMm={storeyHeightMm} onApply={(plan) => { floorState.applyRectangle(sourceKey,plan,storeyCount); setCorridorText(String(plan.corridor.x1-plan.corridor.x0)); setRectangleOpen(false); setPlanZoom(1) }} onClose={() => setRectangleOpen(false)} />}
+      {rectangleOpen && <RectangularStudyPanel initialWidth={inherited?.widthMm ?? 16000} initialLength={inherited?.depthMm ?? 42000} storeys={storeyCount} storeyHeightMm={storeyHeightMm} onApply={(plan) => { try { const outlines=Array.from({length:storeyCount},()=>[{x:0,y:0},{x:plan.widthMm,y:0},{x:plan.widthMm,y:plan.depthMm},{x:0,y:plan.depthMm}]); const result=arrangeCirculation(plan,outlines,Number(peopleText),residentsText.trim()?Number(residentsText):undefined); floorState.applyRectangle(sourceKey,result.plans[1]!,storeyCount); setCorridorText(String(plan.corridor.x1-plan.corridor.x0)); setLayoutText(plan.layout); setAutoError(null); setRectangleOpen(false); setPlanZoom(1) } catch(e) { setAutoError(plainErrorTextOf(e)); setRectangleOpen(false) } }} onClose={() => setRectangleOpen(false)} />}
       {(() => {
         const cells = units.cells ? units.cells.cells : []
         const cell = cells.find((c) => c.id === detailUnitId)
@@ -775,7 +744,13 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           .map((s) => ({ x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2, kind: assignments[s.id]?.kind ?? null }))
         const kindCounts = cell ? kindCountsIn(cell, kindPoints) : undefined
         return (
-          <UnitDetailPanel
+          <UnitDetailPanel updateError={autoError}
+            planOverride={detailUnitId?auto?.unitPlanOverrides?.[detailUnitId]:undefined}
+            onReshape={plan=>{if(!auto||!detailUnitId)return "住戸が選択されていません";const result=applyReshapedUnit(auto,detailUnitId,plan);if(result.error)return result.error;if(result.plan)return setAuto(result.plan);return null}}
+            planTypeId={detailUnitId ? auto?.unitTypeIdsByCell?.[detailUnitId] ?? undefined : undefined}
+            planCorridor={auto&&cell?corridorForCell(auto,cell):undefined}
+            planVariant={detailUnitId ? auto?.unitPlanVariants?.[detailUnitId] ?? 'A' : 'A'}
+            onPlanVariant={variant=>{if(auto&&detailUnitId){const result=switchUnitVariant(auto,detailUnitId,variant);if(result.error)setAutoError(result.error);else if(result.plan)setAuto(result.plan)}}}
             cell={cell}
             layers={unitLayers}
             planRooms={auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')) ?? []}
@@ -791,10 +766,10 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             onSetFirstFloorName={(name) => {
               if (detailUnitId) useFirstFloor.getState().setName(detailUnitId, name)
             }}
-            rooms={auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).map(r=>r.kind) ?? []}
-            sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells) : []}
+            rooms={auto?.rooms.filter(r=>r.id.startsWith(detailUnitId+'-')).map(r=>r.name ?? r.kind) ?? []}
+            sameTypeIds={detailUnitId ? sameTypeUnitIds(detailUnitId, cells).filter(id=>auto?.unitTypeIdsByCell?.[id]===auto?.unitTypeIdsByCell?.[detailUnitId]) : []}
             onApplySameType={() => {
-              if (detailUnitId) useFixtures.setState({ fixtures: copyFixturesToSameType(detailUnitId, cells, fixtures) })
+              if(detailUnitId&&auto){const result=copyUnitLayout(auto,detailUnitId);if(result.error)setAutoError(result.error);else if(result.plan){const error=setAuto(result.plan);if(!error)useFixtures.setState({fixtures:copyFixturesToSameType(detailUnitId,cells.filter(c=>auto.unitTypeIdsByCell?.[c.id]===auto.unitTypeIdsByCell?.[detailUnitId]),fixtures)})}} 
             }}
           />
         )

@@ -145,7 +145,7 @@ export function detailLinesOfObjects(rows: readonly ObjectRow[], rebar: RebarCon
         break
       }
       case PART.planExterior: {
-        const input: PlanExteriorInput = { corridor: a.corridor, cores: a.cores, cells: a.cells, outline: a.outline, storeyCount: a.storeyCount }
+        const input: PlanExteriorInput = { corridor: a.corridor, corridors: a.corridors, cores: a.cores, cells: a.cells, outline: a.outline, storeyCount: a.storeyCount }
         const ext = planExteriorQuantities(input)
         const rail = railingQuantity({ cells: input.cells as readonly Rect[], outline: input.outline, storeyCount: input.storeyCount })
         lines.push(lineOf(row.id, ext.balcony, BASIS.planExterior), lineOf(row.id, ext.corridor, BASIS.planExterior), lineOf(row.id, rail, BASIS.planExterior))

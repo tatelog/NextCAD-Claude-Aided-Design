@@ -158,3 +158,10 @@ describe('P4 の確かめ（仕様 13・14）', () => {
     expect(p4NextIssuesOf({ laborUnset: [], provisional: [] })).toEqual([])
   })
 })
+
+// 利用者指定: 未取得は結果欄に残し、次への確認を重ねない。不適合は保持する。
+it('未取得の再確認を省いても実際の超過は通知する', () => {
+  const base = { closed: true, closureText: '', slope: null, shadow: null, shadowText: '未判定', brokenFloors: [], promptUnknown: false } as const
+  expect(p2NextIssuesOf(base)).toEqual([])
+  expect(p2NextIssuesOf({ ...base, slope: '超過', shadow: '不適合' }).map(i => i.area)).toEqual(['斜線', '日影'])
+})

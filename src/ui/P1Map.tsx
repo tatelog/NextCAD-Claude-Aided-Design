@@ -1,3 +1,4 @@
+import { loadRoadData } from '../store/roadData'
 // P1 の地図（MapLibre GL JS）。基図は国土地理院の標準地図（彩度を下げる）。
 // 道路・筆・建物（LOD1）は、利用者が準備して public/local-data/ に置いたファイルを読む。無ければ「未取得」と出す（同梱しない）。
 import { useEffect, useRef } from 'react'
@@ -104,13 +105,11 @@ export function P1Map(props: Props) {
     })
     map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
     map.doubleClickZoom.disable()
-    map.on('dblclick', (e) => {
-      e.preventDefault()
-      map.jumpTo(topViewAt(e.lngLat.lng, e.lngLat.lat, DEMO_INITIAL_VIEW.zoom))
-      const p = { lon: e.lngLat.lng, lat: e.lngLat.lat }
+    const inspectPoint = (p:LonLat) => {
+      map.jumpTo(topViewAt(p.lon, p.lat, DEMO_INITIAL_VIEW.zoom))
       const uid = selectParcelAt(p.lon, p.lat)
       showSelectedParcel(map, selectedRef, uid)
-      const point = map.project(e.lngLat)
+      const point = map.project([p.lon,p.lat])
       const layers = ROAD_WIDTH_CLASSES.map((w) => `roads-w${w.k}`).filter((id) => map.getLayer(id))
       const roads = layers.length ? map.queryRenderedFeatures([[point.x - 100, point.y - 100], [point.x + 100, point.y + 100]], { layers }) : []
       const labels = [...new Set(roads.flatMap((r) => {
@@ -118,7 +117,11 @@ export function P1Map(props: Props) {
         return width ? [width.label] : []
       }))]
       latest.current.onSiteInspect?.(p, labels)
-    })
+      window.dispatchEvent(new Event('tutorial-site-inspected'))
+    }
+    map.on('dblclick',e=>{e.preventDefault();inspectPoint({lon:e.lngLat.lng,lat:e.lngLat.lat})})
+    const inspectSelected=()=>{const p=latest.current.site;if(p)inspectPoint(p)}
+    window.addEventListener('tutorial-inspect-selected',inspectSelected)
     map.addControl(new ScaleControl({ maxWidth: 160, unit: 'metric' }), 'bottom-left')
     const magnification = document.createElement('div')
     magnification.className = 'maplibregl-ctrl'
@@ -134,6 +137,8 @@ export function P1Map(props: Props) {
     const marker = new Marker({ color: '#dc2626', anchor: 'bottom', pitchAlignment: 'viewport', rotationAlignment: 'viewport' })
     marker.getElement().style.pointerEvents = 'none'
     marker.getElement().setAttribute('aria-label', '選択地点')
+    marker.getElement().setAttribute('data-tutorial', 'site-selected')
+    map.on('render',()=>window.dispatchEvent(new Event('tutorial-target-change')))
     markerRef.current = marker
     syncSite(map, marker, latest.current.site)
     const resize = new ResizeObserver(() => map.resize())
@@ -169,6 +174,7 @@ export function P1Map(props: Props) {
 
     return () => {
       resize.disconnect()
+      window.removeEventListener('tutorial-inspect-selected',inspectSelected)
       marker.remove()
       markerRef.current = null
       map.remove()
@@ -209,6 +215,7 @@ function emptyFc() {
 function syncSite(map: MaplibreMap, marker: Marker, site: LonLat | null) {
   if (site) marker.setLngLat([site.lon, site.lat]).addTo(map)
   else marker.remove()
+  window.dispatchEvent(new Event('tutorial-target-change'))
 }
 
 function syncNeighbors(map: MaplibreMap, rings: [number, number][][]) {
@@ -240,7 +247,7 @@ async function loadLocalLayers(
 ) {
   const missing: string[] = []
   try {
-    const roadsJson = (await loadLocal('roads-koto.json')) as { roads: { w: number; c: number; g: unknown }[] }
+    const roadsJson = { roads: await loadRoadData() }
     map.addSource('roads', { type: 'geojson', data: { type: 'FeatureCollection', features: toRoadFeatures(roadsJson.roads) } })
     for (const w of ROAD_WIDTH_CLASSES) {
       map.addLayer({

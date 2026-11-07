@@ -29,8 +29,8 @@ describe('住戸の詳細パネル（仕様 1〜6）', () => {
   it('仕様 1: 間口・奥行・専有面積（m²）を出す', () => {
     const out = html(DETAIL)
     expect(out).toContain('住戸 A')
-    expect(out).toContain('間口 3000 mm')
-    expect(out).toContain('奥行 6000 mm')
+    expect(out).toContain('間口 3,000 mm')
+    expect(out).toContain('奥行 6,000 mm')
     expect(out).toContain('専有面積 18.00 m²')
   })
 
@@ -83,4 +83,16 @@ describe('住戸の詳細パネル（仕様 1〜6）', () => {
     expect(out).not.toContain('壁 2 本')
     expect(out).not.toContain('PS:')
   })
+})
+it('図中寸法も本文と同じカンマ区切りで表示する',()=>{
+ const out=html(DETAIL,{cell:{id:'A',x0:0,y0:0,x1:3000,y1:6000}})
+ const svg=out.slice(out.indexOf('<svg'),out.indexOf('</svg>'))
+ expect(svg).toContain('3,000 mm')
+ expect(svg).toContain('6,000 mm')
+})
+
+it('配置の反映を拒否した理由を住戸詳細内に表示する',()=>{
+ const out=html(DETAIL,{updateError:'縦シャフトの位置を維持できません'})
+ expect(out).toContain('role="alert"')
+ expect(out).toContain('縦シャフトの位置を維持できません')
 })

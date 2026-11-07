@@ -1,3 +1,5 @@
+import { applyUnitPlans } from './applyUnitPlans'
+import type { CirculationPlan } from './automaticCirculation'
 import { optimizedFrontage } from './optimizedFrontage'
 import { orderedFrontage } from './orderedFrontage'
 // P3 の自動作成（D-04 P3「柱割り・間取り・縦シャフトを作る」）。目標の戸数（1 階あたり）から、スパン数と建物の寸法を決める。
@@ -23,6 +25,9 @@ export interface AutoPlanInput {
   /** 選んだ住戸構成の順番を保つ。 */
   orderedTypes?: boolean
   optimizeTypes?: boolean
+  preferMoreUnits?: boolean
+  /** 初期候補の最低構成。コア・外形調整後にも別途判定する。 */
+  minimumUnitsPerFloor?: Readonly<Record<string,number>>
   /** 目標の戸数（1 階あたり、整数・1 以上） */
   targetPerFloor: number
   storeyCount: number
@@ -74,6 +79,14 @@ export interface ShaftRect {
 }
 
 export interface AutoPlan {
+  corridors?: Rect[]
+  bridges?: Rect[]
+  voids?: Rect[]
+  automaticUnitRejections?:Record<string,string[]>
+  unitPlanOverrides?: Record<string,import('./unitPlan39').UnitPlan39>
+  unitPlanVariants?: Record<string,string>
+  unitPlanStatus?: Record<string,string>
+  circulation?: CirculationPlan
   unitTypeIdsByCell?: Record<string,string|null>
   buildingOutline?: readonly {x:number;y:number}[]
   widthMm: number
@@ -203,7 +216,7 @@ function unitCells(
       const rects = new Map<string, Rect>()
       for (const side of sides) {
         const col = spanCell.get(`${side}${u.firstColumn}`)!
-        rects.set(side, { id: `${side}-unit`, x0: col.x0, y0: yBase + u.startMm, x1: col.x1, y1: yBase + u.startMm + u.widthMm })
+        rects.set(side, { id: `${side}-unit`, x0: side === "L" && t?.depth_mm ? col.x1-t.depth_mm : col.x0, y0: yBase + u.startMm, x1: side === "R" && t?.depth_mm ? col.x0+t.depth_mm : col.x1, y1: yBase + u.startMm + u.widthMm })
       }
       const ok = pattern !== null && [...rects.values()].every((r) => canSplitRooms(r, pattern))
       if (!ok) fits = false
@@ -290,7 +303,12 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const selected = (input.unitTypeIds ?? [])
     .map((id) => input.unitTypes?.find((x) => x.id === id))
     .filter((t): t is UnitType => t !== undefined)
-  const grouping = (input.orderedTypes ? orderedFrontage : input.optimizeTypes ? optimizedFrontage : groupByFrontage)(
+  const bands=Math.max(1,new Set(perSpanCells.map(cell=>`${cell.x0}:${cell.x1}`)).size)
+  const minimumPerBand=Object.fromEntries(Object.entries(input.minimumUnitsPerFloor??{}).map(([id,count])=>{
+    if(!Number.isSafeInteger(count)||count<0)throw new Error('最低戸数は0以上の整数で指定してください')
+    return [id,Math.ceil(count/bands)]
+  }))
+  const grouping = (input.orderedTypes ? orderedFrontage : input.optimizeTypes ? ((widths:Parameters<typeof optimizedFrontage>[0],types:Parameters<typeof optimizedFrontage>[1])=>optimizedFrontage(widths,types,input.preferMoreUnits,minimumPerBand)) : groupByFrontage)(
     Array.from({ length: spans }, () => input.spanMm),
     selected.map((t) => ({ id: t.id, frontageMm: t.frontage_mm })),
   )
@@ -319,7 +337,7 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
   const absorbedSpans = spansOf(grouping.units.filter((u) => u.absorbed))
   const rooms = roomsFor(cells, input.unitType === '単独' ? '単独' : (input.pattern ?? '田の字'), merged.typedById)
 
-  return {
+  return applyUnitPlans({
     unitType: input.unitType ?? 'ファミリー',
     layout: input.layout,
     stairFinish: input.layout === '階段室' ? (input.stairFinish ?? 'indoorShaft') : null,
@@ -330,12 +348,14 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
     shortfall: Math.max(0, target - unitsPerFloor),
     shafts: { ps: unitsPerFloor, eps: 1, ds: 1 },
     corridor: c.corridor,
+    corridors: c.corridors,
+    voids: c.voids,
     cells,
     rooms,
     cores: coresInCorridor,
     shaftRects: shaftsOf(cells, rooms, coresInCorridor, c.corridor),
     spanTypes,
-    unitTypeIdsByCell: Object.fromEntries(cells.map(cell=>[cell.id,spanTypes[Math.floor(cell.y0/input.spanMm)] ?? null])),
+    unitTypeIdsByCell: Object.fromEntries(cells.map(cell=>[cell.id,grouping.units.find(u => cell.y0 >= u.startMm && cell.y0 < u.startMm+u.widthMm)?.typeId ?? null])),
     unsupportedSpans,
     provisionalSpans,
     absorbedSpans,
@@ -345,5 +365,5 @@ export function generateAutoPlan(input: AutoPlanInput): AutoPlan {
       evStops: input.evStops,
       evCount: input.evCount,
     }),
-  }
+  })
 }

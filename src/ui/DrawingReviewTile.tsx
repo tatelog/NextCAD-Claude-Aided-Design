@@ -21,7 +21,7 @@ export function DrawingReviewTile() {
   return (
     <>
       <SemanticConfirm
-        legend="候補の確認（Drawing）"
+        legend="オブジェクト判定（Drawing）"
         rows={rows}
         onSelectKind={(id, kind) => (kind === null ? clearKind(id) : setKind(id, kind))}
         onConfirm={setKind}

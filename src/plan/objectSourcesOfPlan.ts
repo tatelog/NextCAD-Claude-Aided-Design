@@ -35,6 +35,7 @@ function gridLinesOf(depthMm: number, spanMm: number): number[] {
 // 廊下は candidateCells が作る全廊下。結果（AutoPlan）に残るのは主の廊下 1 本だけなので、2 本あるツインだけ candidateCells から取り直す。
 // ツインは廊下タイプ（plan.layout）で判定する（統括の決定 G106: 廊下 : 吹き抜け : 廊下 = 1 : 1 : 1。住戸の奥行 = (建物の幅 − 廊下幅 × 3) ÷ 2）。
 function corridorsOf(plan: AutoPlan, spanMm: number): readonly Rect[] {
+  if(plan.corridors)return [...plan.corridors,...(plan.bridges??[])]
   const main = plan.corridor
   if (plan.layout !== 'ツイン') return [main]
   const corridorMm = main.x1 - main.x0

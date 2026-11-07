@@ -70,7 +70,7 @@ describe('規則の中身（仕様 3）', () => {
 
 describe('対象外の用途地域（仕様 4）', () => {
   it('規制値が無い用途地域は、条例の値があっても対象外', () => {
-    expect(shadowRuleFromOrdinance('商業系', confirmedAll)).toEqual({ ok: false, reason: '対象外（この用途地域の規制値は未確認）' })
+    expect(shadowRuleFromOrdinance('商業系', confirmedAll)).toEqual({ ok: false, reason: '未判定（この用途地域の規制値は未確認）' })
   })
 })
 

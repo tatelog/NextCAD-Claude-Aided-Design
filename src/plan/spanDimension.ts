@@ -21,3 +21,16 @@ export function spanDimensions(positionsMm: readonly number[]): SpanDimension[] 
   }
   return out
 }
+
+/** 連続する等間隔の寸法をまとめる。端数の区間は独立して残す。 */
+export function groupedSpanDimensions(positionsMm: readonly number[]) {
+  const groups: (SpanDimension & { count: number })[] = []
+  for (const span of spanDimensions(positionsMm)) {
+    const last = groups[groups.length - 1]
+    if (last && Math.abs(last.lengthMm - span.lengthMm) < 0.001) {
+      last.toMm = span.toMm
+      last.count++
+    } else groups.push({ ...span, count: 1 })
+  }
+  return groups
+}

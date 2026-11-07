@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { AutoPlan } from '../plan/autoPlan'
 /** 配置はボリュームの版と階に紐づける。別の階を暗黙に複製しない。 */
 export const useFloorPlans = create<{
+ inheritedRevision?: string;
  rectangle: {source:string;widthMm:number;depthMm:number} | null;
  applyRectangle:(source:string,plan:AutoPlan,count:number)=>void;
  source: string; plans: Record<number, AutoPlan>; selected: number;

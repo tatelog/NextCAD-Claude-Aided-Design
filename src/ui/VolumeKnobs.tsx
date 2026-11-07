@@ -9,6 +9,7 @@
 import { useFrame, useStore, type RootStore, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
+import { resizeEdge } from '../volume/resizeEdge'
 import type { Point } from '../geom/viewport'
 import {
   axisHeightAtRayMm,
@@ -33,6 +34,7 @@ const HEIGHT_ACTIVE_COLOR = '#5b97f0'
 /** つまみを動かしている間の仮の形（表示だけ。store は変えない）。回転の vertex は、つまんだ頂点の番号（外形の頂点の順。そのつまみだけ色を変える）。 */
 export type KnobPreview =
   | { kind: 'rotate'; deg: number; footprint: Point[]; vertex: number }
+  | { kind: 'resize'; footprint: Point[]; edge: number }
   | { kind: 'height'; storeyCount: number; heightMm: number }
 
 type PointerHandler = (e: ThreeEvent<PointerEvent>) => void
@@ -137,9 +139,10 @@ interface HeightDrag {
   storeys: number
 }
 
-type Drag = RotateDrag | HeightDrag
+type Drag = RotateDrag | HeightDrag | { kind: 'resize'; pointerId: number; index: number; base: Point[]; grab: Point; next: Point[] }
 
 export interface VolumeKnobsProps {
+  canPlace?: (footprint: readonly Point[]) => boolean
   /** いまの外形（mm）。すべての頂点に回転のつまみを、重心の真上（上面の中央）に高さのつまみを置く。 */
   footprint: readonly Point[]
   /** いまの階数と階高（mm）。高さのつまみは階数 × 階高の高さに置く。 */
@@ -155,10 +158,12 @@ export interface VolumeKnobsProps {
   /** 離したとき: 回す量（°、反時計回り）。0°（動かしていない）のときは呼ばない。渡さなければ回転のつまみは出さない。 */
   onRotate?: (deg: number) => void
   /** 離したとき: 新しい階数（1 以上・上限 30）。いまの階数と同じときは呼ばない。渡さなければ高さのつまみは出さない。 */
+  onResize?: (edge: number, dx: number, dy: number) => void
   onStoreyCount?: (n: number) => void
 }
 
 export function VolumeKnobs({
+  canPlace,
   footprint,
   storeyCount,
   storeyHeightMm,
@@ -168,6 +173,7 @@ export function VolumeKnobs({
   onRotateStart,
   onRotate,
   onStoreyCount,
+  onResize,
 }: VolumeKnobsProps) {
   const store = useStore()
   const drag = useRef<Drag | null>(null)
@@ -200,7 +206,7 @@ export function VolumeKnobs({
   const roofCenter = outlineCentroid(footprint)
   if (footprint.length < 3 || !roofCenter) return null
   const rotateSpots = rotationKnobSpots(footprint)
-  const shownOutline = preview?.kind === 'rotate' ? preview.footprint : footprint
+  const shownOutline = preview && 'footprint' in preview ? preview.footprint : footprint
 
   // 番号 index の頂点のつまみの動き。どのつまみも動きは同じ（つまんだ頂点の番号だけが違う）
   const onRotateDown = (index: number): PointerHandler => (e) => {
@@ -240,6 +246,42 @@ export function VolumeKnobs({
     onPreview(null)
     if (d.deg !== 0) onRotate?.(d.deg)
   }
+
+  const resizeHandlers = (index: number): KnobHandlers => ({
+    onPointerDown: (e) => {
+      e.stopPropagation()
+      const grab = rayHitPlaneMm(e.ray.origin, e.ray.direction, 0)
+      if (!grab) return
+      const base = footprint.map(p => ({ ...p }))
+      drag.current = { kind: 'resize', pointerId: e.pointerId, index, base, grab, next: base }
+      setCameraEnabled(store, false)
+      capturable(e).setPointerCapture(e.pointerId)
+    },
+    onPointerMove: (e) => {
+      const d = drag.current
+      if (d?.kind !== 'resize' || d.pointerId !== e.pointerId || d.index !== index) return
+      e.stopPropagation()
+      const p = rayHitPlaneMm(e.ray.origin, e.ray.direction, 0)
+      if (!p) return
+      const next = resizeEdge(d.base, index, { x: p.x - d.grab.x, y: p.y - d.grab.y })
+      if (!next || (canPlace && !canPlace(next))) return
+      d.next = next
+      onPreview({ kind: 'resize', footprint: next, edge: index })
+    },
+    onPointerUp: (e) => {
+      const d = drag.current
+      if (d?.kind !== 'resize' || d.pointerId !== e.pointerId || d.index !== index) return
+      e.stopPropagation()
+      drag.current = null
+      setCameraEnabled(store, true)
+      capturable(e).releasePointerCapture(e.pointerId)
+      onPreview(null)
+      const next = d.next[index], base = d.base[index]
+      if (!next || !base) return
+      const dx = next.x - base.x, dy = next.y - base.y
+      if (dx || dy) onResize?.(index, dx, dy)
+    },
+  })
 
   const onHeightDown: PointerHandler = (e) => {
     e.stopPropagation()
@@ -290,6 +332,13 @@ export function VolumeKnobs({
             <KnobBall color={preview?.kind === 'rotate' && preview.vertex === index ? ROTATE_ACTIVE_COLOR : ROTATE_COLOR} />
           </ScreenScaled>
         ))}
+      {onResize && shownOutline.map((p, index) => {
+        const q = shownOutline[(index + 1) % shownOutline.length]
+        if (!q) return null
+        return <ScreenScaled key={`edge-${index}`} position={scenePosition({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, 0)} handlers={resizeHandlers(index)}>
+          <KnobBall color="#64748b" />
+        </ScreenScaled>
+      })}
       {onStoreyCount && (
         <ScreenScaled
           position={scenePosition(roofCenter, shownStoreys * storeyHeightMm)}

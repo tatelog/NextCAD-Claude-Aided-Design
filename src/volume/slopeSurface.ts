@@ -27,8 +27,8 @@ export function slopeSheetsOf(boundaries: readonly SlopeBoundary[], extentMm: nu
     if (heightCapMm !== undefined) depth = Math.min(depth, (heightCapMm - b.riseMm) / b.coefficient)
     if (!(depth > 0)) return []
     const t = { x: -b.inward.y, y: b.inward.x }
-    // 表示だけを敷地の投影幅に収める。道路反対側の起点と法規の計算面は変えない。
-    const offsets = site?.map(p => (p.x - b.point.x) * t.x + (p.y - b.point.y) * t.y)
+    // 道路は接道辺に対応する対岸の両端で表示する。その他は敷地の投影幅。
+    const offsets = (b.displayEdge ?? site)?.map(p => (p.x - b.point.x) * t.x + (p.y - b.point.y) * t.y)
     const start = offsets?.length ? Math.min(...offsets) : -extentMm
     const end = offsets?.length ? Math.max(...offsets) : extentMm
     const at = (s: number, d: number, h: number): SlopeVertex => ({

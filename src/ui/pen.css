@@ -104,3 +104,6 @@
 .toolbar-dock-preview.dock-right {right:0;top:0;bottom:0;width:4px}
 .toolbar-dock-preview.dock-top {left:0;right:0;top:0;height:4px}
 .toolbar-dock-preview.dock-bottom {left:0;right:0;bottom:0;height:4px}
+
+.pen-toolbar-separator { flex: 0 0 auto; width: 1px; height: 24px; margin: 4px 3px; background: #cbd0d8; }
+.pen-toolbar.is-left .pen-toolbar-separator { width: 24px; height: 1px; margin: 3px 4px; }

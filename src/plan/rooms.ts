@@ -8,6 +8,7 @@ export type RoomKind = 'LDK' | '洋室' | '水回り'
 export type RoomPattern = '田の字' | '縦長' | '角' | '単独' | '三室' | '四室'
 
 export interface Room {
+  name?: string
   id: string
   kind: RoomKind
   x0: number

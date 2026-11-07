@@ -1,3 +1,4 @@
+import { applyUnitPlans } from './applyUnitPlans'
 import type { AutoPlan, AutoCore, ShaftRect } from './autoPlan'
 import type { Rect } from './candidateCells'
 import { buildEvLevels } from './evLevels'
@@ -32,6 +33,6 @@ export function rectangularStudy(i:StudyInput):{plan:AutoPlan;unitTypes:Record<s
  const tributary=(values:number[],k:number)=>((values[k+1]??values[k]!)-(values[k-1]??values[k]!))/2
  const columns:StudyColumn[]=xs.flatMap((x,a)=>rows.map((y,b)=>({id:`C${a}-${b}`,x,y,tributaryM2:tributary(xs,a)*tributary(rows,b)/1e6})))
  const plan:AutoPlan={unitTypeIdsByCell:unitTypes,buildingOutline:[{x:0,y:0},{x:W,y:0},{x:W,y:L},{x:0,y:L}],widthMm:W,depthMm:L,spans:rows.length-1,unitsPerFloor:cells.length,shortfall:0,unitType:'ファミリー',layout:'中廊下',stairFinish:null,shafts:{ps:cells.length,eps:1,ds:1},corridor,cells,rooms:[],cores,shaftRects,spanTypes,unsupportedSpans:[],provisionalSpans:spanTypes.map((_,k)=>k),absorbedSpans:[],ev:buildEvLevels({evCount:1,storeyCount:i.storeys,storeyHeightMm:i.storeyHeightMm,evStops:Array.from({length:i.storeys},(_,k)=>k+1)})}
- return {plan,unitTypes,columns,notices:['階段3×5m・EV/共用設備領域3×6mは仮置き。避難・設備容量・かご寸法は未検討。','柱は通り芯交点の候補。住戸への出張り、梁、耐震壁、基礎は未検討。','PSは住戸タイプの水回り側指定に連動。配管の勾配・経路・防火区画は未検討。']}
+ return {plan:applyUnitPlans(plan),unitTypes,columns,notices:['階段3×5m・EV/共用設備領域3×6mは仮置き。避難・設備容量・かご寸法は未検討。','柱は通り芯交点の候補。住戸への出張り、梁、耐震壁、基礎は未検討。','PSは住戸タイプの水回り側指定に連動。配管の勾配・経路・防火区画は未検討。']}
 }
 

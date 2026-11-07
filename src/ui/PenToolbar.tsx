@@ -1,4 +1,4 @@
-// ペンの道具（D-04 共通部品「ペンのモード」、G52）。直線／曲線、Undo／Redo、置き場（上・左・独立）の切替。
+// ペンの道具（D-04 共通部品「ペンのモード」、G52）。直線／曲線などの作画操作。置き場はハンドルで変更する。
 // 置き場は上（ヘッダー）・左（縦の帯）・独立（浮かせる）。独立のときは、道具のハンドルをつかんで動かす。
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { useUi, type ToolbarPlacement } from '../store/ui'
@@ -6,27 +6,24 @@ import { ToolIcon } from './toolIcons'
 import { isToolEnabled } from './toolAvailability'
 import './pen.css'
 
-const PLACEMENTS: { value: ToolbarPlacement; label: string; icon: 'place-top' | 'place-left' | 'place-free' }[] = [
-  { value: 'top', label: '上', icon: 'place-top' },
-  { value: 'left', label: '左', icon: 'place-left' },
-  { value: 'free', label: '独立', icon: 'place-free' },
-]
-
 // この道具箱は P2（ボリューム作図）に置く。その画面で使えない道具（什器は P3 で使う）はグレーアウトする（G69）
 const PEN_SCREEN = 'P2' as const
 
 export interface PenToolbarProps {
   /** 独立のときの位置の基準にする要素（この中で動かす） */
   onClose?: () => void
+  onSelect?: () => void
+  isSelecting?: boolean
   onPan?: () => void
   onBox?: () => void
+  isBox?: boolean
   compact?: boolean
   isDrawing?: boolean
   onDraw?: () => void
   placement: ToolbarPlacement
 }
 
-export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, onClose, onPan, compact = false }: PenToolbarProps) {
+export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, isBox = false, onClose, onPan, onSelect, isSelecting = false, compact = false }: PenToolbarProps) {
   const penMode = useUi((s) => s.penMode)
   const setPenMode = useUi((s) => s.setPenMode)
   const arcTwoPoint = useUi((s) => s.arcTwoPoint)
@@ -84,18 +81,19 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, onClose
       {!compact && onClose && <button type="button" className="pen-toolbar-close" aria-label="作図ツールを閉じる" title="閉じる" onClick={onClose}>×</button>}
       {onPan && <span className="pen-toolbar-group" role="group" aria-label="操作モード">
         <button type="button" title="作図" aria-label="作図" aria-pressed={isDrawing} className={isDrawing?'is-active':undefined} onClick={onDraw}><ToolIcon name="pencil" /></button>
-        <button type="button" title="パン" aria-label="パン" aria-pressed={!isDrawing} className={!isDrawing?'is-active':undefined} onClick={onPan}><ToolIcon name="hand" /></button>
+        <button type="button" title="パン" aria-label="パン" aria-pressed={!isDrawing && !isSelecting} className={!isDrawing && !isSelecting?'is-active':undefined} onClick={onPan}><ToolIcon name="hand" /></button>
       </span>}
-      {onBox && <button type="button" aria-label="直方体" title="直方体を寸法から作成" onClick={onBox}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg></button>}
+      {onSelect && <><span className="pen-toolbar-separator" role="separator" /><button type="button" title="選択：図形を移動・ハンドルで修正" aria-label="選択" aria-pressed={isSelecting} className={isSelecting ? 'is-active' : undefined} onClick={onSelect}><ToolIcon name="cursor" /></button></>}
+      {onBox && <button type="button" aria-label="四角形" title="平面に四角形を描く（対角2点・Tabで寸法入力）" aria-pressed={isBox} className={isBox ? 'is-active' : undefined} onClick={onBox}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg></button>}
       <span className="pen-toolbar-group">
-        <button type="button" aria-label="直線" title="直線を描く" className={isDrawing && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>
+        <button type="button" aria-label="直線" title="2点を選んで直線を描く（Shiftで水平・垂直、Escで取消）" className={isDrawing && !isSelecting && !isBox && penMode === 'line' ? 'is-active' : undefined} aria-pressed={isDrawing && !isSelecting && !isBox && penMode === 'line'} onClick={() => { onDraw?.(); setPenMode('line') }}>
           <ToolIcon name="line" />
         </button>
-        <button type="button" aria-label="曲線" title="曲線を描く" className={isDrawing && penMode === 'curve' ? 'is-active' : undefined} aria-pressed={isDrawing && penMode === 'curve'} onClick={() => { onDraw?.(); setPenMode('curve') }}>
+        <button type="button" aria-label="曲線" title="曲線を描く" className={isDrawing && !isSelecting && !isBox && penMode === 'curve' ? 'is-active' : undefined} aria-pressed={isDrawing && !isSelecting && !isBox && penMode === 'curve'} onClick={() => { onDraw?.(); setPenMode('curve') }}>
           <ToolIcon name="curve" />
         </button>
         {/* 二点の円弧（t70）は曲線モードの中の道具。押すと、二点を押してから中心線上を動かして中心を決める */}
-        {isDrawing && penMode === 'curve' && (
+        {isDrawing && !isSelecting && !isBox && penMode === 'curve' && (
           <button
             type="button"
             aria-label="円弧（二点）"
@@ -125,21 +123,6 @@ export function PenToolbar({ placement, isDrawing = true, onDraw, onBox, onClose
         >
           <ToolIcon name="fixture" />
         </button>
-      </span>
-      <span className="pen-toolbar-group" title="道具の置き場">
-        {PLACEMENTS.map((p) => (
-          <button
-            key={p.value}
-            type="button"
-            className={placement === p.value ? 'is-active' : undefined}
-            aria-pressed={placement === p.value}
-            onClick={() => setToolbarPlacement(p.value)}
-            aria-label={p.label}
-            title={`置き場: ${p.label}`}
-          >
-            <ToolIcon name={p.icon} />
-          </button>
-        ))}
       </span>
     </div>
   )

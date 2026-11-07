@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { Point } from '../geom/viewport'
 
 const RectSchema = z
-  .object({ id: z.string().min(1), x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() })
+  .object({ id: z.string().min(1), x0: z.number().finite(), y0: z.number().finite(), x1: z.number().finite(), y1: z.number().finite() })
   .refine((r) => r.x1 > r.x0 && r.y1 > r.y0, { message: '幅・奥行きは 0 より大きい' })
 
 const UnitInputSchema = z.object({
