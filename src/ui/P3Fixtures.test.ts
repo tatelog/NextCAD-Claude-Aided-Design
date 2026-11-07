@@ -64,7 +64,8 @@ vi.mock('./FixturePalette', async (importOriginal) => {
   }
 })
 // 描画では店舗が初期の状態を返すので、今のモードだけここで渡す（左メニューの開閉の既定と、右パネルの項目に効く）
-const modeShell = vi.hoisted(() => ({ mode: 'system' }))
+// 什器の欄は作図（Drawing）モードのときだけ出る（Codex の版。システムモードでは作図の道具を隠す、cdb24f8。代表の決定 2026-11-07 で今の版を正とする）
+const modeShell = vi.hoisted(() => ({ mode: 'drawing' }))
 vi.mock('../store/mode', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../store/mode')>()
   const screenModes = await import('../app/screenModes')
@@ -113,7 +114,8 @@ const centerOf = (c: { x0: number; y0: number; x1: number; y1: number }) => ({ x
 const fixture = (id: string, item: FixtureItem, unitId: string | null): Fixture => ({ id, item, unitId })
 const htmlOf = (): string => renderToStaticMarkup(createElement(P3Plan))
 // タグを除いた文字（隣り合う文字はつながる）
-const textOf = (html: string): string => html.replace(/<[^>]*>/g, '')
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので文字に入れない（代表の指示『トグルでリスト化』2026-11-07）
+const textOf = (html: string): string => html.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '')
 const layerProps = (): FixtureLayerProps => {
   if (!fx.layer) throw new Error('P3 の画面が、什器の層（FixtureLayer）を描いていない')
   return fx.layer as FixtureLayerProps
@@ -255,20 +257,31 @@ describe('平面の印を押すと外す（仕様 7）', () => {
 
   it('品目を選んでいなければ、置いた什器の印は押せる（印に什器の id が付き、押せなくする none が無い）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id)]
+    // 39 案の間取りの図（UnitPlanDrawing）は押せない層（pointer-events="none"）として描かれるので、ページ全体ではなく什器の印そのものを確かめる
     const html = htmlOf()
-    expect(html).toContain('data-fixture="fixture-1"')
-    expect(html).toContain('data-fixture="fixture-2"')
-    expect(html).not.toContain('pointer-events="none"')
+    const marks = html.match(/<[^>]*data-fixture="[^"]*"[^>]*>/g) ?? []
+    expect(marks.map((m) => /data-fixture="([^"]*)"/.exec(m)?.[1])).toEqual(['fixture-1', 'fixture-2'])
+    for (const m of marks) expect(m).toContain('pointer-events="auto"')
   })
 
   it('品目を選んでいる間は、印は押せない（区画を押して続けて置ける）', () => {
     fx.state.selectedItem = kitchen
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id)]
-    expect(htmlOf()).toContain('pointer-events="none"')
+    const marks = htmlOf().match(/<[^>]*data-fixture="[^"]*"[^>]*>/g) ?? []
+    expect(marks).toHaveLength(1)
+    expect(marks[0]).toContain('pointer-events="none"')
   })
 })
 
 describe('P3 の左メニューに什器の件数が出る（仕様 6）', () => {
+  // 左のオブジェクト一覧は、作図モードでは既定で畳まれる（Codex の版を正とする。代表 2026-11-07）。件数はシステムモードで確かめる
+  beforeEach(() => {
+    modeShell.mode = 'system'
+    return () => {
+      modeShell.mode = 'drawing'
+    }
+  })
+
   it('置いた什器の数が、廊下の次・住戸の前の「什器」の行に出る（区画なしの什器も数える）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id), fixture('fixture-3', kitchen, null)]
     expect(textOf(htmlOf())).toContain(`廊下1什器3住戸${CELLS.length}`)

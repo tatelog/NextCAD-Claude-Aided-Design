@@ -74,7 +74,8 @@ const ZERO_ROWS = `キッチン0 台${UNPRICED}ユニットバス0 台${UNPRICED
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
-const textOf = (html: string): string => html.replace(/<[^>]*>/g, '')
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので文字に入れない（代表の指示『トグルでリスト化』2026-11-07）
+const textOf = (html: string): string => html.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '')
 
 beforeEach(() => {
   site.state = { volume: null, plan: null }
@@ -136,7 +137,8 @@ describe('P4 の什器の欄（工事原価に入れない。仕様 4）', () =>
     est.state = { lines: [AUTO_WALL], persisted: true }
     const panelOf = (html: string) => {
       const text = textOf(html)
-      return text.slice(text.lastIndexOf('工事原価（概算）'))
+      // 合計の見出しは「計上済み金額（概算）」に変わった（Codex の版を正とする。代表 2026-11-07）
+      return text.slice(text.lastIndexOf('計上済み金額（概算）'))
     }
     const without = panelOf(htmlOf())
     fx.state = {

@@ -8,7 +8,8 @@ import { TOOL_ICONS, TOOL_ICON_NAMES } from './toolIcons'
 describe('道具のアイコン（SVG）', () => {
   it('道具の全部にアイコンがある', () => {
     expect(TOOL_ICON_NAMES.sort()).toEqual(
-      ['curve', 'fixture', 'grid', 'grip', 'line', 'place-free', 'place-left', 'place-top', 'redo', 'snap', 'undo'].sort(),
+      // 選択（cursor）・作図（pencil）・パン（hand）を足した（Codex の版。代表の決定 2026-11-07 で今の版を正とする）
+      ['cursor', 'curve', 'fixture', 'grid', 'grip', 'hand', 'line', 'pencil', 'place-free', 'place-left', 'place-top', 'redo', 'snap', 'undo'].sort(),
     )
   })
 

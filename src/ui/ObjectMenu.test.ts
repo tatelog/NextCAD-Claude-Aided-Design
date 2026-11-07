@@ -13,7 +13,7 @@
 // 仕様 5（中身）: 種類を選んでいるとき、一覧の下に「<名前>の中身」の欄を出し、detailOfKind の見出しと行を並べる。
 //   件数が 0 のときは「なし」だけ。選んでいなければ欄は無い。壁と開口の数は、住戸の中身の 1 行に「未配線」と出す（detailOfKind のまま。仮置き）。
 // 仕様 6（描ける）: React で描ける（サーバー側の描画で例外が出ない）。帯の幅は OBJECT_MENU_WIDTH（呼び出し側の列の幅に使う）。
-import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
+import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { Rect } from '../plan/candidateCells'
@@ -97,11 +97,13 @@ function findAll(node: ReactNode, match: (el: El) => boolean, out: El[] = []): E
   return out
 }
 
-// 要素の木の文字（子の文字を順につなぐ）
+// 要素の木の文字（子の文字を順につなぐ）。
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので数えない（代表の指示「枠なし・トグルでリスト化」2026-11-07。行の名前と件数は従来どおり確かめる）
 function textOf(node: ReactNode): string {
   if (node === null || node === undefined || typeof node === 'boolean') return ''
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (Array.isArray(node)) return node.map((n) => textOf(n as ReactNode)).join('')
+  if (isValidElement<El['props']>(node) && (node.props as { 'aria-hidden'?: unknown })['aria-hidden'] === 'true') return ''
   if (isValidElement<El['props']>(node)) return textOf(node.props.children)
   return ''
 }
@@ -306,12 +308,15 @@ describe('ObjectMenu（選んだ種類の中身。仕様 5）', () => {
     }
   })
 
-  it('中身の欄は一覧の下に出る（先に一覧の ul、次に欄、欄の中に ul）。一覧の 12 行はそのまま', () => {
+  // 代表の指示「トグルでリスト化」（2026-11-07）: 中身の欄は、一覧の後ではなく、選んだ行のすぐ下に開く。一覧の 12 行の名前と件数はそのまま
+  it('中身の欄は選んだ行（住戸）の中に開く。一覧の 12 行の名前と件数はそのまま', () => {
     const tree = render({ selectedKind: 'unit' })
-    const order = findAll(tree, (el) => el.type === 'ul' || el.type === 'section').map((el) => el.type)
-    expect(order).toEqual(['ul', 'section', 'ul'])
-    const rowList = findAll(tree, isTag('ul'))[0]
-    expect(findAll(rowList, isTag('li')).map(textOf)).toEqual(ROW_TEXTS)
+    const rowList = findAll(tree, isTag('ul'))[0]!
+    const rows = Children.toArray((rowList.props as { children?: ReactNode }).children).filter(isValidElement) as ReactElement[]
+    const buttonText = (li: ReactElement) => textOf(findAll(li, isTag('button'))[0] ?? null)
+    expect(rows.map(buttonText)).toEqual(ROW_TEXTS)
+    const opened = rows.filter((li) => findAll(li, isTag('section')).length > 0)
+    expect(opened.map(buttonText)).toEqual([ROW_TEXTS.find((t) => t.startsWith('住戸'))])
   })
 })
 

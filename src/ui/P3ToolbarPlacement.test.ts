@@ -17,6 +17,13 @@ vi.mock('../store/ui', async (importOriginal) => {
   return { ...actual, useUi: Object.assign(live, actual.useUi) }
 })
 
+// 平面の作図の道具は、システムモードでは出ない（Codex の版。cdb24f8。代表の決定 2026-11-07 で今の版を正とする）。置き場は作図モードで確かめる
+vi.mock('../store/mode', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../store/mode')>()
+  const screenModes = await import('../app/screenModes')
+  return { ...actual, useActiveMode: (screen: string) => actual.activeModeOf(screenModes.SCREEN_MODES, 'drawing', screen) }
+})
+
 const htmlOf = (): string => renderToStaticMarkup(createElement(P3Plan))
 // 道具の枠（class: pen-toolbar is-上・左・独立）の数
 const toolbarsOf = (html: string, placement: ToolbarPlacement): number => html.split(`pen-toolbar is-${placement}`).length - 1
