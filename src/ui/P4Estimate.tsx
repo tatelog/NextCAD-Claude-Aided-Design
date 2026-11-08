@@ -204,7 +204,7 @@ export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
   const detailLines = useMemo(() => [...detailLinesOfObjects(derivedObjectRows, rebar),...fixtureDetails(fixtures)], [derivedObjectRows, rebar, fixtures])
   const savedSpecSelections=useSpecSelections(s=>s.selections)
   const specObjects=useMemo(()=>planSpecObjects(floorPlans,manualFixtures,detailLines),[floorPlans,manualFixtures,detailLines])
-  const specSelections=useMemo(()=>standardSelections(specObjects,savedSpecSelections,CEILING_MM,bimSettings.dimensions.doorHeightMm),[specObjects,savedSpecSelections,bimSettings.dimensions.doorHeightMm])
+  const specSelections=useMemo(()=>standardSelections(specObjects,savedSpecSelections,CEILING_MM,bimSettings.dimensions.doorHeightMm,true),[specObjects,savedSpecSelections,bimSettings.dimensions.doorHeightMm])
   useEffect(()=>{if(Object.keys(specSelections).length!==Object.keys(savedSpecSelections).length)useSpecSelections.setState({selections:specSelections})},[specSelections,savedSpecSelections])
   const packageLines=useMemo(()=>selectedPackageLines(specObjects,specSelections),[specObjects,specSelections])
   const floorWallObjects=specObjects.filter(o=>o.part==='壁'&&o.floor===selectedFloor)

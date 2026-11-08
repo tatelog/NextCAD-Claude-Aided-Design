@@ -16,11 +16,12 @@ export function SpecPackagePanel({objects}:{objects:SpecObject[]}) {
   <h3>部材の仕様と見積</h3>
   <p>下地・取付を含む標準案です。金額は税別。公表資料の労務単価だけを施工込み価格として扱いません。選択内容は案件の「保存」に含まれます。</p>
   <p role="status">数量・単価の未確定項目は下表に「未計上」と表示し、合計には含めません。登録済み価格は仮単価です。</p>
-  <p>間仕切り高さ2,400 mm・開口高さ2,100 mmを初期仮定とします。寸法に対応する仕様のない什器、窓面積、階段仕上げは未計上です。外壁タイルは既存単価表を参照します。</p>
+  <p>未作図の住戸設備は仮仕様・仮数量で概算に含めます。給水20m・給湯15m・排水15m・換気10m/戸、空調1台・空調配管5m/居室、照明とスイッチは居室数＋4、コンセントは居室数×3＋5、電気配線は住戸面積×2m、給湯器・分電盤は各1/戸です。実施設計の数量ではありません。</p>
+  <p>間仕切り高さ2,400 mm・開口高さ2,100 mmを初期仮定とします。寸法未確定の什器は標準案、窓は1,800×1,200mmの仮仕様で概算します。階段仕上げは未計上です。外壁タイルは既存単価表を参照します。</p>
   <p>直接仮設・共通仮設・現場管理費・一般管理費は対象外。浴室内部の仕上げ・浴室扉はUBに含め、共有間仕切りは1回だけ計上します。</p>
   <label>部材種別 <select aria-label="仕様の部材種別" value={part} onChange={e=>setPart(e.target.value)}><option value="">すべて</option>{[...new Set(objects.map(o=>o.part))].map(p=><option key={p}>{p}</option>)}</select></label>{' '}
   <label>階 <select aria-label="仕様の階" value={floor} onChange={e=>setFloor(e.target.value)}><option value="">すべて</option>{[...new Set(objects.flatMap(o=>o.floor?[o.floor]:[]))].map(f=><option key={f} value={f}>{f}階</option>)}</select></label>{' '}
-  <button type="button" onClick={()=>useSpecSelections.setState({selections:standardSelections(shown,selections,2400,2100)})}>表示部材の未選択に標準案を適用</button>
+  <button type="button" onClick={()=>useSpecSelections.setState({selections:standardSelections(shown,selections,2400,2100,true)})}>表示部材の未選択に標準案を適用</button>
   {!!stale.length&&<p role="status">平面からなくなった部材の仕様は計上していません。<button onClick={()=>stale.forEach(id=>set(id,null))}>不要な関連付けを削除</button></p>}
   {!objects.length&&<p>保存済みの各階平面、または配置した什器が必要です。</p>}
   <div style={{maxHeight:380,overflow:'auto'}}><table className="spec-package-table" style={{width:'100%',fontSize:12}}><thead><tr><th>平面の部材</th><th>選択仕様</th><th>数量</th><th>単価区分・出典</th><th>金額</th></tr></thead><tbody>

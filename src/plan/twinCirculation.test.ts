@@ -1,13 +1,17 @@
 import {detailedFloorSvg} from '../export/designSheets'
 import {expect,it} from 'vitest'
 import {prepareVolumePlan} from './volumePlan'
+import {familyShare} from './familyShare'
+import {masterOf} from './unitTypeMaster'
+import candidates from './unitTypeCandidates.json'
 const overlap=(a:any,b:any)=>Math.min(a.x1,b.x1)>Math.max(a.x0,b.x0)&&Math.min(a.y1,b.y1)>Math.max(a.y0,b.y0)
 it('ツインは外周側の住戸と２本の廊下、吹抜け、両端の連絡通路を全階へ引き継ぐ',()=>{
  const volume={footprint:[{x:0,y:0},{x:26000,y:0},{x:26000,y:66500},{x:0,y:66500}],storey_count:5,storey_height:3000}
- const {plans}=prepareVolumePlan(volume,[],{layout:'ツイン',span:3000,corridor:1600,unitDepth:7000})
+ const {plans}=prepareVolumePlan(volume,[],{layout:'ツイン',span:3000,corridor:1600,unitDepth:7000,minimumFamilyRatio:1})
  const p=plans[1]!
  expect(p.cells.length).toBeGreaterThan(0)
- expect(Object.values(p.unitTypeIdsByCell??{}).some(id=>id==='T-08-2LDK'&&p.cells.some(c=>p.unitTypeIdsByCell?.[c.id]===id))).toBe(true)
+ // 代表指定はファミリー比率の維持。2LDKという特定型ではなく3LDK等も含めて判定する。
+ expect(familyShare(plans,masterOf(candidates))).toBe(1)
  expect(p.corridors).toHaveLength(2)
  expect(p.bridges?.map(b=>b.id)).toEqual(expect.arrayContaining(['bridge-a','bridge-b','ev-lobby']))
  expect(p.voids!.length).toBeGreaterThan(0)

@@ -134,7 +134,8 @@ export function fitFloorUnitsAutomatically(base:AutoPlan,outline:readonly {x:num
    intervals=intervals.flatMap(([a,b])=>obstacle.y1<=a||obstacle.y0>=b?[[a,b] as [number,number]]:([[a,Math.min(b,obstacle.y0)],[Math.max(a,obstacle.y1),b]] as Array<[number,number]>).filter(([lo,hi])=>hi>lo))
   }
   let index=0
-  for(const [start,end] of intervals){let y=start
+  // 階段の端ではなく建物全体の通り芯から住戸を開始する。
+  for(const [start,end] of intervals){let y=base.frameGridY?base.frameGridY.find(v=>v>=start-.01)??end:start
    for(let count=0;count<30&&end-y>=2000;count++){
     const choices:Array<{type:string;plan:UnitPlan39}>=[]
     for(const type of available){
@@ -146,7 +147,9 @@ export function fitFloorUnitsAutomatically(base:AutoPlan,outline:readonly {x:num
        if(d<Math.min(x1-x0,5000)||!unitAreaAllowed(type,w*d))continue
        const fixedKey=`frame:${type}:${w}:${d}`;let fixed=cache.get(fixedKey)
        if(!fixed){const sources=['A','B','C'].flatMap(v=>{const p=readUnitPlan(type,v);return p?[p]:[]});const fitted=fitUnitAutomatically(sources,{maxFrontage:w,maxDepth:d});
-        const resized=(fitted.candidates??(fitted.plan?[fitted.plan]:[])).map(p=>resizeUnit(p,w,d)).find(r=>r.valid)
+        const fitCandidates=fitted.candidates??(fitted.plan?[fitted.plan]:[])
+        let resized=fitCandidates.map(p=>resizeUnit(p,w,Math.min(d,p.envelope.D))).find(r=>r.valid&&unitAreaAllowed(type,r.plan.envelope.W*r.plan.envelope.D))
+        if(!resized)resized=sources.flatMap(source=>{const p=recomposed(source,{maxFrontage:w,maxDepth:d}).plan;return p?[resizeUnit(p,w,p.envelope.D)]:[]}).find(r=>r.valid&&unitAreaAllowed(type,r.plan.envelope.W*r.plan.envelope.D))
         fixed=resized?{plan:resized.plan,reasons:[]}:{reasons:['共通通り芯の区画に収まる住戸がありません']};cache.set(fixedKey,fixed)
        }
        if(fixed.plan)choices.push({type,plan:fixed.plan})
@@ -161,7 +164,7 @@ export function fitFloorUnitsAutomatically(base:AutoPlan,outline:readonly {x:num
      if(c.y1>end+.01||!cellInsideOutline(c,outline)||cells.some(o=>overlaps(c,o))||!placeUnitPlan(type,'A',c,corridor,plan).entrance)continue
      cells.push(c);overrides[id]=plan;types[id]=type;y=c.y1;index++;added=true;break
     }
-    if(!added)break
+    if(!added){const next=base.frameGridY?.find(v=>v>y+.01&&v<end);if(next===undefined)break;y=next}
    }
   }
  }

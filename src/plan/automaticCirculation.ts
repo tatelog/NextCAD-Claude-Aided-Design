@@ -142,7 +142,14 @@ export function arrangeCirculation(base:AutoPlan,outlines:readonly (readonly Poi
   shared.push({id:'EPS',kind:'EPS',x0:stairs[0]!.x0,y0:0,x1:stairs[0]!.x0+600,y1:600},{id:'DS',kind:'DS',x0:stairs[1]!.x0,y0:D-600,x1:stairs[1]!.x0+600,y1:D})
   const prepared:AutoPlan={...base,corridors,bridges,voids,cores,cells:connected,unitsPerFloor:connected.length,shaftRects:shared,ev:buildEvLevels({storeyCount:outlines.length,storeyHeightMm:base.ev.storey_height,evCount:count,evStops:count?outlines.map((_,i)=>i+1):[]})}
 
-  finalPlans=Object.fromEntries(outlines.map((o,i)=>[i+1,fitFloorUnitsAutomatically(prepared,o,unitFitCache)]))
+  // 同じ外形の階は同じ候補を使い、各階の状態は独立したコピーにする。
+  const floorFits=new Map<string,AutoPlan>()
+  finalPlans=Object.fromEntries(outlines.map((o,i)=>{
+   const key=JSON.stringify(o)
+   let fitted=floorFits.get(key)
+   if(!fitted){fitted=fitFloorUnitsAutomatically(prepared,o,unitFitCache);floorFits.set(key,fitted)}
+   return [i+1,structuredClone(fitted)]
+  }))
   finalPlans=alignUnitStacks(finalPlans)
   const units=Object.values(finalPlans).reduce((n,p)=>n+p.cells.length,0)
   if(!units){
@@ -164,7 +171,11 @@ export function arrangeCirculation(base:AutoPlan,outlines:readonly (readonly Poi
      const adjacent=corridors.find(path=>Math.abs(stair.x1-path.x0)<1||Math.abs(stair.x0-path.x1)<1)
      if(!adjacent)throw new Error('階段入口が共用廊下に接続していません')
      const targetX=(adjacent.x0+adjacent.x1)/2
-     return [{x,y},{x:cx,y},{x:cx,y:sy},...(r.id!==adjacent.id?[{x:targetX,y:sy}]:[]),{x:stair.x1===adjacent.x0?stair.x1:stair.x0,y:sy}]
+     // 柱面間へ寄せた階段位置ではなく、実在する連絡通路を渡る。
+     const crossing=r.id===adjacent.id?undefined:[...bridges].filter(b=>b.x0<=Math.max(r.x1,adjacent.x1)&&b.x1>=Math.min(r.x0,adjacent.x0)&&b.y1-b.y0>=passageWidth).sort((a,b)=>Math.abs((a.y0+a.y1)/2-sy)-Math.abs((b.y0+b.y1)/2-sy))[0]
+     if(r.id!==adjacent.id&&!crossing)throw new Error('反対側の階段へ渡る連絡通路がありません')
+     const cy=crossing?(crossing.y0+crossing.y1)/2:sy
+     return [{x,y},{x:cx,y},{x:cx,y:cy},...(crossing?[{x:targetX,y:cy},{x:targetX,y:sy}]:[]),{x:stair.x1===adjacent.x0?stair.x1:stair.x0,y:sy}]
     })
    })
    const elevatorRoutes=count?p.cells.map(c=>{

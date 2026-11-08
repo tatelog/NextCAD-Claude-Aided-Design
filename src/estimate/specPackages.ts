@@ -12,6 +12,7 @@ export interface SpecObject {
 }
 export interface SpecSelection {
   packageId:string; version:string
+  assumption?:string
   quantity?:number; heightMm?:number; openingHeightMm?:number
   price?: {value:number; status:'公表値'|'仮値'; source:string; url:string; date:string; region:string; scope:string}
 }
@@ -56,7 +57,7 @@ export function packageLine(object:SpecObject, packageId:string, selection:SpecS
     quantity,unit:p.unit,unitPrice,amount:quantity===null||unitPrice===null?null:Math.round(quantity*unitPrice),
     priceStatus:price?.status??p.price_status,source:price?.source??catalog.sources.S04.title,
     sourceUrl:price?.url??'',priceScope:price?.scope??p.spec,date:price?.date??'未設定',region:price?.region??'地域未調整',
-    basis:selection.quantity!==undefined?'利用者の数量入力':object.lengthMm!==undefined?`長さ${object.lengthMm}mm × 高さ${selection.heightMm??'未入力'}mm − 開口幅${object.openingWidthMm??0}mm × 高さ${selection.openingHeightMm??'未入力'}mm`:object.basis??'平面部材の数量',
+    basis:selection.assumption??(selection.quantity!==undefined?'利用者の数量入力':object.lengthMm!==undefined?`長さ${object.lengthMm}mm × 高さ${selection.heightMm??'未入力'}mm − 開口幅${object.openingWidthMm??0}mm × 高さ${selection.openingHeightMm??'未入力'}mm`:object.basis??'平面部材の数量'),
     specSourceUrl:(p.spec_source_ids as string[]).includes('M01')?catalog.sources.M01.url:null}
 }
 export type PackageLine=ReturnType<typeof packageLine>

@@ -6,6 +6,7 @@ import {fixtureLabel,type Fixture} from '../plan/fixtures'
 import type {DetailLine} from './estimateDetail'
 import type {SpecObject} from './specPackages'
 import {RAILING_HEIGHT_MM} from './planExterior'
+import {provisionalServices} from './provisionalServices'
 
 const bath=(name:string)=>/浴室|UB|ユニットバス/.test(name)
 export function unitSpecObjects(prefix:string,unit:UnitPlan39,floor:number):SpecObject[] {
@@ -38,7 +39,7 @@ export function unitSpecObjects(prefix:string,unit:UnitPlan39,floor:number):Spec
   const part=f.kind.includes('キッチン')?'キッチン':f.kind==='浴槽'||bath(f.kind)?'ユニットバス':f.kind.includes('洗面')?'洗面':/^(便器|WC)$/.test(f.kind)?'便器':/クローゼット|収納|シューズ/.test(f.kind)?'収納':null
   if(part)add(`fixture/${f.id}`,part,`${part} ${f.id}（図示${f.w}×${f.h}mm）`,1,'台',{widthMm:f.w,depthMm:f.h})
  }
- return rows
+ return [...rows,...provisionalServices(prefix,unit,floor)]
 }
 export function planSpecObjects(plans:Record<number,AutoPlan>,manual:readonly Fixture[],details:readonly DetailLine[]):SpecObject[]{
  const rows:SpecObject[]=[]

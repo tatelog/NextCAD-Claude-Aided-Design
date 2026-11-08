@@ -43,7 +43,7 @@ function candidateFrame(input:Record<number,AutoPlan>):Record<number,AutoPlan>{
  const facadeXs:number[]=[],frameXs:number[]=[]
  const clamp=(x:number)=>Math.max(half,Math.min(base.widthMm-half,x))
  for(const c of corridors){
-  const left=base.cells.filter(u=>u.x1<=c.x0+1),right=base.cells.filter(u=>u.x0>=c.x1-1)
+  const left=base.cells.filter(u=>Math.abs(u.x1-c.x0)<1),right=base.cells.filter(u=>Math.abs(u.x0-c.x1)<1)
   if(left.length){const x=clamp((base.balconyDepthMm??0)-half);facadeXs.push(x);frameXs.push(x,clamp(c.x0-half))}
   if(right.length){const x=clamp(base.widthMm-(base.balconyDepthMm??0)+half);facadeXs.push(x);frameXs.push(clamp(c.x1+half),x)}
  }
@@ -73,7 +73,9 @@ function candidateFrame(input:Record<number,AutoPlan>):Record<number,AutoPlan>{
    const placed=placeUnitPlan(p.unitTypeIdsByCell?.[cell.id]??'',p.unitPlanVariants?.[cell.id]??'A',cell,corridor,overrides[cell.id])
    if(!placed.plan||placed.status!=='ok')throw Error(`${floor}階 ${cell.id}：住戸詳細がありません`)
    const local=columns.filter(c=>intersects(columnBox(c),{x:cell.x0-600,y:cell.y0-600,w:cell.x1-cell.x0+1200,h:cell.y1-cell.y0+1200})).map(c=>({id:c.id,x:left?c.y-cell.y0:cell.y1-c.y,y:left?cell.x1-c.x:c.x-cell.x0}))
-   const key=JSON.stringify([placed.plan,local]),saved=cache.get(key);if(saved){overrides[cell.id]=saved;continue}
+   // 柱の番号ではなく、住戸内の相対位置で同じ干渉条件を識別する。
+   // 採用時には各住戸が参照する実際の柱番号へ戻す。
+   const key=JSON.stringify([placed.plan,local.map(c=>({x:c.x,y:c.y}))]),saved=cache.get(key);if(saved){overrides[cell.id]={...structuredClone(saved),columns:local};continue}
    const detail=structuredClone(placed.plan);detail.columns=local;detail.frameAligned=true
    const obstacles=local.map(columnBox)
    // 同じ部屋境界上で開口を移動し、幅と接続を維持する。

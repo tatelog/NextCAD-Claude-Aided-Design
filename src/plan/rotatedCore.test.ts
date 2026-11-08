@@ -17,10 +17,11 @@ it('短辺を廊下沿いにした階段とEV集約案を生成する',()=>{
 
 import {prepareVolumePlan} from './volumePlan'
 import {layoutMetrics} from './layoutQuality'
-import {mkdirSync,writeFileSync} from 'node:fs' // work/ は git の対象外なので、無ければ作ってから書く（統括 2026-11-08）
-it('同条件で従来案と回転集約案の専有面積と戸数を比較する',()=>{
+// 各条件を独立して判定し、一つの時間切れで他の配置結果を隠さない。
+it.each((['中廊下','ツイン'] as const).flatMap(layout=>(['従来','回転集約'] as const).map(coreMode=>({layout,coreMode}))))('%jで住戸と共用部を配置する',({layout,coreMode})=>{
  const volume={footprint:[{x:0,y:0},{x:26000,y:0},{x:26000,y:66500},{x:0,y:66500}],storey_count:5,storey_height:3000}
- const rows=['中廊下','ツイン'].flatMap(layout=>['従来','回転集約'].map(coreMode=>{const p=prepareVolumePlan(volume,[],{layout:layout as '中廊下'|'ツイン',span:3000,corridor:1600,unitDepth:7400,coreMode:coreMode as '従来'|'回転集約'});return {layout,coreMode,...layoutMetrics(p.plans)}}))
- expect(rows.every(r=>r.units>0)).toBe(true)
- mkdirSync('work',{recursive:true});writeFileSync('work/rotated-comparison.json',JSON.stringify(rows,null,2))
+ const p=prepareVolumePlan(volume,[],{layout,span:3000,corridor:1600,unitDepth:7400,coreMode})
+ expect(layoutMetrics(p.plans).units).toBeGreaterThan(0)
+ expect(p.plans[1]!.cores.filter(c=>c.id==='stairA'||c.id==='stairB')).toHaveLength(2)
+ expect(p.plans[5]!.cores).toEqual(p.plans[1]!.cores)
 },60000)
