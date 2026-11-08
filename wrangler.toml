@@ -17,8 +17,11 @@ binding = "cad_masters"
 database_name = "cad-masters"
 database_id = "4229d9cf-52c5-4ced-8ca1-f33be92e4fe5"
 
-# 費用の月上限（D-06 N7）。Cloudflare で KV の名前空間を作り、次の行の id を書き換えて外すと、今月の判定の件数を数える。
-# 作らない間は、月の上限は効かない（線分の上限と接続元の制限は効く）。
-# [[kv_namespaces]]
-# binding = "USAGE"
-# id = "<利用者の KV 名前空間の id>"
+# 費用の月上限（D-06 N7）。今月の判定の件数を数える KV（2026-11-08 作成、代表の決定で上限 1,000 件）。
+# 別の Cloudflare アカウントに配備するときは、自分で KV を作って id を書き換える。
+[[kv_namespaces]]
+binding = "USAGE"
+id = "a48d5d25e1e84bc4b74c81f96abf794d"
+
+[vars]
+MONTHLY_CLASSIFY_LIMIT = "1000"
