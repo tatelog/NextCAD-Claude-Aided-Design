@@ -5,6 +5,7 @@ import {corridorForCell} from './planCorridors'
 import type {UnitPlan39} from './unitPlan39'
 import {readUnitPlan,placeUnitPlan} from './unitPlan39'
 import {reshapeUnit,resizeUnit} from './reshapeUnit'
+import {adaptUnitToColumns} from './buildingFrame'
 import type {AutoPlan} from './autoPlan'
 import {applyUnitPlans} from './applyUnitPlans'
 import {cellInsideOutline} from './units'
@@ -134,27 +135,94 @@ export function fitFloorUnitsAutomatically(base:AutoPlan,outline:readonly {x:num
    intervals=intervals.flatMap(([a,b])=>obstacle.y1<=a||obstacle.y0>=b?[[a,b] as [number,number]]:([[a,Math.min(b,obstacle.y0)],[Math.max(a,obstacle.y1),b]] as Array<[number,number]>).filter(([lo,hi])=>hi>lo))
   }
   let index=0
-  // 階段の端ではなく建物全体の通り芯から住戸を開始する。
-  for(const [start,end] of intervals){let y=base.frameGridY?base.frameGridY.find(v=>v>=start-.01)??end:start
+  if(base.frameGridY){
+   const grid=base.frameGridY,depthMax=x1-x0
+   const sourcesOf=(type:string)=>['A','B','C'].flatMap(v=>{const p=readUnitPlan(type,v);return p?[p]:[]})
+   // 区画の間口 w に収まる住戸案。水回り・家具・動線の検査は従来の通り芯区画と同じ。
+   const fitAt=(type:string,w:number):UnitPlan39|undefined=>{
+    const range=unitAreaRange(type),d=Math.min(depthMax,range?range.max*1e6/w:depthMax)
+    if(d<Math.min(depthMax,5000)||!unitAreaAllowed(type,w*d))return undefined
+    const fixedKey=`frame:${type}:${w}:${d}`;let fixed=cache.get(fixedKey)
+    if(!fixed){const sources=sourcesOf(type);const fitted=fitUnitAutomatically(sources,{maxFrontage:w,maxDepth:d})
+     const fitCandidates=fitted.candidates??(fitted.plan?[fitted.plan]:[])
+     let resized=fitCandidates.map(p=>resizeUnit(p,w,Math.min(d,p.envelope.D))).find(r=>r.valid&&unitAreaAllowed(type,r.plan.envelope.W*r.plan.envelope.D))
+     if(!resized)resized=sources.flatMap(source=>{const p=recomposed(source,{maxFrontage:w,maxDepth:d}).plan;return p?[resizeUnit(p,w,p.envelope.D)]:[]}).find(r=>r.valid&&unitAreaAllowed(type,r.plan.envelope.W*r.plan.envelope.D))
+     fixed=resized?{plan:resized.plan,reasons:[]}:{reasons:['共通通り芯の区画に収まる住戸がありません']};cache.set(fixedKey,fixed)
+    }
+    return fixed.plan
+   }
+   const cellAt=(y:number,plan:UnitPlan39,id:string):Rect=>({id,x0:left?corridor.x0-plan.envelope.D:corridor.x1,x1:left?corridor.x0:corridor.x1+plan.envelope.D,y0:y,y1:y+plan.envelope.W})
+   type Step={y:number;type:string;plan:UnitPlan39}
+   type Choice={count:number;area:number;covered:number;steps:Step[]}
+   const better=(a:Choice,b:Choice|undefined)=>!b||a.count>b.count||(a.count===b.count&&(a.area>b.area+1||(Math.abs(a.area-b.area)<=1&&a.covered>b.covered+1)))
+   const placeable=(y:number,type:string,plan:UnitPlan39,end:number)=>{const c=cellAt(y,plan,'probe');return c.y1<=end+.01&&cellInsideOutline(c,outline)&&!cells.some(o=>overlaps(c,o))&&!!placeUnitPlan(type,'A',c,corridor,plan).entrance}
+   // 間口の並びを区間の先頭から置く。1戸でも置けなければ不成立。
+   // 通り芯から外れた区切りは、共通の柱（通り芯×廊下側の柱列）が室内の設備・開口と干渉しないことを先に確かめる。
+   const columnsClear=(y:number,plan:UnitPlan39)=>{
+    const y1=y+plan.envelope.W,ys=grid.map(g=>Math.max(300,Math.min(base.depthMm-300,g))).filter(g=>g+300>y-600&&g-300<y1+600)
+    const local=ys.map((g,i)=>({id:`c${i}`,x:left?g-y:y1-g,y:300}))
+    const key=`columns:${JSON.stringify([plan,local.map(c=>c.x)])}`;let r=cache.get(key)
+    if(!r){const adapted=adaptUnitToColumns(plan,local);r=adapted.plan?{plan:adapted.plan,reasons:[]}:{reasons:adapted.issues.map(i=>i.message)};cache.set(key,r)}
+    return !!r.plan
+   }
+   const sequence=(start:number,end:number,parts:Array<{type:string;w:number}>):Choice|undefined=>{
+    const steps:Step[]=[];let y=start
+    for(const {type,w} of parts){const plan=fitAt(type,w);if(!plan||!placeable(y,type,plan,end)||!columnsClear(y,plan))return undefined;steps.push({y,type,plan});y+=plan.envelope.W}
+    return {count:steps.length,area:steps.reduce((n,s)=>n+s.plan.envelope.W*s.plan.envelope.D,0),covered:steps.reduce((n,s)=>n+s.plan.envelope.W,0),steps}
+   }
+   for(const [start,end] of intervals){
+    // 従来の割付: 建物の通り芯から始め、通り芯または区間の端で区切る小さい住戸を先に置く。
+    const greedySteps:Step[]=[]
+    let y=grid.find(v=>v>=start-.01)??end
+    for(let count=0;count<30&&end-y>=2000;count++){
+     const choices:Step[]=[]
+     for(const type of available)for(const stop of [...new Set([...grid,end])].filter(v=>v>y+2000&&v<=end+.01)){const plan=fitAt(type,stop-y);if(plan)choices.push({y,type,plan})}
+     choices.sort((a,b)=>a.plan.envelope.W-b.plan.envelope.W)
+     const chosen=choices.find(c=>placeable(y,c.type,c.plan,end))
+     if(chosen){greedySteps.push(chosen);y+=chosen.plan.envelope.W;continue}
+     const next=grid.find(v=>v>y+.01&&v<end);if(next===undefined)break;y=next
+    }
+    let best:Choice={count:greedySteps.length,area:greedySteps.reduce((n,s)=>n+s.plan.envelope.W*s.plan.envelope.D,0),covered:greedySteps.reduce((n,s)=>n+s.plan.envelope.W,0),steps:greedySteps}
+    // 代表の決定 2026-11-08: 隙間に空きを残さず、住戸の行を隣の階段・EV・外形の端まで引き延ばす。
+    // 区間の端から端までを等分する案と、各タイプの元案の間口を並べて残りを均等に配る案を比べる。
+    const length=end-start
+    // 従来の割付で空きが住戸を始められる長さ（2,000 mm）未満なら、比べ直さない。
+    if(length-best.covered>=2000){
+     for(const type of available)for(let n=1;n<=4;n++){const option=sequence(start,end,Array.from({length:n},()=>({type,w:length/n})));if(option&&better(option,best))best=option}
+     const natural=[...new Map(available.flatMap(type=>{
+      const key=`${type}:${length}:${depthMax}`;let r=cache.get(key)
+      if(!r){r=fitUnitAutomatically(sourcesOf(type),{maxFrontage:length,maxDepth:depthMax});cache.set(key,r)}
+      return (r.candidates??(r.plan?[r.plan]:[])).map(p=>({type,w:Math.ceil(p.envelope.W/100)*100}))
+     }).map(n=>[`${n.type}:${n.w}`,n])).values()]
+     const combos:Array<Array<{type:string;w:number}>>=[]
+     const grow=(parts:Array<{type:string;w:number}>,from:number)=>{
+      const used=parts.reduce((n,p)=>n+p.w,0)
+      if(parts.length)combos.push(parts)
+      if(parts.length<3)natural.forEach((n,i)=>{if(i>=from&&used+n.w<=length+.01)grow([...parts,n],i)})
+     }
+     grow([],0)
+     for(const parts of combos){
+      const rest=length-parts.reduce((n,p)=>n+p.w,0)
+      const stretched=rest>.01?sequence(start,end,parts.map(p=>({...p,w:p.w+rest/parts.length}))):undefined
+      const option=stretched??sequence(start,end,parts)
+      if(option&&better(option,best))best=option
+     }
+    }
+    for(const {y,type,plan} of best.steps){
+     const id=`packed-${ci}-${left?'L':'R'}-${index}`
+     cells.push(cellAt(y,plan,id));overrides[id]=plan;types[id]=type;index++
+    }
+   }
+   continue
+  }
+  // 通り芯の無い計画は、区間の先頭から元案の間口で詰める。
+  for(const [start,end] of intervals){let y=start
    for(let count=0;count<30&&end-y>=2000;count++){
     const choices:Array<{type:string;plan:UnitPlan39}>=[]
     for(const type of available){
      const key=`${type}:${end-y}:${x1-x0}`;let r=cache.get(key)
-     if(!r&&!base.frameGridY){const sources=['A','B','C'].flatMap(v=>{const p=readUnitPlan(type,v);return p?[p]:[]});r=fitUnitAutomatically(sources,{maxFrontage:end-y,maxDepth:x1-x0});cache.set(key,r)}
-     if(base.frameGridY){
-      for(const stop of [...new Set([...base.frameGridY,end])].filter(v=>v>y+2000&&v<=end+.01)){
-       const w=stop-y,range=unitAreaRange(type),d=Math.min(x1-x0,range?range.max*1e6/w:x1-x0)
-       if(d<Math.min(x1-x0,5000)||!unitAreaAllowed(type,w*d))continue
-       const fixedKey=`frame:${type}:${w}:${d}`;let fixed=cache.get(fixedKey)
-       if(!fixed){const sources=['A','B','C'].flatMap(v=>{const p=readUnitPlan(type,v);return p?[p]:[]});const fitted=fitUnitAutomatically(sources,{maxFrontage:w,maxDepth:d});
-        const fitCandidates=fitted.candidates??(fitted.plan?[fitted.plan]:[])
-        let resized=fitCandidates.map(p=>resizeUnit(p,w,Math.min(d,p.envelope.D))).find(r=>r.valid&&unitAreaAllowed(type,r.plan.envelope.W*r.plan.envelope.D))
-        if(!resized)resized=sources.flatMap(source=>{const p=recomposed(source,{maxFrontage:w,maxDepth:d}).plan;return p?[resizeUnit(p,w,p.envelope.D)]:[]}).find(r=>r.valid&&unitAreaAllowed(type,r.plan.envelope.W*r.plan.envelope.D))
-        fixed=resized?{plan:resized.plan,reasons:[]}:{reasons:['共通通り芯の区画に収まる住戸がありません']};cache.set(fixedKey,fixed)
-       }
-       if(fixed.plan)choices.push({type,plan:fixed.plan})
-      }
-     }else for(const p of r!.candidates??(r!.plan?[r!.plan]:[]))if(unitAreaAllowed(type,p.envelope.W*p.envelope.D))choices.push({type,plan:p})
+     if(!r){const sources=['A','B','C'].flatMap(v=>{const p=readUnitPlan(type,v);return p?[p]:[]});r=fitUnitAutomatically(sources,{maxFrontage:end-y,maxDepth:x1-x0});cache.set(key,r)}
+     for(const p of r.candidates??(r.plan?[r.plan]:[]))if(unitAreaAllowed(type,p.envelope.W*p.envelope.D))choices.push({type,plan:p})
     }
     choices.sort((a,b)=>a.plan.envelope.W-b.plan.envelope.W)
     let added=false
@@ -164,7 +232,7 @@ export function fitFloorUnitsAutomatically(base:AutoPlan,outline:readonly {x:num
      if(c.y1>end+.01||!cellInsideOutline(c,outline)||cells.some(o=>overlaps(c,o))||!placeUnitPlan(type,'A',c,corridor,plan).entrance)continue
      cells.push(c);overrides[id]=plan;types[id]=type;y=c.y1;index++;added=true;break
     }
-    if(!added){const next=base.frameGridY?.find(v=>v>y+.01&&v<end);if(next===undefined)break;y=next}
+    if(!added)break
    }
   }
  }

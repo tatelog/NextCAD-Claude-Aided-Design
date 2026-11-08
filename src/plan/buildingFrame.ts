@@ -32,6 +32,34 @@ function* partitionCandidates(source:UnitPlan39):Generator<UnitPlan39>{
   }
  }
 }
+/** 共通の柱（住戸内の相対位置）に合わせ、開口の移動・間仕切りの候補・家具の再配置で室内を納める。 */
+export function adaptUnitToColumns(unit:UnitPlan39,local:Array<{id:string;x:number;y:number}>):{plan?:UnitPlan39;issues:ReturnType<typeof validateUnitLayout>}{
+   const detail=structuredClone(unit);detail.columns=local;detail.frameAligned=true
+   const obstacles=local.map(columnBox)
+   // 同じ部屋境界上で開口を移動し、幅と接続を維持する。
+   for(const d of detail.doors){if(!obstacles.some(b=>intersects(b,doorReserve(detail,d,600))))continue
+    const original=d.position.start,oldPoint=d.position.orientation==='h'?{x:d.position.start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:d.position.start+d.width/2},oldRooms=detail.rooms.filter(r=>oldPoint.x>=r.x-1&&oldPoint.x<=r.x+r.w+1&&oldPoint.y>=r.y-1&&oldPoint.y<=r.y+r.h+1).map(r=>r.id),limit=d.position.orientation==='h'?detail.envelope.W:detail.envelope.D
+    const candidates=Array.from({length:Math.floor((limit-d.width)/100)+1},(_,i)=>i*100).sort((a,b)=>Math.abs(a-original)-Math.abs(b-original))
+    let found=false
+    for(const start of candidates){d.position.start=start;const q=d.position.orientation==='h'?{x:start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:start+d.width/2};const connected=detail.rooms.filter(r=>q.x>=r.x-1&&q.x<=r.x+r.w+1&&q.y>=r.y-1&&q.y<=r.y+r.h+1);const external=Math.abs(d.position.coord)<1||Math.abs(d.position.coord-(d.position.orientation==='h'?detail.envelope.D:detail.envelope.W))<1
+     if(!oldRooms.every(id=>connected.some(r=>r.id===id))||connected.length<(external?1:2)||obstacles.some(b=>intersects(b,doorReserve(detail,d,600))))continue
+     found=true;break
+    }
+    if(!found)d.position.start=original
+   }
+   const source=structuredClone(detail); let accepted:UnitPlan39|undefined; let issues:ReturnType<typeof validateUnitLayout>=[]
+   for(const candidate of partitionCandidates(source)){
+   const detail=candidate
+   detail.fixtures=placeFurniture(detail,source,600,(room,fixtures)=>{
+    const doors=detail.doors.filter(d=>{const q=d.position.orientation==='h'?{x:d.position.start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:d.position.start+d.width/2};return q.x>=room.x&&q.x<=room.x+room.w&&q.y>=room.y&&q.y<=room.y+room.h}).map(d=>({...d,position:{...d.position,coord:d.position.coord-(d.position.orientation==='h'?room.y:room.x),start:d.position.start-(d.position.orientation==='h'?room.x:room.y)}}))
+    const localPlan={...detail,envelope:{...detail.envelope,W:room.w,D:room.h},rooms:[{...room,x:0,y:0}],doors,fixtures:fixtures.map(f=>({...f,x:f.x-room.x,y:f.y-room.y})),columns:[]}
+    return !validateUnitLayout(localPlan,undefined,obstacles.map(b=>({...b,x:b.x-room.x,y:b.y-room.y}))).some(i=>i.code==='unreachable'||i.code==='usage-unreachable')
+   },new Set(),obstacles)
+   issues=[...validateUnitLayout(detail),...validateUnitLayout(detail,undefined,obstacles)]
+   if(!issues.length){accepted=detail;break}
+   }
+   return {plan:issues.length?undefined:accepted,issues}
+}
 /** 建物の共通柱芯を固定し、各階・各住戸の開口と設備を合わせる。断面は配置検討用600mm。 */
 export function coordinateBuildingFrame(input:Record<number,AutoPlan>):Record<number,AutoPlan>{
  return candidateFrame(input)
@@ -76,30 +104,7 @@ function candidateFrame(input:Record<number,AutoPlan>):Record<number,AutoPlan>{
    // 柱の番号ではなく、住戸内の相対位置で同じ干渉条件を識別する。
    // 採用時には各住戸が参照する実際の柱番号へ戻す。
    const key=JSON.stringify([placed.plan,local.map(c=>({x:c.x,y:c.y}))]),saved=cache.get(key);if(saved){overrides[cell.id]={...structuredClone(saved),columns:local};continue}
-   const detail=structuredClone(placed.plan);detail.columns=local;detail.frameAligned=true
-   const obstacles=local.map(columnBox)
-   // 同じ部屋境界上で開口を移動し、幅と接続を維持する。
-   for(const d of detail.doors){if(!obstacles.some(b=>intersects(b,doorReserve(detail,d,600))))continue
-    const original=d.position.start,oldPoint=d.position.orientation==='h'?{x:d.position.start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:d.position.start+d.width/2},oldRooms=detail.rooms.filter(r=>oldPoint.x>=r.x-1&&oldPoint.x<=r.x+r.w+1&&oldPoint.y>=r.y-1&&oldPoint.y<=r.y+r.h+1).map(r=>r.id),limit=d.position.orientation==='h'?detail.envelope.W:detail.envelope.D
-    const candidates=Array.from({length:Math.floor((limit-d.width)/100)+1},(_,i)=>i*100).sort((a,b)=>Math.abs(a-original)-Math.abs(b-original))
-    let found=false
-    for(const start of candidates){d.position.start=start;const q=d.position.orientation==='h'?{x:start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:start+d.width/2};const connected=detail.rooms.filter(r=>q.x>=r.x-1&&q.x<=r.x+r.w+1&&q.y>=r.y-1&&q.y<=r.y+r.h+1);const external=Math.abs(d.position.coord)<1||Math.abs(d.position.coord-(d.position.orientation==='h'?detail.envelope.D:detail.envelope.W))<1
-     if(!oldRooms.every(id=>connected.some(r=>r.id===id))||connected.length<(external?1:2)||obstacles.some(b=>intersects(b,doorReserve(detail,d,600))))continue
-     found=true;break
-    }
-    if(!found)d.position.start=original
-   }
-   const source=structuredClone(detail); let accepted:UnitPlan39|undefined; let issues:ReturnType<typeof validateUnitLayout>=[]
-   for(const candidate of partitionCandidates(source)){
-   const detail=candidate
-   detail.fixtures=placeFurniture(detail,source,600,(room,fixtures)=>{
-    const doors=detail.doors.filter(d=>{const q=d.position.orientation==='h'?{x:d.position.start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:d.position.start+d.width/2};return q.x>=room.x&&q.x<=room.x+room.w&&q.y>=room.y&&q.y<=room.y+room.h}).map(d=>({...d,position:{...d.position,coord:d.position.coord-(d.position.orientation==='h'?room.y:room.x),start:d.position.start-(d.position.orientation==='h'?room.x:room.y)}}))
-    const localPlan={...detail,envelope:{...detail.envelope,W:room.w,D:room.h},rooms:[{...room,x:0,y:0}],doors,fixtures:fixtures.map(f=>({...f,x:f.x-room.x,y:f.y-room.y})),columns:[]}
-    return !validateUnitLayout(localPlan,undefined,obstacles.map(b=>({...b,x:b.x-room.x,y:b.y-room.y}))).some(i=>i.code==='unreachable'||i.code==='usage-unreachable')
-   },new Set(),obstacles)
-   issues=[...validateUnitLayout(detail),...validateUnitLayout(detail,undefined,obstacles)]
-   if(!issues.length){accepted=detail;break}
-   }
+   const {plan:accepted,issues}=adaptUnitToColumns(placed.plan,local)
    if(issues.length)throw Error(`${floor}階 ${cell.id}：共通柱割りに室内配置が適合しません：${issues.map(i=>i.message+" ("+i.x+","+i.y+")").join('／')}`)
    cache.set(key,accepted!);overrides[cell.id]=accepted!
   }
