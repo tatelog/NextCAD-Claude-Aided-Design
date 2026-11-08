@@ -11,6 +11,7 @@
 | 動かして見る（審査員用） | https://claude-aided-design-relay.ishikawa-yutaka.workers.dev |
 | ログイン | 不要。そのまま使えます（江東区のデータ入り） |
 | デモ動画（3 分） | 準備中 |
+| 開発の記録（Claude Artifacts） | https://claude.ai/artifact/481QiF7X81wJnwyR8in53k — 企画・主張・要件・設計の問い詰めの記録・エビデンス・工程・タスク・セッション台帳。Claude Code の複数のセッションと一緒に、このハブで計画と判断を回しました |
 | テーマ | あなたにしかない深さを |
 | 制作 | 個人 1 名（Built with Claude: Japan 2026） |
 
