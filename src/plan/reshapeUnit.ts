@@ -60,7 +60,9 @@ export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules,obstacl
   (y-radius>=r.y-1||throughOpening('h',r.y,x))&&
   (y+radius<=r.y+r.h+1||throughOpening('h',r.y+r.h,x))
  const nodes=new Map<number,{x:number;y:number;room:number}>()
- for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=xs[i]!,y=ys[j]!,room=roomAt(x,y);if(room<0||!wallClear(x,y,p.rooms[room]!))continue;if([...p.fixtures,...obstacles].some(f=>overlap({x:x-radius,y:y-radius,w:radius*2,h:radius*2},f)))continue;nodes.set(j*nx+i,{x,y,room})}
+ // 什器と障害物の一覧は検査の間に変わらないので 1 回だけ作る（軽くするため。判定は同じ）
+ const blockers=[...p.fixtures,...obstacles]
+ for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=xs[i]!,y=ys[j]!,room=roomAt(x,y);if(room<0||!wallClear(x,y,p.rooms[room]!))continue;if(blockers.some(f=>overlap({x:x-radius,y:y-radius,w:radius*2,h:radius*2},f)))continue;nodes.set(j*nx+i,{x,y,room})}
  const seen=new Set<number>(),queue:number[]=[]
  // 住戸の探索は玄関から始める。室単体の家具配置検査では、その室の外周扉を使う。
  const entrances=openings.filter(({d})=>d.kind==='玄関ドア')
@@ -77,11 +79,12 @@ export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules,obstacl
     return along>=d.position.start+radius-1&&along<=d.position.start+d.width-radius+1
    }))continue
    const swept={x:Math.min(a.x,b.x)-radius,y:Math.min(a.y,b.y)-radius,w:Math.abs(a.x-b.x)+2*radius,h:Math.abs(a.y-b.y)+2*radius}
-   if([...p.fixtures,...obstacles].some(f=>overlap(swept,f)))continue
+   if(blockers.some(f=>overlap(swept,f)))continue
    seen.add(next);queue.push(next)
   }
  }
- for(const r of p.rooms.filter(r=>r.kind==='居室'||r.kind==='水回り'||r.name.includes('玄関')||r.name.includes('廊下')||r.name==='WC'||r.name.includes('浴'))){const rid=p.rooms.indexOf(r),free=[...nodes].filter(([,n])=>n.room===rid);if(!free.length||free.some(([k])=>!seen.has(k)))add('unreachable',`${r.name}: 玄関から通れない領域があります（設計通路幅 ${rules.passage} mm）`,r.x+r.w/2,r.y+r.h/2)}
+ const nodeList=[...nodes]
+ for(const r of p.rooms.filter(r=>r.kind==='居室'||r.kind==='水回り'||r.name.includes('玄関')||r.name.includes('廊下')||r.name==='WC'||r.name.includes('浴'))){const rid=p.rooms.indexOf(r),free=nodeList.filter(([,n])=>n.room===rid);if(!free.length||free.some(([k])=>!seen.has(k)))add('unreachable',`${r.name}: 玄関から通れない領域があります（設計通路幅 ${rules.passage} mm）`,r.x+r.w/2,r.y+r.h/2)}
  // 使用余白は空き面積だけでなく、玄関から歩いて到達できる側を必要とする。
  // 向きが未収録の家具は、使用候補のいずれか一つへ通れることを確認する。
  const reachable=[...seen].map(k=>nodes.get(k)!)
@@ -92,6 +95,7 @@ export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules,obstacl
  }
  return issues
 }
+const roomAccessCache=new Map<string,boolean>()
 export function reshapeUnit(source:UnitPlan39,width:number,rules=defaultLayoutRules){
  return resizeUnit(source,width,source.envelope.W*source.envelope.D/width,rules)
 }
@@ -109,7 +113,11 @@ export function resizeUnit(source:UnitPlan39,width:number,depth:number,rules=def
  plan.fixtures=placeFurniture(plan,source,rules.passage,(room,fixtures)=>{
   const doors=plan.doors.filter(d=>{const q=doorPoint(d);return q.x>=room.x&&q.x<=room.x+room.w&&q.y>=room.y&&q.y<=room.y+room.h}).map(d=>({...d,position:{...d.position,coord:d.position.coord-(d.position.orientation==='h'?room.y:room.x),start:d.position.start-(d.position.orientation==='h'?room.x:room.y)}}))
   const local:UnitPlan39={...plan,envelope:{...plan.envelope,W:room.w,D:room.h},rooms:[{...room,x:0,y:0}],fixtures:fixtures.map(f=>({...f,x:f.x-room.x,y:f.y-room.y})),doors,columns:[]}
-  return !validateUnitLayout(local,rules).some(i=>i.code==='unreachable'||i.code==='usage-unreachable')
+  // 同じ部屋・同じ家具の並びの通行の検査は、寸法の候補の間で何度も出る（約 3 割）。中身をすべて鍵にして結果を使い回す（軽くするため）
+  const key=JSON.stringify([local,rules]);const known=roomAccessCache.get(key);if(known!==undefined)return known
+  const ok=!validateUnitLayout(local,rules).some(i=>i.code==='unreachable'||i.code==='usage-unreachable')
+  if(roomAccessCache.size>20000)roomAccessCache.clear()
+  roomAccessCache.set(key,ok);return ok
  },new Set(fixed.map(f=>f.id)))
  plan.columns=source.columns.map(c=>({...c}))
  const issues=validateUnitLayout(plan,rules)

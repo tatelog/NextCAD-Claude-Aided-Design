@@ -25,12 +25,15 @@ export function placeFurniture(p:UnitPlan39,source:UnitPlan39,passage:number,roo
     const xs=new Set([room.x,room.x+room.w-w,target.x]),ys=new Set([room.y,room.y+room.h-h,target.y])
     for(let x=room.x+100;x+w<=room.x+room.w;x+=100)xs.add(x)
     for(let y=room.y+100;y+h<=room.y+room.h;y+=100)ys.add(y)
-    for(const x of xs)for(const y of ys){const c={...f,x,y,w:w!,h:h!};if(inside(c,room)&&!obstacles.some(o=>intersects(c,o))&&!doors.some(d=>intersects(c,d)))all.push(c)}
+    // 判定は位置と寸法だけで行い、通った候補だけ家具の属性を写す（軽くするため。結果と順序は同じ）
+    for(const x of xs)for(const y of ys){const c={x,y,w:w!,h:h!};if(inside(c,room)&&!obstacles.some(o=>intersects(c,o))&&!doors.some(d=>intersects(c,d)))all.push({...f,x,y,w:w!,h:h!})}
    }
    // 同じ向き・近い座標だけで探索枠を使い切らない。壁沿いと四隅を
    // 両方向で先に試し、中央に動線を残してから細かな位置を調整する。
    const edges=(a:Box)=>Number(Math.abs(a.x-room.x)<1||Math.abs(a.x+a.w-room.x-room.w)<1)+Number(Math.abs(a.y-room.y)<1||Math.abs(a.y+a.h-room.y-room.h)<1)
-   return all.sort((a,b)=>edges(b)-edges(a)||Math.hypot(a.x-target.x,a.y-target.y)-Math.hypot(b.x-target.x,b.y-target.y))
+   // 並べ替えの鍵（壁に接する数・元位置からの距離）は候補ごとに 1 回だけ求める。比べ方と安定な並べ替えは元のまま
+   const keyed=all.map(a=>({a,e:edges(a),d:Math.hypot(a.x-target.x,a.y-target.y)}))
+   return keyed.sort((m,n)=>n.e-m.e||m.d-n.d).map(k=>k.a)
   })
   const accepted:typeof p.fixtures=[],reserved:Box[]=[];let visits=0,leaves=0
   const search=(i:number):boolean=>{

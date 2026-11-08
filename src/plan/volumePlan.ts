@@ -17,7 +17,8 @@ import {masterOf} from './unitTypeMaster'
 import candidates from './unitTypeCandidates.json'
 export interface VolumePlan {source:string; span:number; plans:Record<number,AutoPlan>}
 export interface VolumePlanConfig {selectedLayoutOnly?:boolean;balconyDepth?:number;allowedTypeIds?:readonly string[];minimumFamilyRatio?:number;minimumUnitsPerFloor?:Readonly<Record<string,number>>;layout:CorridorLayout;span:number;corridor:number;unitDepth:number;people?:number;residents?:number;uniformDepth?:boolean;coreMode?:'従来'|'回転集約'}
-export function prepareVolumePlan(volume:SiteVolume,boundaries:SlopeBoundary[],config:VolumePlanConfig):VolumePlan {
+/** unitFitCache: 住戸の当てはめの結果の控え。鍵は計算の入力をすべて含むので、寸法の候補を続けて調べるとき（compactPlan）に渡して使い回せる */
+export function prepareVolumePlan(volume:SiteVolume,boundaries:SlopeBoundary[],config:VolumePlanConfig,unitFitCache=new Map<string,ReturnType<typeof fitUnitAutomatically>>()):VolumePlan {
  validateUnitMix(config.minimumUnitsPerFloor??{})
  if(config.minimumFamilyRatio!==undefined)familyShareIssue({},[],config.minimumFamilyRatio)
  const inherited=inheritedFloors(volume,boundaries)
@@ -33,7 +34,6 @@ export function prepareVolumePlan(volume:SiteVolume,boundaries:SlopeBoundary[],c
   : [Math.min(config.unitDepth,reservation.unitDepth)]
  let best:Record<number,AutoPlan>|undefined,bestScore:LayoutPreference|undefined
  const failures=new Set<string>()
- const unitFitCache=new Map<string,ReturnType<typeof fitUnitAutomatically>>()
  const family=types.filter(t=>t.ldk>0&&t.bedrooms>=2)
  const groups=config.minimumFamilyRatio===1?[family]:family.length&&!config.uniformDepth?[types,family]:[types]
  const countPolicies=!!config.allowedTypeIds||config.minimumFamilyRatio!==undefined||Object.values(config.minimumUnitsPerFloor??{}).some(n=>n>0)?[false,true]:[false]
