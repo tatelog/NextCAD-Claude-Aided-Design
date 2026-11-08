@@ -1,5 +1,5 @@
-// 設計からの引継ぎを表示し、残る申請情報だけ編集する。
-// 「はい・いいえ」の項目は「未入力」「はい」「いいえ」から選ぶ。既定は未入力（統括の指示 2026-11-06）。
+// 設計からの引継ぎを表示する（構造・用途は固定、昇降機・建築設備・日影規制区域はほかの画面から写す）。
+// 構造計算・代理申請・BIM 申請・認定部材の「はい・いいえ」は出さない（代表の決定 2026-11-08。関わる書類は一覧で要確認のまま残す）。
 // 構造と用途は選ばせず、固定の値を表示だけする（このアプリの対象は RC 造の板状マンション。統括の指示 2026-11-06）。
 import { APP_STRUCTURE, APP_USAGE, type PermitProject } from '../law/permitInput'
 
@@ -9,7 +9,6 @@ export function PermitProjectFields({
 }: {
   inherited?:Partial<Record<keyof PermitProject,string>>
   project: PermitProject
-  onChange: <K extends keyof PermitProject>(key: K, value: PermitProject[K]) => void
 }) {
   return (
     <>

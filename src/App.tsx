@@ -42,7 +42,7 @@ import { chatTransportOf, contextInputOf } from './chat/chatTransport'
 import { CHAT_MODEL_DEFAULT } from './chat/chatRequest'
 import { useSemantic } from './store/semantic'
 import { useUndoKeys } from './ui/useUndoKeys'
-import { SCREENS, type ScreenId } from './app/screenTabs'
+import { ALL_REACHED, lockReasonOf, reachedAfterNext, SCREENS, screenOpen, type ScreenId } from './app/screenTabs'
 import { creditRowsOf } from './data/sources'
 import { useDevTools } from './store/devTools'
 
@@ -60,6 +60,8 @@ export function App() {
   const setPlanZoom = usePlanZoom(s=>s.setZoom)
   const tutorialActive=useTutorial(s=>s.active)
   const [screen, setScreen] = useState<ScreenId>('P1')
+  // 画面の順番（代表の決定 2026-11-08）: 「次へ」を押した画面まで開ける。先の画面へ一足飛びに移れない
+  const [reached, setReached] = useState(0)
   // 開発用の道具（☰ の切替。既定は隠す）
   const devShown = useDevTools((s) => s.shown)
   const setDevShown = useDevTools((s) => s.setShown)
@@ -151,6 +153,12 @@ export function App() {
     setRev((r) => r + 1)
   }
 
+  // 「次へ」: 次の画面まで開けてから移る
+  const next = (id: ScreenId) => {
+    setReached((r) => reachedAfterNext(r, id))
+    go(id)
+  }
+
   // 作業履歴の行の時点に戻す（線・階数・階高・什器。案件名は今のまま）。戻したことも行に残る
   const restoreRow = (id: number) => {
     const json = snapshotOfWorkLogRow(id)
@@ -203,6 +211,7 @@ export function App() {
     try {
       const p = parseSaveData(JSON.parse(await file.text()))
       applyLoadedProject(p)
+      setReached(ALL_REACHED)
       setProject(p.projectName)
         setLoadMessage(`「${p.projectName}」を読み込みました`)
       record('読み込み', p.projectName)
@@ -229,8 +238,10 @@ export function App() {
             type="button"
             className={screen === s.id ? 'is-active' : undefined}
             aria-pressed={screen === s.id}
+            disabled={!screenOpen(s.id, reached)}
+            title={lockReasonOf(s.id, reached) ?? undefined}
             onClick={() => go(s.id)}
-            style={{ ...button, background: screen === s.id ? '#1f2a44' : '#fff', color: screen === s.id ? '#fff' : '#1f2a44' }}
+            style={{ ...button, background: screen === s.id ? '#1f2a44' : '#fff', color: screen === s.id ? '#fff' : '#1f2a44', opacity: screenOpen(s.id, reached) ? 1 : 0.4, cursor: screenOpen(s.id, reached) ? 'pointer' : 'not-allowed' }}
           >
             {s.name}
           </button>
@@ -285,10 +296,10 @@ export function App() {
 
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         <Tutorial screen={screen} />
-        {screen === 'P1' && <P1Site onNext={() => go('P2')} />}
-        {screen === 'P2' && <P03Volume onNext={() => go('P3')} onSelectSite={() => go('P1')} />}
-        {screen === 'P3' && <P3Plan onNext={() => go('P4')} />}
-        {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
+        {screen === 'P1' && <P1Site onNext={() => next('P2')} />}
+        {screen === 'P2' && <P03Volume onNext={() => next('P3')} onSelectSite={() => go('P1')} />}
+        {screen === 'P3' && <P3Plan onNext={() => next('P4')} />}
+        {screen === 'P4' && <P4Estimate onNext={() => next('P5')} />}
         {screen === 'P5' && <P5Output projectName={project} />}
         {panel !== null && (
           <aside className={panel === 'menu' ? 'app-menu' : undefined} ref={menuRef} aria-label={panel === 'menu' ? 'メニュー' : '作業履歴'} style={{ position: 'absolute', ...(panel === 'menu' ? { top: 8, right: 8, width: 380, maxWidth: 'calc(100% - 16px)', maxHeight: 'calc(100% - 16px)', boxSizing: 'border-box', border: '1px solid #ddd8cc', borderRadius: 10, boxShadow: '0 8px 28px #1f2a4433', overflowWrap: 'anywhere' } : { top: 0, right: 0, bottom: 0, width: 320, borderLeft: '1px solid #ddd8cc' }), background: '#fff', padding: 12, overflowY: 'auto', zIndex: 5 }}>
