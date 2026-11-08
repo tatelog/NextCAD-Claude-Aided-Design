@@ -1,4 +1,4 @@
-# built-with-claude-japan-2026-toyo — リポジトリガイド（コーディングエージェント向け）
+# NextCAD-Claude-Aided-Design — リポジトリガイド（コーディングエージェント向け）
 
 Built with Claude: Japan 2026（Anthropic / Cerebral Valley）の提出用リポジトリ。**公開**。個人1名での参加。
 
