@@ -58,6 +58,17 @@ describe('返答（仕様 1・2）', () => {
     await chatReply({ ...body, model: 'model-under-test' }, { ANTHROPIC_API_KEY: 'k' }, fetchImpl)
     expect(models).toEqual(['claude-haiku-5-5', 'claude-haiku-5-5'])
   })
+
+  // 仕様（統括 2026-11-08）: 道具を強制するので、思考（thinking）を切る指定を送る（claude-haiku-5-5 は既定で思考が入るため）
+  it('道具を強制するので、思考を切る指定（thinking: disabled）を送る', async () => {
+    let sent: { thinking?: unknown } | null = null
+    const fetchImpl = async (_url: string, init: RequestInit) => {
+      sent = JSON.parse(String(init.body))
+      return toolUse(ok)
+    }
+    await chatReply(body, { ANTHROPIC_API_KEY: 'k' }, fetchImpl)
+    expect(sent!.thinking).toEqual({ type: 'disabled' })
+  })
 })
 
 describe('検査（仕様 3）', () => {

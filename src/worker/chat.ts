@@ -41,6 +41,8 @@ export async function chatReply(body: ChatBody, env: Env, fetchImpl: FetchLike):
     messages: body.messages,
     tools: [OPERATIONS_TOOL],
     tool_choice: { type: 'tool', name: OPERATIONS_TOOL.name },
+    // claude-haiku-5-5 は既定で思考が入り、道具の強制と同時に使えないので切る（統括 2026-11-08）
+    thinking: { type: 'disabled' },
   }
   let last: unknown = null
   for (let attempt = 1; attempt <= 2; attempt++) {

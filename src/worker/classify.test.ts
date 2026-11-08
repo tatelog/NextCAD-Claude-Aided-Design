@@ -48,6 +48,8 @@ describe('classifySegments（Worker 中継）', () => {
     const body = JSON.parse(String(calls[0]!.init.body))
     expect(body.model).toBe('claude-haiku-5-5')
     expect(body.tool_choice).toEqual({ type: 'tool', name: 'classify_segments' })
+    // 仕様（統括 2026-11-08）: claude-haiku-5-5 は既定で思考（thinking）が入り、道具の強制（tool_choice: tool）と同時に使えない。思考を切る指定を必ず送る
+    expect(body.thinking).toEqual({ type: 'disabled' })
     const kindEnum = body.tools[0].input_schema.properties.segments.items.properties.kind.enum
     expect(kindEnum).toEqual(['wall', 'column', 'beam', 'opening', 'grid', 'room', 'other'])
     expect(JSON.stringify(body)).not.toContain('test-key-not-real')

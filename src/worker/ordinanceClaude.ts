@@ -48,6 +48,8 @@ function buildBody(req: OrdinanceRequest) {
     max_tokens: 1024,
     tools: [TOOL],
     tool_choice: { type: 'tool', name: TOOL_NAME },
+    // claude-haiku-5-5 は既定で思考が入り、道具の強制と同時に使えないので切る（統括 2026-11-08）
+    thinking: { type: 'disabled' },
     messages: [
       {
         role: 'user',
