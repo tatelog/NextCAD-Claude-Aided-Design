@@ -60,6 +60,15 @@ export function arrangeCirculation(base:AutoPlan,outlines:readonly (readonly Poi
  if(base.layout==='階段室')throw new Error('この廊下形式の共用動線の自動配置は未対応です。中廊下または片廊下を選択してください。')
  const stairDepth=options.rotateStairs?6000:3000,stairLength=options.rotateStairs?3000:6000
  const corridor=base.corridor,D=base.depthMm
+ // 柱を欠かずにコアを納める。600mm角の柱面間に必要寸法を確保する。
+ const grid=base.frameGridY?.map(y=>Math.max(300,Math.min(D-300,y)))
+ const corePositions=(length:number,target:number):number[]=>{
+  if(!grid)return [target]
+  return grid.slice(0,-1).flatMap((y,i)=>{
+   const start=y+300,end=grid[i+1]!-300-length
+   return end>=start?[Math.max(start,Math.min(end,target))]:[]
+  }).sort((a,b)=>Math.abs(a-target)-Math.abs(b-target))
+ }
  const corridors=base.corridors??[corridor]
  const passageWidth=Math.max(...corridors.map(r=>r.x1-r.x0)),lobbyWidth=Math.max(1800,passageWidth),hallWidth=2400+lobbyWidth
  const twin=base.layout==='ツイン'
@@ -74,9 +83,9 @@ export function arrangeCirculation(base:AutoPlan,outlines:readonly (readonly Poi
  const sidePairs:readonly (readonly [-1|1,-1|1])[]=options.stairSides?[options.stairSides]:[[-1,-1],[1,1],[-1,1],[1,-1]]
  const candidates=sidePairs.map(sides=>({sides,stairs:sides.map((side,i)=>{
   const adjacent=twin&&side>0?corridors[1]!:corridor
-  const x0=side<0?adjacent.x0-stairDepth:adjacent.x1,y0=i===0?0:D-stairLength
+  const x0=side<0?adjacent.x0-stairDepth:adjacent.x1,y0=corePositions(stairLength,i===0?0:D-stairLength)[0]??NaN
   return {id:i===0?'stairA':'stairB',x0,x1:x0+stairDepth,y0,y1:y0+stairLength} as AutoCore
- })})).filter(candidate=>candidate.stairs.every(fits))
+ })})).filter(candidate=>candidate.stairs.every(r=>Number.isFinite(r.y0)&&fits(r)))
  if(!candidates.length)throw new Error('全階の共通位置に2か所の階段を確保できません。外形を調整してください。')
  if(candidates.length>1){
   let best:{plans:Record<number,AutoPlan>}|undefined,score:LayoutPreference|undefined,lastError:unknown
@@ -102,7 +111,7 @@ export function arrangeCirculation(base:AutoPlan,outlines:readonly (readonly Poi
   const hallCandidates=options.clusterElevator
    ? stairs.map((stair,i)=>({side:stair.x1===corridor.x0?-1:1,y0:i===0?stair.y1:stair.y0-length})).filter((_,i)=>options.elevatorEnd===undefined||i===options.elevatorEnd)
    : (twin?[-1]:[1,-1]).map(side=>({side,y0:Math.floor((D-length)/2)}))
-  let hall=count?hallCandidates.map(({side,y0})=>({id:'evHall' as const,x0:side>0?corridor.x1:corridor.x0-hallWidth,x1:side>0?corridor.x1+hallWidth:corridor.x0,y0,y1:y0+length,evCount:count})).find(r=>fits(r)&&stairs.every(stair=>!intersects(r,stair))):undefined
+  let hall=count?hallCandidates.flatMap(({side,y0:target})=>corePositions(length,target).map(y0=>({id:'evHall' as const,x0:side>0?corridor.x1:corridor.x0-hallWidth,x1:side>0?corridor.x1+hallWidth:corridor.x0,y0,y1:y0+length,evCount:count}))).find(r=>fits(r)&&stairs.every(stair=>!intersects(r,stair))):undefined
   const right=hall?hall.x0===corridor.x1:true
   let lobby:Rect=hall?{...hall,id:'ev-lobby',x0:right?hall.x0:hall.x1-lobbyWidth,x1:right?hall.x0+lobbyWidth:hall.x1}:{id:'no-lobby',x0:0,x1:0,y0:0,y1:0}
   let liftShafts:Rect[]=hall?Array.from({length:count},(_,i)=>({id:`lift-${i+1}`,x0:right?lobby.x1:hall!.x0,x1:right?hall!.x1:lobby.x0,y0:hall!.y0+i*2500,y1:hall!.y0+(i+1)*2500})):[]
@@ -136,7 +145,11 @@ export function arrangeCirculation(base:AutoPlan,outlines:readonly (readonly Poi
   finalPlans=Object.fromEntries(outlines.map((o,i)=>[i+1,fitFloorUnitsAutomatically(prepared,o,unitFitCache)]))
   finalPlans=alignUnitStacks(finalPlans)
   const units=Object.values(finalPlans).reduce((n,p)=>n+p.cells.length,0)
-  if(!units)throw new Error('配置できる住戸がありません。住戸詳細・外形・共用部の条件を確認してください')
+  if(!units){
+   const reasons=[...new Set(Object.values(finalPlans).flatMap(p=>Object.values(p.automaticUnitRejections??{}).flat()))]
+   if(!connected.length)reasons.push(cells.length?'動線：共用廊下につながる住戸区画がありません':'配置：階段・EVと重ならない住戸区画がありません')
+   throw new Error(`配置候補を採用できません：${reasons.length?reasons.join('／'):'上下階の住戸・シャフト整合後に配置候補が残りませんでした'}`)
+  }
   const upperUnits=Object.entries(finalPlans).filter(([f])=>Number(f)>1).reduce((n,[,p])=>n+p.cells.length,0)
   const residents=totalResidents??Math.ceil(units*peoplePerUnit)
   const upperResidents=totalResidents===undefined?Math.ceil(upperUnits*peoplePerUnit):Math.ceil(totalResidents*(units?upperUnits/units:upperFraction))

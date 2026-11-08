@@ -1,3 +1,4 @@
+import {ResizableSidebar,useRightPanelWidth} from './ResizableSidebar'
 import { loadRoadData, useRoadData } from '../store/roadData'
 import { associateRoads, roadLinkText, ROAD_DATA_SOURCE } from '../map/roadAssociation'
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
@@ -33,6 +34,7 @@ const DEFAULT = DEMO_SITE
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
 export function P1Site({ onNext }: { onNext?: () => void } = {}) {
+  const rightPanelWidth=useRightPanelWidth(s=>s.width)
   const devShown = useDevTools((s) => s.shown)
   // 開き直すときは、店舗の今いる地点から始める（既定の地点に戻すと、確定のあとに確定し直しになる。統括の依頼 2026-11-06。1）
   const startSite = startSiteOf(useConfirmedSite.getState().currentSite, DEFAULT)
@@ -185,7 +187,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
   const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P1', hiddenTiles, id)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${rightPanelWidth}px`, height: '100%' }}>
       <div data-tutorial="site-map" style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
         <P1Map
           center={center}
@@ -202,10 +204,10 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
           }}
         />
       </div>
-      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+      <ResizableSidebar style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12, marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
-          <button data-tutorial="site-confirm" type="button" onClick={confirmSite} disabled={site === null} title="この敷地で確定" style={{ fontWeight: 700 }}>この敷地で確定</button>
+          <button data-tutorial="site-confirm" type="button" onClick={confirmSite} disabled={site === null} title="次へ（ボリュームモデル構築へ）" style={{ width: '100%', padding: 8, border: '1px solid #1f2a44', borderRadius: 6, background: '#1f2a44', color: '#fff', font: 'inherit', cursor: site === null ? 'not-allowed' : 'pointer', opacity: site === null ? 0.45 : 1 }}>次へ（ボリュームモデル構築へ）</button>
         </div>
 
         <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
@@ -360,7 +362,7 @@ export function P1Site({ onNext }: { onNext?: () => void } = {}) {
             <ChatTile screen="P1" />
           </PanelTile>
         )}
-      </aside>
+      </ResizableSidebar>
     </div>
   )
 }

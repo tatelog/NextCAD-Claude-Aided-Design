@@ -18,6 +18,7 @@ export interface ObjectCore {
 }
 
 export interface ObjectTableInput {
+  columns?: readonly Point[]
   /** 住戸の区画（住戸は一行のグループ） */
   cells: readonly Rect[]
   /** 部屋（ID は住戸の ID で始まる） */
@@ -84,6 +85,7 @@ export function objectTableOf(input: ObjectTableInput): ObjectRow[] {
   if (input.outline && input.outline.length >= 3) rows.push({ id: 'outline', kind: 'other', attr: '外形', name: '外形', parent_id: null, area_m2: null, quantity: null })
   if (input.siteBoundary) rows.push({ id: 'parcel', kind: 'other', attr: '筆界', name: '筆界', parent_id: null, area_m2: null, quantity: null })
   ;(input.gridLines ?? []).forEach((_, i) => rows.push({ id: `grid-${i}`, kind: 'grid', attr: '通り芯', name: `通り芯 ${i + 1}`, parent_id: null, area_m2: null, quantity: null }))
+  for(const [i,c] of (input.columns??[]).entries())rows.push({id:`column-${i}`,kind:'column',attr:'計画柱',name:`計画柱 ${i+1} (${c.x}, ${c.y})`,parent_id:null,area_m2:null,quantity:1})
   for (const f of input.fixtures) {
     const parent = f.unitId !== null && unitIds.has(f.unitId) ? f.unitId : null
     rows.push({ id: f.id, kind: FIXTURE_KIND, attr: FIXTURE_ATTRIBUTE, name: fixtureLabel(f.item), parent_id: parent, area_m2: null, quantity: 1 })

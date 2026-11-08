@@ -1,4 +1,4 @@
-// 躯体の数量（ハブ A-03 G63・D-02 C8）。床版（スラブ）の面積と、床版の下面の型枠の面積。厚さと体積・鉄筋は拾い方が未決のため出さない。決定論。
+// 躯体の数量（ハブ A-03 G63・D-02 C8）。床版面積・下面型枠・指定厚200mmのコンクリート体積・概算鉄筋量。
 // 開口（階段・EV）の控除は未決なので、控除していない面積には仮置きの印を立てる。
 import type { Point } from '../geom/viewport'
 import { polygonAreaMm2 } from '../geom/polygon'
@@ -8,8 +8,9 @@ import { DEFAULT_REBAR, REBAR_BASE_T_PER_M3, rebarTPerM3, type RebarCondition } 
 const M2 = 1_000_000
 const M3 = 1_000_000_000
 
-/** 床版の厚さ（mm）の既定。出典が無いので仮置き（A-07 で確認するまで） */
-export const SLAB_THICKNESS_MM = 150
+/** 床版の厚さ（mm）は利用者指定の計画条件 */
+export { SLAB_THICKNESS_MM } from '../plan/buildingDimensions'
+import { SLAB_THICKNESS_MM } from '../plan/buildingDimensions'
 
 /** 鉄筋の量（t/m³）の既定（基準の被り厚 30 mm・重ね継手）。出典が無いので仮置き（A-07 で確認するまで） */
 export const REBAR_T_PER_M3 = REBAR_BASE_T_PER_M3
@@ -31,7 +32,7 @@ export function structureQuantities(
     slab: { item: '床版（スラブ）', category: '躯体', quantity: areaM2, unit: 'm2', provisional: true },
     // 床版の下面の型枠は、床版と同じ面積（型枠の厚さや支保工は含めない）
     formwork: { item: '型枠（床版の下面）', category: '躯体', quantity: areaM2, unit: 'm2', provisional: true },
-    // コンクリートの体積 = 面積 × 厚さ × 階数（厚さは仮置き）
+    // コンクリートの体積 = 各階の床版面積の合計 × 指定厚
     concrete: {
       item: 'コンクリート（床版）',
       category: '躯体',

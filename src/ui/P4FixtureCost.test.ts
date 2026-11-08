@@ -94,11 +94,13 @@ const UNPRICED_NOTE = '単価が未入力の什器は合計に入れていない
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
-const textOf = (html: string): string => html.replace(/<[^>]*>/g, '')
-// 右パネル（「工事原価（概算）」の見出しから後ろ）の文字
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので文字に入れない（代表の指示『トグルでリスト化』2026-11-07）
+const textOf = (html: string): string => html.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '')
+// 右パネル（合計の見出しから後ろ）の文字。見出しは「計上済み金額（概算）」に変わった（Codex の版。代表の決定 2026-11-07 で今の版を正とする）。
+// 「工事原価（概算）」は什器の欄の説明文にも出るので、合計の見出しで切る。画面で、キッチン 40 台に 10 万円を入れると合計が 400 万円増えることを確かめた（2026-11-08）
 const panelOf = (html: string): string => {
   const text = textOf(html)
-  return text.slice(text.lastIndexOf('工事原価（概算）'))
+  return text.slice(text.lastIndexOf('計上済み金額（概算）'))
 }
 // 右パネルの合計（見出しの次に出る最初の金額）
 const totalOf = (panel: string): number => {

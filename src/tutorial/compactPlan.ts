@@ -1,3 +1,5 @@
+import {DEFAULT_BALCONY_DEPTH} from '../plan/balconyPlan'
+import {layoutMetrics} from '../plan/layoutQuality'
 import type {Point} from '../geom/viewport'
 import type {SlopeBoundary} from '../volume/slope'
 import {placementAllowed} from '../volume/placementGuard'
@@ -7,8 +9,7 @@ import type {AutoPlan} from '../plan/autoPlan'
 import {masterOf} from '../plan/unitTypeMaster'
 import candidates from '../plan/unitTypeCandidates.json'
 export function unusedArea(plan:AutoPlan){
- const area=(r:{x0:number;x1:number;y0:number;y1:number})=>Math.max(0,r.x1-r.x0)*Math.max(0,r.y1-r.y0)
- return Math.max(0,plan.widthMm*plan.depthMm-plan.cells.reduce((n,r)=>n+area(r),0)-area(plan.corridor)-plan.cores.reduce((n,r)=>n+area(r),0))/1e6
+ return layoutMetrics({1:plan}).unassignedM2
 }
 export function compactPlan(from:readonly Point[],lot:readonly Point[],boundaries:SlopeBoundary[],storeys:number,height:number){
  const d=outlineDimensions(from)
@@ -17,7 +18,7 @@ export function compactPlan(from:readonly Point[],lot:readonly Point[],boundarie
  let best:{footprint:Point[];width:number;depth:number;unitDepth:number;unused:number;units:number;ratio:number}|null=null
  const unitDepths=[...new Set(masterOf(candidates).map(t=>t.depth_mm).filter((n):n is number=>n!==null&&Number.isFinite(n)&&n>0))]
  for(const unitDepth of unitDepths)for(let depth=Math.max(18000,maxLength-8000);depth<=maxLength;depth+=1000){
-  const width=2*unitDepth+1600,footprint=resizeDimensions(from,width,depth)
+  const width=2*unitDepth+1600+2*DEFAULT_BALCONY_DEPTH,footprint=resizeDimensions(from,width,depth)
   if(!placementAllowed(lot,footprint,6))continue
   try{
    const candidate=prepareVolumePlan({footprint,storey_count:storeys,storey_height:height},boundaries,{layout:'中廊下',span:3000,unitDepth,corridor:1600,uniformDepth:true})

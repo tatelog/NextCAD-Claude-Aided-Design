@@ -1,3 +1,4 @@
+import {wetAccessIssues} from './wetAccess'
 import {placeFurniture,doorReserve} from './furniturePlacement'
 import {partitionAxis,availableUsage,usageCandidates} from './partitionConstraints'
 import type {UnitPlan39} from './unitPlan39'
@@ -8,9 +9,10 @@ export const defaultLayoutRules:LayoutRules={passage:600,roomWidth:1800,roomArea
 const overlap=(a:Box,b:Box)=>Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x)>1&&Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y)>1
 const inside=(a:Box,b:Box)=>a.x>=b.x-1&&a.y>=b.y-1&&a.x+a.w<=b.x+b.w+1&&a.y+a.h<=b.y+b.h+1
 const doorPoint=(d:UnitPlan39['doors'][number])=>d.position.orientation==='h'?{x:d.position.start+d.width/2,y:d.position.coord}:{x:d.position.coord,y:d.position.start+d.width/2}
-export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules):LayoutIssue[]{
- const issues:LayoutIssue[]=[];const add=(code:string,message:string,x:number,y:number)=>issues.push({code,message,x,y})
+export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules,obstacles:Box[]=[]):LayoutIssue[]{
+ const issues:LayoutIssue[]=wetAccessIssues(p);const add=(code:string,message:string,x:number,y:number)=>issues.push({code,message,x,y})
  const envelope={x:0,y:0,w:p.envelope.W,h:p.envelope.D}
+ for(const b of obstacles){if(p.fixtures.some(f=>overlap(f,b)))add("column-fixture","柱と設備が干渉",b.x,b.y);if(p.doors.some(d=>overlap(doorReserve(p,d,rules.passage),b)))add("column-door","柱と開口が干渉",b.x,b.y)}
  for(const r of p.rooms){
   if(!inside(r,envelope))add('outside',`${r.name}が住戸外に出ています`,r.x,r.y)
   if((r.name==='WC'||r.name.includes('トイレ'))&&!(Math.min(r.w,r.h)>=rules.toiletWidth&&Math.max(r.w,r.h)>=rules.toiletDepth))add('minimum-size',`${r.name}: ${rules.toiletWidth}×${rules.toiletDepth} mmを確保できません`,r.x,r.y)
@@ -38,7 +40,7 @@ export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules):Layout
  const step=150,radius=rules.passage/2
  const axis=(extent:number,orientation:'h'|'v')=>{
   const points=new Set<number>();for(let x=radius;x<=extent-radius;x+=step)points.add(x)
-  for(const b of [...p.rooms,...p.fixtures]){
+  for(const b of [...p.rooms,...p.fixtures,...obstacles]){
    const start=orientation==='h'?b.x:b.y,end=start+(orientation==='h'?b.w:b.h)
    for(const edge of [start,end]){points.add(edge-radius);points.add(edge+radius)}
   }
@@ -58,7 +60,7 @@ export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules):Layout
   (y-radius>=r.y-1||throughOpening('h',r.y,x))&&
   (y+radius<=r.y+r.h+1||throughOpening('h',r.y+r.h,x))
  const nodes=new Map<number,{x:number;y:number;room:number}>()
- for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=xs[i]!,y=ys[j]!,room=roomAt(x,y);if(room<0||!wallClear(x,y,p.rooms[room]!))continue;if(p.fixtures.some(f=>overlap({x:x-radius,y:y-radius,w:radius*2,h:radius*2},f)))continue;nodes.set(j*nx+i,{x,y,room})}
+ for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=xs[i]!,y=ys[j]!,room=roomAt(x,y);if(room<0||!wallClear(x,y,p.rooms[room]!))continue;if([...p.fixtures,...obstacles].some(f=>overlap({x:x-radius,y:y-radius,w:radius*2,h:radius*2},f)))continue;nodes.set(j*nx+i,{x,y,room})}
  const seen=new Set<number>(),queue:number[]=[]
  // 住戸の探索は玄関から始める。室単体の家具配置検査では、その室の外周扉を使う。
  const entrances=openings.filter(({d})=>d.kind==='玄関ドア')
@@ -75,7 +77,7 @@ export function validateUnitLayout(p:UnitPlan39,rules=defaultLayoutRules):Layout
     return along>=d.position.start+radius-1&&along<=d.position.start+d.width-radius+1
    }))continue
    const swept={x:Math.min(a.x,b.x)-radius,y:Math.min(a.y,b.y)-radius,w:Math.abs(a.x-b.x)+2*radius,h:Math.abs(a.y-b.y)+2*radius}
-   if(p.fixtures.some(f=>overlap(swept,f)))continue
+   if([...p.fixtures,...obstacles].some(f=>overlap(swept,f)))continue
    seen.add(next);queue.push(next)
   }
  }
@@ -115,3 +117,4 @@ export function resizeUnit(source:UnitPlan39,width:number,depth:number,rules=def
  for(const old of source.rooms.filter(r=>r.name.includes('浴'))){const r=plan.rooms.find(r=>r.id===old.id)!;if(!((r.w>=old.w&&r.h>=old.h)||(r.w>=old.h&&r.h>=old.w)))issues.push({code:'bath-size',message:`${r.name}: 元案の浴室寸法 ${old.w}×${old.h} mmを確保できません`,x:r.x,y:r.y})}
  return {plan,issues,valid:issues.length===0}
 }
+

@@ -32,7 +32,7 @@ export function Tutorial({screen}:{screen:string}){
   window.addEventListener('tutorial-site-inspected',advance)
   const action=(e:Event)=>{if((e as CustomEvent).detail===step.target)setIndex(Math.min(index+1,tutorialSteps.length-1))}
   window.addEventListener('tutorial-action',action)
-  const allowed=(target:EventTarget|null)=>target instanceof Element&&(!!target.closest('[data-tutorial-controls]')||!!target.closest('[data-tutorial-exit]')||!!target.closest('[role=alert]')||((screen==='P3'||screen==='P4')&&!!target.closest('[data-tutorial-review]'))||((step.target==='tutorial-fit')&&!!target.closest('[data-tutorial="volume-dimensions"]'))||(step.target!=='site-selected'&&!!target.closest(`[data-tutorial="${step.target}"]`)&&(step.target!=='tutorial-draw'||!target.closest('button')||!!target.closest('[aria-label="オブジェクトの寸法入力"]'))))
+  const allowed=(target:EventTarget|null)=>target instanceof Element&&(!!target.closest('[data-tutorial-controls]')||!!target.closest('[data-tutorial-exit]')||!!target.closest('[role=alert]')||((screen==='P3'||screen==='P4')&&!!target.closest('[data-tutorial-review]'))||(step.target!=='site-selected'&&!!target.closest(`[data-tutorial="${step.target}"]`)&&(step.target!=='tutorial-draw'||!target.closest('button')||!!target.closest('[aria-label="オブジェクトの寸法入力"]'))))
   const block=(e:Event)=>{if(screen==='P5'&&e.target instanceof HTMLAnchorElement&&e.target.download&&e.target.href.startsWith('blob:'))return;if(e.type==='wheel'&&(screen==='P3'||screen==='P4'))return;if(e instanceof KeyboardEvent&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.stopImmediatePropagation();return}if(allowed(e.target))return;if(e instanceof KeyboardEvent&&e.key==='Escape')return;e.preventDefault();e.stopImmediatePropagation()}
   const events=['pointerdown','pointerup','mousedown','mouseup','click','dblclick','wheel','touchstart','touchmove','keydown','keyup','contextmenu']
   events.forEach(name=>window.addEventListener(name,block,{capture:true,passive:false}))
@@ -45,7 +45,8 @@ export function Tutorial({screen}:{screen:string}){
  const width=Math.min(320,viewport.width-24)
  const left=rect&&rect.width<viewport.width*.6&&rect.left>width+32?rect.left-width-28:Math.max(12,viewport.width-width-330)
  const top=Math.max(70,Math.min(rect?rect.top+20:100,viewport.height-300))
- const x=rect?Math.max(8,Math.min(viewport.width-8,rect.left+rect.width/2)):left
+ const stopBeforeTarget=false
+ const x=rect?Math.max(8,Math.min(viewport.width-8,stopBeforeTarget?rect.left-10:rect.left+rect.width/2)):left
  const y=rect?Math.max(8,Math.min(viewport.height-8,rect.top+(step.target==='site-selected'?rect.height:Math.min(rect.height/2,120)))):top
  const correct=step.screen===screen
  return createPortal(<>

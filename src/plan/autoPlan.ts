@@ -79,6 +79,13 @@ export interface ShaftRect {
 }
 
 export interface AutoPlan {
+  /** 住戸割付に先行する建物共通の長手方向グリッド（mm）。 */
+  frameGridY?: number[]
+  frameUnitTypeIds?: string[]
+  buildingColumns?: {id:string;x:number;y:number}[]
+  balconies?: import('./balconyPlan').BalconyRect[]
+  balconyDepthMm?: number
+  balconyEnvelope?: readonly {x:number;y:number}[]
   corridors?: Rect[]
   bridges?: Rect[]
   voids?: Rect[]

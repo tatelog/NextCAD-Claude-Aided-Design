@@ -265,3 +265,7 @@ body,
 .menu-check-row:focus-visible,
 .menu-fold-heading:focus-visible,
 .app-menu input[type="checkbox"]:focus-visible { outline: 2px solid #6b7077; outline-offset: 2px; }
+
+.sidebar-resize-handle { position:absolute;top:0;bottom:0;width:8px;z-index:10;cursor:col-resize;touch-action:none;border-left:1px solid #cbd2dc; }
+.sidebar-resize-handle:hover,.sidebar-resize-handle:focus-visible {background:#cad5e7;outline:none;}
+.resizable-sidebar .left-panel-resize {display:none;}

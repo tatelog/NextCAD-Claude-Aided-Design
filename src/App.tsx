@@ -1,3 +1,6 @@
+import {useBimSettings} from './store/bimSettings'
+import {useFloorPlans} from './store/floorPlans'
+import {useSpecSelections} from './store/specSelections'
 import {useTutorial} from './tutorial/state'
 import {Tutorial} from './tutorial/Tutorial'
 import {usePlanZoom} from './store/planZoom'
@@ -18,18 +21,17 @@ import { targetSegmentsOf } from './plan/semanticConfirm'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
 import { useConfirmedSite } from './store/confirmedSite'
-import { workLogToCsv } from './app/workLogCsv'
 import { devSeedSquareStrokes } from './app/devSeed'
 import { buildSaveData } from './app/saveData'
 import { applyLoadedProject, parseSaveData } from './app/loadData'
 import { usePending } from './store/pending'
-import { FEATURE_ITEMS, featureShown, setFeatureOn, useFeatures } from './store/features'
+import { useFeatures } from './store/features'
 import { useActiveMode, useMode, type WorkMode } from './store/mode'
 import { hidesTilesOf, modeName, SCREEN_MODES } from './app/screenModes'
 import { PANEL_TILES, usePanelTiles } from './store/panelTiles'
 import { MenuCheckRows } from './ui/MenuCheckRows'
 import { ModeSwitch } from './ui/ModeSwitch'
-import { featureMenuGroupsOf, panelMenuGroupsOf } from './ui/menuGroups'
+import { panelMenuGroupsOf } from './ui/menuGroups'
 import { Fold } from './ui/Fold'
 import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
 import { startLineLog } from './app/workLogLines'
@@ -43,8 +45,6 @@ import { CHAT_MODEL_DEFAULT } from './chat/chatRequest'
 import { pendingLogEntry } from './app/pendingJudgments'
 import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
-import { FIXED_LOCKED, LAYER_NAMES } from './plan/layers'
-import { useLayers } from './store/layers'
 import { useUndoKeys } from './ui/useUndoKeys'
 import { SCREENS, type ScreenId } from './app/screenTabs'
 import { creditRowsOf } from './data/sources'
@@ -145,19 +145,20 @@ export function App() {
   // 今のモードで隠す画面の項目（G127。Drawing の意味づけの確認）。一覧の印を閉じた印にする
   const modeHiddenTiles = hidesTilesOf(SCREEN_MODES, activeMode)
   // レイヤーの表示とロック（G66）。筆界はロック固定
-  const layerVisible = useLayers((s) => s.visible)
-  const layerLocked = useLayers((s) => s.locked)
   // 保存状態（保存した時点の案件と、いまの案件を店舗の参照で比べる。ハブ D-04 共通ヘッダー）
   const drawEntries = useDrawing((s) => s.entries)
   const drawStoreys = useDrawing((s) => s.storeyCount)
   const drawHeight = useDrawing((s) => s.storeyHeightMm)
   const drawFixtures = useFixtures((s) => s.fixtures)
+  const bimSettings=useBimSettings(s=>s.settings)
+  const specSelections=useSpecSelections(s=>s.selections)
+  const savedFloorPlans=useFloorPlans(s=>s.plans)
   const snapshotNow = (): SaveSnapshotState => {
     const d = useDrawing.getState()
-    return { entries: d.entries, storeyCount: d.storeyCount, storeyHeightMm: d.storeyHeightMm, fixtures: useFixtures.getState().fixtures }
+    return { bimSettings:useBimSettings.getState().settings,specSelections:useSpecSelections.getState().selections,floorPlans:useFloorPlans.getState().plans,entries: d.entries, storeyCount: d.storeyCount, storeyHeightMm: d.storeyHeightMm, fixtures: useFixtures.getState().fixtures }
   }
   const [saved, setSaved] = useState<SaveSnapshotState>(snapshotNow)
-  const saveStatus = saveStatusOf(saved, { entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
+  const saveStatus = saveStatusOf(saved, { bimSettings,specSelections,floorPlans:savedFloorPlans,entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
     setRev((r) => r + 1)
@@ -193,6 +194,7 @@ export function App() {
   const restoreRow = (id: number) => {
     const json = snapshotOfWorkLogRow(id)
     if (json === null) return
+    if (!window.confirm('本当にこの時点に戻しますか？\n復元後は、Redo（やり直す）で復元前の状態には戻れません。')) return
     try {
       restoreSnapshotJson(json, project)
       record('履歴', `#${id} の時点に戻す`)
@@ -205,6 +207,10 @@ export function App() {
   const projectData = () => {
     const d = useDrawing.getState()
     return buildSaveData({
+      bimSettings:useBimSettings.getState().settings,
+      specSelections:useSpecSelections.getState().selections,
+      floorPlans:useFloorPlans.getState().plans,
+      floorPlanSource:useFloorPlans.getState().source,
       projectName: project,
       entries: d.entries,
       storeyCount: d.storeyCount,
@@ -333,7 +339,7 @@ export function App() {
         {screen === 'P2' && <P03Volume onNext={() => go('P3')} onSelectSite={() => go('P1')} />}
         {screen === 'P3' && <P3Plan onNext={() => go('P4')} />}
         {screen === 'P4' && <P4Estimate onNext={() => go('P5')} />}
-        {screen === 'P5' && <P5Output />}
+        {screen === 'P5' && <P5Output projectName={project} />}
         {panel !== null && (
           <aside className={panel === 'menu' ? 'app-menu' : undefined} ref={menuRef} aria-label={panel === 'menu' ? 'メニュー' : '作業履歴'} style={{ position: 'absolute', ...(panel === 'menu' ? { top: 8, right: 8, width: 380, maxWidth: 'calc(100% - 16px)', maxHeight: 'calc(100% - 16px)', boxSizing: 'border-box', border: '1px solid #ddd8cc', borderRadius: 10, boxShadow: '0 8px 28px #1f2a4433', overflowWrap: 'anywhere' } : { top: 0, right: 0, bottom: 0, width: 320, borderLeft: '1px solid #ddd8cc' }), background: '#fff', padding: 12, overflowY: 'auto', zIndex: 5 }}>
             {panel === 'menu' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -344,22 +350,6 @@ export function App() {
               <>
                 <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>作業履歴（同じブラウザに残る）</h2>
                 <p style={{ fontSize: 11, color: '#666' }}>SQLite（sql.js）の表から新しい順に読む。この同じブラウザの中に保存する。</p>
-                <button
-                  type="button"
-                  style={{ ...button, marginBottom: 8 }}
-                  disabled={!logReady}
-                  onClick={() => {
-                    // 作業履歴を CSV で書き出す（ハブ A-03 G68）。画面の一覧と同じ 200 件
-                    const url = URL.createObjectURL(new Blob([workLogToCsv(recentWorkLog(200))], { type: 'text/csv;charset=utf-8' }))
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = 'work-log.csv'
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                >
-                  CSV で書き出す
-                </button>
                 {!logReady && <p style={{ fontSize: 13 }}>作業履歴を準備しています（SQLite）。</p>}
                 {logReady && recentWorkLog(200).length === 0 && <p style={{ fontSize: 13 }}>まだ操作がありません。</p>}
                 <ol style={{ paddingLeft: 18, fontSize: 12 }} data-rev={rev}>
@@ -381,47 +371,6 @@ export function App() {
                 <label style={{ display: 'block', margin: '0 0 8px', fontSize: 12 }}>
                   <input type="checkbox" checked={devShown} onChange={(e) => setDevShown(e.target.checked)} /> 開発用の道具を出す（経緯度・ズーム・区のコード・CityGML・数値入力・回転・機能の調整の欄）
                 </label>
-                <Fold title="機能一覧（チェックで入・切）">
-                  <MenuCheckRows
-                    groups={featureMenuGroupsOf(featureShown)}
-                    onToggle={(id, shown) => {
-                      const f = FEATURE_ITEMS.find((i) => i.key === id)
-                      if (!f) return
-                      setFeatureOn(f.key, shown)
-                      record(f.group === '表示' ? '表示' : '機能', `${f.label} ${shown ? '入' : '切'}`)
-                    }}
-                  />
-                </Fold>
-                <Fold title="レイヤー（表示とロック。筆界はロック固定）">
-                  {LAYER_NAMES.map((name) => (
-                    <div key={name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginBottom: 2 }}>
-                      <span style={{ width: 90 }}>{name}</span>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={layerVisible[name]}
-                          onChange={(e) => {
-                            useLayers.getState().setVisible(name, e.target.checked)
-                            record('レイヤー', `${name} 表示 ${e.target.checked ? '入' : '切'}`)
-                          }}
-                        />{' '}
-                        表示
-                      </label>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={layerLocked[name]}
-                          disabled={FIXED_LOCKED.includes(name)}
-                          onChange={(e) => {
-                            useLayers.getState().setLocked(name, e.target.checked)
-                            record('レイヤー', `${name} ロック ${e.target.checked ? '入' : '切'}`)
-                          }}
-                        />{' '}
-                        ロック
-                      </label>
-                    </div>
-                  ))}
-                </Fold>
                 <Fold title="右パネルの項目（ボリュームの機能一覧。チェックで右パネルに出す）">
                   <MenuCheckRows
                     groups={panelMenuGroupsOf(panelHidden, PANEL_TILES.filter((tile) => !['p2-volume', 'p2-numeric', 'p2-rotate'].includes(tile.id)), modeHiddenTiles)}

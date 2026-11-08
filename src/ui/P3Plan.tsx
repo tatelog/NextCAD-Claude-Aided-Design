@@ -1,3 +1,11 @@
+import {ResizableSidebar,useRightPanelWidth} from './ResizableSidebar'
+import {useBimSettings,drawingDimensions} from '../store/bimSettings'
+import {PlanBimSettings} from './PlanBimSettings'
+import {PlanFrameLayer} from './PlanFrameLayer'
+import {frameOfPlan} from '../plan/planFrame'
+import {BalconyLayer} from './BalconyLayer'
+import {EntryCheckPanel} from './EntryCheckPanel'
+import {applyUnitPlans} from '../plan/applyUnitPlans'
 import {copyUnitLayout} from '../plan/copyUnitLayout'
 import {switchUnitVariant} from '../plan/switchUnitVariant'
 import {refreshUnitRoutes} from '../plan/refreshUnitRoutes'
@@ -11,9 +19,8 @@ import { CirculationLayer } from './CirculationLayer'
 import { PlacedUnitSummary } from './PlacedUnitSummary'
 import {usePlanZoom} from '../store/planZoom'
 import { IconModeDrawing } from './headerIcons'
-import { RectangularStudyPanel } from './RectangularStudyPanel'
 import { FloorPlanMenu } from './FloorPlanMenu'
-import { useLeftPanelWidth, LeftPanelResize } from './LeftPanelResize'
+import { useLeftPanelWidth } from './LeftPanelResize'
 import { inheritedFloors } from '../plan/inheritedFloors'
 import { useFloorPlans } from '../store/floorPlans'
 // P3 平面（D-04 P3、D-02 C6、A-03 G17）。柱割りの通り芯と、廊下の両側の住戸候補から住戸数を出す。
@@ -27,7 +34,6 @@ import { type CorridorLayout } from '../plan/candidateCells'
 import { missingDimensionOf, missingTargetOf, plainErrorTextOf } from '../plan/inputProblem'
 import { outlineFitTextOf } from '../plan/outlineFit'
 import { useP3Field } from './useP3Field'
-import { corridorDefaultOf } from '../plan/corridorDefaults'
 import { countUnits } from '../plan/units'
 import type { ObjectKind } from '../plan/objectMenu'
 import type { ObjectDetailSources } from '../plan/objectDetail'
@@ -48,7 +54,7 @@ import { MiniMap } from './MiniMap'
 import { boundsOf } from './mapBounds'
 import { P3Canvas } from './P3Canvas'
 import { PenToolbar } from './PenToolbar'
-import { ResizableObjectMenu as ObjectMenu } from './ObjectMenu'
+import { ObjectMenu } from './ObjectMenu'
 import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { SemanticConfirm } from './SemanticConfirm'
 import { DrawingReviewTile } from './DrawingReviewTile'
@@ -81,6 +87,8 @@ import { useDevTools } from '../store/devTools'
 const UNIT_TYPES = masterOf(unitTypeCandidates)
 
 export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
+  const rightPanelWidth=useRightPanelWidth(s=>s.width)
+ const bimSettings=useBimSettings(s=>s.settings)
   const leftWidth = useLeftPanelWidth((s) => s.width)
   const devShown = useDevTools((s) => s.shown)
   const [widthText, setWidthText] = useP3Field('widthText')
@@ -119,6 +127,14 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const selectedFloor = Math.min(storeyCount, floorState.selected)
   const floorOutline = useMemo(() => inherited?.floors[selectedFloor - 1] ?? [], [inherited, selectedFloor])
   const auto = floorState.source === sourceKey ? floorState.plans[selectedFloor] ?? null : null
+  useEffect(()=>{
+    const state=useFloorPlans.getState()
+    if(state.source!==sourceKey)return
+    for(const [floor,p] of Object.entries(state.plans)){
+      const next=applyUnitPlans(p)
+      if(JSON.stringify(next)!==JSON.stringify(p))state.put(sourceKey,Number(floor),next)
+    }
+  },[sourceKey,floorState.plans])
   const setAuto = (plan: AutoPlan | null) => {
     if(plan){try{plan=refreshUnitRoutes(plan)}catch(e){const error=plainErrorTextOf(e);setAutoError(error);return error}}
     const fixed=fixedVolumePlan?.plans[selectedFloor]
@@ -194,7 +210,6 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [planSize, setPlanSize] = useState({width: 800, height: 600})
   const planZoom = usePlanZoom(s=>s.zoom)
   const setPlanZoom = usePlanZoom(s=>s.setZoom)
-  const [rectangleOpen, setRectangleOpen] = useState(false)
   const [toolPosition, setToolPosition] = useState({x:8,y:8})
   const toolDrag = useRef<{x:number;y:number;left:number;top:number}|null>(null)
   const [toolDock,setToolDock] = useState<'top'|'bottom'|'left'|'right'|null>(null)
@@ -268,11 +283,11 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
 
   const lines = useMemo(() => {
     try {
-      return gridLines(Number(depthText), Number(spanText))
+      return auto ? [] : gridLines(Number(depthText), Number(spanText))
     } catch {
       return null
     }
-  }, [depthText, spanText])
+  }, [depthText, spanText, auto])
 
   const core = parseCoreRect(coreText)
 
@@ -324,9 +339,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         roadSlope,
         storeyCount,
         storeyHeightMm,
-        spanCount: auto ? auto.spans : null,
+        spanCount: null,
         unitCount: auto?.cells.length ?? 0,
-      }),
+      }).map(row => row.label === 'スパン' ? {...row,label:'柱スパン',status:'todo' as const,note:'構造設計は未計算'} : row),
     [siteMatches, shadowResult, roadSlope, storeyCount, storeyHeightMm, auto, units.cells],
   )
 
@@ -341,6 +356,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
       corridors: units.cells ? units.cells.corridors : [],
       outline: floorOutline.length >= 3 ? floorOutline : null,
       siteBoundary: false,
+      columns: auto ? frameOfPlan(auto).columns : [],
       gridLines: auto ? lines ?? [] : [],
       fixtures,
     }
@@ -358,6 +374,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const objectSources = useMemo<ObjectDetailSources>(
     () => ({
       outlines: floorOutline.length >= 3 ? [{ x0: 0, y0: 0, x1: Number(widthText), y1: Number(depthText) }] : [],
+      columns: auto ? frameOfPlan(auto).columns : [],
       gridLines: auto ? lines ?? [] : [],
       cores: auto ? auto.cores : [],
       shafts: auto ? auto.shaftRects : [],
@@ -415,9 +432,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `max-content minmax(0, 1fr) 320px`, height: '100%' }}>
-      <div style={{width:leftWidth,position:'relative',overflowY:'auto',borderRight:'1px solid #ddd8cc'}}>
-        <LeftPanelResize />
+    <div style={{ display: 'grid', gridTemplateColumns: `${leftWidth}px minmax(0, 1fr) ${rightPanelWidth}px`, height: '100%' }}>
+      <ResizableSidebar side="left" style={{borderRight:'1px solid #ddd8cc'}}>
         {detailUnitId ? <section aria-label="選択住戸のレイヤーとオブジェクト" style={{padding:12,fontSize:13}}>
           <h2 style={{fontSize:14}}>住戸 {detailUnitId}</h2>
           <h3 style={{fontSize:13}}>レイヤー</h3>
@@ -430,8 +446,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <div>什器 {fixtures.filter(f=>f.unitId===detailUnitId).length}</div>
           <ul>{fixtures.filter(f=>f.unitId===detailUnitId).map(f=><li key={f.id}>{f.item}</li>)}</ul>
         </section> : <>
-        <div data-tutorial-review><FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} types={UNIT_TYPES} pattern={unitTypeIds} onPattern={(ids) => setUnitTypeIdsText(ids.join(','))} onApply={() => runAuto(true)} /></div>
+        <div data-tutorial-review><FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} types={UNIT_TYPES} pattern={unitTypeIds} onPattern={(ids) => setUnitTypeIdsText(ids.join(','))} />{autoError&&<p role="alert" style={{padding:10,color:"#a33"}}>{autoError}</p>}</div>
       <ObjectMenu
+        width={leftWidth}
         sources={objectSources}
         countSources={countSources}
         selectedKind={selectedKind}
@@ -443,9 +460,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         onToggleFold={menuFold.toggle}
       />
         </>}
-      </div>
+      </ResizableSidebar>
       <div style={{ padding: 0, overflow: 'hidden', minHeight:0, display:'flex', flexDirection:'column' }}>
-        <button type="button" onClick={() => setRectangleOpen(true)}>別案を作る（長方形・中廊下）</button>
         <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:8}}>
           {activeMode !== 'system' && <button type="button" aria-label="道具" title="描画の道具" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)}><IconModeDrawing /></button>}
         </div>
@@ -478,24 +494,25 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             ) : null}
             <polygon points={floorOutline.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#1f2a44" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             {showDimensions ? (
-              <g stroke="#1f5f8b" strokeWidth={12} fontSize={Math.min(700, Math.max(W, D) / 90)} fill="#1f5f8b">
-                <line x1={0} y1={D + 3000} x2={W} y2={D + 3000} />
-                <text x={W / 2} y={D + 3900} textAnchor="middle">{mmLabel(W)}</text>
-                <line x1={W + 3000} y1={0} x2={W + 3000} y2={D} />
-                <text x={W + 3900} y={D / 2} textAnchor="middle" transform={`rotate(-90 ${W + 3900} ${D / 2})`}>{mmLabel(D)}</text>
-                {/* 通り芯のスパン（奥行き方向。右側の寸法の列） */}
-                {spanDimensions(auto ? lines : []).map((s) => (
+              <g aria-label="外形・通り芯寸法" stroke="#1f5f8b" strokeWidth={12} fontSize={300} fill="#1f5f8b">
+                <line x1={0} y1={D+3000} x2={W} y2={D+3000}/>
+                <path d={`M 0 ${D+150} V ${D+3200} M ${W} ${D+150} V ${D+3200}`} fill="none"/>
+                <text stroke="none" x={W/2} y={D+2800} textAnchor="middle">{mmLabel(W)}</text>
+                <line x1={W+3000} y1={0} x2={W+3000} y2={D}/>
+                <path d={`M ${W+150} 0 H ${W+3200} M ${W+150} ${D} H ${W+3200}`} fill="none"/>
+                <text stroke="none" x={W+2800} y={D/2} textAnchor="middle" transform={`rotate(-90 ${W+2800} ${D/2})`}>{mmLabel(D)}</text>
+                {spanDimensions(auto?frameOfPlan(auto).yAxes:[]).map(s=>(
                   <g key={`gs${s.fromMm}`}>
-                    <line x1={W + 900} y1={s.fromMm} x2={W + 900} y2={s.toMm} />
-                    <path d={`M ${W + 200} ${s.fromMm} H ${W + 1100} M ${W + 200} ${s.toMm} H ${W + 1100}`} fill="none" />
-                    <text stroke="none" fontSize={Math.min(700, Math.max(W, D) / 90, (s.toMm - s.fromMm) / (mmLabel(s.lengthMm).length * 0.65))} x={W + 1800} y={(s.fromMm + s.toMm) / 2} textAnchor="middle" transform={`rotate(-90 ${W + 1800} ${(s.fromMm + s.toMm) / 2})`}>{mmLabel(s.lengthMm)}</text>
+                    <line x1={W+1200} y1={s.fromMm} x2={W+1200} y2={s.toMm}/>
+                    <path d={`M ${W+150} ${s.fromMm} H ${W+1400} M ${W+150} ${s.toMm} H ${W+1400}`} fill="none"/>
+                    <text stroke="none" x={W+1000} y={(s.fromMm+s.toMm)/2} textAnchor="middle" transform={`rotate(-90 ${W+1000} ${(s.fromMm+s.toMm)/2})`}>{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
-                {/* 住戸の幅（幅方向。下側の寸法の行）。住戸の区画の境界で測る */}
-                {spanDimensions(auto?.layout==='ツイン'?[0,W,...(auto.corridors??[]).flatMap(c=>[c.x0,c.x1])]:units.cells.cells.flatMap((c) => [c.x0, c.x1])).map((s) => (
+                {spanDimensions([0,W,...units.cells.cells.flatMap(c=>[c.x0,c.x1])]).map(s=>(
                   <g key={`gu${s.fromMm}`}>
-                    <line x1={s.fromMm} y1={D + 900} x2={s.toMm} y2={D + 900} />
-                    <text stroke="none" fontSize={Math.min(700, Math.max(W, D) / 90, s.lengthMm / (mmLabel(s.lengthMm).length * 0.65))} x={(s.fromMm + s.toMm) / 2} y={D + 1800} textAnchor="middle">{mmLabel(s.lengthMm)}</text>
+                    <line x1={s.fromMm} y1={D+1400} x2={s.toMm} y2={D+1400}/>
+                    <path d={`M ${s.fromMm} ${D+150} V ${D+1600} M ${s.toMm} ${D+150} V ${D+1600}`} fill="none"/>
+                    <text stroke="none" x={(s.fromMm+s.toMm)/2} y={D+1200} textAnchor="middle">{mmLabel(s.lengthMm)}</text>
                   </g>
                 ))}
               </g>
@@ -516,7 +533,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
               <rect key={c.id} x={c.x0} y={c.y0} width={c.x1 - c.x0} height={c.y1 - c.y0} fill="none" stroke="#8a8478" strokeWidth={20} />
             ))}
             {auto?.circulation && <CirculationLayer plan={auto} />}
-            {auto && units.cells.cells.map(cell=><UnitPlanDrawing override={auto.unitPlanOverrides?.[cell.id]} key={`plan39-${cell.id}`} cell={cell} corridor={corridorForCell(auto,cell)} typeId={auto.unitTypeIdsByCell?.[cell.id]??''} variant={auto.unitPlanVariants?.[cell.id]??'A'} />)}
+            {auto && units.cells.cells.map(cell=><UnitPlanDrawing dimensions={drawingDimensions(bimSettings)} showColumns={!auto.buildingColumns} override={auto.unitPlanOverrides?.[cell.id]} key={`plan39-${cell.id}`} cell={cell} corridor={corridorForCell(auto,cell)} typeId={auto.unitTypeIdsByCell?.[cell.id]??''} variant={auto.unitPlanVariants?.[cell.id]??'A'} />)}{auto&&<BalconyLayer plan={auto}/>}
+            {auto&&<PlanFrameLayer plan={auto}/>}
             <FixtureLayer cells={units.cells.cells} fixtures={fixtures} active={selectedFixtureItem !== null} onTap={placeSelectedFixture} onRemove={removeFixtureById} onDetail={setDetailUnitId} />
             {units.cells.cells.map(cell=>{
               const typeId=auto?.unitTypeIdsByCell?.[cell.id] ?? auto?.spanTypes[Math.floor(cell.y0/(auto.depthMm/auto.spans))]
@@ -565,9 +583,9 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
 
         </div>
       </div>
-      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: activeMode === 'chat' ? 'hidden' : 'auto', minHeight:0 }}>
+      <ResizableSidebar style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: activeMode === 'chat' ? 'hidden' : 'auto', minHeight:0 }}>
         {activeMode === 'chat' ? <section aria-label="チャット専用パネル" style={{height:"100%",minHeight:0,display:"flex",flexDirection:"column"}}><h2 style={{flexShrink:0}}>Claude（チャット）</h2><ChatTile screen="P3" fillHeight /></section> : <>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（柱割り・住戸数）</h2>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（住戸配置）</h2>
         <section data-tutorial="tutorial-p3-next" style={{ marginBottom: 10 }}>
           <button type="button" onClick={clickNextP3}>
             積算へ
@@ -582,6 +600,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           ) : null}
         </section>
 
+        <PlanBimSettings/>
         <PlacedUnitSummary plans={floorState.source === sourceKey ? floorState.plans : {}} types={UNIT_TYPES} selectedFloor={selectedFloor} storeyCount={storeyCount} />
         {auto?.automaticUnitRejections && Object.keys(auto.automaticUnitRejections).length>0 && <details open><summary>自動調整で配置できなかった住戸</summary><p>面積・水回り・動線・家具の条件を満たさない候補は戸数に含めません。</p>{Object.entries(auto.automaticUnitRejections).map(([id,reasons])=><details key={id}><summary>{id}：{reasons[0]??'成立する候補がありません'}</summary><ul>{reasons.map((r,i)=><li key={i}>{r}</li>)}</ul></details>)}</details>}
         {Object.keys(hiddenTiles).length > 0 ? (
@@ -594,12 +613,10 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             ))}
           </p>
         ) : null}
+        <section aria-label="廊下・住戸の計画条件" id="plan-layout-controls" style={{marginBottom:12}} />
         <fieldset disabled={!appliedRectangle} style={{border:0,padding:0}}><legend>ボリュームの寸法条件</legend>
         {!tileShown('p3-form') ? null : (
         <PanelTile title="廊下・寸法の入力" onHide={() => hideTile('p3-form')}>
-        <div role="group" aria-label="廊下タイプ" style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}>
-          {(['中廊下','片廊下','階段室','ツイン'] as CorridorLayout[]).map(next=><button type="button" key={next} aria-pressed={layoutText===next} className={layoutText===next?'is-active':undefined} onClick={()=>{setLayoutText(next);const d=corridorDefaultOf(next);if(d)setCorridorText(String(d.mm));runAuto(true,false,{layout:next,width:d?.mm ?? Number(corridorText)})}}>{next==='階段室'?'階段室型':next}</button>)}
-        </div>
         <label style={{ display: 'block', marginBottom: 4 }}>
           建物の幅 (mm)
           <input value={widthText} readOnly style={{ width: '100%' }} />
@@ -611,18 +628,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         </PanelTile>
         )}
         <label style={{ display: 'block', marginBottom: 4 }}>
-          廊下の幅 (mm)
-          <input value={corridorText} onChange={(e) => setCorridorText(e.target.value)} style={{ width: '100%' }} />
-          {corridorDefaultOf(layoutText) && corridorText === String(corridorDefaultOf(layoutText)?.mm) ? (
-            <span style={{ display: 'block', fontSize: 11, color: '#a86b00' }}>既定の値は仮置き</span>
-          ) : null}
-        </label>
-        <label style={{ display: 'block', marginBottom: 4 }}>
-          住戸の奥行 (mm)
-          <input value={unitDepthText} onChange={(e) => setUnitDepthText(e.target.value)} style={{ width: '100%' }} />
-        </label>
-        <label style={{ display: 'block', marginBottom: 4 }}>
-          スパン (mm)
+          仮の割付基準（mm・柱スパンではありません）
           <input value={spanText} onChange={(e) => setSpanText(e.target.value)} style={{ width: '100%' }} />
         </label>
         <label style={{ display: 'block', marginBottom: 4 }}>
@@ -641,15 +647,15 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <p style={{ margin: '0 0 6px', fontSize: 12 }}>
             階数・階高はボリュームの値を使う（{storeyCount} 階・階高 {storeyHeightMm} mm）
           </p>
-          <ElevatorMenu plan={auto} peopleText={peopleText} residentsText={residentsText} onPeople={setPeopleText} onResidents={setResidentsText} onApply={recalculateEv} fixed={!!fixedVolumePlan} recommendation={evRecommendation} />
+          <EntryCheckPanel plan={auto}/><ElevatorMenu plan={auto} peopleText={peopleText} residentsText={residentsText} onPeople={setPeopleText} onResidents={setResidentsText} onApply={recalculateEv} fixed={!!fixedVolumePlan} recommendation={evRecommendation} />
           <details style={{fontSize:12,marginBottom:8}}><summary>階段・共用動線</summary><p>異なる2か所の階段入口への接続と指定廊下幅を幾何検査します。共用部寸法は計画仮定です。下記は玄関外から階段入口までの中心線距離で、室内経路を含む法定歩行距離ではありません。防火区画・地上出口・二方向避難の法規適合は未確認です。</p>{auto?.circulation?.routeMetrics&&<table><thead><tr><th>住戸</th><th>階段1</th><th>階段2</th><th>共通区間</th></tr></thead><tbody>{auto.circulation.routeMetrics.map(m=><tr key={m.unitId}><td>{m.unitId}</td><td>{(m.firstMm/1000).toFixed(1)}m</td><td>{(m.secondMm/1000).toFixed(1)}m</td><td>{(m.sharedMm/1000).toFixed(1)}m</td></tr>)}</tbody></table>}</details>
-          <p style={{fontSize:12}}>{fixedVolumePlan ? '柱割り・廊下・階段・EV・縦シャフト：P2で確認した配置を固定。住戸タイプは自動割付済み。' : '柱割り・共用部・縦シャフトはP2で未確認です。ボリュームで配置を計算・確認してください。'}</p>
+          <p style={{fontSize:12}}>{fixedVolumePlan ? 'ボリュームと共通の計算で作成した配置です。構成条件の再計算では共用部・縦シャフトも更新します。柱スパンは未確定です。' : '柱割り・共用部・縦シャフトはP2で未確認です。ボリュームで配置を計算・確認してください。'}</p>
           {autoError ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{autoError}</p> : null}
           {auto ? (
             <dl style={{ fontSize: 12, margin: '6px 0 0' }}>
-              <dt>柱割り</dt>
+              <dt>外形・寸法</dt>
               <dd>
-                {auto.spans} スパン（幅 {auto.widthMm} mm × 奥行 {auto.depthMm} mm）
+                計画柱 {frameOfPlan(auto).columns.length}か所（干渉要確認 {frameOfPlan(auto).issues.length}か所）・住戸詳細と同じ座標の通り芯を表示。干渉確認は仮断面600 mm。構造断面・構造適合は未確定です。
               </dd>
               <dt>住戸（{selectedFloor}階）</dt>
               <dd>
@@ -673,7 +679,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         )}
         {!tileShown('p3-result') ? null : (
         <PanelTile title="住戸数・スパンの判定" onHide={() => hideTile('p3-result')}>
-        <p>スパンの判定: {judge}</p>
+        <p>仮の割付基準の判定: {judge}（構造設計の判定ではありません）</p>
         {shaftCheck ? <p style={{ color: shaftCheck.aligned ? '#666' : '#a86b00', fontSize: 12 }}>{shaftCheck.aligned ? '作成済みの各階で縦シャフトが一致' : '各階の縦シャフトの位置を確認してください'}</p> : null}
         {units.result ? (
           <>
@@ -733,8 +739,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           </PanelTile>
         )}
         </>}
-      </aside>
-      {rectangleOpen && <RectangularStudyPanel initialWidth={inherited?.widthMm ?? 16000} initialLength={inherited?.depthMm ?? 42000} storeys={storeyCount} storeyHeightMm={storeyHeightMm} onApply={(plan) => { try { const outlines=Array.from({length:storeyCount},()=>[{x:0,y:0},{x:plan.widthMm,y:0},{x:plan.widthMm,y:plan.depthMm},{x:0,y:plan.depthMm}]); const result=arrangeCirculation(plan,outlines,Number(peopleText),residentsText.trim()?Number(residentsText):undefined); floorState.applyRectangle(sourceKey,result.plans[1]!,storeyCount); setCorridorText(String(plan.corridor.x1-plan.corridor.x0)); setLayoutText(plan.layout); setAutoError(null); setRectangleOpen(false); setPlanZoom(1) } catch(e) { setAutoError(plainErrorTextOf(e)); setRectangleOpen(false) } }} onClose={() => setRectangleOpen(false)} />}
+      </ResizableSidebar>
       {(() => {
         const cells = units.cells ? units.cells.cells : []
         const cell = cells.find((c) => c.id === detailUnitId)
@@ -760,7 +765,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
             ceilingMm={2400}
             walls={kindCounts?.walls}
             openings={kindCounts?.openings}
-            balcony={cell ? balconyOfUnit(cell, { outline: { W, D } }) : undefined}
+            balcony={cell ? auto?.balconies ? {faces:auto.balconies.filter(b=>b.unitId===cell.id).map(b=>b.side),areaM2:auto.balconies.filter(b=>b.unitId===cell.id).reduce((s,b)=>s+(b.x1-b.x0)*(b.y1-b.y0)/1e6,0)} : balconyOfUnit(cell, { outline: { W, D } }) : undefined}
             shaft={detailUnitId && auto ? psOfUnit(detailUnitId, auto.shaftRects) : undefined}
             firstFloorName={detailUnitId ? (firstFloorNames[detailUnitId] ?? null) : null}
             onSetFirstFloorName={(name) => {
@@ -777,3 +782,4 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
     </div>
   )
 }
+

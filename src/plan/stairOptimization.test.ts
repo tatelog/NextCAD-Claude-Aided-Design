@@ -1,7 +1,7 @@
 // 代表の最適配置要件: 両端の階段を左右別々に比較し、収まるだけの先着案で決めない。
 // 各候補は同じ外形・住戸・EV条件。専有面積を減らさず、同面積なら階段・EVへの距離を短くする。
 import {it,expect} from 'vitest'
-import {writeFileSync} from 'node:fs'
+import {mkdirSync,writeFileSync} from 'node:fs' // work/ は git の対象外なので、無ければ作ってから書く（統括 2026-11-08）
 import {generateAutoPlan} from './autoPlan'
 import {arrangeCirculation} from './automaticCirculation'
 import {layoutPreference,preferLayout} from './layoutPreference'
@@ -30,5 +30,5 @@ it('左右の階段候補を住戸割付後に比較し、より良い成立候�
  })
  const auto=arrangeCirculation(b,[outline,outline],3,undefined,options),score=layoutPreference(auto.plans)
  expect(choices.every(c=>!preferLayout(c.score,score))).toBe(true)
- writeFileSync('work/stair-side-comparison.json',JSON.stringify({choices,selected:score},null,2))
+ mkdirSync('work',{recursive:true});writeFileSync('work/stair-side-comparison.json',JSON.stringify({choices,selected:score},null,2))
 },120000)

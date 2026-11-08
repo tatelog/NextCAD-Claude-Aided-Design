@@ -8,6 +8,7 @@ import type { CoreRectText } from '../plan/coreRect'
 import type { RoomPattern } from '../plan/rooms'
 
 export interface P3InputValues {
+  balconyDepthText?: string
   widthText: string
   depthText: string
   corridorText: string
@@ -26,6 +27,7 @@ export interface P3InputValues {
 
 /** 既定の値（今までの P3 の useState の既定と同じ。廊下幅は廊下タイプから。G135） */
 export const P3_INPUT_DEFAULTS: P3InputValues = {
+  balconyDepthText: '1600',
   widthText: '20000',
   depthText: '12000',
   corridorText: String(corridorDefaultOf('中廊下')?.mm ?? 2000),

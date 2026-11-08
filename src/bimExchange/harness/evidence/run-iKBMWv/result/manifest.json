@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "bim-conversion-manifest/1",
+  "createdAt": "2026-11-07T18:05:31.818Z",
+  "converterMode": "mock",
+  "status": "partial",
+  "inputSha256": "223918eb0e4a7cac97bdb04bf1f7b8c44363287251103655b17620bfc1d372ba",
+  "units": "mm",
+  "coordinateSystem": "right-handed-z-up",
+  "elements": [
+    {
+      "id": "w1",
+      "kind": "wall",
+      "storeyId": "s1",
+      "status": "estimated",
+      "source": {
+        "elementIds": [
+          "original"
+        ],
+        "origin": "estimate"
+      },
+      "hasGeometry": true
+    },
+    {
+      "id": "missing",
+      "kind": "wall",
+      "storeyId": "s1",
+      "status": "unresolved",
+      "source": {
+        "elementIds": [
+          "original"
+        ],
+        "origin": "estimate"
+      },
+      "hasGeometry": false
+    }
+  ],
+  "issues": [
+    {
+      "code": "UNRESOLVED_ELEMENT",
+      "severity": "warning",
+      "elementId": "missing",
+      "message": "未解決要素です。形状・寸法を補完していません。"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "model.ifc",
+      "sha256": "115a4cabbfdef7b4ee9871ee7d770cd36ae469f194273da0fc1c3b8e83490517"
+    },
+    {
+      "path": "scene.json",
+      "sha256": "6cf4c8e8b8ba2ff0ed50155ace505763e984d2aeeb43fdd88af6e2f0d6a4fec0"
+    }
+  ],
+  "notice": "参考モデル。構造設計・確認申請済みを意味しません。"
+}

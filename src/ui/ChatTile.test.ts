@@ -36,7 +36,8 @@ describe('未接続と入力（仕様 1）', () => {
     const html = htmlOf()
     expect(textOf(html)).toContain('未接続')
     expect(html).toContain('<textarea')
-    expect(textOf(html)).toContain('送る')
+    // 「送る」は紙飛行機のアイコンのボタンになり、名前（aria-label）で「送る」を持つ（Codex の版を正とする。代表 2026-11-07）
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*aria-label="送る"/)
   })
 })
 
@@ -76,6 +77,8 @@ describe('変更と戻す（仕様 3）', () => {
 describe('送信中（仕様 4）', () => {
   it('送信中は「送る」を押せない', () => {
     chat.state.sending = true
-    expect(htmlOf()).toMatch(/disabled=""[^>]*>送る/)
+    // 名前「送る」のボタンが押せない（disabled）。属性の並びに依らず、送るのボタンの開きタグで確かめる
+    const button = htmlOf().match(/<button[^>]*aria-label="送る"[^>]*>/)?.[0] ?? ''
+    expect(button).toContain('disabled=""')
   })
 })

@@ -11,6 +11,7 @@ const SHAFT_ATTRS = ['PS', 'EPS', 'DS']
 export function sourcesOfTable(rows: readonly ObjectRow[]): ObjectSources {
   const other = (attr: string) => rows.filter((r) => r.kind === 'other' && r.attr === attr)
   return {
+    columns:rows.filter(r=>r.kind==='column'),
     siteBoundaries: other('筆界'),
     outlines: other('外形'),
     gridLines: rows.filter((r) => r.kind === 'grid'),

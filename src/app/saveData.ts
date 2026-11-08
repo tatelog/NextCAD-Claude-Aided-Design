@@ -5,6 +5,10 @@ import type { Fixture } from '../plan/fixtures'
 import type { ConfirmedSite } from '../store/confirmedSite'
 
 export interface SaveInput {
+  bimSettings?: import('../store/bimSettings').BimSettings
+  specSelections?: Record<string,import('../estimate/specPackages').SpecSelection>
+  floorPlans?: Record<number,import('../plan/autoPlan').AutoPlan>
+  floorPlanSource?: string
   projectName: string
   entries: readonly unknown[]
   storeyCount: number
@@ -21,6 +25,10 @@ export interface SaveInput {
 }
 
 export interface SaveData {
+  bimSettings?: import('../store/bimSettings').BimSettings
+  specSelections?: Record<string,import('../estimate/specPackages').SpecSelection>
+  floorPlans?: Record<number,import('../plan/autoPlan').AutoPlan>
+  floorPlanSource?: string
   projectName: string
   savedAt: string
   entries: readonly unknown[]
@@ -42,6 +50,9 @@ export function buildSaveData(input: SaveInput): SaveData {
   const fixtures = (input.fixtures ?? []).map((f) => ({ id: f.id, item: f.item, unitId: f.unitId }))
   const unitPriceTexts = Object.fromEntries(Object.entries(input.unitPriceTexts ?? {}).filter(([, text]) => text !== ''))
   return {
+    ...(input.bimSettings?{bimSettings:structuredClone(input.bimSettings)}:{}),
+    ...(input.specSelections&&Object.keys(input.specSelections).length?{specSelections:structuredClone(input.specSelections)}:{}),
+    ...(input.floorPlans&&Object.keys(input.floorPlans).length?{floorPlans:structuredClone(input.floorPlans),floorPlanSource:input.floorPlanSource??''}:{}),
     projectName: name === '' ? '敷地名（案件）未入力' : name,
     savedAt: input.savedAt.toISOString(),
     entries: input.entries,

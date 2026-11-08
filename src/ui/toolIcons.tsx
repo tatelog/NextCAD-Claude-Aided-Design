@@ -2,6 +2,7 @@
 import type { CSSProperties } from 'react'
 
 export const TOOL_ICONS = {
+  box: ['M3 7 L12 3 L21 7 V17 L12 21 L3 17 Z', 'M3 7 L12 11 L21 7', 'M12 11 V21'],
   cursor: ['M5 3 L19 13 L12 14 L9 21 Z'],
   line: ['M4 20 L20 4'],
   pencil: ['M4 20 L5 15 L16 4 Q17 3 18 4 L20 6 Q21 7 20 8 L9 19 Z', 'M14 6 L18 10', 'M5 15 L9 19'],

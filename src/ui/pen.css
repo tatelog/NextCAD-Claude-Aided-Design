@@ -62,7 +62,7 @@
   user-select: none;
 }
 
-.circle-menu { position: absolute; transform: translate(-50%, -50%); width: 200px; height: 200px; border-radius: 50%; background: rgba(248,250,252,.96); border: 1px solid #cbd2dc; box-shadow: 0 8px 28px #1f2a4430; z-index: 5; }
+.circle-menu { position: absolute; transform: translate(-50%, -50%); width: 280px; height: 280px; border-radius: 50%; background: rgba(248,250,252,.96); border: 1px solid #cbd2dc; box-shadow: 0 8px 28px #1f2a4430; z-index: 5; }
 
 .circle-menu button.is-active {
   background: #1f2a44;

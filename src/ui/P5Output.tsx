@@ -1,3 +1,15 @@
+import permitFormsJson from '../law/permitForms.json'
+import { type FormDef } from '../law/permitFormPlan'
+import { fillInstructionsOf } from '../law/permitFormFill'
+import { fillDocx } from '../export/docxWrite'
+import {pdfBaseName,withPrintTitle} from '../export/pdfName'
+import {combinedOutputFiles} from '../export/combinedOutput'
+import {resolvePermitProject} from '../permit/resolvePermitProject'
+import {useFixtures} from '../store/fixtures'
+import {readUnitPlan} from '../plan/unitPlan39'
+import {useBimSettings,drawingDimensions} from '../store/bimSettings'
+import {exportConfiguredPlan} from '../bimExchange/integration/exportConfiguredPlan'
+import {drawingPdfFiles,drawingsPdf} from '../export/drawingPdf'
 import {useFloorPlans} from '../store/floorPlans'
 import {useSolarSettings} from '../store/solarSettings'
 import {detailedFloorSvg,shadowSheetSvg} from '../export/designSheets'
@@ -6,9 +18,9 @@ import {tutorialDone} from '../tutorial/state'
 // P5 出力（D-04 P5、D-02 C9・C10・C11、t91・G46）。IFC と確認申請の図書は、P2 で描いた外形から作る。
 // 図書の一覧は判定（requiredPermitDocuments）の結果で出す。要る・要らない（理由）・要確認（理由）の三区分。要確認は隠さない。
 // 外形が閉じていなければ IFC と判定は出さず、「外形が未作成」と出す（ダミーの外形では代えない）。
-// 壁厚は画面で変えられる（BIM の属性）。階数と階高は P2 の値を使う（P2 で変える）。
+// 部材寸法は平面画面の設定を使用する。
 import { useMemo, useState } from 'react'
-import { writeIfc, type IfcSchema } from '../ifc/writer'
+
 import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { usePermitProject } from '../store/permitProject'
@@ -50,22 +62,24 @@ import { PermitProjectFields } from './PermitProjectFields'
 
 const TONE_COLOR = { ok: '#2f7a4f', warn: '#a86b00', none: '#666' } as const
 
-export function P5Output() {
+export function P5Output({projectName=''}:{projectName?:string}={}) {
   const devShown = useDevTools((s) => s.shown)
-  const [schema, setSchema] = useState<IfcSchema>('IFC4')
-  const [wallText, setWallText] = useState('200')
+  const settings=useBimSettings(s=>s.settings)
+  const [exportError,setExportError]=useState('')
+  const [pdfBusy,setPdfBusy]=useState(false)
   const [fireZone, setFireZone] = useState<FireZone>('なし')
   const componentRatings = useComponentFire((st) => st.ratings)
   const setComponentRating = useComponentFire((st) => st.setRating)
   const fireDoor = useComponentFire((st) => st.fireDoor)
   const setFireDoor = useComponentFire((st) => st.setFireDoor)
-  const [tab, setTab] = useState<'bim' | 'pdf'>('bim')
+  const [purpose, setPurpose] = useState('general')
+  const [ifcSchema, setIfcSchema] = useState<'IFC4' | 'IFC2X3'>('IFC4')
   const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
   const [applicant, setApplicant] = useState('')
   const roadSlope = useSite((s) => s.roadSlope)
   const shadow = useSite((s) => s.shadow)
-  // 案件の項目（ボリュームから決まらない条件）。P5 で入れる（t91）
-  const project = usePermitProject((s) => s.project)
+  // 設計データを優先し、申請固有の入力だけ補う。
+  const manualProject = usePermitProject((s) => s.project)
   const setProject = usePermitProject((s) => s.set)
   // P2 の外形と階数・階高（P2 の値）
   // 外形は P2 の線だけ（P3 の線は外形に入れない）
@@ -78,8 +92,6 @@ export function P5Output() {
   const hiddenTiles = usePanelTiles((s) => s.hidden)
   const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P5', hiddenTiles, id)
 
-  const wall = Number(wallText)
-  const wallOk = Number.isInteger(wall) && wall > 0
 
   const outline = useMemo(() => outlineStateOf(findClosedOutline(entries.flatMap((e) => e.segments))), [entries])
   const volumeResult = useMemo(() => (outline.ok ? volumeOfOutline(outline.footprint, storeys, height) : null), [outline, storeys, height])
@@ -103,6 +115,22 @@ export function P5Output() {
   )
   const grossM2 = permitVolume ? permitVolume.gross_floor_area_mm2 / 1_000_000 : 0
   const heightM = volume ? volume.total_height / 1000 : 0
+  const floorPlans=useFloorPlans(s=>s.plans)
+  const fixtures=useFixtures(s=>s.fixtures)
+  const resolvedProject=useMemo(()=>{
+    const plans=Object.values(floorPlans)
+    const complete=Array.from({length:storeys},(_,i)=>i+1).every(f=>Boolean(floorPlans[f]))
+    const ev=plans.some(p=>p.cores.some(c=>(c.evCount??0)>0))
+    const evKnown=plans.every(p=>p.cores.every(c=>c.id!=='evHall'||typeof c.evCount==='number'))
+    const equipmentKinds=new Set(['キッチン','浴槽','洗面化粧台','便器','洗濯機'])
+    const cellIds=new Set(plans.flatMap(p=>p.cells.map(c=>c.id)))
+    const equipment=ev||fixtures.some(f=>f.item!=='storage'&&f.unitId!==null&&cellIds.has(f.unitId))||plans.some(p=>p.cells.some(c=>{
+      const unit=p.unitPlanOverrides?.[c.id]??readUnitPlan(p.unitTypeIdsByCell?.[c.id]??'',p.unitPlanVariants?.[c.id]??'A')
+      return unit?.fixtures.some(f=>equipmentKinds.has(f.kind))
+    }))
+    return resolvePermitProject(manualProject,{elevator:ev?true:complete&&evKnown?false:null,equipment:equipment?true:null,shadowChecked:shadow!==null})
+  },[floorPlans,fixtures,storeys,manualProject,shadow])
+  const project=resolvedProject.project
   const judgement = useMemo(() => (permitVolume ? requiredPermitDocuments(permitInputFromVolume(permitVolume, project)) : null), [permitVolume, project])
   // 様式の欄に入れる値（ボリュームから決まるもの。案件の敷地面積は入力があるときだけ）
   // 記入する値。地名地番と敷地面積は、確定した筆のデータ（公図）から。筆が無ければ入らない
@@ -138,23 +166,11 @@ export function P5Output() {
     })
   }, [permitVolume, confirmedForForm, districtForForm])
   const ready = volume !== null
-  const valid = ready && wallOk
-
-  // IFC の文字（ビューアで件数と容量を出す。外形が閉じていなければ null）
-  const ifcText = useMemo(() => {
-    if (!outline.ok) return null
-    try {
-      return writeIfc({ footprint: outline.footprint, storey_count: storeys, storey_height: height, wallThicknessMm: wall, schema })
-    } catch {
-      return null
-    }
-  }, [outline, storeys, height, wall, schema])
-
+  const ifcText=null
   // 配置図と各階平面図の中身（図枠の作図領域の中）。元のデータが無いものは null
   const confirmedNow = useConfirmedSite((s) => s.confirmed)
   const buildingsNow = useConfirmedSite((s) => s.buildings)
   const planResult = useSite((s) => s.plan)
-  const floorPlans=useFloorPlans(s=>s.plans)
   const twinNote=Object.values(floorPlans).some(p=>p.layout==='ツイン')?'ツインの吹抜けは各階平面図に反映しています。3D・IFC・申請様式の床面積・日影図は外形モデルのままで、吹抜け未反映です。':null
   const selectedFloor=useFloorPlans(s=>s.selected)
   const solarDate=useSolarSettings(s=>s.date)
@@ -169,8 +185,8 @@ export function P5Output() {
       neighbors: neighborOutlinesOf(buildingsNow.data ?? [], confirmedNow?.frame ?? null),
       area,
     })
-    const floors=Object.entries(floorPlans).flatMap(([floor,p])=>{const svg=detailedFloorSvg(p,Number(floor));return svg?[{name:`${floor}階平面図`,svg}]:[]})
-    const floorLayout=planResult?detailedFloorSvg(planResult,selectedFloor):null
+    const floors=Object.entries(floorPlans).flatMap(([floor,p])=>{const svg=detailedFloorSvg(p,Number(floor),drawingDimensions(settings));return svg?[{name:`${floor}階平面図`,svg}]:[]})
+    const floorLayout=planResult?detailedFloorSvg(planResult,selectedFloor,drawingDimensions(settings)):null
     const lot=lotOfConfirmed(confirmedNow)
     const parts=outline.ok?cutFloorParts(outline.footprint,slopeBoundaries??[],{storey_count:storeys,storey_height:height}):[]
     const shadowSvg=lot&&confirmedNow?.center?shadowSheetSvg({lot,floors:parts.flatMap((ps,i)=>ps.map(footprint=>({footprint,heightMm:(i+1)*height}))),...confirmedNow.center,date:solarDate,rotation:confirmedNow.frame?.rotationDeg??0}):null
@@ -181,7 +197,7 @@ export function P5Output() {
       // 作れないときの理由（縮尺が無い・敷地を確定していない で言い分ける）
       reasons: { site: siteMissingTextOf(siteState) ?? DRAWING_MISSING_DEFAULT.site, floorPlan: DRAWING_MISSING_DEFAULT.floorPlan },
     }
-  }, [frame, confirmedNow, buildingsNow, outline, planResult, floorPlans,selectedFloor,solarDate,slopeBoundaries,storeys,height])
+  }, [settings,frame, confirmedNow, buildingsNow, outline, planResult, floorPlans,selectedFloor,solarDate,slopeBoundaries,storeys,height])
 
   // 一式の中身（図面・IFC・書類一覧・空欄の一覧・記入した様式）。判定が無いときは null
   const filledNow = usePermitForms((s) => s.filled)
@@ -193,7 +209,7 @@ export function P5Output() {
       docs: permitDocsJson.documents,
       drawings: drawingSvgs,
       ifcText,
-      ifcFileName: `model-${schema.toLowerCase()}.ifc`,
+      ifcFileName: 'model.ifc',
       filledForms: Object.values(filledNow).filter((x): x is { fileName: string; bytes: Uint8Array } => x !== undefined),
       // 敷地面積が公図の参考値なら、空欄の一覧に参考値の文を添える（統括の依頼 2026-11-06。3）
       // 幅員は出どころ（入力の値など）を添える（統括の依頼 2026-11-06）
@@ -222,65 +238,111 @@ export function P5Output() {
         ...unwrittenNotesOf(formsNow, formValues),
       ],
     })
-  }, [twinNote, judgement, drawingSvgs, ifcText, schema, filledNow, formValues, formsNow, districtForForm])
+  }, [twinNote, judgement, drawingSvgs, ifcText, filledNow, formValues, formsNow, districtForForm])
+
+  const drawingFiles: import('../export/permitPackage').PackageFile[] = [
+    ...(drawingSvgs.site ? [{path:'配置図.svg', text:drawingSvgs.site}] : []),
+    ...drawingSvgs.floors.map(f=>({path:`${f.name}.svg`,text:f.svg})),
+    ...(!drawingSvgs.floors.length && drawingSvgs.floorPlan ? [{path:'平面図.svg',text:drawingSvgs.floorPlan}] : []),
+    ...(drawingSvgs.shadow ? [{path:'日影図.svg',text:drawingSvgs.shadow}] : []),
+  ]
+
+  const documentFiles=Object.values(filledNow).flatMap(f=>f?[{path:f.fileName,text:'',bytes:f.bytes}]:[])
+  const missingOutput=[
+    ...(!drawingSvgs.site?['配置図：敷地・外形を確認してください']:[]),
+    ...Array.from({length:storeys},(_,i)=>i+1).filter(f=>!floorPlans[f]).map(f=>`${f}階平面図：未作成`),
+    ...(!drawingSvgs.shadow?['日影図：敷地・外形・地点が必要です']:[]),
+    ...(!documentFiles.length?['申請書類：様式を取り込み、記入済みの書類を作成してください']:[]),
+    ...unwrittenNotesOf(formsNow,formValues),
+    ...Object.entries(project).filter(([,v])=>v===null).map(([k])=>`申請条件：${({inShadowRegulationArea:'日影規制区域',structuralCalc:'構造計算',hasAgent:'代理申請',bimSubmission:'BIMでの申請',usesCertifiedParts:'認定部材',hasBuildingEquipment:'建築設備',hasElevator:'昇降機'} as Record<string,string>)[k]}が未入力`),
+  ]
+  const saveAll=async()=>{if(pdfBusy)return;setPdfBusy(true);try{
+    let data:import('../export/permitPackage').PackageFile[]=[]
+    const documents=[...documentFiles]
+    for(const [kind,form] of Object.entries(formsNow)){
+      if(!form)continue
+      const def=(permitFormsJson.forms as unknown as FormDef[]).find(d=>d.id===kind)
+      if(!def)continue
+      const own=Object.fromEntries(Object.entries(formValues).filter(([key])=>key.startsWith(kind+'-')))
+      const plan=fillInstructionsOf(def,form.paragraphs,own)
+      const bytes=await fillDocx(form.bytes,plan.instructions)
+      const path=form.fileName.replace(/\.docx$/i,'')+'_記入.docx'
+      const old=documents.findIndex(f=>f.path===path)
+      if(old>=0)documents.splice(old,1)
+      documents.push({path,text:'',bytes})
+    }
+    const missing=missingOutput.filter(note=>!documents.length||!note.startsWith('申請書類：'))
+    if(Object.keys(floorPlans).length){try{
+      const out=exportConfiguredPlan({source:useFloorPlans.getState().source,plans:floorPlans,storeyHeightMm:height,ifcSchema},settings)
+      data=out.files;missing.push(...out.manifest.issues.map(i=>i.message))
+    }catch(e){missing.push(`BIMデータ：${e instanceof Error?e.message:String(e)}`)}}else missing.push('BIMデータ：平面が未作成')
+    const files=combinedOutputFiles(await drawingPdfFiles(drawingFiles),documents,data,missing)
+    const enc=new TextEncoder(),bytes=buildZip(files.map(f=>({path:f.path,data:f.bytes??enc.encode(f.text)})))
+    const url=URL.createObjectURL(new Blob([bytes as BlobPart],{type:'application/zip'})),a=document.createElement('a')
+    a.href=url;a.download='図面・書類一式.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-save-all')
+  }catch(e){setExportError(e instanceof Error?e.message:String(e))}finally{setPdfBusy(false)}}
+
+  const saveDrawingPdf=async()=>{if(pdfBusy)return;setPdfBusy(true);try{
+    const bytes=await drawingsPdf(drawingFiles.map(f=>f.text))
+    const url=URL.createObjectURL(new Blob([bytes as BlobPart],{type:'application/pdf'}))
+    const a=document.createElement('a');a.href=url;a.download=`${pdfBaseName(projectName)}.pdf`;a.click()
+    setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-output')
+  }catch(e){setExportError(e instanceof Error?e.message:String(e))}finally{setPdfBusy(false)}}
 
   // 一式を zip ひとつで出す（無圧縮）
   const downloadPackage = () => {
-    if (!packageFiles) return
+    const files = (packageFiles ?? []).filter(f => !f.path.startsWith('02_図面/') && !f.path.startsWith('03_BIM/'))
+    if (!files.length) return
     const enc = new TextEncoder()
-    const bytes = buildZip(packageFiles.map((f) => ({ path: f.path, data: f.bytes ?? enc.encode(f.text) })))
+    const bytes = buildZip(files.map((f) => ({ path: f.path, data: f.bytes ?? enc.encode(f.text) })))
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = '確認申請一式.zip'
+    a.download = '申請書類.zip'
     a.click()
     tutorialDone('tutorial-output')
     URL.revokeObjectURL(url)
   }
 
-  const download = () => {
-    if (!outline.ok) return
-    const text = writeIfc({ footprint: outline.footprint, storey_count: storeys, storey_height: height, wallThicknessMm: wall, schema })
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `model-${schema.toLowerCase()}.ifc`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  const downloadIfc=(ifcSchema:'IFC4'|'IFC2X3')=>{try{
+    const out=exportConfiguredPlan({source:useFloorPlans.getState().source,plans:floorPlans,storeyHeightMm:height,ifcSchema},settings)
+    const text=out.files.find(f=>f.path==='model.ifc')!.text
+    const url=URL.createObjectURL(new Blob([text],{type:'application/octet-stream'})),a=document.createElement('a')
+    a.href=url;a.download=`平面モデル-${ifcSchema}.ifc`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-output')
+  }catch(e){setExportError(e instanceof Error?e.message:String(e))}}
 
   const legal = { roadSlope, shadow, applicantFilled: applicant.trim() !== '' }
 
   return (
-    <div data-tutorial="tutorial-output" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', height: '100%' }}>
-      <div style={{ padding: 16, maxWidth: 720 }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>出力</h2>
-        {twinNote&&<p role="note">{twinNote}</p>}
-        {outlineReason ? (
-          <p style={{ color: '#a33' }}>{outlineReason}（ボリュームで外形を閉じてください。IFC と判定はそれまで出しません）</p>
-        ) : (
-          <p style={{ fontSize: 12, color: '#444' }}>
-            ボリュームの外形から作る（階数 {storeys}・階高 {height.toLocaleString('ja-JP')} mm・高さ {heightM.toFixed(2)} m・延べ面積 {grossM2.toFixed(1)} ㎡）
-          </p>
-        )}
+    <div data-tutorial="tutorial-output" className="p5-output-page">
+      <h2>出力</h2>
+      {twinNote && <p role="note">{twinNote}</p>}
+      {exportError && <p role="alert">{exportError}</p>}
+      <div className="p5-output-columns">
+        <section className="p5-output-inputs" aria-label="建築概要・入力項目">
+          <h3>建築概要・入力項目</h3>
+          <section>
+            <h4>申請者と図枠</h4>
+                  <label style={{ display: 'block', marginBottom: 6 }}>
+                    申請者
+                    <input value={applicant} onChange={(e) => setApplicant(e.target.value)} style={{ width: 240, marginLeft: 8 }} />
+                  </label>
+                  <div style={{ marginBottom: 8 }}>
+                    図枠:{' '}
+                    {(['A3横', 'A1'] as const).map((f) => (
+                      <button key={f} type="button" aria-pressed={frame === f} onClick={() => setFrame(f)} style={{ marginLeft: 6 }}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
 
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-          <button type="button" aria-pressed={tab === 'bim'} onClick={() => setTab('bim')}>
-            BIM 出力（IFC）
-          </button>
-          <button type="button" aria-pressed={tab === 'pdf'} onClick={() => setTab('pdf')}>
-            建築確認申請
-          </button>
-        </div>
-
-        {tab === 'bim' && (
-          <>
-            <section style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>BIM の属性</h3>
-              <label style={{ display: 'block', marginBottom: 6 }}>
-                壁厚 (mm)
-                <input value={wallText} onChange={(e) => setWallText(e.target.value)} style={{ width: 120, marginLeft: 8 }} />
-              </label>
+            {!applicant.trim() && <p className="p5-input-needed">要入力：申請者</p>}
+          </section>
+          <details open>
+            <summary>入力・確認が必要な項目</summary>
+            <ul>{missingOutput.map((text,i)=><li key={i}>{text}</li>)}</ul>
+          </details>
+            <details style={{ marginBottom: 20 }}><summary>申請条件・耐火性能</summary>
               <label style={{ display: 'block', marginBottom: 6 }}>
                 防火地域の区分（敷地の地点を人が選ぶ）
                 <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
@@ -289,7 +351,7 @@ export function P5Output() {
                   <option value="準防火">準防火地域</option>
                 </select>
               </label>
-            </section>
+
 
             {ready ? (
               <p style={{ fontSize: 12, color: '#444', margin: '0 0 12px' }}>
@@ -378,69 +440,7 @@ export function P5Output() {
                 </table>
               </section>
             ) : null}
-            <section style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>IFC の件数</h3>
-              {valid ? (
-                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th align="left">オブジェクト</th>
-                      <th align="right">件数</th>
-                      <th align="left">備考</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>IfcBuildingStorey</td>
-                      <td align="right">{storeys}</td>
-                      <td>階高 {height.toLocaleString('ja-JP')} mm</td>
-                    </tr>
-                    <tr>
-                      <td>IfcWall</td>
-                      <td align="right">{outline.ok ? outline.footprint.length * storeys : '—'}</td>
-                      <td>外形の辺 × 階数。厚さ {wall} mm</td>
-                    </tr>
-                    {['IfcColumn', 'IfcBeam', 'IfcSlab', 'IfcOpeningElement', 'IfcSpace'].map((name) => (
-                      <tr key={name}>
-                        <td>{name}</td>
-                        <td align="right">—</td>
-                        <td style={{ color: '#666' }}>未対応（柱・梁・スラブ・開口・部屋はモデルに無い）</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p style={{ color: '#a33' }}>外形が閉じていて、壁厚は 1 以上の整数で入れてください。</p>
-              )}
-            </section>
-
-            <section style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>IFC 書き出し</h3>
-              <div style={{ marginBottom: 8 }}>
-                版:{' '}
-                {(['IFC4', 'IFC2X3'] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={schema === s}
-                    className={schema === s ? 'is-active' : undefined}
-                    onClick={() => setSchema(s)}
-                    style={{ marginLeft: 6 }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-              <button type="button" onClick={download} disabled={!valid}>
-                IFC を書き出す
-              </button>
-              <p style={{ color: '#666', fontSize: 12 }}>IFC4 は円弧を曲線のまま、IFC2X3 は折れ線で書く。開口・什器・縦シャフトは未対応。</p>
-            </section>
-          </>
-        )}
-
-        {tab === 'pdf' && (
-          <>
+            </details>
             <section style={{ marginBottom: 16 }}>
               <PermitFormImport />
             </section>
@@ -451,12 +451,48 @@ export function P5Output() {
             </section>
 
             <section style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>案件の項目（ボリュームから決まらない条件）</h3>
-              <PermitProjectFields project={project} onChange={setProject} />
+              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>設計から引き継いだ申請条件</h3>
+              <PermitProjectFields project={project} inherited={resolvedProject.inherited} onChange={setProject} />
             </section>
 
-            {judgement ? (
-              <>
+
+          <section className="p5-output-save" aria-label="出力設定と保存">
+            <h3>出力設定と保存</h3>
+            <label>出力目的
+              <select value={purpose} onChange={e=>{
+                setPurpose(e.target.value)
+                setIfcSchema(e.target.value==='permit'?'IFC2X3':'IFC4')
+              }}>
+                <option value="general">図面・BIMデータの共有</option>
+                <option value="permit">建築確認申請用</option>
+              </select>
+            </label>
+            <label>IFCの版
+              <select value={ifcSchema} onChange={e=>setIfcSchema(e.target.value as 'IFC4'|'IFC2X3')}>
+                <option value="IFC4">IFC4</option>
+                <option value="IFC2X3">IFC2X3</option>
+              </select>
+            </label>
+            <div className="p5-output-actions">
+              <button type="button" disabled={pdfBusy||!drawingFiles.length} onClick={saveDrawingPdf}>図面をPDFで保存</button>
+              <button type="button" disabled={!judgement} onClick={()=>withPrintTitle(pdfBaseName(projectName),()=>window.print())}>図書一覧を印刷・PDFに保存</button>
+              <button type="button" disabled={!packageFiles} onClick={()=>downloadPackage()}>書類をZIPで保存</button>
+              <button type="button" disabled={!Object.keys(floorPlans).length} onClick={()=>downloadIfc(ifcSchema)}>IFCを保存（{ifcSchema}）</button>
+              <button data-tutorial="tutorial-save-all" className="p5-save-all" type="button" onClick={saveAll} disabled={pdfBusy||(!drawingFiles.length&&!documentFiles.length&&!Object.keys(formsNow).length&&!Object.keys(floorPlans).length)}>図面・書類・BIMデータを一括保存</button>
+            </div>
+            <p role="status">{pdfBusy?'PDFを作成しています…':''}</p>
+            <p>図面はPDFで保存します。一括保存は図面（PDF）・記入済み書類・選択した版のIFCをZIPにまとめます。</p>
+          </section>
+        </section>
+        <section className="p5-output-documents" aria-label="図書一覧">
+          <h3>図書一覧</h3>
+        <h3>出力できるもの</h3>
+        <ul>{drawingFiles.map(f=><li key={f.path}>{f.path.replace(/\.svg$/i,'.pdf')}</li>)}{documentFiles.map(f=><li key={f.path}>{f.path}</li>)}{Object.keys(floorPlans).length>0&&<li>BIMデータ（平面から生成・未確定要素を除く）</li>}</ul>
+        {!drawingFiles.length&&!documentFiles.length&&!Object.keys(floorPlans).length&&<p>まだありません。</p>}
+        <h3>不足・要確認</h3><ul>{missingOutput.map((text,i)=><li key={i}>{text}</li>)}</ul>
+        <p style={{fontSize:12}}>一括保存には出力一覧と不足内容も含めます。</p>
+
+          {judgement ? <>
                 <div className="permit-print">
                   <h2 style={{ fontSize: 18, margin: '0 0 4px' }}>建築確認申請 図書一覧</h2>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>
@@ -482,7 +518,7 @@ export function P5Output() {
                     </tbody>
                   </table>
                   <div dangerouslySetInnerHTML={{ __html: frameSvg({ size: frameSizeOf(frame), values: {} }).svg }} />
-                  {[drawingSvgs.site,...drawingSvgs.floors.map(f=>f.svg),drawingSvgs.shadow].filter((s):s is string=>!!s).map((svg,i)=><div key={i} style={{breakBefore:'page'}} dangerouslySetInnerHTML={{__html:svg}} />)}
+
                 </div>
 
                 <section style={{ marginBottom: 16 }}>
@@ -501,46 +537,40 @@ export function P5Output() {
                   />
                 </section>
 
-                <section style={{ marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>申請者と図枠</h3>
-                  <label style={{ display: 'block', marginBottom: 6 }}>
-                    申請者
-                    <input value={applicant} onChange={(e) => setApplicant(e.target.value)} style={{ width: 240, marginLeft: 8 }} />
-                  </label>
-                  <div style={{ marginBottom: 8 }}>
-                    図枠:{' '}
-                    {(['A3横', 'A1'] as const).map((f) => (
-                      <button key={f} type="button" aria-pressed={frame === f} onClick={() => setFrame(f)} style={{ marginLeft: 6 }}>
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => window.print()}>
-                    印刷・PDF に保存
-                  </button>
-                  <button type="button" onClick={downloadPackage} disabled={!packageFiles}>
-                    一式を zip で出す
-                  </button>
-                  <p style={{ color: '#666', fontSize: 12 }}>
-                    ブラウザの印刷で PDF にする。
-                  </p>
-                  <style>{`.permit-print{display:none}@media print{@page{size:${frame === 'A1' ? 'A1 landscape' : 'A3 landscape'};margin:12mm}body *{visibility:hidden}.permit-print,.permit-print *{visibility:visible}.permit-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff}}`}</style>
-                </section>
-              </>
-            ) : (
-              <p style={{ color: '#a33' }}>{outlineReason ?? '外形が未作成'}</p>
-            )}
-          </>
-        )}
+
+          </> : <p>{outlineReason ?? '図書一覧の判定にはボリュームの外形が必要です。'}</p>}
+        </section>
       </div>
-      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
+      {devShown && <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
         {!rightShown('feature-adjust') || !devShown ? null : (
           <PanelTile title="機能の調整" onHide={() => usePanelTiles.getState().hideTile('feature-adjust')}>
             <h2>機能の調整</h2>
             <FeatureAdjustTile screen="P5" />
           </PanelTile>
         )}
-      </aside>
+      </aside>}
+      <style>{`
+        .p5-output-page{height:100%;min-height:0;overflow:auto;padding:24px;box-sizing:border-box}
+        .p5-output-page>h2{font-size:18px;margin:0 0 20px}
+        .p5-output-columns{display:grid;grid-template-columns:minmax(320px,0.9fr) minmax(0,1.3fr);gap:24px;align-items:start}
+        .p5-output-inputs,.p5-output-documents{min-width:0;padding:20px;border:1px solid #d8e0e9;border-radius:10px}
+        .p5-output-inputs>h3,.p5-output-documents>h3{margin-top:0}
+        .p5-output-inputs>section,.p5-output-inputs>details{margin-bottom:20px}
+        .p5-output-inputs input{max-width:100%;box-sizing:border-box}
+        .p5-output-inputs ul{padding-left:1.5em;line-height:1.6}
+        .p5-input-needed{color:#a86b00;font-size:12px}
+        .p5-output-save{border-top:1px solid #d8e0e9;padding-top:16px}
+        .p5-output-save>label{display:flex;align-items:center;gap:12px;margin:10px 0}
+        .p5-output-save select{flex:1;min-width:0;padding:6px}
+        .p5-output-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+        .p5-output-actions button{padding:8px 12px;border:1px solid #b5c6db;border-radius:6px;font:inherit;cursor:pointer}
+        .p5-output-actions .p5-save-all{width:100%;background:#1f2a44;color:white}
+        .p5-output-actions button:disabled{opacity:.5;cursor:default}
+        .p5-output-save p{font-size:12px;color:#666;line-height:1.6}
+        @media(max-width:850px){.p5-output-columns{grid-template-columns:1fr}}
+        .permit-print{display:none}
+        @media print{@page{size:${frame === 'A1' ? 'A1 landscape' : 'A3 landscape'};margin:12mm}body *{visibility:hidden}.permit-print,.permit-print *{visibility:visible}.permit-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff}.p5-output-page{overflow:visible;height:auto}}
+      `}</style>
     </div>
   )
 }

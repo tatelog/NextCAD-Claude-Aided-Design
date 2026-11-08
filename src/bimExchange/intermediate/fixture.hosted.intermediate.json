@@ -1,0 +1,583 @@
+{
+  "schemaVersion": "bim-intermediate/1",
+  "units": "mm",
+  "coordinateSystem": "right-handed-z-up",
+  "storeys": [
+    {
+      "id": "floor-2",
+      "name": "2階",
+      "elevationMm": 3000,
+      "heightMm": 3000
+    }
+  ],
+  "elements": [
+    {
+      "id": "[\"floor-2\",\"slab:0\"]",
+      "kind": "slab",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 0,
+            "y": -3000
+          },
+          {
+            "x": 2000,
+            "y": -3000
+          },
+          {
+            "x": 2000,
+            "y": -2000
+          },
+          {
+            "x": 1000,
+            "y": -2000
+          },
+          {
+            "x": 1000,
+            "y": -1000
+          },
+          {
+            "x": 2000,
+            "y": -1000
+          },
+          {
+            "x": 2000,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ],
+        "holes": [],
+        "zMm": 3000,
+        "heightMm": 200
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "buildingOutline",
+          "void-original"
+        ],
+        "origin": "plan",
+        "note": "床版上下面の基準は階基準から上方へ押出し。厚さは計画条件。構造設計未確認"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"balcony:balcony-original:0\"]",
+      "kind": "balcony",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 2000,
+            "y": -3000
+          },
+          {
+            "x": 4000,
+            "y": -3000
+          },
+          {
+            "x": 4000,
+            "y": 0
+          },
+          {
+            "x": 2000,
+            "y": 0
+          }
+        ],
+        "holes": [],
+        "zMm": 3000,
+        "heightMm": 200
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "balcony-original",
+          "unit",
+          "void-original"
+        ],
+        "origin": "plan",
+        "note": "床版上下面の基準は階基準から上方へ押出し。厚さは計画条件。構造設計未確認"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"balcony-opening:balcony-original\"]",
+      "kind": "opening",
+      "storeyId": "floor-2",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "balcony-original",
+          "unit"
+        ],
+        "origin": "plan",
+        "note": "バルコニー出入口の高さ・壁厚が未指定"
+      },
+      "status": "unresolved"
+    },
+    {
+      "id": "[\"floor-2\",\"void:void-original\"]",
+      "kind": "opening",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 1000,
+            "y": -2000
+          },
+          {
+            "x": 2000,
+            "y": -2000
+          },
+          {
+            "x": 2000,
+            "y": -1000
+          },
+          {
+            "x": 1000,
+            "y": -1000
+          }
+        ],
+        "holes": [],
+        "zMm": 3000,
+        "heightMm": 200
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "void-original"
+        ],
+        "origin": "plan",
+        "note": "床版から控除済みの吹抜け領域。別実体として加算しない"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"exterior-wall:0\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "buildingOutline"
+        ],
+        "origin": "plan",
+        "note": "外形辺からの壁候補。壁厚・高さは未確定"
+      },
+      "status": "unresolved"
+    },
+    {
+      "id": "[\"floor-2\",\"exterior-wall:1\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "buildingOutline"
+        ],
+        "origin": "plan",
+        "note": "外形辺からの壁候補。壁厚・高さは未確定"
+      },
+      "status": "unresolved"
+    },
+    {
+      "id": "[\"floor-2\",\"exterior-wall:2\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "buildingOutline"
+        ],
+        "origin": "plan",
+        "note": "外形辺からの壁候補。壁厚・高さは未確定"
+      },
+      "status": "unresolved"
+    },
+    {
+      "id": "[\"floor-2\",\"exterior-wall:3\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "buildingOutline"
+        ],
+        "origin": "plan",
+        "note": "外形辺からの壁候補。壁厚・高さは未確定"
+      },
+      "status": "unresolved"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:envelope/N\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 1900,
+            "y": 0
+          },
+          {
+            "x": 1900,
+            "y": -3000
+          },
+          {
+            "x": 2100,
+            "y": -3000
+          },
+          {
+            "x": 2100,
+            "y": 0
+          }
+        ],
+        "holes": [],
+        "zMm": 3200,
+        "heightMm": 2800
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "unit-detail"
+        ],
+        "origin": "plan",
+        "note": "住戸包絡/共有境界と明示仕様による壁。断面・材料の設計確認は別途必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:envelope/S\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": -100,
+            "y": 0
+          },
+          {
+            "x": -100,
+            "y": -3000
+          },
+          {
+            "x": 100,
+            "y": -3000
+          },
+          {
+            "x": 100,
+            "y": 0
+          }
+        ],
+        "holes": [],
+        "zMm": 3200,
+        "heightMm": 2800
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "unit-detail"
+        ],
+        "origin": "plan",
+        "note": "住戸包絡/共有境界と明示仕様による壁。断面・材料の設計確認は別途必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:envelope/W\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 0,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": -100
+          },
+          {
+            "x": 2000,
+            "y": -100
+          },
+          {
+            "x": 2000,
+            "y": 100
+          }
+        ],
+        "holes": [],
+        "zMm": 3200,
+        "heightMm": 2800
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "unit-detail"
+        ],
+        "origin": "plan",
+        "note": "住戸包絡/共有境界と明示仕様による壁。断面・材料の設計確認は別途必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:envelope/E\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 0,
+            "y": -2900
+          },
+          {
+            "x": 0,
+            "y": -3100
+          },
+          {
+            "x": 2000,
+            "y": -3100
+          },
+          {
+            "x": 2000,
+            "y": -2900
+          }
+        ],
+        "holes": [],
+        "zMm": 3200,
+        "heightMm": 2800
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "unit-detail"
+        ],
+        "origin": "plan",
+        "note": "住戸包絡/共有境界と明示仕様による壁。断面・材料の設計確認は別途必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:wall/room-a/room-b/h\"]",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 942.5,
+            "y": 0
+          },
+          {
+            "x": 942.5,
+            "y": -3000
+          },
+          {
+            "x": 1057.5,
+            "y": -3000
+          },
+          {
+            "x": 1057.5,
+            "y": 0
+          }
+        ],
+        "holes": [],
+        "zMm": 3200,
+        "heightMm": 2800
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "room-a",
+          "room-b"
+        ],
+        "origin": "plan",
+        "note": "住戸包絡/共有境界と明示仕様による壁。断面・材料の設計確認は別途必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:opening:door-hosted\"]",
+      "kind": "opening",
+      "storeyId": "floor-2",
+      "hostElementId": "[\"floor-2\",\"unit:unit:wall/room-a/room-b/h\"]",
+      "geometry": {
+        "type": "extrudedPolygon",
+        "outer": [
+          {
+            "x": 942.5,
+            "y": -500
+          },
+          {
+            "x": 942.5,
+            "y": -1400
+          },
+          {
+            "x": 1057.5,
+            "y": -1400
+          },
+          {
+            "x": 1057.5,
+            "y": -500
+          }
+        ],
+        "holes": [],
+        "zMm": 3200,
+        "heightMm": 2100
+      },
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "door-hosted"
+        ],
+        "origin": "plan",
+        "note": "元平面の位置と明示した高さによる開口。窓は実幅・開始位置の明示が必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "estimated"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:opening:window-unresolved\"]",
+      "kind": "opening",
+      "storeyId": "floor-2",
+      "hostElementId": "[\"floor-2\",\"unit:unit:envelope/N\"]",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "window-unresolved"
+        ],
+        "origin": "plan",
+        "note": "元平面の位置と明示した高さによる開口。窓は実幅・開始位置の明示が必要。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "unresolved"
+    },
+    {
+      "id": "[\"floor-2\",\"unit:unit:column:column-original\"]",
+      "kind": "column",
+      "storeyId": "floor-2",
+      "geometry": null,
+      "source": {
+        "elementIds": [
+          "floor-2",
+          "floor:2",
+          "synthetic-plan",
+          "unit",
+          "unit-detail",
+          "column-original"
+        ],
+        "origin": "plan",
+        "note": "描画と同じ柱位置補正。明示断面のみ使用。住戸ローカル座標(mm): {\"x\":0,\"y\":300}。利用者選択の概算寸法。壁高は階高−床版厚、基準高さは床版上面"
+      },
+      "status": "unresolved"
+    }
+  ],
+  "issues": [
+    {
+      "code": "OPENING_GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"unit:unit:opening:window-unresolved\"]",
+      "message": "壁/開口の寸法が不足、または開口が壁の高さ範囲を外れています"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"balcony-opening:balcony-original\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"exterior-wall:0\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"exterior-wall:1\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"exterior-wall:2\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"exterior-wall:3\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"unit:unit:opening:window-unresolved\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    },
+    {
+      "code": "GEOMETRY_UNRESOLVED",
+      "severity": "warning",
+      "elementId": "[\"floor-2\",\"unit:unit:column:column-original\"]",
+      "message": "断面・高さが未確定、または平面形状が無効のため形状を生成していません"
+    }
+  ]
+}

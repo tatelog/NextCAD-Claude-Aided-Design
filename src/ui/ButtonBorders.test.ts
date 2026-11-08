@@ -14,24 +14,27 @@ import { MenuCheckRows } from './MenuCheckRows'
 
 const buttonsOf = (html: string): string[] => html.match(/<button[^>]*>/g) ?? []
 
-describe('文字が入るボタンは枠あり（仕様 BB1）', () => {
-  it('BB1: 右パネルの × は btn-text（枠は CSS で付け、インラインで消さない）', () => {
+// 代表の指示（2026-11-07、Codex 経由）: 右パネルの ×・メニューの折りたたみの見出し・メニューのチェックの行は、枠を消す。
+// 代表の決定（2026-11-07）: Codex の今の版を正とする。BB1 の「この 3 つは枠あり」は廃止し、枠なしで、押せることと名前が分かることを確かめる。
+describe('右パネルの ×・メニューの見出し・チェックの行は枠なし（BB1 の改め）', () => {
+  it('BB1: 右パネルの × は枠なしで、何を閉じるかの名前（aria-label）が付く', () => {
     const [b] = buttonsOf(renderToStaticMarkup(createElement(TileClose, { title: '外形', onHide: () => undefined })))
-    expect(b).toContain('class="btn-text"')
-    expect(b).not.toMatch(/border:\s*0/)
+    expect(b).toMatch(/border:\s*0/)
+    expect(b).toContain('aria-label="外形を閉じる"')
   })
 
-  it('BB1: メニューの折りたたみの見出し（▾ 文字）は btn-text', () => {
+  it('BB1: メニューの折りたたみの見出しは枠なしで、開閉の状態（aria-expanded）を持つ', () => {
     const [b] = buttonsOf(renderToStaticMarkup(createElement(Fold, { title: 'クレジット（出典）' })))
-    expect(b).toContain('class="btn-text"')
-    expect(b).not.toMatch(/border:\s*0/)
+    expect(b).toMatch(/border:\s*0/)
+    expect(b).toMatch(/aria-expanded="(true|false)"/)
   })
 
-  it('BB1: メニューのチェックの行（文字とチェックの絵）は btn-text', () => {
+  it('BB1: メニューのチェックの行は枠なしのチェックボックス（role と aria-checked）', () => {
     const groups = [{ heading: '共通', rows: [{ id: 'x', title: '日影', shown: true }] }] as never
     const [b] = buttonsOf(renderToStaticMarkup(createElement(MenuCheckRows, { groups, onToggle: () => undefined })))
-    expect(b).toContain('class="btn-text"')
-    expect(b).not.toMatch(/border:\s*0/)
+    expect(b).not.toContain('class="btn-text"')
+    expect(b).toContain('role="checkbox"')
+    expect(b).toContain('aria-checked="true"')
   })
 })
 

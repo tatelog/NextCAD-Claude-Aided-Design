@@ -1,3 +1,5 @@
+import {ResizableSidebar,useRightPanelWidth} from './ResizableSidebar'
+import {useVolumePlan} from '../plan/volumePlan'
 import {useSolarSettings} from '../store/solarSettings'
 import {useTutorial,tutorialDone} from '../tutorial/state'
 import {tutorialSteps} from '../tutorial/steps'
@@ -10,7 +12,6 @@ import { useOrdinance } from '../store/ordinance'
 import { OrientationCompass } from './OrientationCompass'
 import { loadRoadData, useRoadData } from '../store/roadData'
 import { associateRoads } from '../map/roadAssociation'
-import { shadowExposure } from '../law/shadowDrawing'
 import { BoxPlot } from './BoxPlot'
 import { createPortal } from 'react-dom'
 import {boxOutline} from '../volume/boxOutline'
@@ -24,10 +25,9 @@ import { findClosedOutline } from '../canvas/closure'
 import { extrudeOrReason, type ExtrudeResult } from '../volume/extrudeResult'
 import { NumericLineForm } from './NumericLineForm'
 import { useFeatures } from '../store/features'
-import { volumeAfterSlope } from '../volume/cutVolume'
-import { legalSlopeFromInputs, NORTH_NEEDS_TRUE_NORTH, slopeRowReasonOf } from '../volume/legalSlope'
+import { legalSlopeFromInputs } from '../volume/legalSlope'
 import { previewSetbackLines as setbackLines } from '../volume/setbackLines'
-import { baselineLabelOf, baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
+import { baselineOutline, DEFAULT_WALL_THICKNESS_MM, type BaselineSide } from '../volume/baselineOutline'
 import { rotateOutline, moveOutlineVertices } from '../canvas/outlineEdit'
 import { ROTATION_STEPS, snapAngle, type RotationStep } from '../volume/rotation'
 import { judgeSlope } from '../volume/slopeJudge'
@@ -47,7 +47,6 @@ import type { HeightDistrict } from '../law/shadowMeasure'
 
 import { useSite } from '../store/site'
 import type { Zone } from '../law/slopeRules'
-import { judgeFar } from '../volume/farCheck'
 import { p2Entries, useDrawing } from '../store/drawing'
 import { CircleMenu } from './CircleMenu'
 import { DrawingCanvas } from './DrawingCanvas'
@@ -62,12 +61,6 @@ import { SceneErrorBoundary } from './SceneErrorBoundary'
 import { mapTilesOf } from '../map/gsiTiles'
 import { PLANE_TRUE_NORTH } from '../map/parcelPlane'
 import { neighborVolumes } from '../volume/neighborLocal'
-import type { ObjectKind } from '../plan/objectMenu'
-import { objectSourcesOfFootprint } from '../plan/objectSourcesOfPlan'
-import { sourcesOfTable } from '../plan/objectCountsOfTable'
-import { emptyObjectTableInput, objectTableOf } from '../plan/objectTable'
-import { ResizableObjectMenu as ObjectMenu } from './ObjectMenu'
-import { objectMenuFoldedByDefault, useObjectMenuFold } from './objectMenuFold'
 import { TileClose } from './PanelTile'
 import { ChatTile } from './ChatTile'
 import { FeatureAdjustTile } from './FeatureAdjustTile'
@@ -81,8 +74,7 @@ import { isRightItemShown, useActiveMode, useMode } from '../store/mode'
 import { SCREEN_MODES } from '../app/screenModes'
 import { OrdinanceForm, OrdinanceStatusLine, ORDINANCE_KEYS } from './OrdinanceForm'
 
-const m2 = (mm2: number) => (mm2 / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })
-import { lotAreaMm2, lotCenterOf, lotOf, roadEdgeIndexOf, slopeLotNoteOf } from '../plan/lot'
+import { lotCenterOf, lotOf, roadEdgeIndexOf, slopeLotNoteOf } from '../plan/lot'
 import { parcelPropsOf } from '../map/selectedParcel'
 import { isConfirmedStaleOf, lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
 import { neighborVolumesInFrame } from '../volume/neighborFrame'
@@ -91,8 +83,7 @@ import { useDevTools } from '../store/devTools'
 
 export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSelectSite?: () => void } = {}) {
   const [showRoadNumbers, setShowRoadNumbers] = useState(true)
-  const [sideWidth, setSideWidth] = useState(260)
-  const sideDrag = useRef<{ x: number; width: number } | null>(null)
+  const sideWidth = useRightPanelWidth(s=>s.width)
   const devShown = useDevTools((s) => s.shown)
   // P2 の敷地: 確定した敷地の筆（P1 の「この敷地で確定」）。確定していなければダミー（統括の依頼 2026-11-06。1）
   const savedSite = useConfirmedSite((s) => s.confirmed)
@@ -114,13 +105,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   const entries = useMemo(() => p2Entries(drawnAll), [drawnAll])
   const segments = useMemo(() => entries.flatMap((e) => e.segments), [entries])
   const closure = useMemo(() => findClosedOutline(segments), [segments])
-  // 左メニュー（G55）の入力: 外形（閉じた輪郭）と敷地（選んだ筆、無ければダミー）から
-  const objectSources = useMemo(() => objectSourcesOfFootprint(closure.footprint, lot), [closure, lot])
-  // 左の一覧の件数（G78）: 閉じた外形と仮の筆界の行から数える（別の集計表は作らない）
-  const countSources = useMemo(
-    () => sourcesOfTable(objectTableOf({ ...emptyObjectTableInput(), outline: closure.footprint, siteBoundary: true })),
-    [closure],
-  )
   const storeyCount = useDrawing((s) => s.storeyCount)
   const storeyHeightMm = useDrawing((s) => s.storeyHeightMm)
   const setStoreyCount = useDrawing((s) => s.setStoreyCount)
@@ -148,7 +132,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   const startDrawing = () => {
     setSelectOnly(false); setBoxPlot(false); setPanOnly(false); setView('plan'); useMode.getState().setMode('drawing') }
   // 左メニュー（G55）で選んだ種類（1 つだけ。もう一度押すと外れる）。2D 平面のときだけ出す（3D のときに出すかは未決）
-  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
   const [homeToken, setHomeToken] = useState(0)
   const siteBuildings = useSite((s) => s.buildings)
   const showShadow = useUi((s) => s.showShadow)
@@ -204,8 +187,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   // 敷地との離れ（西・南）。入れると建物をその位置へ移す。北と東は建物の大きさで決まる（G67）
   // 離れ（西・南）の入力は空で始める。描いた外形は、離れを入れるまで動かない（t62 の直し）。既定（G104・G115）は入力欄の placeholder に出す
   // 基準線（ハブ A-03 G59・統括の依頼 t52）: 描いた外形（外壁の中心線）を、内側へ寄せるか、中心線から量（外へ正）だけずらす。既定は中心線・ずらし 0
-  const [baselineSide, setBaselineSide] = useState<BaselineSide>('中心線')
-  const [baselineOffsetText, setBaselineOffsetText] = useState('0')
+  const [baselineSide] = useState<BaselineSide>('中心線')
+  const [baselineOffsetText] = useState('0')
 
   // 離れ（西・南）の入力があれば、建物をその位置へ移した外形を使う。空欄なら描いた位置のまま
   // 回転（G71）: 右パネルの角度（°）と刻み。「回す」で外形を重心のまわりに回し、store に確定する
@@ -223,7 +206,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
     ...(isRightItemShown(SCREEN_MODES, activeMode, 'P2', hiddenTiles, id) ? {} : { display: 'none' as const }),
   })
   // 左のオブジェクト一覧の開閉（G55）。描画（システム）と 3D は折りたたんで始める。画面・モード・表示が変わると既定に戻る
-  const menuFold = useObjectMenuFold(`P2-${activeMode}-${view}`, objectMenuFoldedByDefault(activeMode, view))
   const rotateDeg = snapAngle(Number(rotateText), rotateStep)
   // 3D の角の回転つまみ（G71）: つまんだ時点の外形（entries）を覚え、離したときに、その外形へ丸めた角度を 1 回だけ与えて確定する（Undo は 1 回で戻る）
   const knobSnapshotRef = useRef<typeof entries | null>(null)
@@ -293,15 +275,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
     })
   }, [effectiveFar, effectiveZone, edge, roadWidth, lot, parcel, planningAngle])
 
-  const cut = useMemo(() => {
-    if (!volume) return null
-    return volumeAfterSlope(
-      { footprint: volume.footprint, storey_count: volume.storey_count, storey_height: volume.storey_height },
-      legal.boundaries,
-      lotAreaMm2(lot),
-    )
-  }, [volume, legal, lot])
-
   // 敷地との離れ（敷地が矩形のときだけ。G67）
   // 離れの寸法線（G67）。3D の地面に出す。寸法線の表示をオフにしたら出さない
   const setbackLinesOfVolume = useMemo(() => (volume ? setbackLines(lot, volume.footprint) : null), [volume, lot])
@@ -348,14 +321,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   const overviewShadows = useMemo(() => sunWindow(sunSite.lat, sunSite.lon, new Date(`${solarDate}T00:00:00Z`))
     .flatMap(sun => sunShadowsOf(stackedFloors, { ...sun, azimuthFromSouthDeg: sun.azimuthFromSouthDeg - planningAngle }) ?? []),
     [stackedFloors, sunSite.lat, sunSite.lon, planningAngle, solarDate])
-  const automaticShadow = useMemo(() => {
-    if (!volume) return null
-    return shadowExposure({
-      lot: lot.map(p => rotatePlanPoint(p, -planningAngle)),
-      buildings: stackedFloors.map(b => ({...b,footprint:b.footprint.map(p=>rotatePlanPoint(p,-planningAngle))})),
-      lat:sunSite.lat,lon:sunSite.lon,date:new Date(Date.UTC(2026,11,22)),measurementHeightM:0,
-    })
-  }, [volume, stackedFloors, lot, planningAngle, sunSite])
   const ordinanceEntries = useOrdinance((s) => s.entries)
   // 測定面の候補（G87）。表から出す提案。確定するまで判定には使わない
   // 日影規制（冬至 8:00〜16:00）。切り取った階ごとの形で判定する。規制値が無い用途地域は対象外と出す。規制値は確認済みの条例の値だけ（G15）
@@ -409,7 +374,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
     useSite.getState().setSlopeBoundaries(legal.boundaries)
   }, [legal])
 
-  const farJudgement = cut ? judgeFar(cut.floor_area_ratio, effectiveFar ?? undefined) : '—'
 
   const closureLabel = closure.closed
     ? '閉じている'
@@ -436,12 +400,23 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
       shadowText: shadowJudge.text,
       brokenFloors,
     })
+  const requireCalculatedPlan = () => {
+    const site=useSite.getState(), plan=useVolumePlan.getState().confirmed
+    const source=JSON.stringify([site.volume,site.slopeBoundaries,site.volume?.storey_count,site.volume?.storey_height])
+    if(!plan || plan.source!==source || !Object.values(plan.plans).some(p=>p.cells.length>0)){
+      window.alert('配置が未計算、または変更後の配置が未確認です。「配置を計算」を押し、結果を確認して「この配置を平面へ引き継ぐ」を押してください。')
+      return false
+    }
+    return true
+  }
   const clickNext = () => {
+    if(!requireCalculatedPlan())return
     const issues = p2Issues()
     if (nextGateOf(issues) === 'go') onNext?.()
     else setNextIssues(issues)
   }
   const goNextAnyway = (issues: readonly CheckIssue[]) => {
+    if(!requireCalculatedPlan())return
     recordWorkLog({
       at: new Date().toISOString(),
       screen: 'P2',
@@ -456,7 +431,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
   return (
     <div className="p03">
       <header className="p03-toolbar">
-        <strong>ボリューム作図</strong>
+        <strong>ボリュームモデル構築</strong>
         {headerSlots && createPortal(<>        <span className="p03-mode">
           <HeaderIconButton label="平面" pressed={view === 'plan'} onClick={() => setView('plan')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="1"/><path d="m6 11 6-5 6 5M8 10v7h8v-7M11 17v-4h2v4"/></svg>} />
           <HeaderIconButton label="3D" pressed={view === '3d'} onClick={() => setView('3d')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/></svg>} />
@@ -475,15 +450,6 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
         {confirmed !== null && isConfirmedStaleOf(confirmed, currentUid, currentSite) ? <span className="p03-note">確定し直しが要る（敷地で地点か筆を変えた）。</span> : null}
       </header>
       <div className="p03-body">
-        <ObjectMenu
-          sources={objectSources}
-          countSources={countSources}
-          selectedKind={selectedKind}
-          onSelect={setSelectedKind}
-          caption="種類ごとの件数（外形と仮の筆界）"
-          folded={menuFold.folded}
-          onToggleFold={menuFold.toggle}
-        />
         <div data-tutorial="tutorial-draw" className="volume-preview-workspace">
         {toolbarVisible && <DockedPenToolbar onClose={()=>setToolbarVisible(false)} onPan={()=>{setSelectOnly(false);setBoxPlot(false);setPanOnly(true)}} onBox={()=>{setSelectOnly(false);setPanOnly(false);setPlanningPreview(null);setBoxPlot(true)}} onSelect={() => { setSelectOnly(true); setBoxPlot(false); setPanOnly(false) }} isSelecting={selectOnly} isBox={boxPlot}
           isDrawing={view === 'plan' && !panOnly} onDraw={startDrawing} placement={placement} />}
@@ -549,51 +515,17 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
               setBoxPlot(false)
             }} />}
             <div style={{position: 'absolute', top: 8, right: 8, pointerEvents: 'none'}}><OrientationCompass angle={planningAngle} /></div>
-            <CircleMenu />
+            <CircleMenu onDraw={startDrawing}
+              onPan={()=>{setSelectOnly(false);setBoxPlot(false);setPanOnly(true)}}
+              onSelect={()=>{setSelectOnly(true);setBoxPlot(false);setPanOnly(false)}}
+              onBox={()=>{setSelectOnly(false);setPanOnly(false);setPlanningPreview(null);setBoxPlot(true)}}
+              isDrawing={!panOnly && !selectOnly && !boxPlot} isPanning={panOnly} isSelecting={selectOnly} isBox={boxPlot} />
           </div>
         )}
         </div>
-        <div
-          className="p03-side-resizer"
-          role="separator"
-          aria-label="右サイドメニューの幅"
-          aria-orientation="vertical"
-          aria-valuemin={220}
-          aria-valuemax={600}
-          aria-valuenow={sideWidth}
-          tabIndex={0}
-          title="ドラッグで幅を変更（左右キーでも調整）"
-          onPointerDown={(e) => {
-            if (e.button !== 0) return
-            e.preventDefault()
-            sideDrag.current = { x: e.clientX, width: sideWidth }
-            e.currentTarget.setPointerCapture(e.pointerId)
-          }}
-          onPointerMove={(e) => {
-            const drag = sideDrag.current
-            if (!drag) return
-            const available = e.currentTarget.parentElement!.clientWidth
-            const max = Math.max(220, Math.min(600, available - 280))
-            setSideWidth(Math.min(max, Math.max(220, drag.width + drag.x - e.clientX)))
-          }}
-          onPointerUp={(e) => {
-            sideDrag.current = null
-            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-          }}
-          onPointerCancel={() => { sideDrag.current = null }}
-          onLostPointerCapture={() => { sideDrag.current = null }}
-          onKeyDown={(e) => {
-            if (!['ArrowLeft', 'ArrowRight', 'Home'].includes(e.key)) return
-            e.preventDefault()
-            const max = Math.max(220, Math.min(600, e.currentTarget.parentElement!.clientWidth - 280))
-            setSideWidth(e.key === 'Home' ? Math.min(260, max) : Math.min(max, Math.max(220, sideWidth + (e.key === 'ArrowLeft' ? 16 : -16))))
-          }}
-        />
-        <aside className="p03-side" style={{ width: sideWidth }}>
+        <div style={{width:sideWidth,flexShrink:0,minHeight:0}}><ResizableSidebar className="p03-side">
           <section data-tutorial="tutorial-p2-next">
-            <button type="button" onClick={clickNext}>
-              次へ（平面）
-            </button>
+            <VolumePlanPanel onNext={clickNext} />
             {nextIssues !== null ? (
               <NextCheckPanel
                 issues={nextIssues}
@@ -604,9 +536,8 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
             ) : null}
           </section>
 
-          <VolumePlanPanel />
           <section data-tutorial="volume-dimensions" aria-label="階数・階高">
-            <h2>階数・階高・寸法</h2>
+            <details open><summary style={{ cursor: 'pointer' }}>階数・階高・寸法</summary>
             <VolumeDimensions footprint={closure.closed ? closure.footprint : null} focusRequest={dimensionFocus} onApply={next=>{
               if(!closure.footprint)return
               if(!placementAllowed(lot,next,edge))throw Error('敷地外または境界からの離隔不足になるため反映できません')
@@ -633,9 +564,11 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
                 onChange={(e) => setStoreyHeightMm(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
               />
             </label>
+            </details>
           </section>
           <section aria-label="法規の表示">
-            <h2 title={inheritedZoneName ? `敷地から引継ぎ：${inheritedZoneName}` : undefined}>法規の表示</h2>
+            <details open>
+            <summary style={{ cursor: 'pointer' }} title={inheritedZoneName ? `敷地から引継ぎ：${inheritedZoneName}` : undefined}>法規の表示</summary>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <span>道路・境界番号（平面）</span>
               <button type="button" aria-label="道路・境界番号の表示" aria-pressed={showRoadNumbers} onClick={() => setShowRoadNumbers(value => !value)}>{showRoadNumbers ? 'オン' : 'オフ'}</button>
@@ -651,70 +584,13 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
                 }}>{kind === 'north' && northExcluded ? '対象外' : volumeSlope && slopeVisibility[kind] ? 'オン' : 'オフ'}</button>
               </label>
             ))}
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span>日影（指定時刻の影）</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span>日影（指定時刻の影）<button type="button" popoverTarget="volume-shadow-notes" aria-label="日影の補足・規制値を開く" aria-haspopup="dialog" title="日影の補足・規制値" style={{ marginLeft: 4, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: '4px 6px' }}>※</button></span>
               <button type="button" aria-pressed={shadowOn} onClick={() => {
                 if (!shadowOn) { useUi.getState().setShowShadow(true); setView('3d') }
                 setVolumeShadow(!shadowOn)
               }}>{shadowOn ? 'オン' : 'オフ'}</button>
-            </label>
-            <p className="p03-note">斜線は適用対象の面を表示します。表示切替は計算条件を変更しません。</p>
-          </section>
-
-          <section style={tileStyle('p2-outline')}>
-            <details><summary style={{ cursor: 'pointer' }}>外形の詳細</summary>
-            <p>基準線: {baselineLabelOf(baselineOpts)}</p>
-            <dl>
-              <dt>線分</dt>
-              <dd>{segments.length} 本</dd>
-              <dt>閉合</dt>
-              <dd className={closure.closed ? 'ok' : 'ng'}>{closureLabel}</dd>
-            </dl>
-            <label>
-              基準線
-              <select value={baselineSide} onChange={(e) => setBaselineSide(e.target.value as BaselineSide)}>
-                <option value="中心線">外壁の中心線（既定）</option>
-                <option value="内側">内側の面（壁厚 200 mm の半分だけ内へ）</option>
-              </select>
-            </label>
-            <label>
-              中心線からずらす (mm・外へ正、内へ負)
-              <input type="number" step={10} value={baselineOffsetText} onChange={(e) => setBaselineOffsetText(e.target.value)} />
-            </label>
-            </details>
-            {baselineError ? <p className="ng">{baselineError}</p> : null}
-          </section>
-          <section style={tileStyle('p2-volume')}>
-            <TileClose title="ボリューム" onHide={() => hideTile('p2-volume')} />
-            <h2>ボリューム</h2>
-            {volume && cut ? (
-              <dl>
-                <dt>高さ</dt>
-                <dd>{volume.total_height.toLocaleString('ja-JP')} mm</dd>
-                <dt>建築面積</dt>
-                <dd>{m2(cut.building_area_mm2)} m²</dd>
-                <dt>延床面積</dt>
-                <dd>{m2(cut.gross_floor_area_mm2)} m²</dd>
-                <dt>斜線（北・隣地・道路）</dt>
-                <dd>
-                  {legal.boundaries.length === 0
-                    ? slopeRowReasonOf(legal)
-                    : judgeSlope(volume.footprint, legal.boundaries, { storey_count: volume.storey_count, storey_height: volume.storey_height })}
-                  {legal.pending.includes(NORTH_NEEDS_TRUE_NORTH) ? <div className="muted">{NORTH_NEEDS_TRUE_NORTH}</div> : null}
-                </dd>
-                <dt>日影 ※</dt>
-                <dd>
-                  {automaticShadow ? `最大 ${automaticShadow.outside.reduce((max,c)=>Math.max(max,c.hours),0).toFixed(1)} h（冬至）` : '未計算'}
-                  {shadowJudge.result ? `・${shadowJudge.result}` : '・規制判定は※参照'}
-                </dd>
-                <dt>容積率</dt>
-                <dd>
-                  {(cut.floor_area_ratio * 100).toFixed(0)} %（{farJudgement}）
-                </dd>
-              </dl>
-            ) : (
-              <p className="muted">外形が閉じると出る</p>
-            )}
+            </div>
             <label>
               日射の時期
               <select value={solarDate} onChange={e => setSolarDate(e.target.value)}>
@@ -727,8 +603,11 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
               </select>
             </label>
             {legal.pending.length > 0 && <p className="muted">判定不能（切り取らない）: {legal.pending.join('、')}</p>}
-            <details>
-              <summary style={{ cursor: 'pointer' }}>※ 日影の補足・規制値</summary>
+            <div id="volume-shadow-notes" popover="auto" role="dialog" aria-labelledby="volume-shadow-notes-title" style={{ width: 'min(440px, calc(100vw - 32px))', maxHeight: 'min(640px, calc(100vh - 32px))', overflowY: 'auto', boxSizing: 'border-box', padding: 20, border: '1px solid #cbd2dc', borderRadius: 10, background: '#fff', color: '#1f2a44', boxShadow: '0 8px 28px #1f2a4433' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <h3 id="volume-shadow-notes-title" style={{ margin: 0 }}>日影の補足・規制値</h3>
+                <button type="button" popoverTarget="volume-shadow-notes" popoverTargetAction="hide">閉じる</button>
+              </div>
               <p className="muted">条例の限界値には未取得・未確認の項目があります。未入力でも次へ進めます。未判定を適合とは扱いません。</p>
               <p className="muted">規制判定：{shadowJudge.text}</p>
               <p className="muted">日影時間は冬至8〜16時、10分刻み・2m格子、敷地外周20mまでの地上の計算です。</p>
@@ -736,6 +615,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
               {ORDINANCE_KEYS.map(k => <div key={k}><OrdinanceStatusLine itemKey={k} /></div>)}
               <OrdinanceForm compactSite />
               <p className="muted">{slopeLotNoteOf(parcel, chiban)}日影の規制判定には確認済みの条例値を使用します。</p>
+            </div>
             </details>
           </section>
           <section style={{ ...tileStyle('p2-numeric'), ...(devShown ? {} : { display: 'none' }) }}>
@@ -788,7 +668,7 @@ export function P03Volume({ onNext, onSelectSite }: { onNext?: () => void; onSel
             <TileClose title="オブジェクト判定（Drawing）" onHide={() => hideTile('drawing-review')} />
             <DrawingReviewTile />
           </section>}
-        </aside>
+        </ResizableSidebar></div>
       </div>
 
     </div>

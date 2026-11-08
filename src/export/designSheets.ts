@@ -1,3 +1,4 @@
+import {BalconyLayer} from '../ui/BalconyLayer'
 import {CirculationLayer} from '../ui/CirculationLayer'
 import {corridorForCell} from '../plan/planCorridors'
 import {createElement} from 'react'
@@ -9,12 +10,12 @@ import {sunShadowsOf,winterSunAt} from '../volume/sunShadow'
 type Pt={x:number;y:number}
 const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!))
 const sheet=(title:string,body:string)=>`<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297"><rect width="420" height="297" fill="white"/><text x="12" y="12" font-size="5">${esc(title)}</text>${body}</svg>`
-export function detailedFloorSvg(p:AutoPlan,floor:number):string|null{
+export function detailedFloorSvg(p:AutoPlan,floor:number,dimensions?:Parameters<typeof UnitPlanDrawing>[0]['dimensions']):string|null{
  if(!p.cells.length)return null
  const scale=chooseScaleOf(p.widthMm,p.depthMm,{x0:15,y0:25,x1:405,y1:267});if(!scale)return null
- const rooms=p.cells.map(cell=>renderToStaticMarkup(createElement(UnitPlanDrawing,{cell,corridor:corridorForCell(p,cell),typeId:p.unitTypeIdsByCell?.[cell.id]??'',variant:p.unitPlanVariants?.[cell.id]??'A',override:p.unitPlanOverrides?.[cell.id]}))).join('')
+ const rooms=p.cells.map(cell=>renderToStaticMarkup(createElement(UnitPlanDrawing,{dimensions,cell,corridor:corridorForCell(p,cell),typeId:p.unitTypeIdsByCell?.[cell.id]??'',variant:p.unitPlanVariants?.[cell.id]??'A',override:p.unitPlanOverrides?.[cell.id]}))).join('')
  const rect=(r:{x0:number;y0:number;x1:number;y1:number})=>`<rect x="${r.x0}" y="${r.y0}" width="${r.x1-r.x0}" height="${r.y1-r.y0}" fill="#eef0f1" stroke="#333" stroke-width="30"/>`
- const body=`<g transform="translate(${210-p.widthMm/scale/2} 25) scale(${1/scale})">${(p.corridors??[p.corridor]).map(rect).join('')}${p.cores.map(rect).join('')}${rooms}${renderToStaticMarkup(createElement(CirculationLayer,{plan:p}))}</g><text x="12" y="278" font-size="3">縮尺 1:${scale} ／ 窓は記号・柱は中心位置（寸法未収録）</text>`
+ const body=`<g transform="translate(${210-p.widthMm/scale/2} 25) scale(${1/scale})">${(p.corridors??[p.corridor]).map(rect).join('')}${p.cores.map(rect).join('')}${rooms}${renderToStaticMarkup(createElement(BalconyLayer,{plan:p}))}${renderToStaticMarkup(createElement(CirculationLayer,{plan:p}))}</g><text x="12" y="278" font-size="3">縮尺 1:${scale} ／ 窓は記号・柱は中心位置（寸法未収録）</text>`
  return sheet(`${floor}階 平面図`,body)
 }
 export function shadowSheetSvg(input:{lot:Pt[];floors:{footprint:readonly Pt[];heightMm:number}[];lat:number;lon:number;date:string;rotation:number}):string|null{

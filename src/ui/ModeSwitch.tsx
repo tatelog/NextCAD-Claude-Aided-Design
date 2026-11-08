@@ -26,7 +26,7 @@ const iconOfMode = (id: string) => {
 }
 
 export function ModeSwitch({ screen, activeMode, onPick }: ModeSwitchProps) {
-  const modes = modesOfScreen(SCREEN_MODES, screen)
+  const modes = modesOfScreen(SCREEN_MODES, screen).filter(mode => screen !== 'P2' || mode.id !== 'drawing')
   if (modes.length <= 1) return null
   return (
     <div role="group" aria-label="モード" style={{ display: 'flex', gap: 4 }}>

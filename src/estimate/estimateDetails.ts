@@ -9,6 +9,7 @@ export type EstimateOrigin = '自動' | '手入力'
 
 /** 見積の明細（DB の 1 行）。金額は円の整数。参照が無い行は null */
 export interface EstimateDetail extends Omit<DetailLine, 'objectId'> {
+  specification?: import('./specPackages').PackageLine
   /** 元になったオブジェクトの id。手入力の行は無い（null） */
   objectId: string | null
   amountYen: number | null

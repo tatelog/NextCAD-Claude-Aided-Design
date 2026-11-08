@@ -1,5 +1,6 @@
+import {ResizableSidebar} from './ResizableSidebar'
 import { LeftPanelResize, useLeftPanelWidth } from './LeftPanelResize'
-// 左メニューの部品（ハブ A-03 G55、D-04 共通部品「左メニュー」）。P2 の 2D 平面・P3・P4 で共通に使う。
+// 左メニューの部品。P3・P4で使用し、住戸・部屋は個別オブジェクトとして表示しない。
 // 種類ごとの件数の一覧と、選んだ種類の中身の欄を出す。見た目と挙動は P3 の左の帯のまま。状態は持たず、選びと開閉は呼び出し側が持つ。
 import { detailOfKind, toggleKind, type ObjectDetailSources } from '../plan/objectDetail'
 import { commonAreaCountsOf, commonAreaGroups } from '../plan/commonAreas'
@@ -55,7 +56,7 @@ export function ObjectMenu({
   folded = false,
   onToggleFold,
 }: ObjectMenuProps) {
-  const rows = countObjects(countSources ?? sources)
+  const rows = countObjects(countSources ?? sources).filter(row => row.kind !== 'unit' && row.kind !== 'room')
   const detail = selectedKind ? detailOfKind(selectedKind, sources) : null
   const groupSummary = objectRows ? unitGroupSummary(objectRows) : null
   const frame = {
@@ -125,7 +126,6 @@ export function ObjectMenu({
             </button>
             {selectedKind === r.kind && detail ? (
         <section aria-label={`${detail.label}の中身`} style={{ marginTop: 4, marginLeft: 20 }}>
-          <h3 style={{ fontSize: 13, margin: '0 0 4px' }}>{detail.label}の中身</h3>
           {detail.emptyText ? (
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>{detail.emptyText}</p>
           ) : (
@@ -133,7 +133,7 @@ export function ObjectMenu({
               {detail.entries.map((e, i) => (
                 <li key={i} style={{ padding: '4px 0', borderBottom: '1px dashed #e6e4dc' }}>
                   <strong>{e.title}</strong>
-                  {e.lines.map((line, j) => (
+                  {e.lines.filter(line => !/^(意味づけの結果|レイヤー)[:：]/.test(line)).map((line, j) => (
                     <div key={j} style={{ color: '#444' }}>
                       {line}
                     </div>
@@ -171,5 +171,5 @@ export function ObjectMenu({
 
 export function ResizableObjectMenu(props: ObjectMenuProps) {
   const width = useLeftPanelWidth((s) => s.width)
-  return <ObjectMenu {...props} width={width} />
+  return <div style={{width:props.folded?28:width,minHeight:0,height:'100%'}}><ResizableSidebar side="left"><ObjectMenu {...props} width={props.folded?28:width} /></ResizableSidebar></div>
 }

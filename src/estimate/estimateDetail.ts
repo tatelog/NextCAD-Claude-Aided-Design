@@ -13,7 +13,7 @@ export interface DetailLine {
   /** 品目 */
   item: string
   quantity: number
-  unit: Quantity['unit']
+  unit: string
   /** 単価の表（T-10）の参照。未決の間は null */
   unitPriceRef: string | null
   /** 仮置きの印（出典が無い値を含む） */
@@ -37,9 +37,9 @@ export function detailLinesOfStructure(
   rebar: RebarCondition,
 ): DetailLine[] {
   const basis: Record<'slab' | 'formwork' | 'concrete' | 'rebar', string> = {
-    slab: '外形の面積 × 階数（仮置きの印）',
+    slab: '各階の床版面積の合計',
     formwork: '床版と同じ面積（支保工は含めない）',
-    concrete: `厚さ ${SLAB_THICKNESS_MM} mm × 面積 × 階数（厚さは仮置き）`,
+    concrete: `厚さ ${SLAB_THICKNESS_MM} mm（指定条件）× 各階の床版面積の合計`,
     rebar: `被り厚 ${rebar.coverMm} mm・${rebar.joint}（係数は仮置き）`,
   }
   return (['slab', 'formwork', 'concrete', 'rebar'] as const).map((key) => {

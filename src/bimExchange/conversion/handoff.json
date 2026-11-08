@@ -1,0 +1,39 @@
+{
+  "schemaDifferences": [
+    "IFC2X3 mandatory OwnerHistory on all IfcRoot descendants",
+    "IFC2X3 wall/column/beam/opening has 8 attributes; slab has 9",
+    "IFC4 all supported product classes have 9 attributes"
+  ],
+  "evidence": {
+    "types": "typecheck-scoped.json",
+    "beforeImplementation": "schema-red.json",
+    "target": "test-results.json"
+  },
+  "module": "bim-intermediate/1 conversion IFC4 and IFC2X3",
+  "unverified": [
+    "P3/P5 and file save schema argument integration: parent task",
+    "external BIM tool import and schema certification"
+  ],
+  "defaultSchema": "IFC4",
+  "entry": "src/bimExchange/conversion/index.ts",
+  "exports": [
+    "intermediateToScene(model)",
+    "intermediateToIfc(model,schema?: IfcSchema)",
+    "type IfcSchema = IFC4 | IFC2X3"
+  ],
+  "repositoryWideStatus": "historical results only; not rerun for this phase",
+  "sourceSha256": {
+    "openings.ts": "61815C1ACADE4CBA932369C1DE75A2587AC367D779B93D155E4BD456EBCFEA02",
+    "validation.ts": "21519D94251E65FCE947D758608E6BD65CB102093778E166D5E731A0AF90ED35",
+    "conversion.test.ts": "AAA6665957E32337DD91B5684AC6F076168DF6796A9415A2A4318CA17697FB32",
+    "schema.test.ts": "117726F4420BBBA9CA5F9914FC79533234E768C8A02E63DD9CE87D75A7F8C7B5",
+    "index.ts": "7784C2C699B87D72FFBEBA86B4336C22190F2333C46BA508EAB70E9663513083",
+    "ifc.ts": "C9D2FD5F5F6F298CA495B8C3398CC39F38AB54D30F9608F2D33A99EB6EC7F9EF",
+    "tsconfig.json": "4F850D9F0CD4F77ED142B4C7D9C3A0DA151A6074097DBF9304173243D548FC0C",
+    "check-types.mjs": "A8A27CFDC1D2FCEE17070CC5E51DE6F26F362BB814FD4662887F2AE4E6BF4010",
+    "types.ts": "F95B6F994904938386423D1F886B282082532992762E3B4EAAB7F79B47357EB8",
+    "openings.test.ts": "7B71F7481760D57B5F369BB98ADE221EC897B50CDF8E03B92F6AB7E502900E11",
+    "scene.ts": "4EEE612156E7779C8AAD6DE52190FADB81018D9E38888BB9EBD7FB673DB7E137"
+  },
+  "sceneIntegration": "Render all meshes; elementId may repeat across wall bands. appliedOpenings preserves opening source/status."
+}

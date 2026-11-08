@@ -58,7 +58,8 @@ const ROWS_WITH_PLAN =
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
-const textOf = (html: string): string => html.replace(/<[^>]*>/g, '')
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので文字に入れない（代表の指示『トグルでリスト化』2026-11-07）
+const textOf = (html: string): string => html.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '')
 
 // 品目は名前で引く（品目の ID は仮置きなので、試験に書かない）
 function itemOf(label: string): FixtureItem {

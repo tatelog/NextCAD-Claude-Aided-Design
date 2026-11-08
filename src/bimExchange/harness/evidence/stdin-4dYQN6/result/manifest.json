@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "bim-conversion-manifest/1",
+  "createdAt": "2026-11-07T18:05:56.498Z",
+  "converterMode": "mock",
+  "status": "complete",
+  "inputSha256": "4fe8abbf19701ea1e4b84947d4584ede6376f3644070c04d7b67368dd9c0ce4b",
+  "units": "mm",
+  "coordinateSystem": "right-handed-z-up",
+  "elements": [],
+  "issues": [],
+  "artifacts": [
+    {
+      "path": "model.ifc",
+      "sha256": "f173fe44447b57a79ca85a732c31c5fb5fca41fcef440054a099df01e02a037b"
+    },
+    {
+      "path": "scene.json",
+      "sha256": "bfaa2c9300c2d714394b28e823d626e0635599379730c63eb1d5629924fe6118"
+    }
+  ],
+  "notice": "参考モデル。構造設計・確認申請済みを意味しません。"
+}

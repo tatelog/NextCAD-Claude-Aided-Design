@@ -22,6 +22,7 @@ export type ObjectKind =
 
 /** P3 の自動作成の結果と、置いた什器（種類ごとの配列）。未指定は 0 件。要素の形は件数に関係しない。 */
 export interface ObjectSources {
+  columns?: readonly unknown[]
   siteBoundaries?: readonly unknown[]
   outlines?: readonly unknown[]
   gridLines?: readonly unknown[]
@@ -47,7 +48,7 @@ const MENU: readonly { kind: ObjectKind; label: string; source?: keyof ObjectSou
   { kind: 'siteBoundary', label: '筆界', source: 'siteBoundaries' },
   { kind: 'outline', label: '外形', source: 'outlines' },
   { kind: 'grid', label: '通り芯', source: 'gridLines' },
-  { kind: 'column', label: '柱' },
+  { kind: 'column', label: '柱', source:'columns' },
   { kind: 'core', label: 'コア', source: 'cores' },
   { kind: 'shaft', label: '縦シャフト', source: 'shafts' },
   { kind: 'corridor', label: '廊下', source: 'corridors' },

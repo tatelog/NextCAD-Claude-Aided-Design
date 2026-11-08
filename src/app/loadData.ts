@@ -1,4 +1,9 @@
+import {BimSettingsSchema,useBimSettings,defaultBimSettings} from '../store/bimSettings'
 import { RoadLinkSchema } from '../map/roadAssociation'
+import {SpecSelectionSchema,useSpecSelections} from '../store/specSelections'
+import {SavedFloorPlansSchema} from './savedFloorPlans'
+import {useFloorPlans} from '../store/floorPlans'
+import {useSite} from '../store/site'
 // 案件の読み込み（保存した JSON を、画面の状態に戻せる形にする）。読むのは保存（saveData.ts の buildSaveData）の形だけ。
 // 形が合わなければ例外にする（読む前の画面の状態は変えない）。意味づけ（種類・要確認）は保存していないので、読んだあとの扱いは画面側で空に戻す。
 import { z } from 'zod'
@@ -40,6 +45,10 @@ const FixtureSchema = z.object({
 })
 
 const SaveSchema = z.object({
+  bimSettings:BimSettingsSchema.optional(),
+  specSelections:z.record(z.string(),SpecSelectionSchema).optional(),
+  floorPlans:SavedFloorPlansSchema.optional(),
+  floorPlanSource:z.string().optional(),
   projectName: z.string(),
   savedAt: z.string().refine((s) => !Number.isNaN(Date.parse(s)), '保存日時が日時の形ではありません'),
   entries: z.array(EntrySchema),
@@ -58,6 +67,10 @@ const SaveSchema = z.object({
 })
 
 export interface LoadedProject {
+  bimSettings?:import('../store/bimSettings').BimSettings
+  specSelections?:Record<string,import('../estimate/specPackages').SpecSelection>
+  floorPlans?:Record<number,import('../plan/autoPlan').AutoPlan>
+  floorPlanSource?:string
   projectName: string
   savedAt: Date
   entries: z.infer<typeof EntrySchema>[]
@@ -77,6 +90,9 @@ export interface LoadedProject {
 export function parseSaveData(json: unknown): LoadedProject {
   const d = SaveSchema.parse(json)
   return {
+    ...(d.bimSettings?{bimSettings:d.bimSettings}:{}),
+    ...(d.specSelections?{specSelections:d.specSelections}:{}),
+    ...(d.floorPlans?{floorPlans:d.floorPlans,floorPlanSource:d.floorPlanSource??''}:{}),
     projectName: d.projectName,
     savedAt: new Date(d.savedAt),
     entries: d.entries,
@@ -92,6 +108,11 @@ export function parseSaveData(json: unknown): LoadedProject {
 
 /** 読んだ案件を、画面の状態に入れる。Undo・Redo の履歴と種類（意味づけ）は、保存していないので空に戻す。 */
 export function applyLoadedProject(p: LoadedProject): void {
+  useBimSettings.setState({settings:p.bimSettings??defaultBimSettings()})
+  useSpecSelections.setState({selections:p.specSelections??{}})
+  const plans=p.floorPlans??{}, selected=Number(Object.keys(plans)[0]??1)
+  useFloorPlans.setState({plans,selected,source:p.floorPlanSource??'',rectangle:null})
+  useSite.setState({plan:plans[selected]??null})
   useDrawing.setState({ entries: p.entries, past: [], redoStack: [], storeyCount: p.storeyCount, storeyHeightMm: p.storeyHeightMm, fitted: false })
   useFixtures.setState({ fixtures: p.fixtures, unitPriceTexts: p.unitPriceTexts })
   useFirstFloor.setState({ names: p.firstFloorNames })

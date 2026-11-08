@@ -3,9 +3,11 @@
 // 前提: コア同士は重ならない（自動作成の配置）。重なるときは二重に引く。
 import type { Rect } from '../plan/candidateCells'
 import { balconyOfUnit } from '../plan/balcony'
+import {balconyRailSegments,type BalconyRect} from '../plan/balconyPlan'
 import type { Quantity } from './quantities'
 
 export interface PlanExteriorInput {
+  balconies?: readonly BalconyRect[]
   /** 廊下（基準階） */
   corridors?: readonly Rect[]
   corridor: Rect
@@ -32,7 +34,8 @@ function overlapMm2(a: Rect, b: Rect): number {
 export const RAILING_HEIGHT_MM = 1100
 
 /** 手すり（バルコニーの付く面の辺の長さ × 高さ）。階数分。仮置きの印を付ける */
-export function railingQuantity(input: { cells: readonly Rect[]; outline: { W: number; D: number }; storeyCount: number }): Quantity {
+export function railingQuantity(input: { balconies?:readonly BalconyRect[]; cells: readonly Rect[]; outline: { W: number; D: number }; storeyCount: number }): Quantity {
+  if(input.balconies!==undefined){const length=input.balconies.reduce((n,b)=>n+balconyRailSegments(b,input.balconies!).reduce((s,[a,z])=>s+Math.hypot(z!.x-a!.x,z!.y-a!.y),0),0);return {item:'手すり',category:'外装',quantity:length*RAILING_HEIGHT_MM*input.storeyCount/M2,unit:'m2',provisional:true}}
   const railingMm2 = input.cells.reduce((sum, c) => {
     const faces = balconyOfUnit(c, { outline: input.outline }).faces
     return sum + faces.reduce((s, f) => s + (f === '上' || f === '下' ? c.x1 - c.x0 : c.y1 - c.y0) * RAILING_HEIGHT_MM, 0)
@@ -43,7 +46,7 @@ export function railingQuantity(input: { cells: readonly Rect[]; outline: { W: n
 export function planExteriorQuantities(input: PlanExteriorInput): { balcony: Quantity; corridor: Quantity } {
   const { corridor, cores, cells, outline, storeyCount } = input
   const corridorMm2 = (input.corridors??[corridor]).reduce((total,r)=>total+(r.x1-r.x0)*(r.y1-r.y0)-cores.reduce((sum,c)=>sum+overlapMm2(r,c),0),0)
-  const balconyM2 = cells.reduce((sum, c) => sum + balconyOfUnit(c, { outline }).areaM2, 0)
+  const balconyM2 = input.balconies!==undefined?input.balconies.reduce((sum,b)=>sum+(b.x1-b.x0)*(b.y1-b.y0)/M2,0):cells.reduce((sum, c) => sum + balconyOfUnit(c, { outline }).areaM2, 0)
   return {
     balcony: { item: 'バルコニー', category: '外装', quantity: balconyM2 * storeyCount, unit: 'm2', provisional: true },
     corridor: { item: '共用廊下', category: '外装', quantity: (corridorMm2 / M2) * storeyCount, unit: 'm2', provisional: true },
