@@ -9,11 +9,14 @@
 | @react-three/drei | 10.7.9 | ^10.7.9 | MIT | Copyright (c) 2020 react-spring | `licenses/react-three-drei-LICENSE.txt` |
 | @react-three/fiber | 9.8.2 | ^9.8.2 | MIT | Copyright (c) 2019-2025 Poimandres（※下の注） | `licenses/react-three-fiber-LICENSE.txt` |
 | docx-preview | 0.4.1 | 0.4.1 | Apache License 2.0 | Copyright Volodymyr Baydalka | `licenses/docx-preview-LICENSE.txt` |
+| jspdf | 4.2.1 | 4.2.1 | MIT | Copyright (c) 2010-2025 James Hall, https://github.com/MrRio/jsPDF | `licenses/jspdf-LICENSE.txt` |
 | jszip | 3.10.2 | 3.10.2 | MIT と GPL-3.0-or-later から選ぶ（このアプリは MIT を選ぶ） | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso | `licenses/jszip-LICENSE.markdown` |
 | maplibre-gl | 6.15.0 | 6.15.0 | BSD-3-Clause | Copyright (c) 2023, MapLibre contributors | `licenses/maplibre-gl-LICENSE.txt` |
+| polygon-clipping | 0.15.7 | 0.15.7 | MIT | Copyright (c) 2018 Mike Fogel | `licenses/polygon-clipping-LICENSE.md` |
 | proj4 | 2.22.0 | ^2.22.0 | MIT | Copyright (c) 2014, Mike Adair, Richard Greenwood, Didier Richard, Stephen Irons, Olivier Terral and Calvin Metcalf | `licenses/proj4-LICENSE.md` |
 | react | 19.3.1 | ^19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. | `licenses/react-LICENSE.txt` |
 | react-dom | 19.3.1 | ^19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. | `licenses/react-dom-LICENSE.txt` |
+| svg2pdf.js | 2.9.0 | 2.9.0 | MIT | Copyright (c) 2015-2026 yWorks GmbH | `licenses/svg2pdf.js-LICENSE.txt` |
 | sql.js | 1.15.2 | ^1.15.2 | MIT | Copyright (c) 2017 sql.js authors (see AUTHORS) | `licenses/sql.js-LICENSE.txt` |
 | three | 0.187.0 | ^0.187.0 | MIT | Copyright © 2010-2026 three.js authors | `licenses/three-LICENSE.txt` |
 | zod | 4.6.7 | ^4.6.7 | MIT | Copyright (c) 2025 Colin McDonnell | `licenses/zod-LICENSE.txt` |
@@ -35,3 +38,9 @@
 - 配布元: https://github.com/Stuk/jszip （npm: `jszip`）
 - ライセンス: jszip は MIT と GPL-3.0-or-later の二つから選んで使える。このアプリは **MIT** を選んで使う（GPL-3.0-or-later は選ばない）。
 - 用途: docx-preview が Word の中身（zip）を読むために使う。
+
+## フォント: M PLUS 1p（Regular）
+
+- ファイル: `public/fonts/MPLUS1p-Regular.ttf`（図面の PDF に日本語を埋め込むために使う）
+- ライセンス: SIL Open Font License 1.1。Copyright 2016 The M+ Project Authors.
+- ライセンス本文: `public/fonts/MPLUS1p-OFL.txt`（フォントと一緒に配る）
