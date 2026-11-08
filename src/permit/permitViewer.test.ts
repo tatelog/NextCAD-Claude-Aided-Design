@@ -36,11 +36,25 @@ describe('ビューアの中身の種類（仕様 V2・V3）', () => {
     expect(CONTENT_LABEL.form).toBe('様式が未配置（様式を置けば記入して出す）')
   })
 
-  it('V2: 計算・その他は「人が用意する書類」。図面は配置図と各階平面図以外「未作成」', () => {
+  // Codex の版を正とする（代表の決定 2026-11-08）: 付近見取図と床面積求積図をビューアに接続した（BWC_HANDOFF.md「図書」）。
+  // 先頭の図面（付近見取図）は「未作成」でなくなったので、まだ作れない図面（立面図）で「未作成」を確かめる
+  it('V2: 計算・その他は「人が用意する書類」。作れない図面（立面図など）は「未作成」', () => {
     const rows = viewerRowsOf(JUDGEMENT, docs)
     expect(rows[1]!.content).toBe('人が用意する書類')
-    expect(rows[2]!.content).toBe(CONTENT_LABEL.notMade)
+    expect(rows[2]!.content).toBe('付近見取図（敷地位置・国土地理院の周辺地図）')
+    const notMade = viewerRowsOf({ ...JUDGEMENT, required: [], needsCheck: [], notRequired: [{ name: '二面以上の立面図', reason: '理由C' }] }, docs)
+    expect(notMade).toHaveLength(1)
+    expect(notMade[0]!).toMatchObject({ group: '要らない', name: '二面以上の立面図', reason: '理由C', content: CONTENT_LABEL.notMade })
     expect(CONTENT_LABEL.notMade).toBe('未作成')
+  })
+
+  // Codex の版を正とする（代表の決定 2026-11-08）: 付近見取図・床面積求積図は、それぞれの中身の種類を持つ（BWC_HANDOFF.md「図書」）
+  it('V8b: 付近見取図と床面積求積図は、それぞれの中身の種類を持つ', () => {
+    const j: PermitJudgement = { ...JUDGEMENT, required: ['付近見取図', '床面積求積図'], notRequired: [], needsCheck: [] }
+    expect(viewerRowsOf(j, docs).map((r) => r.content)).toEqual([
+      '付近見取図（敷地位置・国土地理院の周辺地図）',
+      '床面積求積図（保存輪郭・吹抜け控除）',
+    ])
   })
 
   it('V8: 配置図と各階平面図は、それぞれの中身の種類を持つ', () => {

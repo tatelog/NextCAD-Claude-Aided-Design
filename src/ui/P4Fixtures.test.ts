@@ -1,9 +1,10 @@
-// 仕様（ハブ A-03 G69、D-04 P3・P4）: P3 で置いた什器を P4 の数量に結ぶ。P4 に「什器（平面で置いたもの）」の欄を出す。文言は仮置き。
-// 仕様 1（欄）: P4 に、見出し「什器（平面で置いたもの）」の欄が出る。什器を置いていなければ、5 品目とも 0 台。
-// 仕様 2（種類ごと）: 店舗の什器を、品目ごとの台数で出す。どの行にも「単価: 未確定」が付く。
-// 仕様 3（区画なし）: 店舗が知っている区画（P3 の区画の候補）に無い区画の什器は、落とさず「区画なし」に数える。区画なしが無ければ、その行は出ない。
-// 仕様 4（工事原価に入れない）: 什器は、単価が決まるまで、工事原価（概算）の合計に入れない。右パネルの金額は、什器の有無で変わらない。注記で明記する。
-// 仕様 5（今までどおり）: 什器の欄を足しても、P4 の見出しと右パネルは今までどおり出る。
+// 仕様（ハブ A-03 G69、D-04 P3・P4）: P3 で置いた什器を P4 の数量に結ぶ。文言は仮置き。
+// Codex の版を正とする（代表の決定 2026-11-08）: P4 の中央の「什器（平面で置いたもの）」の欄（品目ごとの台数・単価: 未確定・区画なし）は外し、
+//   仕様・単価の編集は CSV（仕様CSV・材料CSV）へ集約した（03b0a0e。Codex が P4FixtureCost・P4FixturePlan の試験を同じ向きに直している）。
+//   置いた什器の印は平面に残る（P4FixturePlan.test.ts で確かめる）。
+// 仕様 1（欄を出さない）: P4 に「什器（平面で置いたもの）」の欄・品目ごとの台数・「単価: 未確定」の行・「区画なし」の行を出さない。
+// 仕様 4（工事原価に入れない）: 単価の無い什器は、工事原価（概算）の合計に入れない。右パネルの金額は、什器の有無で変わらない。注記は右の合計欄にまとめる。
+// 仕様 5（今までどおり）: P4 の見出しと右パネルは出る。
 // 描画は実物（react-dom/server の静的描画）。差し替えるのは、store の読み出しだけ（zustand はサーバー側の描画で初期値を返すため）。
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -70,7 +71,6 @@ const AUTO_WALL = {
 
 const HEADING = '什器（平面で置いたもの）'
 const UNPRICED = '単価: 未確定'
-const ZERO_ROWS = `キッチン0 台${UNPRICED}ユニットバス0 台${UNPRICED}洗面0 台${UNPRICED}便器0 台${UNPRICED}収納0 台${UNPRICED}`
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
@@ -83,53 +83,36 @@ beforeEach(() => {
   est.state = { lines: [], persisted: false }
 })
 
-describe('P4 の什器の欄（仕様 1・2）', () => {
-  it('見出し「什器（平面で置いたもの）」の欄が出る', () => {
-    expect(textOf(htmlOf())).toContain(HEADING)
-  })
-
-  it('什器を置いていなければ、5 品目とも 0 台で、どの行にも「単価: 未確定」が付く', () => {
-    expect(textOf(htmlOf())).toContain(`${HEADING}${ZERO_ROWS}`)
-  })
-
-  it('店舗の什器を、品目ごとの台数で出す', () => {
+describe('P4 の什器の欄（仕様 1）', () => {
+  // Codex の版を正とする（代表の決定 2026-11-08）: 中央の什器の欄は外した（仕様・単価は CSV へ集約）
+  it('什器を置いていなくても、置いていても、「什器（平面で置いたもの）」の欄と品目ごとの台数の行は出ない', () => {
+    expect(textOf(htmlOf())).not.toContain(HEADING)
     fx.state = {
       fixtures: [fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', kitchen, 'L1'), fixture('fixture-3', toilet, 'L0')],
       unitIds: ['L0', 'L1'],
     }
     const text = textOf(htmlOf())
-    expect(text).toContain(`キッチン2 台${UNPRICED}ユニットバス0 台${UNPRICED}洗面0 台${UNPRICED}便器1 台${UNPRICED}収納0 台${UNPRICED}`)
+    expect(text).not.toContain(HEADING)
+    expect(text).not.toContain(UNPRICED)
+    expect(text).not.toMatch(/キッチン\d+ 台/)
+    expect(text).not.toMatch(/便器\d+ 台/)
+  })
+
+  // Codex の版を正とする（代表の決定 2026-11-08）: 欄が無くなったので「区画なし」の行も出ない（什器の店舗の中身は落とさない）
+  it('区画なしの什器を置いても「区画なし」の行は出ず、店舗の什器は消えない', () => {
+    const placed = [fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', kitchen, 'L9'), fixture('fixture-3', toilet, null)]
+    fx.state = { fixtures: placed, unitIds: ['L0'] }
+    expect(textOf(htmlOf())).not.toContain('区画なし')
+    expect(fx.state.fixtures).toEqual(placed)
   })
 })
 
-describe('P4 の什器の欄（区画なし。仕様 3）', () => {
-  it('区画なしが無ければ、「区画なし」の行は出ない', () => {
-    fx.state = { fixtures: [fixture('fixture-1', kitchen, 'L0')], unitIds: ['L0'] }
+describe('P4 の什器（工事原価に入れない。仕様 4）', () => {
+  // Codex の版を正とする（代表の決定 2026-11-08）: 注記は什器の欄から右の合計欄へ移り、「単価未入力の項目は含みません」にまとめた
+  it('右の合計欄の注記で、単価未入力の項目は合計に含まない、と明記する', () => {
     const text = textOf(htmlOf())
-    expect(text).toContain(`キッチン1 台${UNPRICED}`)
-    expect(text).not.toContain('区画なし')
-  })
-
-  it('店舗が知っている区画に無い区画の什器は、落とさず「区画なし」に数える', () => {
-    fx.state = { fixtures: [fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', kitchen, 'L9')], unitIds: ['L0'] }
-    const text = textOf(htmlOf())
-    expect(text).toContain(`キッチン1 台${UNPRICED}`)
-    expect(text).toContain('区画なし1 台')
-  })
-
-  it('区画の指定が無い（null）什器も、区画なしに数える（区画の id がまだ知らされていなくても）', () => {
-    fx.state = { fixtures: [fixture('fixture-1', toilet, null)], unitIds: null }
-    const text = textOf(htmlOf())
-    expect(text).toContain(`便器0 台${UNPRICED}`)
-    expect(text).toContain('区画なし1 台')
-  })
-})
-
-describe('P4 の什器の欄（工事原価に入れない。仕様 4）', () => {
-  it('注記で、什器は単価が決まるまで、工事原価（概算）の合計には入れない、と明記する', () => {
-    const text = textOf(htmlOf())
-    expect(text).toContain('単価が決まるまで')
-    expect(text).toContain('工事原価（概算）の合計には入れない')
+    const panel = text.slice(text.lastIndexOf('計上済み金額（概算）'))
+    expect(panel).toContain('未参照・未拾い・単価未入力の項目は含みません。')
   })
 
   it('右パネル（工事原価）の中身は、什器を置いても変わらない（金額が 0 円でない入力でも）', () => {
@@ -145,22 +128,21 @@ describe('P4 の什器の欄（工事原価に入れない。仕様 4）', () =>
       fixtures: [fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', toilet, 'L0'), fixture('fixture-3', kitchen, null)],
       unitIds: ['L0'],
     }
-    const withFixturesHtml = htmlOf()
-    const withFixtures = panelOf(withFixturesHtml)
-    // 什器は欄に出ている（キッチン 1 台・便器 1 台・区画なし 1 台）が、右パネルの金額は変わらない
-    expect(textOf(withFixturesHtml)).toContain(`キッチン1 台${UNPRICED}ユニットバス0 台${UNPRICED}洗面0 台${UNPRICED}便器1 台${UNPRICED}`)
+    const withFixtures = panelOf(htmlOf())
     expect(without).toMatch(/[1-9][\d,]* 円/)
     expect(withFixtures).toBe(without)
   })
 })
 
 describe('P4 の本体（仕様 5）', () => {
-  it('什器の欄を足しても、P4 の見出しと右パネルは今までどおり出る', () => {
+  // Codex の版を正とする（代表の決定 2026-11-08）: 什器の欄は無いが、P4 の見出しと右の合計欄は出る
+  it('什器を置いても、P4 の見出しと右パネルが出る', () => {
     fx.state = { fixtures: [fixture('fixture-1', kitchen, 'L0')], unitIds: ['L0'] }
-    const text = textOf(htmlOf())
-    expect(text).toContain(HEADING)
+    const html = htmlOf()
+    const text = textOf(html)
     expect(text).toContain('積算 — 単価と数量')
-    expect(text).toContain('工事原価（概算）')
-    expect(text).toContain('数量の内訳（区分別・自動で拾えたもの）')
+    expect(text).toContain('計上済み金額（概算）')
+    expect(html).toContain('次へ（出力）')
+    expect(text).not.toContain(HEADING)
   })
 })

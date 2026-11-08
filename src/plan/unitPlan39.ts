@@ -1,5 +1,7 @@
 import {normalizeWetAccess} from './wetAccess'
 import {clearEntry} from './entryClearance'
+// 玄関の扉の開く向き（代表の決定 2026-11-08）: マンションの玄関は外開きが普通。指定が無ければ共用廊下側に開く。住戸の内側と明示したときだけ内開き
+export const entranceOpensOutward=(swingInto:string|null|undefined):boolean=>swingInto==null||swingInto==='共用廊下'
 import { z } from 'zod'
 import type { Rect } from './candidateCells'
 import type { Room } from './rooms'
@@ -35,6 +37,6 @@ export function placeUnitPlan(typeId:string,variant:string,cell:Rect,corridor:Om
  const touches=left?Math.abs(cell.x1-corridor.x0)<1:right?Math.abs(cell.x0-corridor.x1)<1:below?Math.abs(cell.y0-corridor.y1)<1:Math.abs(cell.y1-corridor.y0)<1
  const ends=door?[point(door.position.start,0),point(door.position.start+door.width,0)]:[]
  const entrance=door&&touches&&ends.every(p=>p.x>=corridor.x0-1&&p.x<=corridor.x1+1&&p.y>=corridor.y0-1&&p.y<=corridor.y1+1)?point(door.position.start+door.width/2,0):undefined
- return {status:'ok',rooms,plan,transform,shafts,entrance,columns:plan.columns.map(c=>({...point(c.x,c.y),id:c.id})),entrySweep:door?[point(door.position.start,0),point(door.position.start+door.width,0),point(door.position.start+door.width,(door.swing_into==='共用廊下'?-door.width:door.width)),point(door.position.start,(door.swing_into==='共用廊下'?-door.width:door.width))]:undefined}
+ return {status:'ok',rooms,plan,transform,shafts,entrance,columns:plan.columns.map(c=>({...point(c.x,c.y),id:c.id})),entrySweep:door?[point(door.position.start,0),point(door.position.start+door.width,0),point(door.position.start+door.width,(entranceOpensOutward(door.swing_into)?-door.width:door.width)),point(door.position.start,(entranceOpensOutward(door.swing_into)?-door.width:door.width))]:undefined}
 }
 

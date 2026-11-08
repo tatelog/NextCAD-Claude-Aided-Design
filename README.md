@@ -1,11 +1,31 @@
 # built-with-claude-japan-2026-toyo
 
-Built with Claude: Japan 2026 の提出作品です（個人 1 名）。
+Built with Claude: Japan 2026 の提出作品です（個人 1 名）。テーマは「あなたにしかない深さを」。
+
+**動かして見る（審査員用）**: https://claude-aided-design-relay.ishikawa-yutaka.workers.dev （ログイン不要。江東区のデータ入り。Claude は Haiku 5.5、月 1,000 件まで）
 
 > **Summary (EN)**
-> A browser tool for designing a slab-type reinforced-concrete apartment block in Koto-ku, Tokyo. Pick a site on a map, draw the outline and the grid by hand, and get a 3D volume with setback checks, a floor plan with unit counts, a rough cost estimate, and the list of permit documents with a Word-form viewer.
-> Claude proposes meanings for hand-drawn lines and candidate ordinance values, and returns chat operations; each reply is checked against a fixed schema. Every dimension and legal check is deterministic code.
-> No public data is bundled. Users place it under `public/local-data/` (see below).
+> A browser tool for designing a slab-type reinforced-concrete apartment block in Koto-ku, Tokyo. Pick a site on a map, draw the outline and the grid by hand, and get a 3D volume with setback checks, a floor plan with unit layouts, a rough cost estimate, and the permit documents filled into the official Tokyo forms.
+> Claude proposes meanings for hand-drawn lines and candidate ordinance values with sources, and operates the app through chat; each reply is checked against a fixed schema. Every dimension and legal check is deterministic code, verified against the national statutes (e-Gov) by tests. Final legal judgment stays with the architect and the reviewing body.
+> The repository bundles no map data. The hosted demo serves processed Koto-ku open data (parcels, PLATEAU buildings, roads) with attribution.
+
+## 対象を絞った理由と、どこまで確実か
+
+1 週間でイチから作る条件で、RC 造の板状マンションを、東京都江東区の公開データで、敷地から確認申請書まで最後まで通すことに絞りました。対象を広げて途中で止まるより、1 つの型を確実に通す方が価値があると判断したためです。敷地の取得、斜線と日影、住戸の割り付け、積算、様式への記入は型ごとに分けてあり、別の構造形式や自治体へは、この部品を複製して広げられます。
+
+**確実にできること（決定論の計算と試験で確かめたもの）**
+- 地図で敷地を選ぶと、筆界・用途地域・建蔽率・容積率・辺ごとの道路の候補を取り込む。
+- 手で描いた外形を、道路・隣地・北側の斜線で切った 3D にし、食い込みを色で示す。式は建築基準法 第 56 条・別表第三のとおりで、数値で照合している。
+- 柱割り・廊下・階段・EV を配置し、39 案の間取り（自作）から住戸を割り付ける。
+- 数量と単価から概算を出す（単価は出典の無いものに未確定の印）。
+- 東京都の様式の確認申請書・建築計画概要書に値を記入し、様式のまま画面で見せ、図面・IFC と一式を zip で出す。
+
+**人が補う所（このアプリが自動で決めないもの）**
+- 条例の値（日影規制の時間、測定面の高さなど）: 自治体ごとの例規集にあり、統合されたデータが無い。Claude が出典付きで候補を出し、人が出典を確かめて確定する。
+- 消防法の要件、構造計算・代理申請・BIM 申請・認定部材の有無で決まる書類: 一覧で「要確認」として理由付きで出す。
+- 条文の改正の新旧の比較: PDF でしか出ていないため、取り込んでいない。
+
+このアプリは法的な適合を保証しません。どの式で、どの条文に当てて、どの出典の値で計算したかを示し、最後の判断を建築士と確認検査機関に返す道具です。国の法令（e-Gov の現行の本文）に当てた計算の精度は高く、条例の値と入力のデータ（筆界の精度区分・用途地域）は人が出典で確かめます。
 
 ## 作ったもの
 
@@ -89,7 +109,9 @@ node scripts/prepare-local-data.ts --roads <道路の GeoJSON> --buildings <建�
 
 **東京都の Word の様式は、置きません。** P5 の「様式の取り込み」で、使う人が自分で取得した docx を選んで読み込みます。読み込んだものは画面の中だけに持ち、どこへも送りません。様式は東京都都市整備局の頁から取得してください（頁の利用規約では、無断での複製と転用は認められていません）。
 
-**リポジトリに入れない理由**: この公開リポジトリには、生データも、再配布の条件が確かめられていないデータも入れない方針だからです。データの取得と変換は、利用者が行います。
+**リポジトリに入れない理由**: この公開リポジトリには、生データを入れない方針だからです（容量と、第三者のデータを公開リポジトリに置かないため）。手元で動かすときは、データの取得と変換を利用者が行います。
+
+**本番（審査員用の URL）には入れている**: 筆（登記所備付地図データ）・建物（PLATEAU）・道路（国土数値情報 N13、CC BY 4.0）は、いずれも出典を示せば加工・再配布できる公開データです。本番では、江東区の範囲を加工したものを配信し、画面の出典に「加工して作成した」旨を示しています。東京都の Word の様式は、都の規約で無断の複製が認められていないため、本番にも入れていません。
 
 ## 出典と利用条件
 
@@ -114,7 +136,10 @@ node scripts/prepare-local-data.ts --roads <道路の GeoJSON> --buildings <建�
 - **様式**: 第二号と第三号は、記入できる欄が一部です。書けなかった欄は「空欄の一覧.txt」に出します。第八号は欄の一覧までです。
 - **立面図・断面図**: 図は作っていません。図書の一覧に出るだけです。
 - **IFC**: 階と壁だけを書き出します。読み込みはありません。
-- **Claude の API への接続**: 線の意味づけと条例の補完は、実際の API に繋いだ確認をまだしていないと、コードの注に明記しています。チャットを含め、配備したうえでの確認は、この README を書いた時点では済んでいません。
+- **Claude の API への接続**: 本番（上の URL）で、チャットが Claude の応答を返すことを確かめた（2026-11-08）。モデルは Worker 側で claude-haiku-5-5 に固定し、接続元を本番の URL に限り、月の上限は 1,000 件。
+- **画面の順番**: 各画面の「次へ」を押した所まで、次のタブが開く（先の画面へ一足飛びに移れない）。保存した案件を開いたときは全部開く。
+- **計算の時間**: チュートリアルの「余り面積の少ない寸法案を計算」は、候補を総当たりするため 1 分以上かかることがある。試験は待ち時間を延ばして通しており、性能の直しは未完了。
+- **住戸の割り付けの空き**: 外形の端に住戸 1 戸に満たない空きが残ることがある（例: 17 m × 36 m・ファミリー型だけで専有の比率 0.56）。住戸を端まで引き延ばして埋める試作は枝 `claude/area-fill-wip` にあり（比率 0.72）、計算を軽くしてから取り込む。この件の試験 1 件は失敗のまま残している。
 - **郵便番号での検索**: 未対応です。
 - **筆界**: 参考値です。法務上の境界を示すものではありません。
 - **住所検索**: 利用条件が未確認です。

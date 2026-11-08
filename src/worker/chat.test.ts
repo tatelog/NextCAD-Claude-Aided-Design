@@ -120,4 +120,20 @@ describe('鍵と接続元（仕様 4・5）', () => {
     expect(res.status).toBe(403)
     expect(called).toBe(false)
   })
+
+  // 仕様 7（保留の理由。統括 2026-11-08）: 保留（503）には、何で失敗したか（API の状態の番号など）を reason として返す。鍵の中身は入れない。
+  // 本番で 503 の原因を、推測でなく確かめられるようにするため
+  it('Claude の API が 401 で失敗して保留になったら、503 の reason に「401」が入り、鍵は入らない', async () => {
+    const fetchImpl = async () => new Response('{"error":"auth"}', { status: 401 })
+    const req = new Request('https://worker.example/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://app.example' },
+      body: JSON.stringify(body),
+    })
+    const res = await handleRequest(req, { ANTHROPIC_API_KEY: 'secret-key-value', ALLOWED_ORIGIN: 'https://app.example' }, fetchImpl)
+    expect(res.status).toBe(503)
+    const json = (await res.json()) as { reason?: string }
+    expect(json.reason).toContain('401')
+    expect(JSON.stringify(json)).not.toContain('secret-key-value')
+  })
 })

@@ -73,7 +73,6 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
   const shadow = useSite((s) => s.shadow)
   // 設計データを優先し、申請固有の入力だけ補う。
   const manualProject = usePermitProject((s) => s.project)
-  const setProject = usePermitProject((s) => s.set)
   // P2 の外形と階数・階高（P2 の値）
   // 外形は P2 の線だけ（P3 の線は外形に入れない）
   const drawnAll = useDrawing((s) => s.entries)
@@ -277,7 +276,7 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
     ...(!drawingSvgs.shadow?['日影図：敷地・外形・地点が必要です']:[]),
     ...(!documentFiles.length?['申請書類：様式を取り込み、記入済みの書類を作成してください']:[]),
     ...unwrittenNotesOf(formsNow,formValues),
-    ...Object.entries(project).filter(([,v])=>v===null).map(([k])=>`申請条件：${({inShadowRegulationArea:'日影規制区域',structuralCalc:'構造計算',hasAgent:'代理申請',bimSubmission:'BIMでの申請',usesCertifiedParts:'認定部材',hasBuildingEquipment:'建築設備',hasElevator:'昇降機'} as Record<string,string>)[k]}が未入力`),
+    ...Object.entries(project).filter(([k,v])=>v===null&&['inShadowRegulationArea','hasBuildingEquipment','hasElevator'].includes(k)).map(([k])=>`申請条件：${({inShadowRegulationArea:'日影規制区域',structuralCalc:'構造計算',hasAgent:'代理申請',bimSubmission:'BIMでの申請',usesCertifiedParts:'認定部材',hasBuildingEquipment:'建築設備',hasElevator:'昇降機'} as Record<string,string>)[k]}が未入力`),
   ]
   const canSaveSelected=(outputSelection.drawings&&drawingFiles.length>0)||(outputSelection.documents&&(Boolean(packageFiles)||documentFiles.length>0||Object.keys(formsNow).length>0))||(outputSelection.ifc&&Object.keys(floorPlans).length>0)
   const saveAll=async()=>{if(pdfBusy||!canSaveSelected)return;setPdfBusy(true);try{
@@ -328,7 +327,7 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
           </section>
           <PermitInformationTile values={formValues}>
             <details><summary>設計情報・図面の前提</summary>
-            <PermitProjectFields project={project} inherited={resolvedProject.inherited} onChange={setProject} />
+            <PermitProjectFields project={project} inherited={resolvedProject.inherited} />
             <p style={{fontSize:13}}>防火地域：{automaticFire ?? '未取得・未確定'}（敷地情報から反映）</p>
             <details style={{fontSize:12}}><summary>図面の備考に記載する前提</summary><ul>{conditionNotes.map(note=><li key={note}>{note}</li>)}</ul></details>
             </details>
