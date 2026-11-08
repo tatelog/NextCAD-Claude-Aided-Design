@@ -2,7 +2,7 @@
 
 ## 対象
 
-- リポジトリ： https://github.com/tatelog/built-with-claude-japan-2026-toyo
+- リポジトリ： https://github.com/tatelog/NextCAD-Claude-Aided-Design
 - ブランチ：`codex/ui-site-panel`
 - 本引継ぎを含むコミットが今回の受渡し版。基点は `5760533`。
 - 利用者の指示：ここまでをプッシュし、BwCで本番でも操作できる状態へ引き継ぐ。
