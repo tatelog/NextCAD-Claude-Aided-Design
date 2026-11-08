@@ -90,7 +90,7 @@ export function PracticeScreen() {
 
   return (
     <div style={{ padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' }}>
-      <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>練習セット（G11）</h2>
+      <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>練習セット</h2>
       <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>{status}</p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
         <button type="button" onClick={pick} disabled={!entries || entries.length === 0}>

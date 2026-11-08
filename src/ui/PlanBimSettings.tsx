@@ -1,0 +1,5 @@
+import {useBimSettings} from '../store/bimSettings'
+export function PlanBimSettings(){
+ const {settings,setSettings}=useBimSettings(),dims=settings.dimensions
+ return <details style={{margin:'16px 0'}}><summary>壁・開口の寸法</summary><label><input type="checkbox" checked={settings.estimated} onChange={e=>setSettings({...settings,estimated:e.target.checked})}/>未確定の壁・開口に概算寸法を使う</label><p>床版は200 mm。壁高さは階高から床版厚を引いて算出します。以下は概算条件で、確定した構造寸法ではありません。</p>{Object.entries(dims).map(([key,v])=><label key={key} style={{display:'block',margin:'8px 0'}}>{{exteriorWallMm:'外周・戸境壁厚',partitionWallMm:'室内間仕切り厚',doorHeightMm:'扉の開口高さ',windowHeightMm:'窓の開口高さ',windowSillMm:'窓台高さ'}[key]}（mm）<input type="number" min={key==='windowSillMm'?0:1} value={v} disabled={!settings.estimated} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n)&&(key==='windowSillMm'?n>=0:n>0))setSettings({...settings,dimensions:{...dims,[key]:n}})}} style={{width:90}}/></label>)}<p>図面・IFCの出力に共通で使用します。窓幅と位置は平面の表示に基づく概算です。</p></details>
+}

@@ -1,0 +1,8 @@
+.permit-dropzone { padding: 18px 12px; border: 2px dashed #98abc3; border-radius: 8px; background: #f7f9fc; text-align: center; margin-top: 12px; }
+.permit-dropzone.is-dragging { background: #e5effc; border-color: #2463a2; }
+.permit-dropzone > svg { pointer-events: none; }
+.permit-dropzone-title { margin: 6px 0 10px; font-weight: 600; }
+.permit-dropzone-note { font-size: 12px; color: #526174; margin: 10px 0; overflow-wrap: anywhere; }
+.permit-import-status { font-size: 12px; color: #526174; margin-top: 10px; }
+.permit-import-status summary { cursor: pointer; }
+.permit-import-status ul { padding-left: 18px; line-height: 1.8; overflow-wrap: anywhere; }

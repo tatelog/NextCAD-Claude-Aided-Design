@@ -14,6 +14,12 @@ export function rotationToDirection(poly: readonly Point[], targetDeg: number): 
   return ((((delta + 90) % 180) + 180) % 180) - 90
 }
 
+/** 「道路に平行に合わせる」を押したときに、外形を回す量（度、重心まわり）。最初の辺を道路の向きに平行にする（統括の決定 2026-11-06） */
+export function alignRoadDegOf(poly: readonly Point[], roadDeg: number): number {
+  if (poly.length < 2) return 0
+  return rotationToDirection(poly, roadDeg)
+}
+
 // 建物の中心まわりに回し、最初の辺を道路の向きにそろえる
 export function alignToDirection(poly: readonly Point[], targetDeg: number): Point[] {
   const xs = poly.map((p) => p.x)

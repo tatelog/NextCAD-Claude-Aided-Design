@@ -9,7 +9,7 @@ export type ClosureResult =
   | { closed: true; footprint: Point[]; reason?: undefined }
   | { closed: false; footprint: null; reason: ClosureReason }
 
-export function findClosedOutline(segments: readonly Segment[]): ClosureResult {
+function findSingleClosedOutline(segments: readonly Segment[]): ClosureResult {
   if (segments.length === 0) return { closed: false, footprint: null, reason: 'empty' }
 
   const coord = new Map<string, Point>()
@@ -45,4 +45,36 @@ export function findClosedOutline(segments: readonly Segment[]): ClosureResult {
 
   if (visited.size !== segments.length) return { closed: false, footprint: null, reason: 'disconnected' }
   return { closed: true, footprint }
+}
+
+/** 独立した輪郭を個別に判定する。別の線や輪郭があっても閉合を失わない。 */
+export function findClosedOutlines(segments: readonly Segment[]): Point[][] {
+  const byNode = new Map<string, Segment[]>()
+  for (const segment of segments) for (const id of [segment.start_node_id, segment.end_node_id]) {
+    const list = byNode.get(id) ?? []; list.push(segment); byNode.set(id, list)
+  }
+  const visited = new Set<string>()
+  const outlines: Point[][] = []
+  for (const seed of segments) {
+    if (visited.has(seed.id)) continue
+    const component: Segment[] = [], queue = [seed]
+    while (queue.length) {
+      const segment = queue.pop()!
+      if (visited.has(segment.id)) continue
+      visited.add(segment.id); component.push(segment)
+      for (const id of [segment.start_node_id, segment.end_node_id])
+        for (const neighbor of byNode.get(id) ?? []) if (!visited.has(neighbor.id)) queue.push(neighbor)
+    }
+    const result = findSingleClosedOutline(component)
+    if (result.closed && result.footprint.length >= 3) outlines.push(result.footprint)
+  }
+  return outlines
+}
+
+export function findClosedOutline(segments: readonly Segment[]): ClosureResult {
+  const single = findSingleClosedOutline(segments)
+  if (single.closed) return single
+  const outlines = findClosedOutlines(segments)
+  const footprint = outlines.at(-1)
+  return footprint ? {closed:true,footprint} : single
 }

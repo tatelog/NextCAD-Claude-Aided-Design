@@ -26,13 +26,14 @@ describe('層ごとの線の見え方（仕様 1〜3）', () => {
   })
 })
 
-// 仕様 5（要確認の印の見せ方。仮置き）: 要確認の線は、層の見え方のまま、橙色で一段太く描く。確定の線は層の見え方のまま。
+// 仕様 5（要確認の印の見せ方。統括の依頼 2026-11-06 で改める）: 要確認の線は、提案された種類の色（層の色）のまま、破線で一段太く描く（仮の見た目）。確定の線は層の見え方のまま。
 describe('要確認の線の見せ方（仕様 5）', () => {
-  it('要確認の線は、層の見え方と違う色で、太さは同じか太い', () => {
+  it('要確認の線は、層の色のまま、破線で一段太い（仮の見た目）', () => {
     const base = lineStyleOf('壁')
     const review = segmentStyle('壁', true)
-    expect(review.color).not.toBe(base.color)
-    expect(review.width).toBeGreaterThanOrEqual(base.width)
+    expect(review.color).toBe(base.color)
+    expect(review.dash.length).toBeGreaterThan(0)
+    expect(review.width).toBeGreaterThan(base.width)
   })
 
   it('確定の線は、層の見え方のまま', () => {

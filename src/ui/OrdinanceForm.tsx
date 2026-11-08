@@ -5,6 +5,8 @@ import { SHADOW_KEYS } from '../law/shadowOrdinance'
 import { ZONES, type Zone } from '../law/slopeRules'
 import { useOrdinance } from '../store/ordinance'
 import { appWorkerUrl } from '../worker/workerUrl'
+import { WorkerUnreachableError } from '../worker/client'
+import { WORKER_UNREACHABLE_NOTICE, WORKER_UNSET_NOTICE } from '../worker/notices'
 import { suggestOrdinanceViaWorker } from '../worker/ordinanceClient'
 
 /** 条例の値の項目（日影の条件など）。項目の名前は、判定の側と揃える */
@@ -32,6 +34,11 @@ function OrdinanceSuggest() {
   const [message, setMessage] = useState<string | null>(null)
   const workerUrl = appWorkerUrl()
   const run = async () => {
+    // Worker の URL が無いときも押せる（G154）。送らずに、未接続の一行を出す
+    if (workerUrl.trim() === '') {
+      setMessage(WORKER_UNSET_NOTICE)
+      return
+    }
     setBusy(true)
     setMessage(null)
     try {
@@ -39,15 +46,17 @@ function OrdinanceSuggest() {
       for (const s of r.accepted) setEntry(s.key, s.value, s.source)
       setMessage(`補った ${r.accepted.length} 件（未確認）。捨てた ${r.dropped} 件（出典なし・数でない・項目違い）`)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      // つながらないときは、保留や内部の文言ではなく、つながらないと伝える（G154）
+      setMessage(e instanceof WorkerUnreachableError ? WORKER_UNREACHABLE_NOTICE : e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
   }
-  const ready = workerUrl.trim() !== '' && city.trim() !== '' && text.trim() !== '' && !busy
+  // Worker の URL の有無では押せなくしない（G154）。入力と、補っている最中だけを見る
+  const ready = city.trim() !== '' && text.trim() !== '' && !busy
   return (
     <div style={{ display: 'grid', gap: 4, margin: '10px 0', fontSize: 12, borderTop: '1px dashed #ddd8cc', paddingTop: 8 }}>
-      <span>Claude で条例本文から補う（W4。補った値は未確認。人が確認する）</span>
+      <span>Claude で条例本文から補う（補った値は未確認。人が確認する）</span>
       {workerUrl.trim() === '' && <span style={{ color: '#a33' }}>Worker の URL が未設定のため、送れない（開発は VITE_WORKER_URL が要る）</span>}
       <input aria-label="自治体名" placeholder="自治体名（例: 東京都江東区）" value={city} onChange={(e) => setCity(e.target.value)} />
       <select aria-label="用途地域" value={zone} onChange={(e) => setZone(e.target.value as Zone)}>
@@ -76,15 +85,15 @@ function OrdinanceSuggest() {
 }
 
 /** 入力と確認の欄（項目ごと）。確認は出典が空のままではできない */
-export function OrdinanceForm() {
+export function OrdinanceForm({ compactSite = false }: { compactSite?: boolean } = {}) {
   const entries = useOrdinance((s) => s.entries)
   const setEntry = useOrdinance((s) => s.setEntry)
   const confirm = useOrdinance((s) => s.confirm)
   const [drafts, setDrafts] = useState<Record<string, { value: string; source: string }>>({})
   return (
     <section style={{ marginBottom: 10 }}>
-      <strong style={{ fontSize: 13 }}>条例の値（人が入力し、出典を付けて確認する。G15）</strong>
-      {ORDINANCE_KEYS.map((key) => {
+      <strong style={{ fontSize: 13 }}>条例の値（人が入力し、出典を付けて確認する）</strong>
+      {ORDINANCE_KEYS.filter((key) => !compactSite || key !== SHADOW_KEYS.height).map((key) => {
         const draft = drafts[key] ?? { value: '', source: '' }
         const status = ordinanceStatus(entries, key)
         return (
@@ -105,7 +114,7 @@ export function OrdinanceForm() {
           </div>
         )
       })}
-      <OrdinanceSuggest />
+      {!compactSite && <OrdinanceSuggest />}
     </section>
   )
 }

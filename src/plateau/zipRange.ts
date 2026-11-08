@@ -57,10 +57,42 @@ export function parseCentralDirectory(bytes: Uint8Array): ZipEntry[] {
   return entries
 }
 
+// 範囲取得の 1 回の要求は、一時の失敗（通信の失敗・502 などの中継の失敗・本文が途中で切れた応答）なら、取り直す（統括の依頼 2026-11-06。A）
+const RANGE_TRIES = 3
+
+// 本文の長さが、content-range（無ければ要求の範囲）と合うか。途中で切れた応答を見分ける
+function lengthMatches(contentRange: string | null, range: string, actual: number): boolean {
+  const cr = /^bytes (\d+)-(\d+)\//.exec(contentRange ?? '')
+  if (cr) return actual === Number(cr[2]) - Number(cr[1]) + 1
+  const span = /^bytes=(\d+)-(\d+)$/.exec(range)
+  return span ? actual === Number(span[2]) - Number(span[1]) + 1 : true
+}
+
 async function rangeGet(url: string, range: string, fetchImpl: typeof fetch): Promise<Uint8Array> {
-  const res = await fetchImpl(url, { headers: { Range: range } })
-  if (res.status !== 206) throw new Error(`範囲取得に失敗しました（${res.status}）`)
-  return new Uint8Array(await res.arrayBuffer())
+  let last = ''
+  let lastError: unknown = null
+  for (let attempt = 1; attempt <= RANGE_TRIES; attempt++) {
+    lastError = null
+    try {
+      const res = await fetchImpl(url, { headers: { Range: range } })
+      if (res.status !== 206) {
+        last = `範囲取得に失敗しました（${res.status}）`
+        continue
+      }
+      const bytes = new Uint8Array(await res.arrayBuffer())
+      if (!lengthMatches(res.headers.get('content-range'), range, bytes.length)) {
+        last = '範囲取得の応答が途中で切れました'
+        continue
+      }
+      return bytes
+    } catch (e) {
+      lastError = e
+      last = e instanceof Error ? e.message : String(e)
+    }
+  }
+  // 接続そのものの失敗は、既存の変換（周辺建物の文言）のため TypeError のまま投げる
+  if (lastError instanceof TypeError) throw lastError
+  throw new Error(`${last}（${RANGE_TRIES} 回取り直したが取れなかった。通信か中継を確かめて、もう一度試してください）`)
 }
 
 async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {

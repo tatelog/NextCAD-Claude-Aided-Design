@@ -1,0 +1,82 @@
+[
+  {
+    "file": "permit/permitViewer.test.ts",
+    "failures": 1,
+    "first": "AssertionError: expected '付近見取図（敷地位置・国土地理院の周辺地図）' to be '未作成' // Object.is equality"
+  },
+  {
+    "file": "plan/areaRecovery.test.ts",
+    "failures": 1,
+    "first": "AssertionError: expected 0.5636070853462157 to be greater than 0.6"
+  },
+  {
+    "file": "plan/automaticCirculation.test.ts",
+    "failures": 1,
+    "first": "Error: Test timed out in 5000ms."
+  },
+  {
+    "file": "plan/remainingWork.test.ts",
+    "failures": 1,
+    "first": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "plan/steppedCirculation.test.ts",
+    "failures": 1,
+    "first": "AssertionError: expected [Function] to throw error including '配置できる住戸がありません' but got '配置候補を採用できません：住戸タイプが未指定です'"
+  },
+  {
+    "file": "plan/twinElevator.test.ts",
+    "failures": 1,
+    "first": "Error: Test timed out in 20000ms."
+  },
+  {
+    "file": "plan/volumePlan.test.ts",
+    "failures": 1,
+    "first": "Error: Test timed out in 5000ms."
+  },
+  {
+    "file": "tutorial/compactPlan.test.ts",
+    "failures": 1,
+    "first": "Error: Test timed out in 30000ms."
+  },
+  {
+    "file": "ui/ModeSwitch.test.ts",
+    "failures": 1,
+    "first": "AssertionError: expected [ 'モード', 'System', 'Chat' ] to deeply equal [ 'モード', 'System', 'Chat', 'Drawing' ]"
+  },
+  {
+    "file": "ui/ModeSwitch.test.tsx",
+    "failures": 1,
+    "first": "AssertionError: expected [ 'System', 'Chat' ] to deeply equal [ 'System', 'Chat', 'Drawing' ]"
+  },
+  {
+    "file": "ui/ObjectMenu.test.ts",
+    "failures": 17,
+    "first": "AssertionError: expected [ '筆界1', '外形1', '通り芯3', '柱0', …(6) ] to deeply equal [ '筆界1', '外形1', '通り芯3', '柱0', …(8) ]"
+  },
+  {
+    "file": "ui/P3Fixtures.test.ts",
+    "failures": 19,
+    "first": "ReferenceError: document is not defined"
+  },
+  {
+    "file": "ui/P4Fixtures.test.ts",
+    "failures": 9,
+    "first": "AssertionError: expected '各階レイアウト1階床なし2階床なし3階床なし4階床なし5階床なし積算 — …' to contain '什器（平面で置いたもの）'"
+  },
+  {
+    "file": "ui/PermitProjectFields.test.tsx",
+    "failures": 3,
+    "first": "AssertionError: expected [] to have a length of 7 but got +0"
+  },
+  {
+    "file": "ui/PermitViewer.test.ts",
+    "failures": 2,
+    "first": "AssertionError: expected '<div style=\"display:flex;gap:12px;ali…' to contain '判定の一覧'"
+  },
+  {
+    "file": "ui/toolIcons.test.ts",
+    "failures": 1,
+    "first": "AssertionError: expected [ 'box', 'cursor', 'curve', …(12) ] to deeply equal [ 'cursor', 'curve', 'fixture', …(11) ]"
+  }
+]

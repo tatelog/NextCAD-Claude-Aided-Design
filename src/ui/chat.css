@@ -1,0 +1,2 @@
+.chat-history-scroll { scrollbar-width: none; }
+.chat-history-scroll::-webkit-scrollbar { display: none; }

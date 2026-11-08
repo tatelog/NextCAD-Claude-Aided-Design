@@ -12,8 +12,9 @@ export interface MilestoneRow {
 export interface MilestoneInput {
   /** 用途地域が一つに決まっているか */
   zoneKnown: boolean
-  /** 斜線・日影の判定の結果（判定が無いときは null） */
+  /** 日影の判定の結果（判定が無いときは null） */
   shadow: '適合' | '不適合' | null
+  roadSlope?: '適合' | '超過' | null
   storeyCount: number
   storeyHeightMm: number
   /** スパンの数（分からなければ null） */
@@ -26,18 +27,19 @@ export function milestoneSummary(input: MilestoneInput): MilestoneRow[] {
   const site: MilestoneRow = { label: '敷地', status: input.zoneKnown ? 'ok' : 'todo', note: input.zoneKnown ? '用途地域が決まっている' : '用途地域が未取得' }
   const law: MilestoneRow =
     input.shadow === null
-      ? { label: '法規適合', status: 'todo', note: '斜線・日影の判定が無い' }
+      ? { label: '日影', status: 'todo', note: '日影の判定が無い' }
       : input.shadow === '適合'
-        ? { label: '法規適合', status: 'ok', note: '斜線・日影は適合' }
-        : { label: '法規適合', status: 'ng', note: '斜線・日影は不適合' }
+        ? { label: '日影', status: 'ok', note: '日影は適合' }
+        : { label: '日影', status: 'ng', note: '日影は不適合' }
   const storey: MilestoneRow = {
     label: '階数階高',
     status: input.storeyCount >= 1 && input.storeyHeightMm > 0 ? 'ok' : 'todo',
     note: `${input.storeyCount} 階 × ${(input.storeyHeightMm / 1000).toFixed(1)} m`,
   }
   const span: MilestoneRow =
-    input.spanCount === null ? { label: 'スパン', status: 'todo', note: 'スパンが無い' } : { label: 'スパン', status: 'ok', note: `${input.spanCount} スパン` }
+    input.spanCount === null || input.spanCount <= 0 ? { label: 'スパン', status: 'todo', note: 'スパンが無い' } : { label: 'スパン', status: 'ok', note: `${input.spanCount} スパン` }
   const units: MilestoneRow =
     input.unitCount >= 1 ? { label: '住戸数', status: 'ok', note: `${input.unitCount} 戸（区画）` } : { label: '住戸数', status: 'todo', note: '住戸が無い' }
-  return [site, law, storey, span, units]
+  const slope:MilestoneRow={label:'斜線',status:input.roadSlope==null?'todo':input.roadSlope==='適合'?'ok':'ng',note:input.roadSlope??'P2の判定なし'}
+  return [site, slope, law, storey, span, units]
 }

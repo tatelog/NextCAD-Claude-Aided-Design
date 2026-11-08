@@ -46,7 +46,7 @@ describe('judgeSegments（判定の送り先と結果の反映）', () => {
     const calls: string[] = []
     const log = { suggested: [] as Array<[string, string]>, pending: [] as string[] }
     const out = await judgeSegments({ segments: segs, workerUrl: '  ', enabled: true, fetchImpl: fakeFetch([{ status: 200, body: okBody }], calls) }, sinksOf(log))
-    expect(out.state).toBe('unconnected')
+    expect(out.state).toBe('unset')
     expect(calls).toHaveLength(0)
   })
 
@@ -107,7 +107,8 @@ describe('店舗への提案（仕様 3・6）', () => {
 
   it('提案は要確認の Claude の割り当てになり、人が確定した線は上書きしない', () => {
     useSemantic.getState().setKind('h1', 'column')
-    useSemantic.getState().suggest('c1', 'wall', 0.3)
+    // 要確認の帯（0.5 以上 0.85 未満）。0.5 未満は決定により店舗に入らない（t69 の直し。G82）
+    useSemantic.getState().suggest('c1', 'wall', 0.6)
     useSemantic.getState().suggest('h1', 'wall', 0.9)
     const a = useSemantic.getState().assignments
     expect(a.c1).toEqual({ kind: 'wall', status: 'needs_review', by: 'claude' })

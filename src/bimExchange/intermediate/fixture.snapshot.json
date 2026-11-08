@@ -1,0 +1,81 @@
+{
+  "storeys": [
+    {
+      "id": "floor-2",
+      "name": "2階",
+      "elevationMm": 3000,
+      "heightMm": 3000
+    }
+  ],
+  "elements": [
+    {
+      "id": "wall-2",
+      "kind": "wall",
+      "storeyId": "floor-2",
+      "footprint": {
+        "outer": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 2000,
+            "y": 0
+          },
+          {
+            "x": 2000,
+            "y": 1000
+          },
+          {
+            "x": 0,
+            "y": 1000
+          }
+        ],
+        "holes": [
+          [
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 100,
+              "y": 200
+            },
+            {
+              "x": 200,
+              "y": 200
+            },
+            {
+              "x": 200,
+              "y": 100
+            }
+          ]
+        ]
+      },
+      "baseOffsetMm": 200,
+      "heightMm": 2600,
+      "status": "estimated",
+      "source": {
+        "elementIds": [
+          "wall-source"
+        ],
+        "origin": "estimate"
+      }
+    },
+    {
+      "id": "column-2",
+      "kind": "column",
+      "storeyId": "floor-2",
+      "footprint": null,
+      "baseOffsetMm": 0,
+      "heightMm": null,
+      "status": "unresolved",
+      "source": {
+        "elementIds": [
+          "column-source"
+        ],
+        "origin": "plan"
+      }
+    }
+  ]
+}

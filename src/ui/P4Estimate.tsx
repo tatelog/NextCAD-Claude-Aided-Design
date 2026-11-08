@@ -1,37 +1,71 @@
+import {EstimateCsvPanel} from './EstimateCsvPanel'
+import {applyMaterialPrices} from '../estimate/estimateCsv'
+import {FloorPlanMenu} from './FloorPlanMenu'
+import {useLeftPanelWidth} from './LeftPanelResize'
+import {recordPage} from './recordPage'
+import {RecordPagination} from './RecordPagination'
+import { savedPlanStructureRows } from '../estimate/savedPlanStructure'
+import { SLAB_THICKNESS_MM } from '../plan/buildingDimensions'
+import {standardSelections} from '../estimate/standardSelections'
+import {PlanFrameLayer} from './PlanFrameLayer'
+import {useBimSettings,drawingDimensions as dimensionsOfPlan} from '../store/bimSettings'
+import {ResizableSidebar,useRightPanelWidth} from './ResizableSidebar'
+import {estimateFixtureCost,fixtureCostLines,parseUnitPrices} from '../estimate/fixtureCost'
+import {priceOfLine} from '../estimate/laborConversion'
+import {fixtureLabel} from '../plan/fixtures'
+import {useSpecSelections} from '../store/specSelections'
+import {planSpecObjects} from '../estimate/planSpecObjects'
+import {selectedPackageLines} from '../estimate/specPackages'
+import {packageDetails,remainingLegacyDetails} from '../estimate/specIntegration'
+import {slabAreaMm2} from '../estimate/slabArea'
+import {BalconyLayer} from './BalconyLayer'
+import {preliminarySections} from '../plan/preliminarySections'
+import {fixtureDetails} from '../estimate/fixtureDetails'
+import {UnitPlanDrawing} from './UnitPlanDrawing'
+import {CirculationLayer} from './CirculationLayer'
+import {corridorForCell} from '../plan/planCorridors'
+import {fixturesFromPlans} from '../estimate/planFixtures'
+import {useFloorPlans} from '../store/floorPlans'
 // P4 積算（D-04 P4、D-02 C8、A-03 G19・G21・G22・G63）。単価は利用者が出典つきの CSV で置く（G20）。
 // 置き場は G72 で未決のため、ここは貼り付けの CSV を読む形にしている。数量は利用者が入れる（数量の拾い方は仮置き）。
 import { useEffect, useMemo, useState } from 'react'
 import { useObjectTable } from '../store/objectTable'
+import { useEstimateLines } from '../store/estimateLines'
+import { usePriceTable } from '../store/priceTable'
+import { useComponentFire } from '../store/componentFire'
+import {
+  detailLinesOfObjects,
+  stairRows,
+  exteriorRow,
+  interiorRow,
+  planExteriorRow,
+  sashRow,
+  siteRow,
+  slabObjectRow,
+} from '../estimate/estimateObjects'
+import { estimateDetailsOf } from '../estimate/estimateDetails'
+import {
+  quantityLinesOfTable,
+  refreshManualLines,
+  withOriginLines,
+} from '../estimate/estimateTable'
 import { estimateCost, CATEGORIES, type PriceRow } from '../estimate/estimate'
 import { parsePriceCsv } from '../estimate/priceCsv'
-import { effectiveQuantity } from '../estimate/autoQuantity'
-import { estimateFixtureCost, fixtureCostLines, parseUnitPrices } from '../estimate/fixtureCost'
-import { buildingExteriorQuantities } from '../estimate/quantities'
-import { planExteriorQuantities, railingQuantity } from '../estimate/planExterior'
-import { structureQuantities } from '../estimate/structureQuantities'
-import { sashQuantity } from '../estimate/sashQuantity'
-import { siteWorksQuantity } from '../estimate/siteWorks'
-import { DUMMY_PARCEL_MM2 } from '../plan/dummyParcel'
-import { objectTableOf } from '../plan/objectTable'
-import { useDrawing } from '../store/drawing'
+import { lotAreaMm2, lotOf } from '../plan/lot'
+import { lotOfConfirmed, useConfirmedSite } from '../store/confirmedSite'
+import { objectTableOf, type ObjectRow } from '../plan/objectTable'
+import { p2Entries, useDrawing } from '../store/drawing'
 import { useSemantic } from '../store/semantic'
-import { roomFinishTotals } from '../estimate/roomQuantities'
-import { breakdownByUnitType, roomsByUnit } from '../estimate/unitTypeBreakdown'
-import type { ObjectKind } from '../plan/objectMenu'
-import { noticeOfPlan, objectSourcesOfPlan } from '../plan/objectSourcesOfPlan'
-import type { RoomKind } from '../plan/rooms'
+import { tableInputOfPlan } from '../plan/objectSourcesOfPlan'
 import { useFixtures } from '../store/fixtures'
 import { useSite } from '../store/site'
+import { cutFloorAreasOf } from '../volume/cutVolume'
 import { FixtureLayer } from './FixtureLayer'
-import { FixtureSummary } from './FixtureSummary'
-import { OBJECT_MENU_WIDTH, ObjectMenu } from './ObjectMenu'
-
-const SAMPLE = [
-  'id,kind,category,item,unit,unit_price,factor,source_ref,provisional,version',
-  'cross,造作,内装,壁クロス,m2,1200,,利用者入力（出典を書く）,false,v1',
-  'carpenter,労務,躯体,型枠大工,人,25000,0.3,利用者入力（出典を書く）,false,v1',
-  'tile,造作,外装,外壁タイル,m2,8000,,,false,v1',
-].join('\n')
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { usePanelTiles } from '../store/panelTiles'
+import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
 
 const yen = (n: number) => `${n.toLocaleString('ja-JP')} 円`
 // P4 の平面の什器の印は読み取りのみ（押しても置かず、外さない）。FixtureLayer の押しのハンドラは必須なので、何もしない関数を渡す
@@ -39,17 +73,12 @@ const NO_OP = () => undefined
 // 天井高（仮置き）。階高から天井の仕上げを引く値は未決のため、ここは固定の仮置き
 const CEILING_MM = 2400
 // 区分の並び（モックの P4: 躯体・外装・内装・外構）。躯体と外構は数量をまだ拾えない
-const CATEGORY_ORDER = ['躯体', '外装', '内装', '外構'] as const
-// 部屋の種類ごとの色（2D の塗り分け）
-const ROOM_FILL: Record<RoomKind, string> = {
-  LDK: 'rgba(31,95,139,0.22)',
-  洋室: 'rgba(122,136,96,0.18)',
-  水回り: 'rgba(90,102,112,0.35)',
-}
-
-export function P4Estimate() {
-  const [csv, setCsv] = useState(SAMPLE)
-  const [quantities, setQuantities] = useState<Record<string, string>>({})
+export function P4Estimate({ onNext }: { onNext?: () => void } = {}) {
+  const rightPanelWidth=useRightPanelWidth(s=>s.width)
+  const [drawingZoom,setDrawingZoom]=useState(1)
+  const sectionInputs={fc:'24',ratio:'0.2',extraDead:'2',live:'1.8'}
+  // 単価表は店舗が持つ（チャットの積算の操作と同じ表。t55）
+  const csv = usePriceTable((s) => s.csv)
 
   const parsed = useMemo<{ rows: PriceRow[] } | { error: string }>(() => {
     try {
@@ -58,287 +87,234 @@ export function P4Estimate() {
       return { error: e instanceof Error ? e.message : String(e) }
     }
   }, [csv])
+  // 単価（参照）の欄は、参照の ID ではなく単価表の品目の名前を出す（統括の依頼 2026-11-06。ID を画面に出さない）。表に無い ID はそのまま出す
 
   // P2 の外形から拾った数量（外壁・屋根）。P2 で外形が閉じていれば入る
-  const volume = useSite((s) => s.volume)
-  // 外形の 2D（SVG は y を下へ向けるので、y を反転して表示する）
-  const planBox = useMemo(() => {
-    if (!volume) return { x0: 0, y0: 0, w: 1, h: 1 }
-    const xs = volume.footprint.map((p) => p.x)
-    const ys = volume.footprint.map((p) => -p.y)
-    const pad = 1_000
-    const x0 = Math.min(...xs) - pad
-    const y0 = Math.min(...ys) - pad
-    return { x0, y0, w: Math.max(...xs) - x0 + pad, h: Math.max(...ys) - y0 + pad }
-  }, [volume])
-  // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
-  const plan = useSite((s) => s.plan)
-  // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
-  const drawnEntries = useDrawing((s) => s.entries)
-  const assignments = useSemantic((s) => s.assignments)
-  // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
-  const fixtures = useFixtures((s) => s.fixtures)
-  const fixtureUnitIds = useFixtures((s) => s.unitIds)
-  const fixtureUnitPriceTexts = useFixtures((s) => s.unitPriceTexts)
-  const setFixtureUnitPriceText = useFixtures((s) => s.setUnitPriceText)
-  // 工事原価（概算）に渡す什器の行（単価を入れて、1 台以上置いた品目。区分は内装）
-  const fixtureAmountLines = useMemo(
-    () => fixtureCostLines(estimateFixtureCost(fixtures, parseUnitPrices(fixtureUnitPriceTexts))),
-    [fixtures, fixtureUnitPriceTexts],
+  // 外形は P2 が渡したもの。階数・階高は今の店舗の値、切り取った階の面積はそこから計算する（統括の依頼 2026-11-06。依頼 B。チャットで階数が変わっても古い値を使わない）
+  const publishedVolume = useSite((s) => s.volume)
+  const slopeBoundaries = useSite((s) => s.slopeBoundaries)
+  const storeysNow = useDrawing((s) => s.storeyCount)
+  const heightNow = useDrawing((s) => s.storeyHeightMm)
+  const volume = useMemo(
+    () =>
+      publishedVolume
+        ? {
+            footprint: publishedVolume.footprint,
+            storey_count: storeysNow,
+            storey_height: heightNow,
+            floor_areas_mm2: cutFloorAreasOf(publishedVolume.footprint, slopeBoundaries, { storey_count: storeysNow, storey_height: heightNow }),
+          }
+        : null,
+    [publishedVolume, slopeBoundaries, storeysNow, heightNow],
   )
-  const autoQuantities = useMemo(() => {
-    const out: { item: string; category: string; quantity: number; unit: string }[] = []
-    if (volume) {
-      const q = buildingExteriorQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
-      out.push(q.exterior_wall, q.roof)
-      // 躯体のうち床版の面積（G63）。厚さの拾い方は未決なので、面積だけ
-      const structure = structureQuantities(volume.footprint, { storey_count: volume.storey_count, storey_height: volume.storey_height })
-      out.push(structure.slab, structure.formwork, structure.concrete, structure.rebar)
-      // 外構（建物以外の敷地。敷地は仮置きのダミー。拾い方は仮置き）
-      out.push(siteWorksQuantity(DUMMY_PARCEL_MM2, volume.footprint))
-    }
-    if (plan) {
-      const t = roomFinishTotals(plan.rooms, { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM })
-      out.push(t.floor, t.ceiling, t.wall_cloth)
-      // バルコニーと共用廊下（G62）。基準階の区画・廊下・コアから、階数分を拾う（仮置き）
-      const ext = planExteriorQuantities({
-        corridor: plan.corridor,
-        cores: plan.cores,
-        cells: plan.cells,
-        outline: { W: plan.widthMm, D: plan.depthMm },
-        storeyCount: plan.ev.storey_count,
-      })
-      out.push(ext.balcony, ext.corridor)
-      // 手すり（G62）。バルコニーの付く面の辺の長さ × 高さ（仮置き）
-      out.push(railingQuantity({ cells: plan.cells, outline: { W: plan.widthMm, D: plan.depthMm }, storeyCount: plan.ev.storey_count }))
-    }
-    out.push(sashQuantity(drawnEntries.flatMap((e) => e.segments), (id) => assignments[id]?.kind ?? null))
-    return out
-  }, [volume, plan, drawnEntries, assignments])
-  const autoList = useMemo(() => autoQuantities.map((q) => ({ item: q.item, quantity: q.quantity })), [autoQuantities])
+  // 外形の 2D（SVG は y を下へ向けるので、y を反転して表示する）
+  // 自動で拾う数量: 外装（P2 の外形）と内装（P3 の部屋。天井高は仮置き）。種類（区分）を付けて内訳に使う
+  const floorPlans = useFloorPlans(s=>s.plans)
+  const selectedFloor=useFloorPlans(s=>s.selected)
+  const plan = floorPlans[selectedFloor] ?? null
+  const bimSettings=useBimSettings(s=>s.settings)
+  const sectionResult=useMemo(()=>plan?preliminarySections(plan,{floors:storeysNow,fc:Number(sectionInputs.fc),ratio:Number(sectionInputs.ratio),extraDead:Number(sectionInputs.extraDead),live:Number(sectionInputs.live),slabMm:SLAB_THICKNESS_MM}):null,[plan,storeysNow,sectionInputs])
 
+
+  // サッシ（G62）: 描いた線のうち、種類が開口の線の長さから拾う（高さは仮置き）
+  // 描いた線は P2 の線だけ（P3 の線は P3 の欄で見る）
+  const drawnAll = useDrawing((s) => s.entries)
+  const drawnEntries = useMemo(() => p2Entries(drawnAll), [drawnAll])
+  const assignments = useSemantic((s) => s.assignments)
+  // 敷地の面積: 確定した敷地の筆（無ければダミー）。P2 の敷地と同じ値（統括の依頼 2026-11-06。1）
+  const confirmedSite = useConfirmedSite((s) => s.confirmed)
+  const siteAreaMm2 = useMemo(() => lotAreaMm2(lotOf(lotOfConfirmed(confirmedSite))), [confirmedSite])
+  // 什器（G69）: P3 で置いたもの。品目ごとに単価（円/台）を入れると、台数 × 単価を工事原価の合計に入れる（出典なしの仮置き。空欄の品目は入れない）
+  const manualFixtures = useFixtures((s) => s.fixtures)
+  const fixtures=useMemo(()=>[...fixturesFromPlans(floorPlans),...manualFixtures],[floorPlans,manualFixtures])
+  // 工事原価（概算）に渡す什器の行（単価を入れて、1 台以上置いた品目。区分は内装）
+  // 鉄筋の被り厚と継手（G86。仮の条件。係数は仮置き）
+  const rebar = useComponentFire((s) => s.rebar)
   // 左メニュー（G55）: P3 の自動作成の結果（plan）から、種類ごとの件数と、選んだ種類の中身を出す。自動作成の前は全部 0 で、注記を付ける
   // 什器（G69）は自動作成の結果ではなく店舗のもの（P3 で置いた什器。下の什器の欄と同じ値）なので、自動作成の前でも件数を出す
-  const [selectedKind, setSelectedKind] = useState<ObjectKind | null>(null)
-  const objectSources = useMemo(() => objectSourcesOfPlan(plan, fixtures), [plan, fixtures])
   // 住戸をグループとして数える（G58）。自動作成の結果からオブジェクト表の行を作り、表（SQLite）に書いて、表から読む
-  const derivedObjectRows = useMemo(
-    () =>
-      plan
-        ? objectTableOf({ cells: plan.cells, rooms: plan.rooms, shafts: plan.shaftRects, cores: plan.cores, corridor: plan.corridor, fixtures })
-        : [],
-    [plan, fixtures],
-  )
-  const objectRows = useObjectTable((s) => s.rows)
+  const derivedObjectRows = useMemo(() => {
+    const rows: ObjectRow[] = [...objectTableOf(tableInputOfPlan(plan, fixtures)), ...savedPlanStructureRows(floorPlans)]
+    // 積算の数量も表の行にする（G86）。躯体・外装・外構は外形から、内装と基準階の外装は P3 の結果から、サッシは描いた開口から
+    if (volume) {
+      const planned=plan&&Object.values(floorPlans).includes(plan)?floorPlans:{}
+      const rectArea=(r:{x0:number;x1:number;y0:number;y1:number})=>(r.x1-r.x0)*(r.y1-r.y0)
+      const areas=volume.floor_areas_mm2.map((area,i)=>{const p=planned[i+1];return Math.max(0,(p?.balconies&&p.buildingOutline?slabAreaMm2(p.buildingOutline,p.balconies,p.voids??[]):area)-(p?.balconies&&p.buildingOutline?0:(p?.voids??[]).reduce((sum,v)=>sum+rectArea(v),0)))})
+      rows.push(
+        ...(Object.keys(floorPlans).length ? [] : [slabObjectRow(volume.footprint, volume.storey_count, volume.storey_height, areas)]),
+        ...(Object.keys(planned).length&&Object.values(planned).every(p=>p.balconies&&p.buildingOutline)?Object.entries(planned).map(([floor,p])=>{
+          const row=exteriorRow(p.buildingOutline!,1,volume.storey_height,Number(floor)===volume.storey_count?slabAreaMm2(p.buildingOutline!,[],p.voids??[]):0)
+          return {...row,id:`exterior-floor-${floor}`}
+        }):[exteriorRow(volume.footprint, volume.storey_count, volume.storey_height, areas.at(-1))]),
+        siteRow(volume.footprint, siteAreaMm2),
+      )
+    }
+    if (plan) {
+      rows.push(
+        interiorRow(Object.values(floorPlans).includes(plan) ? Object.values(floorPlans).flatMap(p=>p.rooms) : plan.rooms, { storeyCount: Object.values(floorPlans).includes(plan) ? 1 : plan.ev.storey_count, ceilingHeightMm: CEILING_MM }),
+
+      )
+    }
+    if(plan){
+      const entries=Object.values(floorPlans).includes(plan)?Object.entries(floorPlans):[['表示階',plan] as const]
+      for(const [floor,p] of entries){
+        const row=planExteriorRow({corridor:p.corridor,corridors:[...(p.corridors??[p.corridor]),...(p.bridges??[])],cores:p.cores,cells:p.cells,outline:{W:p.widthMm,D:p.depthMm},storeyCount:Object.values(floorPlans).includes(plan)?1:p.ev.storey_count,balconies:p.balconies??[]})
+        rows.push({...row,id:`plan-exterior-${floor}`,name:`${floor}階のバルコニー・共用廊下`})
+      }
+    }
+    if(plan && Object.values(floorPlans).includes(plan)) rows.push(...stairRows(floorPlans))
+    const segments = drawnEntries.flatMap((e) => e.segments)
+    const kinds = Object.fromEntries(segments.map((s) => [s.id, assignments[s.id]?.kind ?? null]))
+    rows.push(sashRow(segments, kinds))
+    return rows
+  }, [plan, floorPlans, fixtures, volume, drawnEntries, assignments, siteAreaMm2])
+  // 左の一覧の件数（G78）は、この表の行から数える（別の集計表は作らない）
+  // 数量の明細（G86）: 上で作った表の行から出す。躯体・外装・外構・内装・サッシのすべてが、この明細を正本にする。ストアへの書き込みは待たない
+  const detailLines = useMemo(() => [...detailLinesOfObjects(derivedObjectRows, rebar),...fixtureDetails(fixtures)], [derivedObjectRows, rebar, fixtures])
+  const savedSpecSelections=useSpecSelections(s=>s.selections)
+  const specObjects=useMemo(()=>planSpecObjects(floorPlans,manualFixtures,detailLines),[floorPlans,manualFixtures,detailLines])
+  const specSelections=useMemo(()=>standardSelections(specObjects,savedSpecSelections,CEILING_MM,bimSettings.dimensions.doorHeightMm,true),[specObjects,savedSpecSelections,bimSettings.dimensions.doorHeightMm])
+  useEffect(()=>{if(Object.keys(specSelections).length!==Object.keys(savedSpecSelections).length)useSpecSelections.setState({selections:specSelections})},[specSelections,savedSpecSelections])
+  const materialPrices=usePriceTable(s=>s.packagePrices)
+  const effectiveSelections=useMemo(()=>applyMaterialPrices(specSelections,materialPrices??{}),[specSelections,materialPrices])
+  const packageLines=useMemo(()=>selectedPackageLines(specObjects,effectiveSelections),[specObjects,effectiveSelections])
+  const drawingDimensions=dimensionsOfPlan(bimSettings)
+  const unselectedFixtures=useMemo(()=>fixtures.filter(f=>!specObjects.some(o=>o.fixtureId===f.id&&packageLines.some(l=>l.objectId===o.id))),[fixtures,specObjects,packageLines])
+  const fixtureUnitPriceTexts=useFixtures(s=>s.unitPriceTexts)
+  const fixtureAmountLines=useMemo(()=>fixtureCostLines(estimateFixtureCost(unselectedFixtures.filter(f=>!('rows' in parsed&&priceOfLine({item:fixtureLabel(f.item),category:'内装',unit:'台',quantity:1},parsed.rows))),parseUnitPrices(fixtureUnitPriceTexts))),[unselectedFixtures,parsed,fixtureUnitPriceTexts])
   const objectPersisted = useObjectTable((s) => s.persisted)
   useEffect(() => {
     void useObjectTable.getState().init()
   }, [])
   useEffect(() => {
-    useObjectTable.getState().setRows(derivedObjectRows)
-  }, [derivedObjectRows, objectPersisted])
+    useObjectTable.getState().setRows([...derivedObjectRows,...specObjects.map(o=>({id:o.id,kind:'other' as const,name:o.name??o.id,parent_id:null,quantity:o.quantity,attr:JSON.stringify({part:o.part,spec_bindings:specSelections[o.id]?[specSelections[o.id]]:[]})}))])
+  }, [derivedObjectRows, objectPersisted,specObjects,specSelections])
+  // 見積の明細（G86）: 数量の明細に単価の参照と金額を付けて、表（SQLite の estimate_line）に書く。単価の表が読めないときは参照を付けない（未参照）
+  const estimateLinesPersisted = useEstimateLines((s) => s.persisted)
+  // 数量の内訳（G86）: 見積の明細の表から読む（表が正本。自動で拾った値は、表に書いてから出る）
+  const estimateLines = useEstimateLines((s) => s.lines)
+  const [costPages,setCostPages]=useState<Record<string,number>>({})
+  const [openCosts,setOpenCosts]=useState<Record<string,boolean>>({})
+  const leftPanelWidth=useLeftPanelWidth(s=>s.width)
+  useEffect(() => {
+    void useEstimateLines.getState().init()
+  }, [])
+  useEffect(() => {
+    const store = useEstimateLines.getState()
+    const prices = 'rows' in parsed ? parsed.rows : []
+    // 自動の行は入れ替える。手入力の行は、単価の表に合わせて金額を取り直して残す（G86）
+    store.setLines(withOriginLines(refreshManualLines(store.lines, prices), '自動', [...estimateDetailsOf(remainingLegacyDetails([...detailLines.filter(l=>!l.lineId.startsWith('fixture-count/')),...fixtureDetails(unselectedFixtures)],specObjects,packageLines), prices),...packageDetails(packageLines)]))
+  }, [detailLines, parsed, estimateLinesPersisted,specObjects,packageLines,unselectedFixtures])
 
+  // 工事原価（G86）: 見積の明細の表の行から数量を出し、単価を当てて合計する。手入力は自動より優先し、歩掛の労務も表の行に入っている
   const estimate = useMemo(() => {
     if (!('rows' in parsed)) return null
-    const lines = parsed.rows
-      .map((r) => ({ price_id: r.id, quantity: effectiveQuantity(r, quantities[r.id] ?? '', autoList)?.quantity ?? NaN }))
-      .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
     try {
-      return estimateCost(parsed.rows, lines, fixtureAmountLines)
+      return estimateCost(parsed.rows, quantityLinesOfTable(estimateLines, parsed.rows), [...fixtureAmountLines,...estimateLines.filter(l=>l.specification&&l.amountYen!==null).map(l=>({id:l.lineId,category:l.category,yen:l.amountYen!,provisional:l.provisional}))])
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const
     }
-  }, [parsed, quantities, autoList, fixtureAmountLines])
+  }, [parsed, estimateLines,fixtureAmountLines])
+  const quantityByPrice=useMemo(()=>{const totals=new Map<string,number>();if('rows' in parsed)for(const q of quantityLinesOfTable(estimateLines,parsed.rows))totals.set(q.price_id,(totals.get(q.price_id)??0)+q.quantity);return totals},[estimateLines,parsed])
+
+
+  const activeMode = useActiveMode('P4')
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P4 はチャットだけ
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P4', hiddenTiles, id)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${OBJECT_MENU_WIDTH}px 1fr 360px`, height: '100%' }}>
-      <ObjectMenu
-        sources={objectSources}
-        selectedKind={selectedKind}
-        onSelect={setSelectedKind}
-        caption="種類ごとの件数（P3 の自動作成の結果）"
-        notice={noticeOfPlan(plan)}
-        objectRows={objectRows}
-      />
-      <div style={{ padding: 16, overflow: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P4 積算 — 単価と数量</h2>
-        {plan ? (
-          <section style={{ marginBottom: 12, fontSize: 12 }}>
-            <strong>住戸タイプ別の内装（1 戸あたり × 戸数。G61）</strong>
-            {(() => {
-              const cells = plan.cells.map((c) => ({ id: c.id, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }))
-              const rows = breakdownByUnitType(
-                cells.map((c) => ({ id: c.id, type: plan.unitType })),
-                roomsByUnit(plan.rooms, cells),
-                { storeyCount: plan.ev.storey_count, ceilingHeightMm: CEILING_MM },
-              )
-              return rows.length === 0 ? (
-                <p>住戸がまだありません</p>
-              ) : (
-                <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
-                  <thead>
-                    <tr>
-                      <th align="left">住戸タイプ</th>
-                      <th align="right">戸数</th>
-                      <th align="right">1 戸あたり 床 ㎡</th>
-                      <th align="right">合計 床 ㎡</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.type}>
-                        <td>{r.type}</td>
-                        <td align="right">{r.count}</td>
-                        <td align="right">{r.perUnit.floorM2.toFixed(2)}</td>
-                        <td align="right">{r.total.floorM2.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )
-            })()}
-          </section>
-        ) : null}
+    <div className="p4-estimate" style={{ display: 'grid', gridTemplateColumns: `${leftPanelWidth}px minmax(0, 1fr) ${rightPanelWidth}px`, height: '100%' }}>
+      <ResizableSidebar side="left" label="各階の平面" style={{borderRight:'1px solid #ddd8cc',background:'#fff'}}>
+        <FloorPlanMenu readOnly floors={Array.from({length:storeysNow},(_,i)=>floorPlans[i+1]?.buildingOutline??(floorPlans[i+1]?[{x:0,y:0},{x:floorPlans[i+1]!.widthMm,y:0},{x:floorPlans[i+1]!.widthMm,y:floorPlans[i+1]!.depthMm},{x:0,y:floorPlans[i+1]!.depthMm}]:[]))} plans={floorPlans} widthMm={Math.max(1,...Object.values(floorPlans).map(p=>p.widthMm))} depthMm={Math.max(1,...Object.values(floorPlans).map(p=>p.depthMm))} selected={selectedFloor} onSelect={floor=>{useFloorPlans.getState().select(floor);setDrawingZoom(1)}}/>
+      </ResizableSidebar>
+      <div className="p4-main" style={{ padding: 16, overflow: 'auto' }}>
+        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>積算 — 単価と数量</h2>
         {plan ? (
           <figure style={{ margin: '0 0 12px' }}>
-            <svg viewBox={`-500 -500 ${plan.widthMm + 1000} ${plan.depthMm + 1000}`} style={{ width: '100%', maxWidth: 480, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>
-              <rect x={plan.corridor.x0} y={plan.corridor.y0} width={plan.corridor.x1 - plan.corridor.x0} height={plan.corridor.y1 - plan.corridor.y0} fill="#eee" />
-              {plan.rooms.map((r) => (
-                <rect key={r.id} x={r.x0} y={r.y0} width={r.x1 - r.x0} height={r.y1 - r.y0} fill={ROOM_FILL[r.kind]} stroke="#8a8478" strokeWidth={20} />
-              ))}
-              <FixtureLayer cells={plan.cells} fixtures={fixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
+            <figcaption style={{fontSize:13,marginBottom:8}}><strong>{selectedFloor}階 平面図</strong></figcaption>
+            <details><summary>RC断面候補の自動算定・仮定（未確定）</summary>
+              <p>床スラブ：200 mm（指定条件）。1階の柱を対象に、表示階の外形・柱配置が全階続く仮定で算定します。</p>
+              <p>算定仮定：Fc 24 N/mm²、軸応力度/Fc 0.2、床以外の固定荷重2 kN/m²、積載荷重1.8 kN/m²。</p>
+              {sectionResult&&('error' in sectionResult?<p role="alert">{sectionResult.error}</p>:<p>柱の共通断面候補：{sectionResult.side} × {sectionResult.side} mm。最大負担面積 {sectionResult.area.toFixed(2)} m² × 荷重 {sectionResult.q.toFixed(2)} kN/m² × {storeysNow}階 ＝ 軸力 {sectionResult.axialKN.toFixed(1)} kN。辺長＝√（軸力×1000÷Fc÷探索上限）、50 mm単位で切上げ。</p>)}
+              <p>柱負担面積は最近接柱への面積分割、RC単位体積重量は24 kN/m³の仮定です。梁剛性・耐震・曲げ・せん断・配筋・基礎を未検証の断面候補で、構造設計の確定値ではありません。</p>
+              <p>外壁仕上げ：タイル。RC外壁・戸境壁の厚さは、耐力壁の配置と構造解析が未設定のため算定保留です。</p>
+            </details>
+            {plan&&!plan.balconies&&<p role="alert">旧配置にはバルコニー形状がありません。ボリュームで再計算してください。バルコニー・手すりは未計上です。</p>}
+            <div role="group" aria-label="積算図面の拡大縮小" style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+              <button onClick={()=>setDrawingZoom(z=>Math.max(1,z-0.5))} disabled={drawingZoom===1}>縮小</button>
+              <output>{Math.round(drawingZoom*100)}%</output>
+              <button onClick={()=>setDrawingZoom(z=>Math.min(4,z+0.5))} disabled={drawingZoom===4}>拡大</button>
+              <button onClick={()=>setDrawingZoom(1)}>全体表示</button>
+            </div>
+            <div style={{overflow:'auto',maxHeight:'75vh',border:'1px solid #ddd8cc',background:'#fff'}}>
+            <svg aria-label="積算対象の詳細平面図" viewBox={`-500 -500 ${plan.widthMm + 1000} ${plan.depthMm + 1000}`} style={{display:'block',width:`${drawingZoom*100}%`,height:`${drawingZoom*65}vh`,maxWidth:'none'}}>
+              {plan.buildingOutline?.length ? <polygon points={plan.buildingOutline.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke="#243953" strokeWidth={40}/> : <rect width={plan.widthMm} height={plan.depthMm} fill="none" stroke="#243953" strokeWidth={40}/>}
+              {plan.circulation && <CirculationLayer plan={plan}/>}
+              {plan.cells.map(cell=><UnitPlanDrawing dimensions={drawingDimensions} showColumns={!plan.buildingColumns} key={cell.id} cell={cell} corridor={corridorForCell(plan,cell)} typeId={plan.unitTypeIdsByCell?.[cell.id]??''} variant={plan.unitPlanVariants?.[cell.id]??'A'} override={plan.unitPlanOverrides?.[cell.id]}/>)}<BalconyLayer plan={plan}/><PlanFrameLayer plan={plan}/>
+              {plan.shaftRects.map(s=><g key={s.id}><rect x={s.x0} y={s.y0} width={s.x1-s.x0} height={s.y1-s.y0} fill="#e1e8ed" stroke="#41576a" strokeWidth={25}/><text x={(s.x0+s.x1)/2} y={(s.y0+s.y1)/2} textAnchor="middle" fontSize={140}>{s.kind}</text></g>)}
+              <FixtureLayer cells={plan.cells} fixtures={manualFixtures} active={false} onTap={NO_OP} onRemove={NO_OP} readOnly />
             </svg>
+            </div>
             <figcaption style={{ fontSize: 12, color: '#666' }}>
-              P3 の自動作成の部屋割り（仮置き）。LDK（青）・洋室（緑）・水回り（灰）。3LDK の洋室 3 室は未決のため、ここは 2 室。
+              柱・壁・開口は平面画面と同じ保存済み形状と表示寸法です。RC断面候補は図面へ反映していません。柱・梁・基礎の部材数量は未接続です。図は選択した1階分、内装の数量は保存済み各階の部屋を集計します（各階データがない場合は表示階×階数）。
             </figcaption>
           </figure>
         ) : null}
-        {volume ? (
-          <figure style={{ margin: '0 0 12px' }}>
-            <svg viewBox={`${planBox.x0} ${planBox.y0} ${planBox.w} ${planBox.h}`} style={{ width: '100%', maxWidth: 420, background: '#fbfbf8', border: '1px solid #ddd8cc' }}>
-              <polygon points={volume.footprint.map((p) => `${p.x},${-p.y}`).join(' ')} fill="rgba(47,122,79,0.12)" stroke="#2f7a4f" strokeWidth={planBox.w / 160} />
-            </svg>
-            <figcaption style={{ fontSize: 12, color: '#666' }}>
-              外形（P2）。外壁と屋根は外装として拾う。室の内装の塗り分けは、P3 で部屋を作ってから出す（未実装）。
-            </figcaption>
-          </figure>
-        ) : (
-          <p style={{ fontSize: 12, color: '#666' }}>P2 で外形を閉じると、外壁と屋根の数量を自動で拾います。</p>
-        )}
-        <section style={{ margin: '0 0 12px' }}>
-          <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>数量の内訳（区分別・自動で拾えたもの）</h3>
-          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th align="left">区分</th>
-                <th align="left">品目</th>
-                <th align="right">数量</th>
-              </tr>
-            </thead>
-            <tbody>
-              {CATEGORY_ORDER.map((cat) => {
-                const rows = autoQuantities.filter((q) => q.category === cat)
-                return rows.length === 0 ? (
-                  <tr key={cat}>
-                    <td>{cat}</td>
-                    <td colSpan={2} style={{ color: '#666' }}>
-                      未拾い（この区分の数量は、対応するオブジェクトを作ってから）
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((q) => (
-                    <tr key={q.item}>
-                      <td>{cat}</td>
-                      <td>
-                        {q.item}
-                        {' '}
-                        <span style={{ fontSize: 11, color: '#a86b00' }}>未確定</span>
-                      </td>
-                      <td align="right">{q.quantity.toLocaleString('ja-JP', { maximumFractionDigits: 1 })} {q.unit === 'm3' ? 'm³' : q.unit === 't' ? 't' : 'm²'}</td>
-                    </tr>
-                  ))
-                )
-              })}
-            </tbody>
-          </table>
-        </section>
-        <FixtureSummary
-          fixtures={fixtures}
-          unitIds={fixtureUnitIds ?? undefined}
-          unitPriceTexts={fixtureUnitPriceTexts}
-          onUnitPriceChange={setFixtureUnitPriceText}
-        />
-        <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={8} style={{ width: '100%', fontFamily: 'monospace' }} />
-        {'error' in parsed ? (
-          <p style={{ color: '#a33' }}>単価 CSV: {parsed.error}</p>
-        ) : (
-          <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 12 }}>
-            <thead>
-              <tr>
-                <th align="left">品目</th>
-                <th align="left">区分</th>
-                <th align="right">単価</th>
-                <th align="left">出典</th>
-                <th align="right">数量</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parsed.rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.item}</td>
-                  <td>{r.category}</td>
-                  <td align="right">{r.unit_price.toLocaleString('ja-JP')} 円/{r.unit}</td>
-                  <td>{r.source_ref.trim() === '' || r.provisional ? '未確定（出典なし）' : r.source_ref}</td>
-                  <td align="right">
-                    <input
-                      value={quantities[r.id] ?? ''}
-                      onChange={(e) => setQuantities({ ...quantities, [r.id]: e.target.value })}
-                      style={{ width: 90, textAlign: 'right' }}
-                    />
-                    {(() => {
-                      const eq = effectiveQuantity(r, quantities[r.id] ?? '', autoList)
-                      return eq && eq.source === '自動' ? <span style={{ marginLeft: 6, fontSize: 11, color: '#2f7a4f' }}>自動 {Math.round(eq.quantity).toLocaleString('ja-JP')} m²</span> : null
-                    })()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
-      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>工事原価（概算）</h3>
+      <ResizableSidebar style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
+        {/* 次へ（D-04 P4）: 工事原価が出ているかを含めて確かめる。止めない（問題は一覧で出し、選ぶのは利用者） */}
+        <div style={{ marginBottom: 12 }}>
+          <button data-tutorial="tutorial-p4-next" type="button" onClick={() => onNext?.()} style={{ width: '100%', padding: 8, border: '1px solid #1f2a44', borderRadius: 6, background: '#1f2a44', color: '#fff', font: 'inherit', cursor: 'pointer' }}>
+            次へ（出力）
+          </button>
+
+        </div>
+        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>計上済み金額（概算）</h3>
+          <p style={{color:"#a33",fontSize:12}}>未参照・未拾い・単価未入力の項目は含みません。建物全体の見積額ではありません。</p>
         {estimate && !('error' in estimate) ? (
           <>
             <p style={{ fontSize: 20, margin: '0 0 8px' }}>
               {yen(estimate.total_yen)}
               {estimate.provisional && <span style={{ color: '#a33', fontSize: 12 }}> 未確定を含む</span>}
             </p>
-            <table style={{ width: '100%' }}>
-              <tbody>
-                {CATEGORIES.map((c) => (
-                  <tr key={c}>
-                    <td>{c}</td>
-                    <td align="right">
-                      {yen(estimate.subtotals[c].yen)}
-                      {estimate.subtotals[c].provisional ? ' ※' : ''}
-                    </td>
+            {CATEGORIES.map(category=>{const costs=recordPage([...estimate.lines,...estimateLines.filter(l=>l.amountYen===null).map(l=>({price_id:l.lineId,category:l.category,yen:null,provisional:l.provisional}))].filter(l=>l.category===category),costPages[category]??0);return <details key={category} open={!!openCosts[category]} onToggle={e=>{const open=e.currentTarget.open;setOpenCosts(old=>old[category]===open?old:{...old,[category]:open})}} style={{marginBottom:10,borderBottom:'1px solid #e0e5eb',paddingBottom:8}}>
+              <summary style={{cursor:'pointer',fontWeight:600}}>{category}<span style={{float:'right'}}>{yen(estimate.subtotals[category].yen)}{estimate.subtotals[category].provisional?' ※':''}</span></summary>
+              {openCosts[category]&&<>
+              <RecordPagination label={`${category}の計上内訳`} {...costs} onPage={page=>setCostPages(old=>({...old,[category]:page}))}/>
+              <div style={{overflowX:'auto'}}><table aria-label={`${category}の計上内訳`} style={{width:'100%',minWidth:620,fontSize:12,borderCollapse:'collapse'}}>
+                <thead><tr>{['項目','数量','単位','単価','金額','補足'].map(h=><th key={h} align="left">{h}</th>)}</tr></thead>
+                <tbody>{costs.items.map((line,index)=>{
+                  const detail=estimateLines.find(l=>l.lineId===line.price_id)
+                  const spec=detail?.specification
+                  const price='rows' in parsed?parsed.rows.find(p=>p.id===line.price_id):undefined
+                  const fixture=estimateFixtureCost(unselectedFixtures,parseUnitPrices(fixtureUnitPriceTexts)).rows.find(r=>`fixture:${r.item}`===line.price_id)
+                  const quantity=spec?.quantity??(price?quantityByPrice.get(line.price_id):detail?.quantity)??fixture?.count
+                  const unit=spec?.unit??(price?.kind==='労務'?estimateLines.find(l=>l.unitPriceRef===price.id)?.unit:price?.unit)??detail?.unit??(fixture?'台':'—')
+                  const unitPrice=spec?.unitPrice??(price?price.unit_price*(price.kind==='労務'?(price.factor??1):1):fixture?.unitPrice)
+                  const note=spec?`${spec.priceStatus}／${spec.source}`:price?`${price.source_ref}${price.kind==='労務'?`／${price.unit_price}円/${price.unit} × 歩掛${price.factor}`:''}`:detail?.source??'什器の保存済み単価'
+                  return <tr key={`${line.price_id}-${index}`} data-cost-line="true" style={{borderBottom:'1px solid #eee'}}>
+                    <td style={{padding:'6px 4px'}}>{spec?.name??price?.item??detail?.item??fixture?.label??line.price_id}</td>
+                    <td>{quantity?.toLocaleString('ja-JP',{maximumFractionDigits:3})??'—'}</td><td>{unit}</td>
+                    <td>{unitPrice==null?'未設定':yen(unitPrice)}</td><td style={{whiteSpace:'nowrap'}}>{line.yen==null?'未計上':yen(line.yen)}{line.provisional?' ※':''}</td><td>{note}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <p style={{ color: '#666', fontSize: 12 }}>直接仮設・共通仮設費・現場管理費・一般管理費は含めない（G19）。円単位の概算（G21）。</p>
+                })}{!costs.total&&<tr><td colSpan={6}>明細なし</td></tr>}</tbody>
+              </table></div>
+              </>}
+            </details>})}
+            <p style={{ color: '#666', fontSize: 12 }}>直接仮設・共通仮設費・現場管理費・一般管理費は含めない。円単位の概算。</p>
           </>
         ) : (
           <p style={{ color: '#a33' }}>{estimate && 'error' in estimate ? estimate.error : '—'}</p>
         )}
-        <h3 style={{ fontSize: 14, margin: '12px 0 4px' }}>未決</h3>
-        <ul style={{ margin: 0, paddingLeft: 18, color: '#666', fontSize: 12 }}>
-          <li>単価の置き場（G72、代表の答え待ち）</li>
-          <li>ユニットバス・什器の歩掛（出典なし。G22）</li>
-          <li>数量の拾い方は仮置き（D-02 C8）</li>
-        </ul>
-      </aside>
+        <EstimateCsvPanel objects={specObjects} selections={specSelections}/>
+        {!rightShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P4" />
+          </PanelTile>
+        )}
+      </ResizableSidebar>
     </div>
   )
 }

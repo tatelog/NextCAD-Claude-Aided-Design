@@ -1,3 +1,4 @@
+import type { FixtureSummaryProps } from './FixtureSummary'
 // 仕様（ハブ A-03 G69・G19・G22、D-04 P4）: P4 の什器の欄で、品目ごとに単価（円/台）を入れると、台数 × 単価が工事原価（概算）に入る。文言は仮置き。
 // 代表の決定（G19・G22）: 工事原価（概算）の合計には、材料費・労務費などを入れる。出典のない仮置きの値は、未確定の印を付けて入れる。
 // 今回の決定（仮置き）: 単価を入れた品目は、置いた台数 × 単価を合計に入れる（区画なしの什器も台数に入れる。区画は金額に関係しない）。
@@ -15,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateAutoPlan } from '../plan/autoPlan'
 import { FIXTURE_ITEMS } from '../plan/fixtures'
 import type { Fixture, FixtureItem } from '../plan/fixtures'
-import type { FixtureSummaryProps } from './FixtureSummary'
+
 
 // store の中身（試験ごとに差し替える）
 const site = vi.hoisted(() => ({ state: { volume: null as unknown, plan: null as unknown } }))
@@ -27,6 +28,11 @@ const fx = vi.hoisted(() => ({
 }))
 vi.mock('../store/fixtures', () => ({
   useFixtures: (selector: (s: typeof fx.state) => unknown) => selector(fx.state),
+}))
+// 見積の明細の表（store の読み出し）。工事原価は表の行から出る（G86）。SSR はエフェクトを走らせないので、自動の行は試験で直に置く
+const est = vi.hoisted(() => ({ state: { lines: [] as unknown[], persisted: false } }))
+vi.mock('../store/estimateLines', () => ({
+  useEstimateLines: (selector: (s: typeof est.state) => unknown) => selector(est.state),
 }))
 // 什器の欄は実物のまま描き、受け取った props だけ控える
 const summary = vi.hoisted(() => ({ props: null as unknown }))
@@ -69,15 +75,33 @@ const PLAN = generateAutoPlan({
   layout: '中廊下',
 })
 
+// P3 の自動作成の結果の内装（壁クロス 100 m²）を、表の自動の行として入れたもの（単価は P4 の既定の単価表の壁クロス）
+const AUTO_WALL = {
+  lineId: 'room-1/cross',
+  objectId: 'room-1',
+  category: '内装',
+  item: '壁クロス',
+  quantity: 100,
+  unit: 'm2',
+  unitPriceRef: 'cross',
+  amountYen: 120000,
+  provisional: false,
+  source: '計算（仮置きなし）',
+  basis: '部屋の壁の面積',
+  origin: '自動',
+}
+
 const UNPRICED_NOTE = '単価が未入力の什器は合計に入れていない（未確定）'
 
 const htmlOf = (): string => renderToStaticMarkup(createElement(P4Estimate))
 // タグを除いた文字（隣り合う文字はつながる）
-const textOf = (html: string): string => html.replace(/<[^>]*>/g, '')
-// 右パネル（「工事原価（概算）」の見出しから後ろ）の文字
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので文字に入れない（代表の指示『トグルでリスト化』2026-11-07）
+const textOf = (html: string): string => html.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '')
+// 右パネル（合計の見出しから後ろ）の文字。見出しは「計上済み金額（概算）」に変わった（Codex の版。代表の決定 2026-11-07 で今の版を正とする）。
+// 「工事原価（概算）」は什器の欄の説明文にも出るので、合計の見出しで切る。画面で、キッチン 40 台に 10 万円を入れると合計が 400 万円増えることを確かめた（2026-11-08）
 const panelOf = (html: string): string => {
   const text = textOf(html)
-  return text.slice(text.lastIndexOf('工事原価（概算）'))
+  return text.slice(text.lastIndexOf('計上済み金額（概算）'))
 }
 // 右パネルの合計（見出しの次に出る最初の金額）
 const totalOf = (panel: string): number => {
@@ -93,12 +117,14 @@ function setStore(fixtures: Fixture[], unitPriceTexts: Partial<Record<FixtureIte
 beforeEach(() => {
   site.state = { volume: null, plan: null }
   fx.state = { fixtures: [], unitIds: null, unitPriceTexts: {}, setUnitPriceText: () => undefined }
+  est.state = { lines: [], persisted: false }
   summary.props = null
 })
 
 describe('P4 の工事原価（単価を入れると合計に入る。仕様 1）', () => {
   it('P3 の自動作成の結果があるとき、合計が、単価を入れた品目の 台数 × 単価 だけ増える', () => {
     site.state = { volume: null, plan: PLAN }
+    est.state = { lines: [AUTO_WALL], persisted: true }
     const before = totalOf(panelOf(htmlOf()))
     expect(before).toBeGreaterThan(0)
     setStore([fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', kitchen, 'L0')], { [kitchen]: '450000' })
@@ -169,9 +195,9 @@ describe('P4 の工事原価（空欄は入れない。仕様 3）', () => {
     expect(totalOf(panelOf(htmlOf()))).toBe(450000)
   })
 
-  it('単価が空欄の品目の什器を置いているとき、什器の欄に注記「単価が未入力の什器は合計に入れていない（未確定）」を出す', () => {
+  it('単価未入力の説明は右の合計欄にまとめる', () => {
     setStore([fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', unitBath, 'L0')], { [kitchen]: '450000' })
-    expect(textOf(htmlOf())).toContain(UNPRICED_NOTE)
+    expect(textOf(htmlOf())).toContain('未参照・未拾い・単価未入力の項目は含みません。')
   })
 
   it('置いた什器がすべて単価ありのときと、什器を置いていないときは、注記を出さない', () => {
@@ -194,29 +220,13 @@ describe('P4 の工事原価（区画なし。仕様 4）', () => {
   })
 })
 
-describe('P4 の什器の欄（入力欄。仕様 5）', () => {
-  it('店舗の入力欄の文字が、什器の欄の入力欄に出る', () => {
-    setStore([fixture('fixture-1', kitchen, 'L0')], { [kitchen]: '450000', [toilet]: '30000' })
-    const html = htmlOf()
-    expect(html).toContain('value="450000"')
-    expect(html).toContain('value="30000"')
-    expect(textOf(html)).toContain('1 台 × 450,000 円 = 450,000 円 未確定（出典なし）')
-  })
-
-  it('什器の欄には、店舗の入力欄の文字と、書き換える関数（setUnitPriceText）がそのまま渡る', () => {
-    const setter = vi.fn()
-    const texts = { [kitchen]: '450000' }
-    fx.state = { ...fx.state, unitPriceTexts: texts, setUnitPriceText: setter }
-    htmlOf()
-    const props = summary.props as FixtureSummaryProps | null
-    if (!props) throw new Error('P4 の画面が、什器の欄（FixtureSummary）を描いていない')
-    expect(props.unitPriceTexts).toBe(texts)
-    expect(props.onUnitPriceChange).toBe(setter)
-  })
-
-  it('什器の欄の入力欄は、書き換えられる（読み取りのみにしない）', () => {
-    const tag = /<input[^>]*aria-label="キッチンの単価（円\/台）"[^>]*>/.exec(htmlOf())?.[0]
-    if (!tag) throw new Error('キッチンの単価の入力欄が無い')
-    expect(tag).not.toContain('readonly')
+describe('P4 の仕様編集はCSVへ集約する', () => {
+  it('旧単価入力欄を表示せずCSVの入出力を表示する', () => {
+    setStore([fixture('fixture-1', kitchen, 'L0')], { [kitchen]: '450000' })
+    const html=htmlOf()
+    expect(html).not.toContain('キッチンの単価（円/台）')
+    expect(html).toContain('仕様CSVを取り込む')
+    expect(html).toContain('材料CSVを書き出す')
+    expect(totalOf(panelOf(html))).toBe(450000)
   })
 })

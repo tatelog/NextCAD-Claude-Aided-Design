@@ -6,6 +6,9 @@
 .env.*
 !.env.example
 .envrc
+# 手元の Worker（wrangler dev）の秘密の設定。API キーが入る（G155）
+.dev.vars
+.dev.vars.*
 secrets/
 *_token.json
 credentials.json
@@ -16,7 +19,19 @@ build/
 # 作業用。労務単価の CSV など、公開リポジトリに置けないものが入る
 _workspace/
 .wrangler/
+# 画面確認のスクリーンショットなど（検証用）
+.playwright-mcp/
+# Codex の確かめ用の出力（結果の JSON・ログ・確認ページ。93 MB になる）
+work/
 __pycache__/
 .venv/
 .DS_Store
 *.log
+
+# 利用者が置く派生データ（生データ・変換結果は同梱しない）
+public/local-data/
+
+# ローカル検証資料（地図画像・録画・生成書類を含む）
+evidence/
+evidence-*.json
+public/samples/

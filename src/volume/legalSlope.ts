@@ -26,6 +26,27 @@ export interface LegalSlopeResult {
   pending: string[]
 }
 
+/** 北側斜線の規則は当たるのに、真北が分からないときの未判定の文言（統括の指示 2026-11-06。5c） */
+export const NORTH_NEEDS_TRUE_NORTH = '北側斜線は真北が分からないので未判定'
+
+/** 容積率の上限が無いときの未判定。道路斜線の適用距離（容積率で決まる）が決まらない。斜線の欄と、判定不能の一覧で同じ文言を使う（統括の指示 2026-11-06） */
+export const FAR_LIMIT_PENDING = '容積率の上限が未入力（道路斜線の適用距離が決まらない）'
+
+export type LegalSlopeArgs = Omit<LegalSlopeInput, 'farPercent'> & { farPercent: number | null }
+
+/** 画面の入力（容積率の上限は空のことがある）から、斜線の境界と未判定を作る。容積率が無ければ境界は作らず、理由を未判定に積む */
+export function legalSlopeFromInputs(input: LegalSlopeArgs): LegalSlopeResult {
+  const far = input.farPercent
+  if (far === null || !Number.isFinite(far) || far <= 0) return { boundaries: [], pending: [FAR_LIMIT_PENDING] }
+  return legalBoundaries({ ...input, farPercent: far })
+}
+
+/** 境界が一つも作られないときの、斜線の欄の理由（未判定の一覧と同じ元。北側斜線の未判定は欄の下に別に出すので外す）。理由が無いときは「判定する規則が無い」 */
+export function slopeRowReasonOf(legal: LegalSlopeResult): string {
+  const reasons = legal.pending.filter((p) => p !== NORTH_NEEDS_TRUE_NORTH)
+  return reasons.length > 0 ? reasons.join('、') : '判定する規則が無い'
+}
+
 export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
   const poly = input.footprint
   const n = poly.length
@@ -35,10 +56,15 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
   // 道路
   const road = roadSlopeRule({ zone: input.zone, farPercent: input.farPercent })
   const nOut = outwardNormal(poly, input.roadEdgeIndex)
-  if (road.status === '適用') {
+  if (road.status === '適用' && (!(input.roadWidthMm > 0) || !Number.isFinite(input.roadWidthMm))) {
+    pending.push('道路斜線（正確な道路幅員が未確定）')
+  } else if (road.status === '適用') {
     const a = poly[input.roadEdgeIndex]!
     boundaries.push({
       point: { x: a.x + nOut.x * input.roadWidthMm, y: a.y + nOut.y * input.roadWidthMm },
+      displayEdge: [a, poly[(input.roadEdgeIndex + 1) % n]!].map(p => ({
+        x: p.x + nOut.x * input.roadWidthMm, y: p.y + nOut.y * input.roadWidthMm,
+      })) as [Point, Point],
       inward: { x: -nOut.x, y: -nOut.y },
       coefficient: road.coefficient,
       riseMm: 0,
@@ -62,6 +88,8 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
     const out = outwardNormal(poly, i)
     boundaries.push({
       point: { x: a.x, y: a.y },
+      segment: [a, poly[(i + 1) % n]!],
+      displayEdge: [a, poly[(i + 1) % n]!],
       inward: { x: -out.x, y: -out.y },
       kind: 'adjacent',
       coefficient: adjacent.coefficient,
@@ -69,9 +97,9 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
     })
   }
 
-  // 北側（真北の向きが分かるときだけ）
+  // 北側（真北の向きが分かるときだけ作る。分からないのに規則が当たるなら未判定に積む。統括の指示 2026-11-06。5c）
+  const north = northSlopeRule({ zone: input.zone })
   if (input.trueNorth) {
-    const north = northSlopeRule({ zone: input.zone })
     if (north.status === '適用') {
       const N = input.trueNorth
       let best = poly[0]!
@@ -84,6 +112,8 @@ export function legalBoundaries(input: LegalSlopeInput): LegalSlopeResult {
         riseMm: north.riseMm,
       })
     }
+  } else if (north.status === '適用') {
+    pending.push(NORTH_NEEDS_TRUE_NORTH)
   }
 
   return { boundaries, pending }

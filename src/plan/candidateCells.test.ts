@@ -60,4 +60,36 @@ describe('candidateCells（廊下の両側の住戸候補）', () => {
     const ids = candidateCells(input).cells.map((x) => x.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+  // 仕様 6（奇数の幅。統括の依頼 2026-11-06）: 幅と廊下の差が奇数でも弾かない。中廊下は左に寄せる（半分は切り捨て）。
+  // 余りの 1 mm は、東の余白に入る（住戸は 1 mm も広げない。住戸を広げると奇数の区画になり、田の字に割れないため。rooms.ts の制約）。
+  it('仕様 6: 幅と廊下の差が奇数でも弾かず、余りの 1 mm は東の外周に残り、区画は偶数のまま', () => {
+    const odd = { ...input, width_mm: 20_001 }
+    const c = candidateCells(odd)
+    const half = Math.floor((20_001 - 2_000) / 2)
+    expect(c.corridor.x0).toBe(half)
+    expect(c.corridor.x1).toBe(half + 2_000)
+    const west = c.cells.filter((x) => x.id.startsWith('L'))
+    const east = c.cells.filter((x) => x.id.startsWith('R'))
+    expect(west).toHaveLength(4)
+    expect(east).toHaveLength(4)
+    expect(west.every((x) => x.x1 === half && x.x1 - x.x0 === 6_000)).toBe(true)
+    expect(east.every((x) => x.x0 === half + 2_000 && x.x1 - x.x0 === 6_000)).toBe(true)
+    // 余りは東の余白に入る（廊下の西の余白 9000 mm、東の余白 9001 mm）。住戸の位置は偶数の配置と同じ
+    expect(c.corridor.x0).toBe(9_000)
+    expect(20_001 - c.corridor.x1).toBe(9_001)
+    expect(east.every((x) => x.x1 === half + 2_000 + 6_000)).toBe(true)
+    const r = countUnits({
+      outline: [
+        { x: 0, y: 0 },
+        { x: 20_001, y: 0 },
+        { x: 20_001, y: 12_000 },
+        { x: 0, y: 12_000 },
+      ],
+      corridors: [c.corridor],
+      cores: [],
+      cells: c.cells,
+    })
+    expect(r.usable_count).toBe(8)
+    expect(r.plan_status).toBe('成立')
+  })
 })

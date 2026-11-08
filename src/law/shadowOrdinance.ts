@@ -1,7 +1,7 @@
 // 日影の規制値を、確認済みの条例の値で置く（ハブ A-03 G15、D-02 C4）。条例の値は人が出典つきで入れ、人が確認したものだけを使う。決定論。
 // 高さの下限と対象の用途地域は法（別表第四）の値（shadowRuleFor）を使い、時間・測定面の高さ・距離の区分だけを条例の値で置き換える。
 import type { ShadowRule } from './shadowRegulation'
-import { shadowRuleFor } from './shadowRule'
+import { shadowRuleFor, type ShadowRuleContext } from './shadowRule'
 import { ordinanceStatus, type OrdinanceEntry } from './ordinance'
 import type { Zone } from './slopeRules'
 
@@ -23,9 +23,18 @@ export function numberOf(text: string): number | null {
   return m ? Number(m[1]) : null
 }
 
-export function shadowRuleFromOrdinance(zone: Zone, entries: readonly OrdinanceEntry[]): ShadowOrdinance {
-  const base = shadowRuleFor(zone, 2)
-  if (base === null) return { ok: false, reason: '対象外（この用途地域の規制値は未確認）' }
+/** 文脈（高度地区・区）は基準の表に渡す。判定の測定面は、確認済みの条例の値で置き換わるので、文脈で結果は変わらない（t29） */
+export function shadowRuleFromOrdinance(zone: Zone, entries: readonly OrdinanceEntry[], ctx?: ShadowRuleContext): ShadowOrdinance {
+  // 準工・工業系: 準工業は別表第四の対象（三項）、工業・工業専用は対象外。PLATEAU の区分をアプリは一つにまとめているので判定しない（統括の依頼 2026-11-06）
+  if (zone === '準工・工業系' && (ctx?.urfFunction === 12 || ctx?.urfFunction === 13)) {
+    return { ok: false, reason: `${ctx.urfFunction === 12 ? '工業地域' : '工業専用地域'}（敷地から引継ぎ）：敷地の用途地域は日影規制の対象区域外。周辺の対象区域へ落とす日影は別途確認` }
+  }
+  if (zone === '準工・工業系' && ctx?.urfFunction !== 11) {
+    return { ok: false, reason: '判定しない（準工業は日影の対象。工業・工業専用は対象外だが、アプリは用途地域の区分を両者に分けていない）' }
+  }
+  // 準工業の対象高さは住居系と同じ別表第四の区分。時間・測定面は下で確認済み条例値を採用。
+  const base = shadowRuleFor(zone === '準工・工業系' && ctx?.urfFunction === 11 ? '住居系' : zone, 2, ctx)
+  if (base === null) return { ok: false, reason: '未判定（この用途地域の規制値は未確認）' }
   const values: number[] = []
   for (const key of [SHADOW_KEYS.near, SHADOW_KEYS.far, SHADOW_KEYS.height]) {
     const s = ordinanceStatus(entries, key)

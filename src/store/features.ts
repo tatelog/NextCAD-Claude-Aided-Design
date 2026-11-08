@@ -1,7 +1,8 @@
 // 機能のオンオフ（ハブ A-03 G70、D-04 共通部品「機能のオンオフ」）。項目の中身は画面側の案（未決。仮置き）。
 // 表示の 5 つと入力スナップは、既存の画面の状態（ui 店舗）とつながる。残りは設定だけ持ち、振る舞いへの接続は別の作業（未接続と出す）。
 import { create } from 'zustand'
-import type { UiState } from './ui'
+import { useUi, type UiState } from './ui'
+import { loadFeatureSettings, saveFeatureSettings } from '../app/featureSettings'
 
 export type FeatureGroup = '表示' | '操作' | '計算'
 
@@ -34,10 +35,10 @@ export interface FeatureItem {
 }
 
 export const FEATURE_ITEMS: readonly FeatureItem[] = [
-  { key: 'showShadow', group: '表示', label: '日影（P2 の 3D の地面）', connected: true },
-  { key: 'showNeighbors', group: '表示', label: '周辺建物（P1 の地図と P2 の 3D）', connected: true },
-  { key: 'showDimensions', group: '表示', label: '寸法線（P3 の平面）', connected: true },
-  { key: 'showGrid', group: '表示', label: 'グリッド（P3 の平面）', connected: true },
+  { key: 'showShadow', group: '表示', label: '日影（ボリュームの 3D の地面）', connected: true },
+  { key: 'showNeighbors', group: '表示', label: '周辺建物（敷地の地図とボリュームの 3D）', connected: true },
+  { key: 'showDimensions', group: '表示', label: '寸法線（平面）', connected: true },
+  { key: 'showGrid', group: '表示', label: 'グリッド（平面）', connected: true },
   { key: 'showMiniMap', group: '表示', label: '全体図（右下の縮図）', connected: true },
   { key: 'rotateDisplay', group: '操作', label: '回転表示（回転の欄を出す）', connected: true },
   { key: 'rotateOperation', group: '操作', label: '回転操作（回す・つまみで回す）', connected: true },
@@ -78,8 +79,46 @@ export interface FeaturesState {
 
 const ALL_ON = Object.fromEntries(FEATURE_ITEMS.map((i) => [i.key, true])) as Record<FeatureKey, boolean>
 
+// 端末に覚えた設定（G70、設計グリルの項目 9）。無ければ既定（すべて入）
+const STORED_ON = loadFeatureSettings(FEATURE_KEYS) as Record<FeatureKey, boolean>
+
 export const useFeatures = create<FeaturesState>((set) => ({
-  on: ALL_ON,
+  on: STORED_ON,
   setOn: (key, on) => set((s) => ({ on: { ...s.on, [key]: on } })),
   reset: () => set({ on: ALL_ON }),
 }))
+
+// 覚えた設定のうち、表示の項目と入力スナップは、起動時に画面の状態へ出す
+for (const key of FEATURE_KEYS) {
+  const patch = featureUiPatch(key, STORED_ON[key])
+  if (patch) useUi.setState(patch)
+}
+
+/** 機能の行のチェック（G43）: 表示の五つは画面の表示の状態、入力スナップは入力の状態、ほかは機能のオンオフの設定 */
+export function featureShown(key: FeatureKey): boolean {
+  const ui = useUi.getState()
+  switch (key) {
+    case 'showShadow':
+      return ui.showShadow
+    case 'showNeighbors':
+      return ui.showNeighbors
+    case 'showDimensions':
+      return ui.showDimensions
+    case 'showMiniMap':
+      return ui.showMiniMap
+    case 'showGrid':
+      return ui.showGrid
+    case 'inputSnap':
+      return ui.inputSnapGrid
+    default:
+      return useFeatures.getState().on[key]
+  }
+}
+
+/** 機能を入れる・外す（G70）: 設定を持ち、つながっている項目は画面の状態にも出す */
+export function setFeatureOn(key: FeatureKey, on: boolean): void {
+  useFeatures.getState().setOn(key, on)
+  saveFeatureSettings(useFeatures.getState().on)
+  const patch = featureUiPatch(key, on)
+  if (patch) useUi.setState(patch)
+}

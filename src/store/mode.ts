@@ -1,0 +1,50 @@
+// 作業のモード（ハブ A-03 G100・G95・G43・G101）。System（1）・Chat（2）・Drawing（3）。id は system・chat・drawing（表示名は表 screenModes の name。1 か所）。
+// 切り替えると、そのモードの右メニューの項目を開く。右メニューに何が出るかは、モードと画面の組で決まる（表 screenModes）。
+// Drawing（3）は P2・P3 で使える（2b の改定。代表 2026-11-05）。
+import { create } from 'zustand'
+import { modesOfScreen, rightBarItems, SCREEN_MODES, type ScreenModesConfig } from '../app/screenModes'
+import { usePanelTiles } from './panelTiles'
+import { useSelection } from './selection'
+
+export type WorkMode = 'system' | 'chat' | 'drawing'
+
+export interface ModeState {
+  mode: WorkMode
+  /** モードを切り替える。そのモードの右メニューの項目は、閉じていても開く */
+  setMode: (mode: WorkMode) => void
+}
+
+export const useMode = create<ModeState>((set, get) => ({
+  mode: 'system',
+  setMode: (mode) => {
+    // モードを変えたら、選んでいた線は外す（前のモードの選択を、チャットの文脈に残さない。G159）
+    if (get().mode !== mode) useSelection.getState().clearSelection()
+    set({ mode })
+    const tiles = SCREEN_MODES.modes.find((m) => m.id === mode)?.rightTiles ?? []
+    for (const id of tiles) usePanelTiles.getState().showTile(id)
+  },
+}))
+
+/** 画面で扱う今のモード。画面で使えないモードのときは、その画面で使える最初のモード（仕様 5） */
+export function activeModeOf(cfg: ScreenModesConfig, mode: string, screen: string): string {
+  const usable = modesOfScreen(cfg, screen)
+  if (usable.some((m) => m.id === mode)) return mode
+  return usable[0]?.id ?? mode
+}
+
+/** 画面で扱う今のモード（画面ごとに、使えるモードへ寄せる） */
+export function useActiveMode(screen: string): string {
+  const mode = useMode((s) => s.mode)
+  return activeModeOf(SCREEN_MODES, mode, screen)
+}
+
+/** 右メニューに、この項目が出るか（モードと画面の組で決まる。× で閉じた項目は出ない） */
+export function isRightItemShown(
+  cfg: ScreenModesConfig,
+  mode: string,
+  screen: string,
+  hidden: Readonly<Record<string, true>>,
+  id: string,
+): boolean {
+  return !hidden[id] && rightBarItems(cfg, mode, screen).includes(id)
+}

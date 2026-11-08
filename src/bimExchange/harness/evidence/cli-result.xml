@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="引数不正は2で一行JSON" time="0.000993" classname="test" file="C:\Users\tatelogmk\Documents\clone\built-with-claude-japan-2026-toyo\src\bimExchange\harness\cli.test.mjs"/>
+	<testcase name="JSON不正は3で変換器をロードしない" time="0.002571" classname="test" file="C:\Users\tatelogmk\Documents\clone\built-with-claude-japan-2026-toyo\src\bimExchange\harness\cli.test.mjs"/>
+	<testcase name="実変換器未着は4でmockへ置換しない" time="0.000945" classname="test" file="C:\Users\tatelogmk\Documents\clone\built-with-claude-japan-2026-toyo\src\bimExchange\harness\cli.test.mjs"/>
+	<testcase name="標準入力から変換し標準出力へ結果JSON" time="0.017152" classname="test" file="C:\Users\tatelogmk\Documents\clone\built-with-claude-japan-2026-toyo\src\bimExchange\harness\cli.test.mjs"/>
+	<!-- tests 4 -->
+	<!-- suites 0 -->
+	<!-- pass 4 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 237.4834 -->
+</testsuites>

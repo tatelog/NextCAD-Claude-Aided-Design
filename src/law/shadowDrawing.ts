@@ -107,3 +107,21 @@ export function shadowDrawingSummary(result: ShadowDrawingResult): string {
   const max = result.outside.reduce((m, c) => Math.max(m, c.hours), 0)
   return `日影図: 影が落ちる格子 ${result.outside.length} 点、最大 ${max.toFixed(1)} h（格子 ${result.cellMm / 1000} m）`
 }
+
+/** 条例の適否判定とは独立した日影時間。測定範囲は敷地外周+20m、2m格子。 */
+export function shadowExposure(input: Omit<ShadowDrawingInput, 'structure' | 'rule'> & {measurementHeightM: number}): {cells: ShadowCell[]; outside: ShadowCell[]; cellMm: number} {
+  if (input.lot.length < 3 || input.buildings.length === 0) return {cells:[],outside:[],cellMm:CELL_MM}
+  // 8〜16時の48区間を各区間の始点で評価する。16時を追加の10分として数えない。
+  const suns=sunWindow(input.lat,input.lon,input.date).slice(0,-1)
+  const height=input.measurementHeightM*1000
+  const shadows=suns.map(sun=>sun.altitudeDeg<=0?[]:input.buildings.filter(b=>b.heightMm>height).map(b=>shadowOf(b.footprint,b.heightMm-height,sun.altitudeDeg,sun.azimuthFromSouthDeg)))
+  const xs=input.lot.map(p=>p.x), ys=input.lot.map(p=>p.y)
+  const cells:ShadowCell[]=[]
+  for(let x=Math.min(...xs)-MARGIN_MM+CELL_MM/2;x<Math.max(...xs)+MARGIN_MM;x+=CELL_MM) {
+    for(let y=Math.min(...ys)-MARGIN_MM+CELL_MM/2;y<Math.max(...ys)+MARGIN_MM;y+=CELL_MM) {
+      const count=shadows.filter(polys=>polys.some(poly=>poly.length>0&&pointInPolygon({x,y},poly))).length
+      if(count) cells.push({x,y,hours:count*STEP_MIN/60})
+    }
+  }
+  return {cells,outside:cells.filter(c=>!pointInPolygon(c,input.lot)),cellMm:CELL_MM}
+}

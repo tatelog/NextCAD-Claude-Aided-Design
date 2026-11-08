@@ -6,6 +6,7 @@ import type { Node, Segment } from '../model/schema'
 import { rotateFootprint } from '../volume/placement'
 import { outlineCentroid } from '../volume/rotation'
 import { findClosedOutline } from './closure'
+import { arcParamsFromNodes, arcParamsOf } from './arcSegment'
 
 /** 端点と線分を持つ 1 単位（store の StrokeEntry など）。それ以外の項目は触らずに返す */
 export interface OutlineEntry {
@@ -28,7 +29,7 @@ function controlPointsOf(s: Segment): Point[] | null {
  * 線分の端を p1・p2 に置き直し、revision を 1 進める。曲線（spline）は制御点の両端を端点にそろえ、
  * 間の制御点は interior で動かす。
  */
-function reshapeSegment(s: Segment, p1: Point, p2: Point, interior: (c: Point) => Point): Segment {
+function reshapeSegment(s: Segment, p1: Point, p2: Point, interior: (c: Point) => Point, centerOf: (c: Point) => Point = (c) => c): Segment {
   const next: Segment = { ...s, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, revision: s.revision + 1 }
   const cps = controlPointsOf(s)
   if (cps) {
@@ -38,12 +39,16 @@ function reshapeSegment(s: Segment, p1: Point, p2: Point, interior: (c: Point) =
       control_points: cps.map((c, i) => (i === 0 ? { x: p1.x, y: p1.y } : i === last ? { x: p2.x, y: p2.y } : interior(c))),
     }
   }
+  // 円弧は、中心を centerOf で動かし、半径と始終角を新しい端点から決め直す（t82）
+  const arc = arcParamsOf(s)
+  if (arc) next.curve_params = arcParamsFromNodes(centerOf(arc.center), p1, p2, arc.ccw)
   return next
 }
 
 /** 線分の座標と制御点が同じか（revision は見ない） */
 function sameGeometry(a: Segment, b: Segment): boolean {
   if (a.x1 !== b.x1 || a.y1 !== b.y1 || a.x2 !== b.x2 || a.y2 !== b.y2) return false
+  if (arcParamsOf(a) || arcParamsOf(b)) return JSON.stringify(a.curve_params) === JSON.stringify(b.curve_params)
   const ca = controlPointsOf(a)
   const cb = controlPointsOf(b)
   if (!ca || !cb) return ca === cb
@@ -62,7 +67,9 @@ function moveSegment(s: Segment, moves: ReadonlyMap<string, Point>): Segment {
   const d1 = { x: p1.x - s.x1, y: p1.y - s.y1 }
   const d2 = { x: p2.x - s.x2, y: p2.y - s.y2 }
   const wholeEdgeMoved = d1.x === d2.x && d1.y === d2.y
-  return reshapeSegment(s, p1, p2, (c) => (wholeEdgeMoved ? { x: c.x + d1.x, y: c.y + d1.y } : { x: c.x, y: c.y }))
+  // 辺ごと動かしたときは、円弧の中心も同じだけ動く。端点だけ動かしたときは中心は動かない
+  const shift = (c: Point): Point => (wholeEdgeMoved ? { x: c.x + d1.x, y: c.y + d1.y } : { x: c.x, y: c.y })
+  return reshapeSegment(s, p1, p2, shift, shift)
 }
 
 /**
@@ -99,6 +106,7 @@ export function moveOutlineVertices<E extends OutlineEntry>(entries: readonly E[
 export function rotateOutline<E extends OutlineEntry>(entries: readonly E[], deg: number): E[] {
   const closure = findClosedOutline(entries.flatMap((e) => e.segments))
   if (!closure.closed) return [...entries]
+  const outlinePoints = new Set(closure.footprint.map(p => keyOf(p.x, p.y)))
   const pivot = outlineCentroid(closure.footprint)
   if (!pivot) return [...entries]
 
@@ -106,16 +114,29 @@ export function rotateOutline<E extends OutlineEntry>(entries: readonly E[], deg
     const q = rotateFootprint([p], pivot, deg)[0]!
     return { x: Math.round(q.x) + 0, y: Math.round(q.y) + 0 }
   }
+  // 円弧の中心は、丸めずに回す（半径を保つため）
+  const rotateExact = (p: Point): Point => rotateFootprint([p], pivot, deg)[0]!
 
   return entries.map((e) => ({
     ...e,
     nodes: e.nodes.map((n) => {
+      if (!outlinePoints.has(keyOf(n.x, n.y))) return n
       const q = rotate(n)
       return q.x === n.x && q.y === n.y ? n : { ...n, x: q.x, y: q.y }
     }),
     segments: e.segments.map((s) => {
-      const next = reshapeSegment(s, rotate({ x: s.x1, y: s.y1 }), rotate({ x: s.x2, y: s.y2 }), rotate)
+      if (!outlinePoints.has(keyOf(s.x1, s.y1)) || !outlinePoints.has(keyOf(s.x2, s.y2))) return s
+      const next = reshapeSegment(s, rotate({ x: s.x1, y: s.y1 }), rotate({ x: s.x2, y: s.y2 }), rotate, rotateExact)
       return sameGeometry(s, next) ? s : next
     }),
+  }))
+}
+
+/** 基準座標の変更。閉合前の線・曲線も原点まわりに移す。 */
+export function rebaseEntries<E extends OutlineEntry>(entries: readonly E[], deg: number): E[] {
+  const rotate = (p: Point) => rotateFootprint([p], { x: 0, y: 0 }, deg)[0]!
+  return entries.map(e => ({ ...e,
+    nodes: e.nodes.map(n => ({ ...n, ...rotate(n) })),
+    segments: e.segments.map(s => reshapeSegment(s, rotate({x:s.x1,y:s.y1}), rotate({x:s.x2,y:s.y2}), rotate, rotate)),
   }))
 }

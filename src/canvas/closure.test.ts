@@ -93,3 +93,22 @@ describe('findClosedOutline', () => {
     expect(r.reason).toBe('empty')
   })
 })
+
+it('別の未閉合線と閉じた輪郭が併存しても輪郭を認識する', () => {
+  const r=findClosedOutline([
+    seg('loose',[30000,0,'a'],[40000,0,'b']),
+    seg('1',[0,0,'n1'],[10000,0,'n2']),
+    seg('2',[10000,0,'n2'],[10000,10000,'n3']),
+    seg('3',[10000,10000,'n3'],[0,10000,'n4']),
+    seg('4',[0,10000,'n4'],[0,0,'n1']),
+  ])
+  expect(r.closed).toBe(true)
+  expect(r.footprint).toHaveLength(4)
+})
+it('独立した閉じた輪郭が複数なら直近の輪郭を対象にする', () => {
+  const a=[seg('1',[0,0,'a'],[10000,0,'b']),seg('2',[10000,0,'b'],[0,10000,'c']),seg('3',[0,10000,'c'],[0,0,'a'])]
+  const b=a.map(s=>({...s,id:'b'+s.id,start_node_id:'b'+s.start_node_id,end_node_id:'b'+s.end_node_id,x1:s.x1+30000,x2:s.x2+30000}))
+  const r=findClosedOutline([...a,...b])
+  expect(r.closed).toBe(true)
+  expect(r.footprint?.every(p=>p.x>=30000)).toBe(true)
+})

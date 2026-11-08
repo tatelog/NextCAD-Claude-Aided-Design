@@ -22,6 +22,7 @@ export type ObjectKind =
 
 /** P3 の自動作成の結果と、置いた什器（種類ごとの配列）。未指定は 0 件。要素の形は件数に関係しない。 */
 export interface ObjectSources {
+  columns?: readonly unknown[]
   siteBoundaries?: readonly unknown[]
   outlines?: readonly unknown[]
   gridLines?: readonly unknown[]
@@ -42,14 +43,12 @@ export interface ObjectCountRow {
   note?: string
 }
 
-const UNWIRED_NOTE = '意味づけ未配線'
-
 // 並びと名前。source を持たない種類は、P3 にデータが無い（意味づけ未配線）。
 const MENU: readonly { kind: ObjectKind; label: string; source?: keyof ObjectSources }[] = [
   { kind: 'siteBoundary', label: '筆界', source: 'siteBoundaries' },
   { kind: 'outline', label: '外形', source: 'outlines' },
   { kind: 'grid', label: '通り芯', source: 'gridLines' },
-  { kind: 'column', label: '柱' },
+  { kind: 'column', label: '柱', source:'columns' },
   { kind: 'core', label: 'コア', source: 'cores' },
   { kind: 'shaft', label: '縦シャフト', source: 'shafts' },
   { kind: 'corridor', label: '廊下', source: 'corridors' },
@@ -63,7 +62,7 @@ const MENU: readonly { kind: ObjectKind; label: string; source?: keyof ObjectSou
 /** 左メニューの行（種類ごと 1 行）を、P3 の結果から数える。入力は書き換えない。 */
 export function countObjects(sources: ObjectSources): ObjectCountRow[] {
   return MENU.map(({ kind, label, source }): ObjectCountRow => {
-    if (source === undefined) return { kind, label, count: 0, note: UNWIRED_NOTE }
+    if (source === undefined) return { kind, label, count: 0 }
     return { kind, label, count: sources[source]?.length ?? 0 }
   })
 }

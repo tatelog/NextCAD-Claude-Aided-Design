@@ -1,3 +1,7 @@
+import { useSite } from '../store/site'
+import { useFloorPlans } from '../store/floorPlans'
+import { useDrawing } from '../store/drawing'
+import { generateAutoPlan } from '../plan/autoPlan'
 // 仕様（ハブ A-03 G69、D-04 P2・P3）: 道具の「什器」を P3 の画面に配線する。P3 で使う。文言は仮置き。
 // 仕様 1（道具が出る）: P3 の右パネルに、見出し「什器」と、5 品目のボタン（キッチン・ユニットバス・洗面・便器・収納の順）が出る。
 //   選んだ品目・置いた什器の一覧・外す操作は店舗のもの。
@@ -59,6 +63,14 @@ vi.mock('./FixturePalette', async (importOriginal) => {
     },
   }
 })
+// 描画では店舗が初期の状態を返すので、今のモードだけここで渡す（左メニューの開閉の既定と、右パネルの項目に効く）
+// 什器の欄は作図（Drawing）モードのときだけ出る（Codex の版。システムモードでは作図の道具を隠す、cdb24f8。代表の決定 2026-11-07 で今の版を正とする）
+const modeShell = vi.hoisted(() => ({ mode: 'drawing' }))
+vi.mock('../store/mode', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../store/mode')>()
+  const screenModes = await import('../app/screenModes')
+  return { ...actual, useActiveMode: (screen: string) => actual.activeModeOf(screenModes.SCREEN_MODES, modeShell.mode, screen) }
+})
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>()
   return {
@@ -69,6 +81,14 @@ vi.mock('react', async (importOriginal) => {
   }
 })
 
+vi.mock('../store/site', async (importOriginal) => {
+ const actual = await importOriginal<typeof import('../store/site')>()
+ return {...actual, useSite: Object.assign((selector: (s: ReturnType<typeof actual.useSite.getState>) => unknown) => selector(actual.useSite.getState()), actual.useSite)}
+})
+vi.mock('../store/floorPlans', async (importOriginal) => {
+ const actual = await importOriginal<typeof import('../store/floorPlans')>()
+ return {...actual, useFloorPlans: Object.assign(() => actual.useFloorPlans.getState(), actual.useFloorPlans)}
+})
 import { P3Plan } from './P3Plan'
 
 function itemOf(label: string): FixtureItem {
@@ -79,9 +99,14 @@ function itemOf(label: string): FixtureItem {
 
 const kitchen = itemOf('キッチン')
 const toilet = itemOf('便器')
+// 押されている什器の道具のボタンの数。P3 の画面には直線・曲線の道具も出る（G152）ので、品目の名前のボタンだけを数える
+const pressedFixtureButtons = (html: string): number =>
+  [...html.matchAll(/<button[^>]*aria-pressed="true"[^>]*>([\s\S]*?)<\/button>/g)].filter((m) =>
+    FIXTURE_ITEMS.some((i) => m[1]!.replace(/<[^>]*>/g, '').includes(i.label)),
+  ).length
 
-// P3 の画面の既定の入力（幅 20000・奥行 12000・廊下 2000・住戸の奥行 6000・スパン 3000・中廊下）での、区画の候補
-const CELLS = candidateCells({ width_mm: 20000, depth_mm: 12000, corridor_mm: 2000, unit_depth_mm: 6000, span_mm: 3000, layout: '中廊下' }).cells
+// P3 の画面の既定の入力（幅 20000・奥行 12000・廊下 1600（中廊下の既定。G135）・住戸の奥行 6000・スパン 3000・中廊下）での、区画の候補
+const CELLS = candidateCells({ width_mm: 20000, depth_mm: 12000, corridor_mm: 1600, unit_depth_mm: 6000, span_mm: 3000, layout: '中廊下' }).cells
 const first = CELLS[0]!
 const second = CELLS[1]!
 const centerOf = (c: { x0: number; y0: number; x1: number; y1: number }) => ({ x: (c.x0 + c.x1) / 2, y: (c.y0 + c.y1) / 2 })
@@ -89,7 +114,8 @@ const centerOf = (c: { x0: number; y0: number; x1: number; y1: number }) => ({ x
 const fixture = (id: string, item: FixtureItem, unitId: string | null): Fixture => ({ id, item, unitId })
 const htmlOf = (): string => renderToStaticMarkup(createElement(P3Plan))
 // タグを除いた文字（隣り合う文字はつながる）
-const textOf = (html: string): string => html.replace(/<[^>]*>/g, '')
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので文字に入れない（代表の指示『トグルでリスト化』2026-11-07）
+const textOf = (html: string): string => html.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '')
 const layerProps = (): FixtureLayerProps => {
   if (!fx.layer) throw new Error('P3 の画面が、什器の層（FixtureLayer）を描いていない')
   return fx.layer as FixtureLayerProps
@@ -100,6 +126,14 @@ const paletteProps = (): FixturePaletteProps => {
 }
 
 beforeEach(() => {
+  // 初期値による架空の配置ではなく、什器操作の対象となる配置済みの階を用意する。
+  const { storeyCount, storeyHeightMm } = useDrawing.getInitialState()
+  const volume = { footprint: [{x:0,y:0},{x:20000,y:0},{x:20000,y:12000},{x:0,y:12000}], storey_count:storeyCount, storey_height:storeyHeightMm }
+  useSite.setState({volume, slopeBoundaries:[]})
+  const candidates = candidateCells({width_mm:20000,depth_mm:12000,corridor_mm:1600,unit_depth_mm:6000,span_mm:3000,layout:'中廊下'})
+  const base = generateAutoPlan({targetPerFloor:8,storeyCount,storeyHeightMm,spanMm:3000,unitDepthMm:6000,corridorMm:1600,layout:'中廊下',evCount:1,evStops:[1]})
+  const plan = {...base,widthMm:20000,depthMm:12000,cells:CELLS,corridor:candidates.corridor,cores:[],rooms:[],shaftRects:[]}
+  useFloorPlans.setState({source:JSON.stringify([volume,[],storeyCount,storeyHeightMm]),plans:{1:plan},selected:1})
   fx.state.fixtures = []
   fx.state.selectedItem = null
   fx.layer = null
@@ -130,12 +164,12 @@ describe('P3 の画面に什器の道具が出る（仕様 1）', () => {
   it('品目を選んでいなければ、選びは null で渡り、どのボタンも押されていない', () => {
     const html = htmlOf()
     expect(paletteProps().selectedItem).toBeNull()
-    expect(html).not.toContain('aria-pressed="true"')
+    expect(pressedFixtureButtons(html)).toBe(0)
   })
 
   it('品目を選んでいれば、その品目のボタンだけが押された状態で描かれる', () => {
     fx.state.selectedItem = toilet
-    expect(htmlOf().match(/aria-pressed="true"/g)).toHaveLength(1)
+    expect(pressedFixtureButtons(htmlOf())).toBe(1)
   })
 })
 
@@ -223,20 +257,31 @@ describe('平面の印を押すと外す（仕様 7）', () => {
 
   it('品目を選んでいなければ、置いた什器の印は押せる（印に什器の id が付き、押せなくする none が無い）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id)]
+    // 39 案の間取りの図（UnitPlanDrawing）は押せない層（pointer-events="none"）として描かれるので、ページ全体ではなく什器の印そのものを確かめる
     const html = htmlOf()
-    expect(html).toContain('data-fixture="fixture-1"')
-    expect(html).toContain('data-fixture="fixture-2"')
-    expect(html).not.toContain('pointer-events="none"')
+    const marks = html.match(/<[^>]*data-fixture="[^"]*"[^>]*>/g) ?? []
+    expect(marks.map((m) => /data-fixture="([^"]*)"/.exec(m)?.[1])).toEqual(['fixture-1', 'fixture-2'])
+    for (const m of marks) expect(m).toContain('pointer-events="auto"')
   })
 
   it('品目を選んでいる間は、印は押せない（区画を押して続けて置ける）', () => {
     fx.state.selectedItem = kitchen
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id)]
-    expect(htmlOf()).toContain('pointer-events="none"')
+    const marks = htmlOf().match(/<[^>]*data-fixture="[^"]*"[^>]*>/g) ?? []
+    expect(marks).toHaveLength(1)
+    expect(marks[0]).toContain('pointer-events="none"')
   })
 })
 
 describe('P3 の左メニューに什器の件数が出る（仕様 6）', () => {
+  // 左のオブジェクト一覧は、作図モードでは既定で畳まれる（Codex の版を正とする。代表 2026-11-07）。件数はシステムモードで確かめる
+  beforeEach(() => {
+    modeShell.mode = 'system'
+    return () => {
+      modeShell.mode = 'drawing'
+    }
+  })
+
   it('置いた什器の数が、廊下の次・住戸の前の「什器」の行に出る（区画なしの什器も数える）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id), fixture('fixture-3', kitchen, null)]
     expect(textOf(htmlOf())).toContain(`廊下1什器3住戸${CELLS.length}`)

@@ -2,8 +2,13 @@
 // 周辺建物（PLATEAU）の生データは含めない（外部データを同梱しない。実行時に取り直す）。
 // 什器（G69。仮置き）: P3 で置いた什器の一覧を fixtures として含める。什器が無いときは項目ごと付けない（今までと同じ形）。読み込みはまだ無い。
 import type { Fixture } from '../plan/fixtures'
+import type { ConfirmedSite } from '../store/confirmedSite'
 
 export interface SaveInput {
+  bimSettings?: import('../store/bimSettings').BimSettings
+  specSelections?: Record<string,import('../estimate/specPackages').SpecSelection>
+  floorPlans?: Record<number,import('../plan/autoPlan').AutoPlan>
+  floorPlanSource?: string
   projectName: string
   entries: readonly unknown[]
   storeyCount: number
@@ -15,9 +20,15 @@ export interface SaveInput {
   unitPriceTexts?: Readonly<Record<string, string>>
   /** 区画に付けた 1F の名前（区画の id → 名前）。無ければ項目ごと付けない（G75） */
   firstFloorNames?: Readonly<Record<string, string>>
+  /** 確定した敷地（P1 の「この敷地で確定」）。無ければ項目ごと付けない（統括の依頼 2026-11-06。8） */
+  confirmedSite?: ConfirmedSite | null
 }
 
 export interface SaveData {
+  bimSettings?: import('../store/bimSettings').BimSettings
+  specSelections?: Record<string,import('../estimate/specPackages').SpecSelection>
+  floorPlans?: Record<number,import('../plan/autoPlan').AutoPlan>
+  floorPlanSource?: string
   projectName: string
   savedAt: string
   entries: readonly unknown[]
@@ -29,6 +40,8 @@ export interface SaveData {
   unitPriceTexts?: Record<string, string>
   /** 区画に付けた 1F の名前（区画の id → 名前） */
   firstFloorNames?: Record<string, string>
+  /** 確定した敷地（筆・枠・中心・前面道路の辺）。周辺建物と用途地域は入れない（読み込みのあと取り直す） */
+  confirmedSite?: ConfirmedSite
 }
 
 export function buildSaveData(input: SaveInput): SaveData {
@@ -37,6 +50,9 @@ export function buildSaveData(input: SaveInput): SaveData {
   const fixtures = (input.fixtures ?? []).map((f) => ({ id: f.id, item: f.item, unitId: f.unitId }))
   const unitPriceTexts = Object.fromEntries(Object.entries(input.unitPriceTexts ?? {}).filter(([, text]) => text !== ''))
   return {
+    ...(input.bimSettings?{bimSettings:structuredClone(input.bimSettings)}:{}),
+    ...(input.specSelections&&Object.keys(input.specSelections).length?{specSelections:structuredClone(input.specSelections)}:{}),
+    ...(input.floorPlans&&Object.keys(input.floorPlans).length?{floorPlans:structuredClone(input.floorPlans),floorPlanSource:input.floorPlanSource??''}:{}),
     projectName: name === '' ? '敷地名（案件）未入力' : name,
     savedAt: input.savedAt.toISOString(),
     entries: input.entries,
@@ -45,5 +61,6 @@ export function buildSaveData(input: SaveInput): SaveData {
     ...(fixtures.length > 0 ? { fixtures } : {}),
     ...(Object.keys(unitPriceTexts).length > 0 ? { unitPriceTexts } : {}),
     ...(input.firstFloorNames && Object.keys(input.firstFloorNames).length > 0 ? { firstFloorNames: { ...input.firstFloorNames } } : {}),
+    ...(input.confirmedSite ? { confirmedSite: input.confirmedSite } : {}),
   }
 }

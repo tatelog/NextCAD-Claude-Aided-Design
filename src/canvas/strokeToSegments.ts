@@ -5,6 +5,7 @@
 import { simplifyRdp } from '../geom/rdp'
 import { snapPoint, type SnapResult } from '../input/snap'
 import type { Node, Segment, Snap, Stroke } from '../model/schema'
+import { arcParamsFromNodes } from './arcSegment'
 
 export interface StrokeToSegmentsOptions {
   /** RDP の許容誤差（画面 px）。仮置き 8 */
@@ -25,16 +26,17 @@ export interface StrokeToSegmentsResult {
 
 const newId = (): string => crypto.randomUUID()
 
-interface Mm {
+export interface Mm {
   x: number
   y: number
 }
 
-// `|| 0` は -0 を 0 に揃える（整数 mm に -0 は要らない）
-const toMm = (stroke: Stroke, p: { px: number; py: number }): Mm => ({
+// `|| 0` は -0 を 0 に揃える（整数 mm に -0 は要らない）。y は上向きが正（画面の py は下向きが正）
+export const strokePointToMm = (stroke: Stroke, p: { px: number; py: number }): Mm => ({
   x: Math.round((p.px - stroke.view_origin.px) * stroke.view_scale) || 0,
   y: Math.round(-(p.py - stroke.view_origin.py) * stroke.view_scale) || 0,
 })
+const toMm = strokePointToMm
 
 /** existingSegments は交点・線分上への吸着に使う既存の線分（省略時は端点だけ） */
 export function strokeToSegments(
@@ -98,7 +100,7 @@ function lineToSegments(
   return { segments, nodes: created }
 }
 
-/** 曲線モード: 両端だけスナップし、間の点は描いたまま 1 本の spline にする */
+/** 曲線モード: 両端だけスナップし、間の点は描いたまま 1 本の spline にする。円弧（中心と向きを持つ線）は curve: arc にする（t82） */
 function curveToSegment(
   stroke: Stroke,
   existingNodes: readonly Node[],
@@ -131,6 +133,8 @@ function curveToSegment(
     return { x: p.x, y: p.y }
   })
 
+  // 中心と向きを持つ線（円弧の入力）は、中心・半径・始終角で持つ（t82）。両端が同じ閉じた円弧は円弧にできないので spline のまま
+  const arc = stroke.arc && start.node.id !== end.node.id ? stroke.arc : null
   const segment: Segment = {
     id: newId(),
     x1: start.node.x,
@@ -143,8 +147,9 @@ function curveToSegment(
     stroke_id: stroke.id,
     stage: stroke.stage,
     revision: 1,
-    curve: 'spline',
-    curve_params: { control_points: controlPoints },
+    ...(arc
+      ? { curve: 'arc' as const, curve_params: arcParamsFromNodes(arc.center, start.node, end.node, arc.ccw) }
+      : { curve: 'spline' as const, curve_params: { control_points: controlPoints } }),
   }
   return { segments: [segment], nodes: created }
 }

@@ -1,0 +1,12 @@
+{
+  "exitCode": 2,
+  "diagnostics": [
+    "src/app/specSave.test.ts(4,33): error TS2307: Cannot find module '../store/specSelections' or its corresponding type declarations.",
+    "src/app/specSave.test.ts(8,109): error TS2353: Object literal may only specify known properties, and 'specSelections' does not exist in type 'SaveInput'.",
+    "src/estimate/planSpecObjects.test.ts(2,31): error TS2307: Cannot find module './planSpecObjects' or its corresponding type declarations.",
+    "src/estimate/planSpecObjects.test.ts(8,29): error TS7006: Parameter 'o' implicitly has an 'any' type.",
+    "src/estimate/planSpecObjects.test.ts(11,22): error TS7006: Parameter 'o' implicitly has an 'any' type.",
+    "src/estimate/planSpecObjects.test.ts(16,48): error TS7006: Parameter 'o' implicitly has an 'any' type.",
+    "src/estimate/specPackages.ts(54,46): error TS2345: Argument of type '\"M01\"' is not assignable to parameter of type 'never'."
+  ]
+}

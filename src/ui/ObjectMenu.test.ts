@@ -3,7 +3,7 @@
 // props: sources（種類ごとの結果）、selectedKind（選んでいる種類。無ければ null）、onSelect（次の選びを受ける）。
 //   ほかに、説明文 caption と注記 notice（どちらも省略できる）。
 // 仕様 1（一覧）: 見出し「オブジェクト」の下に、種類ごとに 1 行、左メニューの並び（countObjects）で、名前と件数を出す。
-//   柱・壁・開口の行には「（意味づけ未配線）」の注記が付き、ほかの行には付かない。
+//   注記は、どの行にも付かない。
 //   P3 で置いた什器（ハブ A-03 G69）の行「什器」が、廊下の後・住戸の前に出る（仮置き）。全部で 12 行。
 // 仕様 2（説明文）: 見出しの下に説明文を出す。既定は「種類ごとの件数」。caption を渡すとそれに替わる
 //   （P3 は「種類ごとの件数（P3 の自動作成の結果）」を渡して、今までと同じ文にする）。
@@ -13,7 +13,7 @@
 // 仕様 5（中身）: 種類を選んでいるとき、一覧の下に「<名前>の中身」の欄を出し、detailOfKind の見出しと行を並べる。
 //   件数が 0 のときは「なし」だけ。選んでいなければ欄は無い。壁と開口の数は、住戸の中身の 1 行に「未配線」と出す（detailOfKind のまま。仮置き）。
 // 仕様 6（描ける）: React で描ける（サーバー側の描画で例外が出ない）。帯の幅は OBJECT_MENU_WIDTH（呼び出し側の列の幅に使う）。
-import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
+import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { Rect } from '../plan/candidateCells'
@@ -21,7 +21,7 @@ import { FIXTURE_ITEMS, type Fixture, type FixtureItem } from '../plan/fixtures'
 import type { ObjectDetailSources } from '../plan/objectDetail'
 import type { ObjectKind } from '../plan/objectMenu'
 import { roomsOfCells } from '../plan/rooms'
-import { OBJECT_MENU_WIDTH, ObjectMenu, type ObjectMenuProps } from './ObjectMenu'
+import { OBJECT_MENU_WIDTH, ObjectMenu, objectMenuWidthOf, type ObjectMenuProps } from './ObjectMenu'
 
 // 左メニューの並び（12 種類。什器は廊下の後、住戸の前）
 const KINDS: readonly ObjectKind[] = [
@@ -73,14 +73,14 @@ const ROW_TEXTS = [
   '筆界1',
   '外形1',
   '通り芯3',
-  '柱0（意味づけ未配線）',
+  '柱0',
   'コア1',
   '縦シャフト0',
   '廊下1',
   '什器4',
   '住戸2',
-  '壁0（意味づけ未配線）',
-  '開口0（意味づけ未配線）',
+  '壁0',
+  '開口0',
   '部屋8',
 ]
 
@@ -97,11 +97,13 @@ function findAll(node: ReactNode, match: (el: El) => boolean, out: El[] = []): E
   return out
 }
 
-// 要素の木の文字（子の文字を順につなぐ）
+// 要素の木の文字（子の文字を順につなぐ）。
+// 開け閉めの印（▸・▾）は aria-hidden の飾りなので数えない（代表の指示「枠なし・トグルでリスト化」2026-11-07。行の名前と件数は従来どおり確かめる）
 function textOf(node: ReactNode): string {
   if (node === null || node === undefined || typeof node === 'boolean') return ''
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (Array.isArray(node)) return node.map((n) => textOf(n as ReactNode)).join('')
+  if (isValidElement<El['props']>(node) && (node.props as { 'aria-hidden'?: unknown })['aria-hidden'] === 'true') return ''
   if (isValidElement<El['props']>(node)) return textOf(node.props.children)
   return ''
 }
@@ -132,9 +134,9 @@ describe('ObjectMenu（一覧。仕様 1）', () => {
     expect(rows.slice(rows.indexOf('廊下1'), rows.indexOf('住戸2') + 1)).toEqual(['廊下1', '什器4', '住戸2'])
   })
 
-  it('注記「（意味づけ未配線）」が付くのは柱・壁・開口の行だけ', () => {
+  it('注記は、どの行にも付かない', () => {
     const noted = findAll(render(), isTag('li')).filter((li) => textOf(li).includes('意味づけ未配線'))
-    expect(noted.map(textOf)).toEqual(['柱0（意味づけ未配線）', '壁0（意味づけ未配線）', '開口0（意味づけ未配線）'])
+    expect(noted.map(textOf)).toEqual([])
   })
 
   it('結果が空なら、どの行も件数 0', () => {
@@ -143,14 +145,14 @@ describe('ObjectMenu（一覧。仕様 1）', () => {
       '筆界0',
       '外形0',
       '通り芯0',
-      '柱0（意味づけ未配線）',
+      '柱0',
       'コア0',
       '縦シャフト0',
       '廊下0',
       '什器0',
       '住戸0',
-      '壁0（意味づけ未配線）',
-      '開口0（意味づけ未配線）',
+      '壁0',
+      '開口0',
       '部屋0',
     ])
   })
@@ -306,12 +308,15 @@ describe('ObjectMenu（選んだ種類の中身。仕様 5）', () => {
     }
   })
 
-  it('中身の欄は一覧の下に出る（先に一覧の ul、次に欄、欄の中に ul）。一覧の 12 行はそのまま', () => {
+  // 代表の指示「トグルでリスト化」（2026-11-07）: 中身の欄は、一覧の後ではなく、選んだ行のすぐ下に開く。一覧の 12 行の名前と件数はそのまま
+  it('中身の欄は選んだ行（住戸）の中に開く。一覧の 12 行の名前と件数はそのまま', () => {
     const tree = render({ selectedKind: 'unit' })
-    const order = findAll(tree, (el) => el.type === 'ul' || el.type === 'section').map((el) => el.type)
-    expect(order).toEqual(['ul', 'section', 'ul'])
-    const rowList = findAll(tree, isTag('ul'))[0]
-    expect(findAll(rowList, isTag('li')).map(textOf)).toEqual(ROW_TEXTS)
+    const rowList = findAll(tree, isTag('ul'))[0]!
+    const rows = Children.toArray((rowList.props as { children?: ReactNode }).children).filter(isValidElement) as ReactElement[]
+    const buttonText = (li: ReactElement) => textOf(findAll(li, isTag('button'))[0] ?? null)
+    expect(rows.map(buttonText)).toEqual(ROW_TEXTS)
+    const opened = rows.filter((li) => findAll(li, isTag('section')).length > 0)
+    expect(opened.map(buttonText)).toEqual([ROW_TEXTS.find((t) => t.startsWith('住戸'))])
   })
 })
 
@@ -354,5 +359,47 @@ describe('ObjectMenu（共用部のグループ。仕様 7）', () => {
     expect(buttonsOf(render())).toHaveLength(12)
     const lines = findAll(render({ firstFloorCounts: [{ name: 'エントランス', count: 2 }] }), isTag('div')).map(textOf)
     expect(lines).toContain('1F：エントランス 2、風除室 0、ロビー 0、管理室 0、メールコーナー 0、ゴミ置場 0')
+  })
+})
+
+// 仕様 8（折りたたみ。G55）: 開閉のボタンを渡したときだけ、開閉のボタンを出す。折りたたむと、ボタンだけを出し、一覧・説明・中身・共用部を出さない。
+// 折りたたんだ帯は、開いているときより細い（objectMenuWidthOf）。状態は呼び出し側が持つ（folded と onToggleFold を渡す）。
+describe('ObjectMenu（折りたたみ。仕様 8）', () => {
+  const noop = () => undefined
+
+  it('開閉のボタンは、onToggleFold を渡したときだけ出る（渡さなければ、ボタンは行の 12 個だけ）', () => {
+    expect(buttonsOf(render())).toHaveLength(12)
+    expect(buttonsOf(render({ onToggleFold: noop }))).toHaveLength(13)
+  })
+
+  it('開閉のボタンは、開いているとき aria-expanded="true"、折りたたむと "false"', () => {
+    const open = buttonsOf(render({ folded: false, onToggleFold: noop }))[0]
+    const closed = buttonsOf(render({ folded: true, onToggleFold: noop }))[0]
+    expect(open?.props['aria-expanded']).toBe(true)
+    expect(closed?.props['aria-expanded']).toBe(false)
+  })
+
+  it('開閉のボタンを押すと、onToggleFold が 1 回呼ばれる', () => {
+    const onToggleFold = vi.fn()
+    const toggle = buttonsOf(render({ folded: true, onToggleFold }))[0]
+    ;(toggle?.props.onClick as () => void)()
+    expect(onToggleFold).toHaveBeenCalledTimes(1)
+  })
+
+  it('折りたたむと、ボタンだけを出す（一覧・説明・注記・中身・共用部は出さない）', () => {
+    const tree = render({ folded: true, onToggleFold: noop, selectedKind: 'unit', notice: '自動作成の後に出ます' })
+    expect(buttonsOf(tree)).toHaveLength(1)
+    expect(findAll(tree, isTag('li'))).toHaveLength(0)
+    expect(findAll(tree, isTag('p'))).toHaveLength(0)
+    expect(sectionOf(tree)).toHaveLength(0)
+    expect(textOf(tree)).not.toContain('共用部（グループ）')
+  })
+
+  it('折りたたんだ帯は、開いているときより細い（objectMenuWidthOf。開いているときは OBJECT_MENU_WIDTH）', () => {
+    const widthOf = (folded: boolean) => (findAll(render({ folded, onToggleFold: noop }), isTag('aside'))[0]?.props.style as { width: number }).width
+    expect(widthOf(true)).toBe(objectMenuWidthOf(true))
+    expect(widthOf(false)).toBe(objectMenuWidthOf(false))
+    expect(objectMenuWidthOf(true)).toBeLessThan(objectMenuWidthOf(false))
+    expect(objectMenuWidthOf(false)).toBe(OBJECT_MENU_WIDTH)
   })
 })

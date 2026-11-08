@@ -11,6 +11,7 @@ import type { Room } from './rooms'
 
 /** 中身を出すための P3 の結果。要素の形は種類ごとに決まっている（件数だけの objectMenu より狭い）。 */
 export interface ObjectDetailSources extends ObjectSources {
+  columns?: readonly {x:number;y:number}[]
   /** 通り芯の位置（mm）の並び */
   gridLines?: readonly number[]
   cores?: readonly Rect[]
@@ -98,7 +99,7 @@ const rectEntries = (kind: ObjectKind, rects: readonly Rect[] | undefined): Obje
   (rects ?? []).map((r) => entry(kind, r.id, [sizeLine(r)]))
 
 const unwiredEntries = (kind: ObjectKind, items: readonly unknown[] | undefined): ObjectDetailEntry[] =>
-  (items ?? []).map((_, i) => entry(kind, i + 1, [`中身: ${UNWIRED}`]))
+  (items ?? []).map((_, i) => entry(kind, i + 1, []))
 
 function entriesOf(kind: ObjectKind, s: ObjectDetailSources): ObjectDetailEntry[] {
   switch (kind) {
@@ -127,6 +128,7 @@ function entriesOf(kind: ObjectKind, s: ObjectDetailSources): ObjectDetailEntry[
     case 'outline':
       return unwiredEntries(kind, s.outlines)
     case 'column':
+      return (s.columns??[]).map((c,i)=>({title:`計画柱 ${i+1}`,lines:[`X: ${c.x.toLocaleString()} mm`,`Y: ${c.y.toLocaleString()} mm`,'断面・構造適合: 未確定']}))
     case 'wall':
     case 'opening':
       // P3 にデータが無い（件数は常に 0）

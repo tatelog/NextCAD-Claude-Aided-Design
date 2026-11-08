@@ -1,10 +1,11 @@
 // 3D のつまみ（ハブ A-03 G71 の回転、G65 の高さ。D-04 P2）の純粋な処理。描画にも状態にも依存しない。
-// 平面の (x, y) mm は three の (x, 高さ, z) m に対応する（z が y。Volume3D と同じ）。数値は仮置き。
+// 平面と 3D の対応は sceneSpace.ts の一か所（東 +x、北 −z。統括の判断 2026-11-06）。数値は仮置き。
 // 回す処理そのものは canvas/outlineEdit.ts の rotateOutline、刻みは rotation.ts の snapAngle。
 // 高さのつまみが動かす値は、ハブでは未決。今回の仮置きは階数（階高は右パネルの値のまま）。
 import type { Point } from '../geom/viewport'
 import { rotateFootprint } from './placement'
 import { roundFootprintMm, snapAngle, type RotationStep } from './rotation'
+import { planeMmToScene, sceneToPlaneMm } from './sceneSpace'
 
 const MM_PER_M = 1000
 
@@ -15,9 +16,9 @@ export interface Vec3 {
   readonly z: number
 }
 
-/** 平面の点（mm）と高さ（mm）を、3D の位置（three の x・高さ・z。m）にする。-0 は 0 にそろえる。 */
+/** 平面の点（mm）と高さ（mm）を、3D の位置（three の x・高さ・z。m）にする。対応は sceneSpace.ts（一か所）。 */
 export function scenePosition(p: Point, heightMm: number): [number, number, number] {
-  return [p.x / MM_PER_M + 0, heightMm / MM_PER_M + 0, p.y / MM_PER_M + 0]
+  return planeMmToScene(p.x, p.y, heightMm)
 }
 
 /**
@@ -29,10 +30,8 @@ export function rayHitPlaneMm(origin: Vec3, direction: Vec3, planeHeightM: numbe
   if (!(Math.abs(direction.y) > 1e-9)) return null
   const t = (planeHeightM - origin.y) / direction.y
   if (!Number.isFinite(t) || t <= 0) return null
-  return {
-    x: (origin.x + t * direction.x) * MM_PER_M + 0,
-    y: (origin.z + t * direction.z) * MM_PER_M + 0,
-  }
+  // 3D の水平の位置（x・z）から平面（x・y）へ戻す。対応は sceneSpace.ts（北は −z）
+  return sceneToPlaneMm(origin.x + t * direction.x, origin.z + t * direction.z)
 }
 
 /**
@@ -118,8 +117,10 @@ export function axisHeightAtRayMm(origin: Vec3, direction: Vec3, axisMm: Point):
   const sin2 = 1 - dy * dy
   if (!(sin2 >= NEAR_VERTICAL_SIN2)) return null
   // 軸は点 (ax, 0, az) を通る鉛直な直線、視線は origin + s * d。二つの直線がいちばん近づく点の、軸の上の高さ t（m）
-  const wx = origin.x - axisMm.x / MM_PER_M
-  const wz = origin.z - axisMm.y / MM_PER_M
+  // 軸の位置は three の x・z（m）に直す（北は −z。sceneSpace.ts）
+  const [axX, , axZ] = planeMmToScene(axisMm.x, axisMm.y, 0)
+  const wx = origin.x - axX
+  const wz = origin.z - axZ
   const t = (origin.y - dy * (dx * wx + dy * origin.y + dz * wz)) / sin2
   return Number.isFinite(t) ? t * MM_PER_M + 0 : null
 }

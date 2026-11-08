@@ -5,6 +5,7 @@ import { classifySegments, PENDING, type Env as ClassifyEnv } from './classify'
 import { proxyPlateau } from './plateauProxy'
 import { admitMonthly, type KvLike } from './monthlyCap'
 import { suggestOrdinance } from './ordinanceClaude'
+import { chatReply } from './chat'
 
 export interface Env extends ClassifyEnv {
   /** ブラウザの接続元として許すオリジン（例: 利用者のアプリの URL）。未設定なら CORS のヘッダーは返さない */
@@ -53,6 +54,7 @@ export async function handleRequest(request: Request, env: Env, fetchImpl: Fetch
   if (url.pathname.startsWith('/plateau-assets/')) return proxyPlateau(request, env, fetchImpl)
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
   if (url.pathname === '/ordinance') return handleOrdinance(request, env, fetchImpl, cors)
+  if (url.pathname === '/chat') return handleChat(request, env, fetchImpl, cors)
   if (url.pathname !== '/classify') return json(404, { error: 'not found' }, cors)
   if (request.method !== 'POST') return json(405, { error: 'method not allowed' }, cors)
   // 接続元の制限（D-06 N6）。ALLOWED_ORIGIN が設定されていれば、その接続元からの呼び出しだけ受ける。Claude は呼ばない
@@ -119,6 +121,45 @@ async function handleOrdinance(request: Request, env: Env, fetchImpl: FetchLike,
     if (e instanceof Error && (e as { code?: string }).code === PENDING) {
       return json(503, { code: PENDING, error: '補完を保留した' }, cors)
     }
+    return json(500, { error: 'Worker の設定が足りない、または内部の失敗' }, cors)
+  }
+}
+
+// チャットの指示（t55・G29）。POST /chat に、Claude の要求の形（model・max_tokens・system・messages）を送ると、操作の列の返答を返す
+const ChatBodySchema = z.object({
+  model: z.string().min(1).max(100),
+  max_tokens: z.number().int().min(1).max(4096),
+  system: z.string().max(20000),
+  messages: z
+    .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(20000) }))
+    .min(1)
+    .max(100),
+})
+
+async function handleChat(request: Request, env: Env, fetchImpl: FetchLike, cors: Record<string, string>): Promise<Response> {
+  if (request.method !== 'POST') return json(405, { error: 'method not allowed' }, cors)
+  if (env.ALLOWED_ORIGIN && request.headers.get('origin') !== env.ALLOWED_ORIGIN) {
+    return json(403, { error: '接続元が許されていない' }, cors)
+  }
+  let parsed: z.infer<typeof ChatBodySchema>
+  try {
+    parsed = ChatBodySchema.parse(await request.json())
+  } catch {
+    return json(400, { error: '指示の形が正しくない' }, cors)
+  }
+  // 月の上限は判定・補完と同じ数に数える（どれも Claude を呼ぶため）
+  const limit = Number(env.MONTHLY_CLASSIFY_LIMIT ?? DEFAULT_MONTHLY_LIMIT)
+  if ((await admitMonthly(env.USAGE, new Date(), limit)) === 'over') {
+    return json(429, { error: '今月の判定の上限に達した' }, cors)
+  }
+  try {
+    const reply = await chatReply(parsed, env, fetchImpl)
+    return json(200, { reply }, cors)
+  } catch (e) {
+    if (e instanceof Error && (e as { code?: string }).code === PENDING) {
+      return json(503, { code: PENDING, error: '返答を保留した' }, cors)
+    }
+    // キーなどの設定の中身は返さない
     return json(500, { error: 'Worker の設定が足りない、または内部の失敗' }, cors)
   }
 }

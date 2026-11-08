@@ -1,11 +1,14 @@
 // 線の意味づけを Worker に判定させる（D-02 C12、A-03 G9・G14・G31）。結果は「提案（要確認）」として店舗に入れ、人が確かめる。
 // 送らない条件（意味づけオフ・Worker の URL が空・線が 0 本）と、失敗時の保留（再試行は classifyViaWorker の 1 回）をここで決める。
-import { classifyViaWorker } from './client'
+import { classifyViaWorker, WorkerUnreachableError } from './client'
 import type { SegmentIn } from './classify'
 import type { Kind } from '../plan/semantic'
+import { WORKER_UNREACHABLE_NOTICE, WORKER_UNSET_NOTICE } from './notices'
 
 export type JudgeOutcome =
   | { state: 'unconnected'; reason: string }
+  | { state: 'unset' }
+  | { state: 'unreachable' }
   | { state: 'skipped' }
   | { state: 'applied'; count: number }
   | { state: 'pending'; error: string }
@@ -22,6 +25,10 @@ export function judgeText(o: JudgeOutcome): string {
   switch (o.state) {
     case 'unconnected':
       return `判定できない（${o.reason}）`
+    case 'unset':
+      return WORKER_UNSET_NOTICE
+    case 'unreachable':
+      return WORKER_UNREACHABLE_NOTICE
     case 'skipped':
       return '判定する線が無い（F5・F9 の線を描いてから）'
     case 'applied':
@@ -36,13 +43,16 @@ export async function judgeSegments(
   sinks: JudgeSinks,
 ): Promise<JudgeOutcome> {
   if (!input.enabled) return { state: 'unconnected', reason: '意味づけ（Claude）が切れている' }
-  if (input.workerUrl.trim() === '') return { state: 'unconnected', reason: 'Worker の URL が未設定' }
+  // URL が無いときも、押せる（G154）。送らずに、未接続の一行を出す
+  if (input.workerUrl.trim() === '') return { state: 'unset' }
   if (input.segments.length === 0) return { state: 'skipped' }
   try {
     const out = await classifyViaWorker(input.segments, input.workerUrl, input.fetchImpl)
     for (const r of out) sinks.suggest(r.segment_id, r.kind, r.confidence)
     return { state: 'applied', count: out.length }
   } catch (e) {
+    // つながらないときは、保留にせず、つながらないと伝える（G154）
+    if (e instanceof WorkerUnreachableError) return { state: 'unreachable' }
     const error = e instanceof Error ? e.message : String(e)
     sinks.addPending(error)
     return { state: 'pending', error }

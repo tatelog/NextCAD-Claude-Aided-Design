@@ -1,0 +1,8 @@
+.spec-package-table { min-width: 640px; border-collapse: collapse; }
+.spec-package-table th, .spec-package-table td { padding: 6px; text-align: left; border-bottom: 1px solid #dce4e3; }
+.spec-package-table select { max-width: 230px; }
+@media (max-width: 1000px) {
+  .p4-estimate { display: block !important; overflow: auto; }
+  .p4-estimate .p4-main { overflow: visible !important; }
+  .p4-estimate > aside { border-left: none !important; border-top: 1px solid #ddd8cc; }
+}

@@ -10,6 +10,74 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
+  /* 地は白を明示する（暗い表示の既定の地に任せると、濃い文字が沈む。統括の依頼 2026-11-05） */
+  background: #fff;
+}
+/* ボタンの枠の決まり（代表 2026-11-06「テキストが入る場合は枠入れてね」）: 文字が入るボタン（アイコンと文字の両方を含む）は枠あり。アイコンだけのボタンは枠なし */
+.btn-text {
+  border: 1px solid #b8b2a4;
+  border-radius: 4px;
+}
+.btn-icon {
+  border: none;
+  cursor: pointer;
+}
+.btn-icon:hover {
+  background: #ebe7dc;
+}
+.btn-icon:active {
+  background: #ddd6c6;
+}
+
+/* 共通ヘッダーのアイコンだけのボタン（代表の依頼 2026-11-06）。枠は無し。押せることは、指を置いた・押した時の背景の色で示す。選ばれているものは背景の色 */
+.hdr-btn {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #1f2a44;
+  cursor: pointer;
+}
+.hdr-btn:hover {
+  background: #ebe7dc;
+}
+.hdr-btn:active {
+  background: #ddd6c6;
+}
+.hdr-btn[aria-pressed='true'] {
+  background: #1f2a44;
+  color: #fff;
+}
+.hdr-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.hdr-btn:disabled:hover,
+.hdr-btn:disabled:active {
+  background: transparent;
+}
+.hdr-btn:focus-visible {
+  outline: 2px solid #1f2a44;
+  outline-offset: 2px;
+}
+.hdr-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.hdr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #5b6670;
 }
 .p03 {
   display: flex;
@@ -25,7 +93,8 @@ body,
   border-bottom: 1px solid #ddd8cc;
   background: #fff;
 }
-.p03-toolbar button {
+/* アイコンだけのボタン（hdr-btn）は、この規則（枠・余白・白い地）に入れない。枠と大きさは hdr-btn だけで決める（統括の指示 2026-11-06） */
+.p03-toolbar button:not(.hdr-btn) {
   font: inherit;
   padding: 4px 10px;
   margin-left: 6px;
@@ -47,6 +116,12 @@ body,
   color: #6b6558;
   font-size: 12px;
 }
+/* ボリューム画面の表示の切り替え（地図・周辺建物・影）。アイコンだけで、枠は無い（hdr-btn）。代表の依頼 2026-11-06 */
+.p03-layers {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .p03-body {
   display: flex;
   flex: 1;
@@ -59,6 +134,43 @@ body,
   width: 100%;
   height: 100%;
   cursor: crosshair;
+}
+.site-note {
+  display: inline-block;
+  margin-left: 4px;
+  color: #8b6500;
+  cursor: help;
+}
+.site-note-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  width: 220px;
+  max-width: 65vw;
+  padding: 10px;
+  border: 1px solid #ddd8cc;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2a44;
+  font-size: 12px;
+  box-shadow: 0 4px 16px #0002;
+  z-index: 10;
+}
+.site-note:hover .site-note-content,
+.site-note:focus .site-note-content {
+  display: block;
+}
+.p03-side-resizer {
+  flex: 0 0 8px;
+  cursor: col-resize;
+  touch-action: none;
+  background: linear-gradient(to right, transparent 3px, #ddd8cc 3px, #ddd8cc 5px, transparent 5px);
+}
+.p03-side-resizer:hover,
+.p03-side-resizer:focus-visible {
+  background: #cad5e7;
+  outline: none;
 }
 .p03-side {
   width: 260px;
@@ -123,3 +235,37 @@ body,
   font-size: 12px;
   margin: 6px 0 0;
 }
+
+.left-panel-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; z-index: 4; }
+.left-panel-resize:hover, .left-panel-resize:focus-visible { background: #cad5e7; outline: none; }
+
+/* メニューのチェックは枠なしのグレーの印で統一する。 */
+.app-menu input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  vertical-align: middle;
+  display: inline-grid;
+  place-content: center;
+  color: #6b7077;
+  cursor: pointer;
+}
+.app-menu input[type="checkbox"]:checked::before {
+  content: '✓';
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+.app-menu input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+.menu-check-row:focus-visible,
+.menu-fold-heading:focus-visible,
+.app-menu input[type="checkbox"]:focus-visible { outline: 2px solid #6b7077; outline-offset: 2px; }
+
+.sidebar-resize-handle { position:absolute;top:0;bottom:0;width:8px;z-index:10;cursor:col-resize;touch-action:none;border-left:1px solid #cbd2dc; }
+.sidebar-resize-handle:hover,.sidebar-resize-handle:focus-visible {background:#cad5e7;outline:none;}
+.resizable-sidebar .left-panel-resize {display:none;}

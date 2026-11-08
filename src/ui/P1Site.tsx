@@ -1,247 +1,329 @@
+import {ResizableSidebar,useRightPanelWidth} from './ResizableSidebar'
+import { loadRoadData, useRoadData } from '../store/roadData'
+import { associateRoads, roadLinkText, ROAD_DATA_SOURCE } from '../map/roadAssociation'
 // P1 敷地（D-04 P1、D-02 C4）。地図は国土地理院の標準タイルを実行時に読む。出典を必ず出す。
 // 筆界・法規の値（PLATEAU・登記）は未接続のため「未取得」と表示する（推測で埋めない）。
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { ATTRIBUTION, tileUrl } from '../map/tiles'
-import {
-  MAX_ZOOM,
-  TILE_PX,
-  VIEW_PX,
-  clampZoom,
-  isClick,
-  panCenter,
-  parseSitePoint,
-  screenToLonLat,
-  tileOnMap,
-  tilesInView,
-  wheelZoomSteps,
-  worldToScreen,
-  type LonLat,
-  type Point,
-} from '../map/viewport'
-import { loadDistrictsAt, type DistrictLoad } from '../plateau/load'
+import { useEffect, useMemo, useState } from 'react'
+import { MAX_ZOOM, clampZoom, parseSitePoint, type LonLat } from '../map/viewport'
+import { neighborRings as toNeighborRings } from '../map/neighborRings'
+import { DEMO_INITIAL_VIEW, DEMO_SITE } from '../map/initialView'
+import { P1Map } from './P1Map'
+import { districtsAndZonesName, fireUsageName } from '../plateau/codelist'
+import { fireUsageMismatch } from '../plateau/zones'
 import { useSite } from '../store/site'
 import { fireDecisionLine } from '../law/fireZone'
-import { OrdinanceForm } from './OrdinanceForm'
-import { loadNeighborBuildings } from '../plateau/neighborBuildings'
+import { useConfirmedSite, isConfirmedStaleOf, startSiteOf } from '../store/confirmedSite'
+import { districtStatusTextOf } from './districtFetch'
+import { geometryOfParcel, parcelPropsOf, parcelUidAt } from '../map/selectedParcel'
+import { chibanOf } from '../map/parcelInfo'
+import { parcelFrameOf, parcelRingOf } from '../map/parcelPlane'
+import { polygonAreaMm2 } from '../geom/polygon'
+import { interiorPointOf } from '../map/interiorPoint'
 import { useUi } from '../store/ui'
-import { neighborVolumes } from '../volume/neighborLocal'
-import { NeighborScene3D } from './NeighborScene3D'
+import { searchAddress, type AddressCandidate } from '../geocode/gsiAddress'
+import { PanelTile } from './PanelTile'
+import { ChatTile } from './ChatTile'
+import { isRightItemShown, useActiveMode } from '../store/mode'
+import { SCREEN_MODES } from '../app/screenModes'
+import { usePanelTiles } from '../store/panelTiles'
+import { useDevTools } from '../store/devTools'
 
-// 既定の地点は江東区の木場付近（zip の範囲内。半径 400 m に建物がある）。東京駅付近は千代田区で、この zip の外
-const DEFAULT = { lon: 139.814, lat: 35.67 }
+// 既定の地点は、デモで扱う筆 2-7（新砂３丁目）の内側の点（initialView の DEMO_SITE）
+const DEFAULT = DEMO_SITE
 // 江東区（13108）の PLATEAU の CityGML（2025 年版）の zip。実行時に範囲取得する（同梱しない）。
 // PLATEAU のホストは別の接続元なので、/plateau-assets/ の中継（開発は Vite、配備は Worker）を通す。
 const KOTO_CITYGML_ZIP = '/plateau-assets/assets/55/c134fe-ccfb-4c1b-9054-d8c6f44b7597/13108_koto-ku_pref_2025_citygml_1_op.zip'
-export function P1Site() {
-  const [lonText, setLonText] = useState(String(DEFAULT.lon))
-  const [latText, setLatText] = useState(String(DEFAULT.lat))
-  const [zoom, setZoom] = useState(15)
+export function P1Site({ onNext }: { onNext?: () => void } = {}) {
+  const rightPanelWidth=useRightPanelWidth(s=>s.width)
+  const devShown = useDevTools((s) => s.shown)
+  // 開き直すときは、店舗の今いる地点から始める（既定の地点に戻すと、確定のあとに確定し直しになる。統括の依頼 2026-11-06。1）
+  const startSite = startSiteOf(useConfirmedSite.getState().currentSite, DEFAULT)
+  const [lonText, setLonText] = useState(String(startSite.lon))
+  const [latText, setLatText] = useState(String(startSite.lat))
+  const [zoom, setZoom] = useState(DEMO_INITIAL_VIEW.zoom)
   // 地図の中心（表示の中央）。対象地点とは別で、ドラッグで動く。経緯度を入れたときは、その地点へ寄る
-  const [center, setCenter] = useState<LonLat>(DEFAULT)
-  const [cityCode, setCityCode] = useState('13108')
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<DistrictLoad | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
-  const [neighborLoading, setNeighborLoading] = useState(false)
-  const [neighborError, setNeighborError] = useState<string | null>(null)
-  const siteBuildings = useSite((s) => s.buildings)
-  const showNeighbors = useUi((s) => s.showNeighbors)
-  const siteOrigin = useSite((s) => s.sitePoint)
-  // 3D の周辺建物（基準点を原点にした mm。P1 は敷地の外形を持たないので、周辺建物だけを置く）
-  const [view3d, setView3d] = useState(false)
-  const neighbors3d = useMemo(
-    () => (siteBuildings && siteOrigin ? neighborVolumes(siteBuildings, siteOrigin, { x: 0, y: 0 }) : []),
-    [siteBuildings, siteOrigin],
+  const [center, setCenter] = useState<LonLat>(
+    useConfirmedSite.getState().currentSite ? { lon: startSite.lon, lat: startSite.lat } : { lon: DEMO_INITIAL_VIEW.center[0], lat: DEMO_INITIAL_VIEW.center[1] },
   )
-  const show3d = view3d && neighbors3d.length > 0
-  const mapRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ start: Point; last: Point; moved: boolean } | null>(null)
-  // ホイールの、まだ段になっていない分（トラックパッドの細かい動きをためる）
-  const wheelRef = useRef(0)
+  const [cityCode, setCityCode] = useState('13108')
+  // 用途地域の取得（店舗が持つ。取っている間・失敗・結果。P1 から P2 へ移っても残る。統括の依頼 2026-11-06。1）
+  const { loading, data: result, error } = useConfirmedSite((s) => s.district)
+  const confirmed = useConfirmedSite((s) => s.confirmed)
+  const parcelUid = useSite((s) => s.parcelUid)
+  // 選んだ筆（地図で選んだもの）。注記に使う
+  const parcel = useSite((s) => s.parcel)
+  const roadData = useRoadData(s=>s.roads)
+  const roadLoading = useRoadData(s=>s.loading)
+  const roadError = useRoadData(s=>s.error)
+  useEffect(()=>{void loadRoadData().catch(()=>{})},[])
+  const roadLinks=useMemo(()=>{
+    const geometry=parcelUid?geometryOfParcel(parcelUid):undefined
+    const lot=geometry?parcelRingOf(geometry):null, frame=geometry?parcelFrameOf(geometry):null
+    return lot && frame ? associateRoads(lot,frame,roadData) : []
+  },[parcelUid,parcel,roadData])
+
+  const [zipUrl, setZipUrl] = useState(KOTO_CITYGML_ZIP)
+  const { loading: neighborLoading, error: neighborError } = useConfirmedSite((s) => s.buildings)
+  // 住所検索（国土地理院の住所 API）。候補を選ぶと、その経緯度を対象地点にする
+  const [addressText, setAddressText] = useState('')
+  const [candidates, setCandidates] = useState<AddressCandidate[]>([])
+  const [addressLoading, setAddressLoading] = useState(false)
+  const [addressError, setAddressError] = useState<string | null>(null)
+  const siteBuildings = useSite((s) => s.buildings)
+  // 選んだ筆の情報の文（店舗の選択と同じ。含む筆が無ければ「この地点を含む筆は無い」）
+  const parcelInfo = useSite((s) => s.parcelInfo)
+  const showNeighbors = useUi((s) => s.showNeighbors)
+  // 地図の下にある情報（選んだ筆・建物・道路）と、読み込みの状態
+  const [mapInfo, setMapInfo] = useState('')
+  const [mapStatus, setMapStatus] = useState('読み込み中…')
+  const [inspected, setInspected] = useState<{ address: string; roads: string[] } | null>(null)
+
+  const inspectSite = (p: LonLat, roads: string[]) => {
+    moveSiteByMap(p)
+    const uid = parcelUidAt(p.lon, p.lat)
+    const props = uid ? parcelPropsOf(uid) : undefined
+    setInspected({ address: props ? chibanOf(props) ?? '未取得' : '未取得（この地点の筆データなし）', roads })
+  }
 
   // 地点の用途地域が一つに決まったときの値（PLATEAU）。無ければ未取得
   const siteDistrict = result && result.matches.length === 1 ? result.matches[0]! : null
 
   // 対象地点（経緯度の入力が正しいとき）
   const site = useMemo(() => parseSitePoint(lonText, latText), [lonText, latText])
-  const siteScreen = site ? worldToScreen(site, center, zoom) : null
+  // 今いる地点を店舗へ（P2 の確定し直しの判定に使う）
+  useEffect(() => {
+    useConfirmedSite.getState().setCurrentSite(site)
+  }, [site])
+  // 選択方法によらず現在の地点で取得する。連続クリック中は最後の地点を採る。
+  useEffect(() => {
+    useConfirmedSite.getState().resetDistrict()
+    if (!site) return
+    const timer = window.setTimeout(() => {
+      void useConfirmedSite.getState().fetchDistrictAt(site, cityCode)
+    }, 200)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [site, cityCode])
 
   // 経緯度の入力で対象地点を決める。入力が正しければ、地図の中心もそこへ寄せる
   const moveSiteByText = (lonValue: string, latValue: string) => {
+    setInspected(null)
     setLonText(lonValue)
     setLatText(latValue)
     const p = parseSitePoint(lonValue, latValue)
     if (p) setCenter(p)
-    setResult(null)
-    setError(null)
   }
 
   // 地図のクリックで対象地点を置く（中心は動かさない）
   const moveSiteByMap = (p: LonLat) => {
+    setInspected(null)
     setLonText(String(Number(p.lon.toFixed(6))))
     setLatText(String(Number(p.lat.toFixed(6))))
-    setResult(null)
-    setError(null)
   }
 
-  const fetchDistricts = async () => {
-    setLoading(true)
-    setError(null)
+  const runAddressSearch = async () => {
+    setAddressLoading(true)
+    setAddressError(null)
     try {
-      const r = await loadDistrictsAt({ lat: Number(latText), lon: Number(lonText), cityCode }, (url) => fetch(url))
-      setResult(r)
-      useSite.getState().setMatches(r.matches)
+      const list = await searchAddress(addressText)
+      setCandidates(list)
+      if (list.length === 1) pickCandidate(list[0]!)
+      if (list.length === 0 && addressText.trim() !== '') setAddressError('該当する住所がありません')
     } catch (e) {
-      setResult(null)
-      setError(e instanceof Error ? e.message : String(e))
+      setCandidates([])
+      setAddressError(e instanceof Error ? e.message : String(e))
     } finally {
-      setLoading(false)
+      setAddressLoading(false)
     }
   }
 
-  const fetchNeighbors = async () => {
-    setNeighborLoading(true)
-    setNeighborError(null)
-    try {
-      const point = { lat: Number(latText), lon: Number(lonText) }
-      const list = await loadNeighborBuildings(point, zipUrl)
-      useSite.getState().setBuildings(list, point)
-    } catch (e) {
-      useSite.getState().setBuildings(null, null)
-      setNeighborError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setNeighborLoading(false)
-    }
+  const pickCandidate = (c: AddressCandidate) => {
+    moveSiteByText(String(c.lon), String(c.lat))
+    setCandidates([])
   }
 
-  // 周辺建物の footprint を、表示の左上を原点にしたピクセルの多角形にする
-  const buildingPolygons = useMemo(() => {
-    if (!siteBuildings || !showNeighbors) return []
-    return siteBuildings.flatMap((b) =>
-      b.footprints.map((ring) =>
-        ring
-          .map((p) => {
-            const s = worldToScreen(p, center, zoom)
-            return `${s.x.toFixed(1)},${s.y.toFixed(1)}`
-          })
-          .join(' '),
-      ),
-    )
-  }, [siteBuildings, center, zoom, showNeighbors])
+  const fetchNeighbors = () => {
+    void useConfirmedSite.getState().fetchBuildingsAt({ lat: Number(latText), lon: Number(lonText) }, zipUrl)
+  }
 
-  // 表示を覆うタイル（地図の範囲の外は描かない）
-  const tiles = useMemo(() => {
-    const out: { key: string; url: string; left: number; top: number }[] = []
-    for (const t of tilesInView(center, zoom)) {
-      const m = tileOnMap(t, zoom)
-      if (m) out.push({ key: `${t.x}-${t.y}`, url: tileUrl(m, zoom), left: t.dx, top: t.dy })
-    }
-    return out
-  }, [center, zoom])
+  // この敷地で確定（統括の依頼 2026-11-06。1）: 選んだ筆（無ければダミー）と、筆の中の点を一つにして店舗に固定し、その地点の用途地域と周辺建物を取り、P2 へ移る
+  const confirmSite = async () => {
+    if (site === null) return
+    const uid = useSite.getState().parcelUid
+    const geometry = uid === null ? undefined : geometryOfParcel(uid)
+    const center = (geometry === undefined ? null : interiorPointOf(geometry)) ?? site
+    let records=useRoadData.getState().roads
+    if(!records) { try { records=await loadRoadData() } catch { records=null } }
+    if(useSite.getState().parcelUid!==uid) return
+    const lot=geometry===undefined?null:parcelRingOf(geometry),frame=geometry===undefined?null:parcelFrameOf(geometry)
+    const links=lot&&frame?associateRoads(lot,frame,records):[]
+    const previous=useConfirmedSite.getState().confirmed
+    const same=uid!==null && previous?.parcelUid===uid
+    const selectedEdge=same?previous.roadEdge:links.find(l=>l.candidates.length>0)?.edgeIndex??0
+    moveSiteByText(String(center.lon), String(center.lat))
+    useConfirmedSite.getState().confirm({
+      cityCode,
+      parcelUid: geometry === undefined ? null : uid,
+      lot: geometry === undefined ? null : parcelRingOf(geometry),
+      frame: geometry === undefined ? null : parcelFrameOf(geometry),
+      center: { lat: center.lat, lon: center.lon },
+      roadEdge: selectedEdge,
+      roadLinks: same && previous.roadLinks ? previous.roadLinks : links,
+      roadWidthMm: same ? previous.roadWidthMm : 0,
+      roadSource: same ? previous.roadSource : '数値指定',
+    })
+    void useConfirmedSite.getState().fetchDistrictAt(center, cityCode)
+    void useConfirmedSite.getState().fetchBuildingsAt(center, zipUrl)
+    onNext?.()
+  }
 
-  // ホイールで拡大縮小。3D の表示のときは地図を動かさない
-  useEffect(() => {
-    const el = mapRef.current
-    if (!el || show3d) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const { steps, rest } = wheelZoomSteps(wheelRef.current, e.deltaY)
-      wheelRef.current = rest
-      if (steps !== 0) setZoom((z) => clampZoom(z - steps))
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [show3d])
+  // 周辺建物の輪郭（経度・緯度）。地図に重ねる。3D は地図の傾きで見る（LOD1）ので、別の 3D 画面は持たない
+  const neighborRings = useMemo(() => toNeighborRings(siteBuildings, showNeighbors), [siteBuildings, showNeighbors])
 
-  // ドラッグで地図を動かす。動かさずに離したら、その点を対象地点にする
-  const onMapPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const p = { x: e.clientX, y: e.clientY }
-    dragRef.current = { start: p, last: p, moved: false }
-  }
-  // 指の動いた分（前回の位置から now まで）だけ地図を動かす
-  const followPointer = (d: { last: Point; moved: boolean }, now: Point) => {
-    d.moved = true
-    // 差分は今の値で固定する（更新関数は後で走るので、d.last を読むと差分が 0 になる）
-    const dx = now.x - d.last.x
-    const dy = now.y - d.last.y
-    d.last = now
-    setCenter((c) => panCenter(c, zoom, dx, dy))
-  }
-  const onMapPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    const d = dragRef.current
-    if (!d) return
-    const now = { x: e.clientX, y: e.clientY }
-    if (!d.moved && isClick(d.start, now)) return
-    followPointer(d, now)
-  }
-  // 離したときも、離した位置までの分を動かす（途中の動きが届かない速さの操作にも合わせる）
-  const onMapPointerUp = (e: PointerEvent<HTMLDivElement>) => {
-    const d = dragRef.current
-    dragRef.current = null
-    if (!d) return
-    const end = { x: e.clientX, y: e.clientY }
-    if (!d.moved && isClick(d.start, end)) {
-      const rect = e.currentTarget.getBoundingClientRect()
-      moveSiteByMap(screenToLonLat(e.clientX - rect.left, e.clientY - rect.top, center, zoom))
-      return
-    }
-    followPointer(d, end)
-  }
+  // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。P1 はチャットだけ
+  const activeMode = useActiveMode('P1')
+  const hiddenTiles = usePanelTiles((s) => s.hidden)
+  const rightShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P1', hiddenTiles, id)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%' }}>
-      <div style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
-        {show3d ? (
-          <div style={{ width: VIEW_PX, height: VIEW_PX }}>
-            <NeighborScene3D neighbors={neighbors3d} />
-          </div>
-        ) : (
-          <div
-            ref={mapRef}
-            onPointerDown={onMapPointerDown}
-            onPointerMove={onMapPointerMove}
-            onPointerUp={onMapPointerUp}
-            onPointerCancel={() => {
-              dragRef.current = null
-            }}
-            style={{ position: 'relative', width: VIEW_PX, height: VIEW_PX, cursor: 'crosshair', touchAction: 'none' }}
-          >
-            {tiles.map((t) => (
-              <img
-                key={t.key}
-                src={t.url}
-                alt=""
-                width={TILE_PX}
-                height={TILE_PX}
-                draggable={false}
-                style={{ position: 'absolute', left: t.left, top: t.top, userSelect: 'none' }}
-              />
-            ))}
-            <svg width={VIEW_PX} height={VIEW_PX} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
-              {buildingPolygons.map((pts, i) => (
-                <polygon key={i} points={pts} fill="rgba(70,80,92,0.45)" stroke="#2b3138" strokeWidth={0.8} />
-              ))}
-              {siteScreen && <circle cx={siteScreen.x} cy={siteScreen.y} r={7} fill="rgba(211,51,51,0.25)" stroke="#d33" strokeWidth={2} />}
-            </svg>
-          </div>
-        )}
-        {!show3d && (
-          <div style={{ position: 'absolute', left: 8, top: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <button type="button" aria-label="拡大" onClick={() => setZoom((z) => clampZoom(z + 1))} disabled={zoom >= MAX_ZOOM}>
-              ＋
-            </button>
-            <button type="button" aria-label="縮小" onClick={() => setZoom((z) => clampZoom(z - 1))} disabled={zoom <= 0}>
-              −
-            </button>
-          </div>
-        )}
-        <div style={{ position: 'absolute', right: 6, bottom: 4, background: 'rgba(255,255,255,0.85)', padding: '2px 6px', fontSize: 12 }}>{ATTRIBUTION}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${rightPanelWidth}px`, height: '100%' }}>
+      <div data-tutorial="site-map" style={{ position: 'relative', overflow: 'hidden', background: '#e9e6dd' }}>
+        <P1Map
+          center={center}
+          zoom={zoom}
+          site={site}
+          neighborRings={neighborRings}
+          onSiteClick={moveSiteByMap}
+          onSiteInspect={inspectSite}
+          onInfo={(text) => setMapInfo(text.startsWith('道路の幅員区分') ? '' : text)}
+          onStatus={setMapStatus}
+          onView={(c, z) => {
+            setCenter(c)
+            setZoom(z)
+          }}
+        />
       </div>
-      <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>P1 敷地</h2>
-        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールか ＋ － で拡大縮小します。</p>
+      <ResizableSidebar style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 16, margin: 0, whiteSpace: 'nowrap' }}>敷地選定</h2>
+          <button data-tutorial="site-confirm" type="button" onClick={confirmSite} disabled={site === null} title="次へ（ボリュームモデル構築へ）" style={{ width: '100%', padding: 8, border: '1px solid #1f2a44', borderRadius: 6, background: '#1f2a44', color: '#fff', font: 'inherit', cursor: site === null ? 'not-allowed' : 'pointer', opacity: site === null ? 0.45 : 1 }}>次へ（ボリュームモデル構築へ）</button>
+        </div>
+
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 8px' }}>地図をクリックすると、その点を対象地点にします。ドラッグで動かし、ホイールかピンチで拡大縮小します。</p>
+        <p style={{ color: '#666', fontSize: 12, margin: '0 0 4px' }}>{mapStatus}</p>
+        <div style={{ margin: '0 0 8px' }}>
+          {confirmed !== null && confirmed.lot === null ? <p style={{ color: '#666', fontSize: 12, margin: '4px 0 0' }}>筆が無い（ダミーの筆界で進む）</p> : null}
+          {confirmed !== null && isConfirmedStaleOf(confirmed, parcelUid, site) ? <p style={{ color: '#a86b00', fontSize: 12, margin: '4px 0 0' }}>確定し直しが要る（地点か筆を変えました）</p> : null}
+        </div>
+        {mapInfo && <p style={{ fontSize: 13, margin: '0 0 4px' }}>{mapInfo}</p>}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            住所
+            <input
+              data-tutorial="site-address"
+              value={addressText}
+              onChange={(e) => setAddressText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runAddressSearch()
+              }}
+              placeholder="例: 東京都江東区東陽4-11-28"
+              style={{ width: '100%' }}
+            />
+          </label>
+          <button type="button" onClick={() => void runAddressSearch()} disabled={addressLoading}>
+            {addressLoading ? '検索中…' : '住所で探す'}
+          </button>
+          {addressError && <p style={{ color: '#a33' }}>{addressError}</p>}
+          {candidates.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+              {candidates.map((c) => (
+                <li key={`${c.lon},${c.lat},${c.title}`} style={{ marginBottom: 4 }}>
+                  <button type="button" onClick={() => pickCandidate(c)} style={{ textAlign: 'left' }}>
+                    {c.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {(inspected || result || site || parcelInfo) && <section aria-label="選択地点の情報" style={{ padding: 10, marginBottom: 12, background: '#f3f5f8', borderRadius: 6 }}>
+          <div style={{ position: 'relative' }}>
+            <strong>選択地点の情報</strong>
+            <span className="site-note" tabIndex={0} aria-label="所在地と道路情報の補足" style={{ fontSize: 11 }}>
+              ※<span className="site-note-content" role="tooltip" style={{ top: '100%', bottom: 'auto' }}>所在地は公図の地名地番。道路は周辺の候補で、前面道路の確定値ではありません。</span>
+            </span>
+          </div>
+          <dl style={{ margin: '8px 0 0' }}>
+            <dt>所在地（地番）</dt><dd style={{ margin: '0 0 8px' }}>{inspected?.address ?? (parcelUid ? chibanOf(parcelPropsOf(parcelUid) ?? {}) : null) ?? '未取得'}</dd>
+            <dt>敷地面積（公図から算出）</dt><dd style={{ margin: '0 0 8px' }}>{parcel ? `${(polygonAreaMm2(parcel) / 1_000_000).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} ㎡` : '未取得'}</dd>
+            <dt>用途地域</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict ? (siteDistrict.function == null ? null : districtsAndZonesName(siteDistrict.function)) ?? '未取得' : result && result.matches.length > 1 ? '複数の区域に該当（以下に併記）' : '未取得'}</dd>
+          {result && result.fireMatches.length === 0 && result.file !== null && <dd style={{ margin: '0 0 8px' }}>防火地域・準防火地域: この地点には無い（境界上を含めない）。</dd>}
+          {result && result.fireMatches.map((f) => (
+            <dd key={f.id} style={{ position: 'relative', margin: '0 0 8px' }}>
+              防火: {f.function === null ? '区分 未取得' : (districtsAndZonesName(f.function) ?? `区分 ${f.function}`)}
+              <span className="site-note" tabIndex={0} aria-label="防火地域の詳細と判定の補足">
+                ※<span className="site-note-content" role="tooltip">
+                  {f.usage === null ? '用途 未取得' : `用途コード ${f.usage}${fireUsageName(f.usage) ? `：${fireUsageName(f.usage)}` : ''}`}<br />
+                  {f.notificationNumber ?? '告示番号 未取得'}<br />
+                  {fireUsageMismatch(f) ? <span style={{ color: '#a33' }}>区分と用途が合わない。元データの確認が要る。<br /></span> : null}
+                  {fireDecisionLine(result.fireMatches.map((zone) => ({ function: zone.function })))}
+                </span>
+              </span>
+            </dd>
+          ))}
+            <dt>建蔽率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.buildingCoverageRatePercent != null ? `${siteDistrict.buildingCoverageRatePercent} %` : '未取得'}</dd>
+            <dt>容積率</dt><dd style={{ margin: '0 0 8px' }}>{loading ? '取得中…' : siteDistrict?.floorAreaRatePercent != null ? `${siteDistrict.floorAreaRatePercent} %` : '未取得'}</dd>
+            <dt>高さの上限</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.heightLimitM != null ? `${siteDistrict.heightLimitM} m` : '未取得'}</dd>
+          {result && result.heightMatches.length === 0 && result.file !== null && <dd style={{ margin: '0 0 8px' }} title="この地点に該当する高度地区なし（境界上を含めない）">高度地区: 無し</dd>}
+          {result && result.heightMatches.map((h) => (
+            <dd key={h.id} style={{ margin: '0 0 8px' }}>
+              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
+              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
+            </dd>
+          ))}
+            <dt>告示番号</dt><dd style={{ margin: '0 0 8px' }}>{siteDistrict?.notificationNumber ?? '未取得'}</dd>
+            <dt>敷地辺ごとの道路情報</dt><dd style={{margin:0}}>
+              {roadLoading ? '道路データを照合中…' : roadError ? '道路データ未取得' : null}
+              {roadLinks.map(l=><div key={l.edgeIndex}>辺 {l.edgeIndex}（{(l.edgeLengthMm/1000).toFixed(1)}m）：{roadLinkText(l)}</div>)}
+              {!roadLinks.length && '筆を選ぶと各辺に照合します。'}
+              <small>中心線による候補照合です。接道・正確な幅員は未確定。出典：<a href={ROAD_DATA_SOURCE} target="_blank" rel="noreferrer">国土交通省 N13</a></small>
+            </dd>
+          </dl>
+
+          <div style={devShown ? undefined : { display: 'none' }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            区のコード（例: 13108 は江東区）
+            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          </div>
+          {districtStatusTextOf({ loading, error }) !== null ? <p style={{ color: '#666', fontSize: 12 }}>{districtStatusTextOf({ loading, error })}</p> : null}
+          {error && <p style={{ color: '#a33' }}>{error}</p>}
+          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
+          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
+          {result && result.matches.length > 1 && result.matches.map((m) => (
+            <dl key={m.id} style={{ margin: '6px 0' }}>
+              <dt>区分コード</dt>
+              <dd>{m.function === null ? '未取得' : `${m.function}（${districtsAndZonesName(m.function) ?? '名前が表に無い'}）`}</dd>
+              <dt>容積率</dt>
+              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
+            <dt>建蔽率</dt>
+              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
+              <dt>高さの上限</dt>
+              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
+              <dt>告示番号</dt>
+              <dd>{m.notificationNumber ?? '未取得'}</dd>
+            </dl>
+          ))}
+          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
+            <p style={{ color: '#a33' }}>
+              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
+            </p>
+          )}
+
+          {parcelInfo && <p style={{ fontSize: 12, margin: '8px 0', overflowWrap: 'anywhere' }}>{parcelInfo}</p>}
+        </section>}
+        <div style={devShown ? undefined : { display: 'none' }}>
         <label style={{ display: 'block', marginBottom: 6 }}>
           経度
           <input value={lonText} onChange={(e) => moveSiteByText(e.target.value, latText)} style={{ width: '100%' }} />
@@ -254,94 +336,33 @@ export function P1Site() {
           ズーム
           <input type="number" min={0} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(clampZoom(Number(e.target.value)))} style={{ width: '100%' }} />
         </label>
-        <section>
-          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>法規の値</h3>
-          <dl style={{ margin: 0 }}>
-            <dt>用途地域・建蔽率・容積率</dt>
-            <dd>
-              {siteDistrict
-                ? `建蔽率 ${siteDistrict.buildingCoverageRatePercent ?? '未取得'} %、容積率 ${siteDistrict.floorAreaRatePercent ?? '未取得'} %`
-                : '未取得（地点を入れて「この地点の用途地域を取る」）'}
-            </dd>
-            <dt>前面道路の幅員</dt>
-            <dd>仮置き: 筆界はダミー（20 m × 30 m）。登記情報は使わない（約款未確認）。手描きの筆界は未実装（D-02 C4 は代表の決定待ち）</dd>
-            <dt>真北</dt>
-            <dd>未算出（系番号は自治体で決まる。D-02 C4）</dd>
-          </dl>
-        </section>
-        <section>
-          <OrdinanceForm />
-          <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>用途地域（PLATEAU・都市計画決定情報）</h3>
-          <label style={{ display: 'block', marginBottom: 6 }}>
-            区のコード（例: 13108 は江東区）
-            <input value={cityCode} onChange={(e) => setCityCode(e.target.value)} style={{ width: '100%' }} />
-          </label>
-          <button type="button" onClick={fetchDistricts} disabled={loading}>
-            {loading ? '取得中…' : 'この地点の用途地域を取る'}
-          </button>
-          {error && <p style={{ color: '#a33' }}>{error}</p>}
-          {result && result.file === null && <p>この区の urf の項目が無い（{cityCode}）。</p>}
-          {result && result.file !== null && result.matches.length === 0 && <p>この地点を含む用途地域は無い（境界上を含めない）。</p>}
-          {result && result.matches.map((m) => (
-            <dl key={m.id} style={{ margin: '6px 0' }}>
-              <dt>区分コード</dt>
-              <dd>{m.function ?? '未取得'}</dd>
-              <dt>容積率</dt>
-              <dd>{m.floorAreaRatePercent === null ? '未取得' : `${m.floorAreaRatePercent} %`}</dd>
-              <dt>建蔽率</dt>
-              <dd>{m.buildingCoverageRatePercent === null ? '未取得' : `${m.buildingCoverageRatePercent} %`}</dd>
-              <dt>高さの上限</dt>
-              <dd>{m.heightLimitM === null ? '未取得' : `${m.heightLimitM} m`}</dd>
-              <dt>告示番号</dt>
-              <dd>{m.notificationNumber ?? '未取得'}</dd>
-            </dl>
-          ))}
-          {result && result.fireMatches.length === 0 && result.file !== null && <p>防火地域・準防火地域: この地点には無い（境界上を含めない）。</p>}
-          {result && result.fireMatches.map((f) => (
-            <p key={f.id}>
-              防火: {f.function === 24 ? '防火地域' : f.function === 25 ? '準防火地域' : `区分 ${f.function ?? '未取得'}`}
-              {f.usage === null ? '（用途 未取得）' : `（用途コード ${f.usage}）`}
-              {f.notificationNumber ? `、${f.notificationNumber}` : ''}
-            </p>
-          ))}
-          {result && result.file !== null && <p style={{ color: '#a86b00' }}>{fireDecisionLine(result.fireMatches.map((f) => ({ function: f.function })))}</p>}
-          {result && result.heightMatches.length === 0 && result.file !== null && <p>高度地区: この地点には無い（境界上を含めない）。</p>}
-          {result && result.heightMatches.map((h) => (
-            <p key={h.id}>
-              高度地区: 最高 {h.maximumBuildingHeightM === null ? '未取得' : `${h.maximumBuildingHeightM} m`}、最低 {h.minimumBuildingHeightM === null ? '未取得' : `${h.minimumBuildingHeightM} m`}
-              {h.notificationNumber ? `、${h.notificationNumber}` : ''}
-            </p>
-          ))}
-          {result && (result.fireUnknownOwner.length > 0 || result.heightUnknownOwner.length > 0) && (
-            <p style={{ color: '#a33' }}>
-              管理者が不明な項目: 防火 {result.fireUnknownOwner.length} 件、高度地区 {result.heightUnknownOwner.length} 件（この区の項目かは確認できない）
-            </p>
-          )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（利用条件は未確認）。斜線・日影は urf に無い（条例で補う）。</p>
-        </section>
-        <section>
+        </div>
+        <section hidden>
           <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>周辺建物（PLATEAU・3 次メッシュ）</h3>
+          <div style={devShown ? undefined : { display: 'none' }}>
           <label style={{ display: 'block', marginBottom: 6 }}>
             区の CityGML の zip（江東区 2025 年版）
             <input value={zipUrl} onChange={(e) => setZipUrl(e.target.value)} style={{ width: '100%' }} />
           </label>
+          </div>
           <button type="button" onClick={fetchNeighbors} disabled={neighborLoading}>
             {neighborLoading ? '取得中…（建物ファイルを範囲取得しています）' : '周辺建物を取る'}
           </button>
-          {siteBuildings && neighbors3d.length > 0 && (
-            <button type="button" onClick={() => setView3d((v) => !v)} style={{ marginLeft: 8 }}>
-              {view3d ? '地図で見る' : '3D で見る'}
-            </button>
-          )}
           {neighborError && <p style={{ color: '#a33' }}>{neighborError}</p>}
           {siteBuildings && (
             <p>
               周辺建物 {siteBuildings.length} 棟（基準点から半径 400 m 以内）。高さ不明 {siteBuildings.filter((b) => b.heightM === null).length} 棟は 3D に出ません。
             </p>
           )}
-          <p style={{ color: '#666', fontSize: 12 }}>出典: 国土交通省 PLATEAU（建物データ。利用条件は未確認）。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
+          <p style={{ color: '#666', fontSize: 12 }}>建物データ。zip は同梱せず、必要な建物ファイルだけ取ります。</p>
         </section>
-      </aside>
+        {!rightShown('claude-chat') ? null : (
+          <PanelTile title="Claude（チャット）" onHide={() => usePanelTiles.getState().hideTile('claude-chat')}>
+            <h2>Claude（チャット）</h2>
+            <ChatTile screen="P1" />
+          </PanelTile>
+        )}
+      </ResizableSidebar>
     </div>
   )
 }

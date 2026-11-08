@@ -31,6 +31,8 @@ describe('W1: 送る内容とモデル', () => {
     const body = JSON.parse(String(calls[0]!.init.body))
     expect(body.model).toBe('claude-haiku-5-5')
     expect(body.tool_choice).toEqual({ type: 'tool', name: 'suggest_ordinance' })
+    // 仕様（統括 2026-11-08）: claude-haiku-5-5 は既定で思考（thinking）が入り、道具の強制と同時に使えない。思考を切る指定を必ず送る
+    expect(body.thinking).toEqual({ type: 'disabled' })
     expect(JSON.stringify(body.messages)).toContain('東京都江東区')
     expect(JSON.stringify(body.messages)).toContain('本文に書かれていない')
   })

@@ -2,6 +2,7 @@
 // 優先順: ①既存の端点 ②既存の線分の交点 ③既存の線分上（垂線の足） ④水平・垂直（直前の頂点から ±3 度）
 //         ⑤入力スナップのグリッド交点。どれにも当たらなければ座標は変えない。
 // 表示グリッドとは別の設定。ここは「入力スナップのグリッド」だけを見る（gridMm が null なら無効）。
+import { polylineOfSegment } from '../canvas/arcSegment'
 import type { Node, Segment, Snap } from '../model/schema'
 import { ENDPOINT_SNAP_RADIUS_PX, pickEndpointWithin } from './endpointPick'
 
@@ -47,21 +48,19 @@ interface Chord {
   y1: number
   x2: number
   y2: number
+  /** 区間をもつ線分の番号（同じ線分の区間どうしの継ぎ目は、交点にしない） */
+  seg: number
 }
 
-/** 曲線（spline）は弦ではなく制御点の折れ線で吸着する。直線はそのまま 1 区間 */
+/** 曲線（spline）は制御点の折れ線、円弧（arc）は弦誤差で折った折れ線で吸着する。直線はそのまま 1 区間（t82） */
 function chordsOf(segments: readonly Segment[]): Chord[] {
   const out: Chord[] = []
-  for (const s of segments) {
-    const cps = s.curve === 'spline' ? (s.curve_params?.control_points as Pt[] | undefined) : undefined
-    if (cps && cps.length >= 2) {
-      for (let i = 0; i < cps.length - 1; i++) {
-        out.push({ x1: cps[i]!.x, y1: cps[i]!.y, x2: cps[i + 1]!.x, y2: cps[i + 1]!.y })
-      }
-    } else {
-      out.push({ x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 })
+  segments.forEach((s, seg) => {
+    const pts = polylineOfSegment(s)
+    for (let i = 0; i < pts.length - 1; i++) {
+      out.push({ x1: pts[i]!.x, y1: pts[i]!.y, x2: pts[i + 1]!.x, y2: pts[i + 1]!.y, seg })
     }
-  }
+  })
   return out
 }
 
@@ -112,6 +111,8 @@ function nearestIntersection(p: Pt, segments: readonly Chord[], radius: number):
   let bestD = radius
   for (let i = 0; i < segments.length; i++) {
     for (let j = i + 1; j < segments.length; j++) {
+      // 同じ線分の区間どうしは、継ぎ目で交わっていても交点ではない（t82）
+      if (segments[i]!.seg === segments[j]!.seg) continue
       const hit = segmentIntersection(segments[i]!, segments[j]!)
       if (!hit) continue
       const d = dist(hit, p)

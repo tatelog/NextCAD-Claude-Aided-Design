@@ -1,0 +1,116 @@
+{
+  "tests": [
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "既存平面のadapter 階情報の不足を暗黙補完しない"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "既存平面のadapter 指定階だけ変換し床版とバルコニーの重複・吹抜けを除外する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "既存平面のadapter 負の矩形寸法を反転して有効扱いにしない"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "所属壁契約 hostElementIdを保持し、存在・種別・同一階・自己参照を検証する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "所属壁契約 opening以外のhost指定を拒否する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 外部JSONの不正状態と重複参照も検証する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 概算由来の確定指定を昇格させず、確認済み入力は保持する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 自己交差・外部の穴を無効形状として保持する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 終点重複を除去し穴を保持する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 絶対高さ・元ID・概算状態を保持し入力を書き換えない"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 不正な階参照・ID重複・非有限数を拒否する"
+    },
+    {
+      "status": "passed",
+      "source": "test-results.json",
+      "name": "中間モデルの共通契約 未確定断面はnullとし確定扱いにしない"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 P5の概算寸法引数を使い、柱寸法と窓実幅を補完しない"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 既存描画の柱補正・回転と一致する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 共有境界の壁と扉の切欠き領域を対応し、絶対高さと元IDを保持する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 住戸の寸法不一致では配置を強行しない"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 寸法不足でも扉と所属壁の関係を残す"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 窓の図示幅を実寸と扱わず、明示寸法がある時だけ実体化する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 配置方向 above も既存描画と一致する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 配置方向 below も既存描画と一致する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 配置方向 right も既存描画と一致する"
+    },
+    {
+      "status": "passed",
+      "source": "hosts-results.json",
+      "name": "壁と開口の配置 壁高を超える開口と境界外の扉を未解決にし、関係を捏造しない"
+    }
+  ],
+  "note": "hosts-results.jsonは比較方法修正後の結果。その他はtest-results.jsonの同一版成功結果を利用。",
+  "success": true
+}

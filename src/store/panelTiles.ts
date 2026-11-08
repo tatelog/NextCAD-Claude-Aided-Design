@@ -14,7 +14,7 @@ export interface PanelTilesState {
 export const PANEL_TILES: readonly { id: string; title: string }[] = [
   { id: 'fixtures', title: '什器' },
   { id: 'milestone', title: '節目の要約' },
-  { id: 'semantic', title: '意味づけの確認（G14）' },
+  { id: 'semantic', title: '意味づけの確認' },
   { id: 'auto', title: '自動で作る（柱割り・間取り・縦シャフト）' },
   { id: 'p3-form', title: '廊下・寸法の入力' },
   { id: 'p3-result', title: '住戸数・スパンの判定' },
@@ -24,7 +24,14 @@ export const PANEL_TILES: readonly { id: string; title: string }[] = [
   { id: 'p2-volume', title: 'ボリューム' },
   { id: 'p2-numeric', title: '数値で線を入れる' },
   { id: 'p2-rotate', title: '回転' },
+  // モードの項目（G95・統括の依頼 t55）: システムのときは機能の調整、Chat のときはチャット、Drawing のときは候補の確認（G124）。どの画面の右パネルにも出す（画面の表で出し分ける）
+  { id: 'claude-chat', title: 'Claude（チャット）' },
+  { id: 'feature-adjust', title: '機能の調整' },
+  { id: 'drawing-review', title: '候補の確認（Drawing）' },
 ]
+
+/** モードの項目（G95）。P2・P3 のどちらの右パネルにも出し、メニューでは「共通」の見出しに並べる */
+export const MODE_TILE_IDS: readonly string[] = ['claude-chat', 'feature-adjust', 'drawing-review']
 
 export const usePanelTiles = create<PanelTilesState>((set) => ({
   hidden: {},

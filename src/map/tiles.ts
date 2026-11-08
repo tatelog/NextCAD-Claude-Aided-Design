@@ -1,5 +1,5 @@
-// P1 敷地の地図（D-04 P1、D-02 C4、AGENTS.md）。国土地理院の標準地図タイルを実行時に読む（同梱しない）。
-// 経緯度 → タイル番号は Web メルカトルの標準式。OpenStreetMap の公式タイルは使わない（AGENTS.md）。
+// P1 敷地の地図で使う、経緯度 → タイル番号（Web メルカトルの標準式）。
+// 地図の表示は MapLibre（src/map/basemap.ts・src/ui/P1Map.tsx）が行う。ここは番号の計算だけ。
 import { z } from 'zod'
 
 const MAX_LAT = 85.05112878
@@ -25,12 +25,3 @@ export function tileFromLonLat(point: { lon: number; lat: number }, zoom: number
   const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n)
   return { x, y }
 }
-
-// 国土地理院の標準地図（xyz/std）。画像そのものは同梱しない。
-export function tileUrl(tile: TileIndex, zoom: number): string {
-  const z = ZoomSchema.parse(zoom)
-  return `https://cyberjapandata.gsi.go.jp/xyz/std/${z}/${tile.x}/${tile.y}.png`
-}
-
-// 画面に必ず出す出典（A-04 の出典表示必須）。
-export const ATTRIBUTION = '出典: 国土地理院（地理院タイル）'

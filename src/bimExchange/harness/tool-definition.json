@@ -1,0 +1,13 @@
+{
+  "name": "convert_bim_intermediate",
+  "description": "ローカルのbim-intermediate/1 JSONをIFCと3D sceneへ変換する。入力の不明寸法・推定状態を確定しない。外部通信なし。",
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["input_path", "output_dir"],
+    "properties": {
+      "input_path": {"type": "string", "minLength": 1, "description": "利用者が指定したローカル中間JSONのパス"},
+      "output_dir": {"type": "string", "minLength": 1, "description": "新規作成する結果フォルダのパス。既存フォルダは禁止"}
+    }
+  }
+}
