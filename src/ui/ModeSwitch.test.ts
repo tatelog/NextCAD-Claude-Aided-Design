@@ -12,14 +12,18 @@ const html = (screen: string, activeMode: string) =>
 const visibleTextOf = (markup: string): string => markup.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '').trim()
 
 describe('モードの切り替え（仕様 MS1〜MS3）', () => {
-  it('MS1: P2 は System・Chat・Drawing を、アイコンだけで名前つきに並べる', () => {
+  // Codex の版を正とする（代表の決定 2026-11-08）: P2 の切り替えから Drawing を外した（ModeSwitch.tsx で P2 だけ drawing を除く）。P3 は 3 つのまま
+  it('MS1: P2 は System・Chat を、アイコンだけで名前つきに並べる（Drawing は出さない。P3 は Drawing も出す）', () => {
     const out = html('P2', 'system')
     const names = [...out.matchAll(/aria-label="([^"]+)"/g)].map((m) => m[1])
-    expect(names).toEqual(['モード', 'System', 'Chat', 'Drawing'])
+    expect(names).toEqual(['モード', 'System', 'Chat'])
     expect(out).toContain('title="System"')
     expect(out).toContain('title="Chat"')
-    expect(out).toContain('title="Drawing"')
+    expect(out).not.toContain('Drawing')
+    expect(out.match(/<button/g)?.length).toBe(2)
     expect(visibleTextOf(out)).toBe('')
+    const p3 = [...html('P3', 'system').matchAll(/aria-label="([^"]+)"/g)].map((m) => m[1])
+    expect(p3).toEqual(['モード', 'System', 'Chat', 'Drawing'])
   })
 
   it('MS2: 選ばれているモードだけが aria-pressed="true"', () => {

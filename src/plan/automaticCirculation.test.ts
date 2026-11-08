@@ -28,7 +28,7 @@ describe('共用動線の自動配置',()=>{
   expect(info.routes).toHaveLength(p.cells.length*2)
   expect(result.plans[5]?.cores).toEqual(p.cores)
   expect(p.unitsPerFloor).toBe(p.cells.length)
- })
+ },30000) // 性能の課題（未解決）: 単独で約 5.2 秒（2026-11-08 計測。既定の 5 秒を超える）。待ち時間を延ばしただけで、計算を軽くする直しは残っている
  it('上階で共用動線が外形から外れる場合は配置を返さない',()=>{
   expect(()=>arrangeCirculation(base(),[polygon,[{x:0,y:0},{x:4000,y:0},{x:4000,y:66500},{x:0,y:66500}]],3)).toThrow()
  })

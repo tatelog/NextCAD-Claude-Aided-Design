@@ -11,7 +11,7 @@ import { generateAutoPlan } from '../plan/autoPlan'
 // 仕様 4（置いた什器）: 置いた什器は、その区画の中央に品目名で出る。右パネルに、置いた什器の一覧（外すボタン付き）と、種類ごとの件数が出る。
 //   区画が無くなった什器は、落とさず「区画なし」に数える（図には出さない）。
 // 仕様 5（区画の id を知らせる）: P3 は、いまの区画（住戸の区画候補）の id を店舗に知らせる。P4 が「区画なし」を数えるのに使う。
-// 仕様 6（左メニューの什器・G69）: P3 の左メニューの「什器」の行（廊下の次・住戸の前）に、置いた什器の数が出る。区画なしの什器も数える。
+// 仕様 6（左メニューの什器・G69）: P3 の左メニューの「什器」の行（廊下の次・壁の前。Codex の版で住戸の行は無くなった。代表の決定 2026-11-08）に、置いた什器の数が出る。区画なしの什器も数える。
 //   左メニューの入力には、店舗の什器の一覧（右パネルの一覧と同じもの）を渡す。
 // 仕様 7（平面の印を押すと外す・G69。仮置き）: 平面の層（FixtureLayer）へ、店舗の「外す」を渡す。品目を選んでいないとき、置いた什器の印は押せる
 //   （層が、押した印の什器の id で呼ぶ）。品目を選んでいる間は、印は押せない（印の上を押しても区画に届き、続けて置ける）。
@@ -89,6 +89,10 @@ vi.mock('../store/floorPlans', async (importOriginal) => {
  const actual = await importOriginal<typeof import('../store/floorPlans')>()
  return {...actual, useFloorPlans: Object.assign(() => actual.useFloorPlans.getState(), actual.useFloorPlans)}
 })
+// Codex の版を正とする（代表の決定 2026-11-08）: P3 の左の帯（FloorPlanMenu）に住戸構成の条件欄（VolumePlanPanel）が入った（03b0a0e）。
+// その欄は useEffect の中で document を読み、状態を書き換える。この試験は useEffect を描画の途中でその場で動かすので、描画が止まらなくなる。
+// 什器の配線の試験には関わらない欄なので、ここでは空の部品に差し替える（条件欄の試験は VolumePlanAdoption.test.tsx 等）
+vi.mock('./VolumePlanPanel', () => ({ VolumePlanPanel: () => null }))
 import { P3Plan } from './P3Plan'
 
 function itemOf(label: string): FixtureItem {
@@ -282,17 +286,22 @@ describe('P3 の左メニューに什器の件数が出る（仕様 6）', () =>
     }
   })
 
-  it('置いた什器の数が、廊下の次・住戸の前の「什器」の行に出る（区画なしの什器も数える）', () => {
+  // Codex の版を正とする（代表の決定 2026-11-08）: 左メニューから住戸・部屋の行を外した（ObjectMenu）。什器の次は壁の行。住戸の行は無い
+  it('置いた什器の数が、廊下の次・壁の前の「什器」の行に出る（区画なしの什器も数える）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, first.id), fixture('fixture-2', toilet, second.id), fixture('fixture-3', kitchen, null)]
-    expect(textOf(htmlOf())).toContain(`廊下1什器3住戸${CELLS.length}`)
+    const text = textOf(htmlOf())
+    expect(text).toContain('廊下1什器3壁0')
+    expect(text).not.toContain(`住戸${CELLS.length}壁`)
   })
 
+  // Codex の版を正とする（代表の決定 2026-11-08）: 左メニューから住戸・部屋の行を外した（ObjectMenu）。什器の次は壁の行。住戸の行は無い
   it('いまの区画に無い区画の什器も、左メニューの件数には数える（右パネルでは「区画なし」）', () => {
     fx.state.fixtures = [fixture('fixture-1', kitchen, 'ZZ'), fixture('fixture-2', toilet, first.id)]
-    expect(textOf(htmlOf())).toContain(`廊下1什器2住戸${CELLS.length}`)
+    expect(textOf(htmlOf())).toContain('廊下1什器2壁0')
   })
 
+  // Codex の版を正とする（代表の決定 2026-11-08）: 左メニューから住戸・部屋の行を外した（ObjectMenu）。什器の次は壁の行。住戸の行は無い
   it('何も置いていなければ、「什器」の行は 0', () => {
-    expect(textOf(htmlOf())).toContain(`廊下1什器0住戸${CELLS.length}`)
+    expect(textOf(htmlOf())).toContain('廊下1什器0壁0')
   })
 })

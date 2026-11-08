@@ -22,9 +22,12 @@ it('上階で廊下が途切れる外形は成立扱いにしない',()=>{
  const clipped=[{x:0,y:0},{x:9000,y:0},{x:9000,y:66500},{x:0,y:66500}]
  expect(()=>arrangeCirculation(base(),[full,full,clipped],3,undefined,{rotateStairs:true,clusterElevator:true})).toThrow('全階を連続する廊下')
 })
+// Codex の版を正とする（代表の決定 2026-11-08）: 住戸が 0 戸のときのエラーの文が「配置候補を採用できません：<理由>」に変わり、落ちた理由を並べるようになった（0b205b1）。成立として返さないことは同じ
 it('住戸詳細の割当がない空の階を成立として返さない',()=>{
  const empty={...base(),unitTypeIdsByCell:{}}
- expect(()=>arrangeCirculation(empty,[full,full,full],3,undefined,{rotateStairs:true,clusterElevator:true})).toThrow('配置できる住戸がありません')
+ const run=()=>arrangeCirculation(empty,[full,full,full],3,undefined,{rotateStairs:true,clusterElevator:true})
+ expect(run).toThrow(/^配置候補を採用できません：/)
+ expect(run).toThrow('住戸タイプが未指定です')
 },60000)
 it('両端で収まる側が異なる外形では左右別々に階段を配置する',()=>{
  const shape=[{x:8000,y:0},{x:26000,y:0},{x:26000,y:30000},{x:18000,y:30000},{x:18000,y:66500},{x:0,y:66500},{x:0,y:35000},{x:8000,y:35000}]

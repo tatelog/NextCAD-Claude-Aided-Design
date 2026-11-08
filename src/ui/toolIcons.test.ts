@@ -9,7 +9,8 @@ describe('道具のアイコン（SVG）', () => {
   it('道具の全部にアイコンがある', () => {
     expect(TOOL_ICON_NAMES.sort()).toEqual(
       // 選択（cursor）・作図（pencil）・パン（hand）を足した（Codex の版。代表の決定 2026-11-07 で今の版を正とする）
-      ['cursor', 'curve', 'fixture', 'grid', 'grip', 'hand', 'line', 'pencil', 'place-free', 'place-left', 'place-top', 'redo', 'snap', 'undo'].sort(),
+      // Codex の版を正とする（代表の決定 2026-11-08）: サークルメニューの「立体」に box のアイコンを足した（CircleMenu.tsx）
+      ['box', 'cursor', 'curve', 'fixture', 'grid', 'grip', 'hand', 'line', 'pencil', 'place-free', 'place-left', 'place-top', 'redo', 'snap', 'undo'].sort(),
     )
   })
 

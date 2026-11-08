@@ -20,8 +20,14 @@ const render = (screen: string, activeMode: string) =>
   buttonsOf(renderToStaticMarkup(createElement(ModeSwitch, { screen, activeMode, onPick: () => undefined })))
 
 describe('モードの切替（G125・代表の仮決め）', () => {
-  it('仕様 1・2: P2 は System・Chat・Drawing の三つを表の順に出す', () => {
-    expect(render('P2', 'system').map((b) => b.name)).toEqual(['System', 'Chat', 'Drawing'])
+  // Codex の版を正とする（代表の決定 2026-11-08）: P2 の切替から Drawing を外した（ModeSwitch.tsx で P2 だけ drawing を除く）
+  it('仕様 1・2: P2 は System・Chat の二つを表の順に出す（Drawing は出さない）', () => {
+    expect(render('P2', 'system').map((b) => b.name)).toEqual(['System', 'Chat'])
+    // 今のモードが drawing でも、P2 の切替には押されたボタンが無い
+    expect(render('P2', 'drawing')).toEqual([
+      { name: 'System', pressed: false },
+      { name: 'Chat', pressed: false },
+    ])
   })
 
   it('仕様 2: P1 と P4 は System・Chat の二つ', () => {
