@@ -1,6 +1,12 @@
 import {create} from 'zustand'
 import type {compareVolumePlans,VolumePlan} from '../plan/volumePlan'
+export interface PatternComparison {
+ label:string
+ result:ReturnType<typeof compareVolumePlans>
+}
 export interface VolumeDraft {
+ selectedCandidate?:{label:string;layout:string}|null
+ patternComparisons?:PatternComparison[]
  draft:VolumePlan|null
  comparison:ReturnType<typeof compareVolumePlans>|null
  minimumTexts:Record<string,string>

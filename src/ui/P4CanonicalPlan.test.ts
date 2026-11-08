@@ -10,7 +10,7 @@ it('積算は保存された選択階を描き、共通柱を省略しない',()
  p.buildingColumns=[{id:'C1',x:300,y:300},{id:'C2',x:13300,y:300}]
  state.plans={2:p}
  const html=renderToStaticMarkup(createElement(P4Estimate))
- expect(html).toContain('積算対象の詳細平面図（2階）')
+ expect(html).toContain('2階 平面図')
  expect(html).toContain('柱位置・通り芯（計画）')
  expect(html).toContain('x="0" y="0" width="600" height="600"')
  expect(html).not.toContain('柱は概算の断面候補')

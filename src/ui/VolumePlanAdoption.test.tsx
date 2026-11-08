@@ -7,7 +7,7 @@ import {useSite} from '../store/site'
 import {useVolumeDraft} from '../store/volumeDraft'
 import {useVolumePlan} from '../plan/volumePlan'
 import {generateAutoPlan} from '../plan/autoPlan'
-function buttons(node:ReactNode):ReactElement<{children?:ReactNode;onClick?:()=>void}>[]{if(Array.isArray(node))return node.flatMap(buttons);if(!node||typeof node!=='object'||!('props'in node))return [];const e=node as ReactElement<{children?:ReactNode;onClick?:()=>void}>;return [...(e.type==='button'?[e]:[]),...buttons(e.props.children)]}
+function buttons(node:ReactNode):ReactElement<{children?:ReactNode;onClick?:()=>void}>[]{if(Array.isArray(node))return node.flatMap(buttons);if(!node||typeof node!=='object'||!('props'in node))return [];const e=node as ReactElement<{children?:ReactNode;onClick?:()=>void}>;return [...(['button','input'].includes(String(e.type))?[e]:[]),...buttons(e.props.children)]}
 it('比較欄で選んだ案を平面と積算が参照する採用案にする',()=>{
  const volume={footprint:[{x:0,y:0},{x:26000,y:0},{x:26000,y:66000},{x:0,y:66000}],storey_count:5,storey_height:3000}
  useSite.setState({volume,slopeBoundaries:[]})
@@ -18,8 +18,10 @@ it('比較欄で選んだ案を平面と積算が参照する採用案にする'
  useVolumePlan.setState({confirmed:middle})
  useVolumeDraft.getState().save(source,{draft:middle,comparison:{options:{'中廊下':middle,'ツイン':twin},failures:{},recommended:'ツイン'},minimumTexts:{},people:'3',residents:'',familyBaseline:0})
  const tree=VolumePlanPanel({})
- const button=buttons(tree).find(b=>Array.isArray(b.props.children)&&b.props.children[0]==='ツイン')!
- expect(button).toBeDefined();button.props.onClick!()
+ const choice=buttons(tree).find(b=>(b.props as any)['aria-label']==='自動構成・ツインを選択')!
+ expect(choice).toBeDefined();(choice.props as any).onChange()
+ expect(useVolumePlan.getState().confirmed?.plans[1]?.layout).toBe('中廊下')
+ buttons(tree).find(b=>b.props.children==='選んだパターンで更新')!.props.onClick!()
  expect(useVolumePlan.getState().confirmed?.plans[1]?.layout).toBe('ツイン')
 })
 

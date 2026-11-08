@@ -1,6 +1,7 @@
 // 様式の取り込み（統括の依頼 2026-11-06。2-a）。使う人が Word（docx）を選ぶ。中身の見出しで、どの様式かを見分ける。
 // 取り込んだものは画面の中だけに持ち、どこへも送らない。
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import './PermitFormImport.css'
 import { tutorialDone } from '../tutorial/state'
 import { readDocx } from '../export/docxRead'
 import { FORM_KINDS, FORM_TITLE, formKindOf, type FormKind } from '../law/permitFormKind'
@@ -21,6 +22,7 @@ export function PermitFormImport() {
   const [message, setMessage] = useState<string | null>(null)
 
   const onPick = async (file: File) => {
+    if (!/\.docx$/i.test(file.name)) { setMessage(`${file.name}：Word（docx）を選んでください`); return }
     try {
       const bytes = new Uint8Array(await file.arrayBuffer())
       const d = await readDocx(bytes)
@@ -42,29 +44,34 @@ export function PermitFormImport() {
 
 /** 表示だけの部品。値（取り込んだ様式・結果の文）を受け取って描く（サーバー側の描画の試験のため、ストアを読まない） */
 export function PermitFormImportView({ forms, message, onPick }: PermitFormImportViewProps) {
+  const [dragging, setDragging] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   return (
     <section data-tutorial="tutorial-attach">
-      <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>申請様式（国土交通省の様式を基本）</h3>
-      <p style={{ fontSize: 12, color: '#666', margin: '0 0 6px' }}>
-        国土交通省の様式を基本とし、東京都などの自治体様式も別途取り込めます。使用する Word（docx）を選んでください。取り込んだファイルはこの画面内で扱い、外部には送信しません。
-      </p>
-      <ul style={{ fontSize: 13, margin: '0 0 6px', paddingLeft: 18 }}>
-        {FORM_KINDS.map((k) => {
-          const f = forms[k]
-          return <li key={k}>{`${FORM_TITLE[k]}：${f ? `取り込み済み：${f.fileName}` : '未取り込み'}`}</li>
-        })}
-      </ul>
-      <input
-        type="file"
-        accept=".docx"
-        aria-label="様式（docx）を選ぶ"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          e.target.value = ''
-          if (file) void onPick(file)
-        }}
-      />
-      {message ? <p style={{ fontSize: 12, color: '#444', margin: '6px 0 0' }}>{message}</p> : null}
+      <div
+        className={`permit-dropzone${dragging ? ' is-dragging' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragging(true) }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false) }}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); Array.from(e.dataTransfer.files).forEach(onPick) }}
+      >
+        <svg width="28" height="32" viewBox="0 0 28 32" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M5 1h12l6 6v24H5zM17 1v7h6M14 12v12m-5-5 5 5 5-5"/></svg>
+        <p className="permit-dropzone-title">{dragging ? 'ここで離して取り込む' : 'Word様式をここにドロップ'}</p>
+        <button type="button" onClick={() => inputRef.current?.click()}>またはファイルを選ぶ</button>
+        <input ref={inputRef} type="file" accept=".docx" multiple hidden aria-label="様式（docx）を選ぶ"
+          onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(onPick) }} />
+      </div>
+      <p className="permit-dropzone-note">.docx ／ 複数ファイルをまとめて追加できます。取り込み後に自動記入し、右のビューアで確認できます。</p>
+      <details className="permit-import-status">
+        <summary>対応様式・取り込み状況（{FORM_KINDS.filter((k) => forms[k]).length} / {FORM_KINDS.length}）</summary>
+        <ul>
+          {FORM_KINDS.map((k) => {
+            const f = forms[k]
+            return <li key={k}>{`${FORM_TITLE[k]}：${f ? `取り込み済み：${f.fileName}` : '未取り込み'}`}</li>
+          })}
+        </ul>
+        <p>国土交通省・自治体の様式に対応。ファイルは外部に送信しません。</p>
+      </details>
+      {message ? <p role="status" className="permit-dropzone-note">{message}</p> : null}
     </section>
   )
 }

@@ -1,15 +1,20 @@
+import {floorAreaSheet,vicinitySheet} from '../export/additionalSheets'
+import {PermitInformationTile} from './PermitInformationTile'
+import {PermitTextCsv} from './PermitTextCsv'
+import {usePermitText} from '../store/permitText'
+import {pdfBaseName} from '../export/pdfName'
+import {outputConditionNotes,withDrawingRemarks} from '../permit/outputConditionNotes'
 import permitFormsJson from '../law/permitForms.json'
 import { type FormDef } from '../law/permitFormPlan'
 import { fillInstructionsOf } from '../law/permitFormFill'
 import { fillDocx } from '../export/docxWrite'
-import {pdfBaseName,withPrintTitle} from '../export/pdfName'
-import {combinedOutputFiles} from '../export/combinedOutput'
+import {selectedOutputFiles,type OutputSelection} from '../export/selectedOutput'
 import {resolvePermitProject} from '../permit/resolvePermitProject'
 import {useFixtures} from '../store/fixtures'
 import {readUnitPlan} from '../plan/unitPlan39'
 import {useBimSettings,drawingDimensions} from '../store/bimSettings'
 import {exportConfiguredPlan} from '../bimExchange/integration/exportConfiguredPlan'
-import {drawingPdfFiles,drawingsPdf} from '../export/drawingPdf'
+import {drawingPdfFiles} from '../export/drawingPdf'
 import {useFloorPlans} from '../store/floorPlans'
 import {useSolarSettings} from '../store/solarSettings'
 import {detailedFloorSvg,shadowSheetSvg} from '../export/designSheets'
@@ -19,7 +24,7 @@ import {tutorialDone} from '../tutorial/state'
 // 図書の一覧は判定（requiredPermitDocuments）の結果で出す。要る・要らない（理由）・要確認（理由）の三区分。要確認は隠さない。
 // 外形が閉じていなければ IFC と判定は出さず、「外形が未作成」と出す（ダミーの外形では代えない）。
 // 部材寸法は平面画面の設定を使用する。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { findClosedOutline } from '../canvas/closure'
 import { p2Entries, useDrawing } from '../store/drawing'
@@ -44,12 +49,6 @@ import permitDocsJson from '../law/permitDocuments.json'
 import { buildZip } from '../export/zipWriter'
 import { permitPackageFilesOf } from '../export/permitPackage'
 import { applicabilityTextOf, frameSizeOf, judgementRowsOf, legalCheckOfDoc, outlineStateOf, volumeOfOutline } from '../permit/p5Judgement'
-import { classLabelsOf } from '../law/buildingClass'
-import { fireZoneClass, type FireZone } from '../law/fireZoneClass'
-import { fireStructureItems } from '../law/fireStructure'
-import { COMPONENTS, judgeComponent, requiredMinutes } from '../law/structureFire'
-import { ICHI_NOTE, judgeIchi } from '../law/fireIchi'
-import { useComponentFire } from '../store/componentFire'
 import { useSite } from '../store/site'
 import { cutFloorAreasOf, grossFloorAreaMm2 } from '../volume/cutVolume'
 import { isRightItemShown, useActiveMode } from '../store/mode'
@@ -67,15 +66,9 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
   const settings=useBimSettings(s=>s.settings)
   const [exportError,setExportError]=useState('')
   const [pdfBusy,setPdfBusy]=useState(false)
-  const [fireZone, setFireZone] = useState<FireZone>('なし')
-  const componentRatings = useComponentFire((st) => st.ratings)
-  const setComponentRating = useComponentFire((st) => st.setRating)
-  const fireDoor = useComponentFire((st) => st.fireDoor)
-  const setFireDoor = useComponentFire((st) => st.setFireDoor)
-  const [purpose, setPurpose] = useState('general')
+  const [outputSelection,setOutputSelection]=useState<OutputSelection>({drawings:true,documents:true,ifc:true})
   const [ifcSchema, setIfcSchema] = useState<'IFC4' | 'IFC2X3'>('IFC4')
   const [frame, setFrame] = useState<'A3横' | 'A1'>('A3横')
-  const [applicant, setApplicant] = useState('')
   const roadSlope = useSite((s) => s.roadSlope)
   const shadow = useSite((s) => s.shadow)
   // 設計データを優先し、申請固有の入力だけ補う。
@@ -96,7 +89,6 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
   const outline = useMemo(() => outlineStateOf(findClosedOutline(entries.flatMap((e) => e.segments))), [entries])
   const volumeResult = useMemo(() => (outline.ok ? volumeOfOutline(outline.footprint, storeys, height) : null), [outline, storeys, height])
   const volume = volumeResult?.ok ? volumeResult.volume : null
-  const outlineReason = !outline.ok ? outline.reason : volumeResult && !volumeResult.ok ? volumeResult.reason : null
   // 延べ面積は、切り取った階の面積の和（統括の依頼 2026-11-06。依頼 5a・B）。切り取りは P2 の境界と、今の階数・階高から計算する
   const slopeBoundaries = useSite((s) => s.slopeBoundaries)
   const permitVolume = useMemo(
@@ -113,8 +105,6 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
         : null,
     [volume, outline, slopeBoundaries, storeys, height],
   )
-  const grossM2 = permitVolume ? permitVolume.gross_floor_area_mm2 / 1_000_000 : 0
-  const heightM = volume ? volume.total_height / 1000 : 0
   const floorPlans=useFloorPlans(s=>s.plans)
   const fixtures=useFixtures(s=>s.fixtures)
   const resolvedProject=useMemo(()=>{
@@ -136,7 +126,11 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
   // 記入する値。地名地番と敷地面積は、確定した筆のデータ（公図）から。筆が無ければ入らない
   const confirmedForForm = useConfirmedSite((s) => s.confirmed)
   const districtForForm = useConfirmedSite((s) => s.district.data)
-  const formValues = useMemo(() => {
+  const automaticFire = fireLabelOf(districtForForm === null ? null : { functions: districtForForm.fireMatches.map(f => f.function), unknownOwner: districtForForm.fireUnknownOwner.length })
+  const conditionNotes = useMemo(() => outputConditionNotes(project, automaticFire), [project, automaticFire])
+  const csvTextValues=usePermitText(s=>s.values)
+  const applicant=csvTextValues['F2-1-02']?.value ?? csvTextValues['F8-1-02']?.value ?? csvTextValues['F8E-1-02']?.value ?? ''
+  const automaticFormValues = useMemo(() => {
     if (!permitVolume) return {}
     const props = confirmedForForm?.parcelUid ? parcelPropsOf(confirmedForForm.parcelUid) : undefined
     const chiban = props ? chibanOf(props) : null
@@ -149,7 +143,7 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
     // 用途地域の名前と、容積率・建蔽率（地点の用途地域が一つのときだけ）
     const zoneName = districtForForm ? zoneNameOf(districtForForm.matches) : null
     const limits = districtForForm ? zoneLimitsOf(districtForForm.matches) : null
-    return formValuesFromVolume(permitVolume, {
+    const values: import('../law/permitFormPlan').ValueMap = formValuesFromVolume(permitVolume, {
       structure: APP_STRUCTURE,
       usage: APP_USAGE,
       workKind: APP_WORK_KIND,
@@ -164,8 +158,17 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
         ? { frontRoadWidth: { mm: confirmedForForm.roadWidthMm, source: confirmedForForm.roadSource } }
         : {}),
     })
-  }, [permitVolume, confirmedForForm, districtForForm])
-  const ready = volume !== null
+    const plans=Object.entries(floorPlans)
+    if(plans.length){
+      const ev=plans.reduce((n,[,p])=>n+p.cores.reduce((sum,c)=>sum+(c.evCount??0),0),0)
+      values['F2-4-10']={value:`保存済み平面 ${plans.length}階分・EV配置 ${ev}箇所（各階の配置数）`,from:'平面'}
+      values['F2-4-18']={value:plans.map(([floor,p])=>`${floor}階：${p.unitsPerFloor}戸`).join(' ／ '),from:'平面'}
+    }
+    values['F2-5-05']={value:`${height} mm`,from:'ボリューム'}
+    for(const id of ['F2-3-08.INFO','F3-2-08.INFO','F2-4-02.INFO'])values[id]={value:APP_USAGE,from:'案件'}
+    return values
+  }, [permitVolume, confirmedForForm, districtForForm, floorPlans, height])
+  const formValues=useMemo(()=>({...csvTextValues,...automaticFormValues}),[csvTextValues,automaticFormValues])
   const ifcText=null
   // 配置図と各階平面図の中身（図枠の作図領域の中）。元のデータが無いものは null
   const confirmedNow = useConfirmedSite((s) => s.confirmed)
@@ -174,6 +177,19 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
   const twinNote=Object.values(floorPlans).some(p=>p.layout==='ツイン')?'ツインの吹抜けは各階平面図に反映しています。3D・IFC・申請様式の床面積・日影図は外形モデルのままで、吹抜け未反映です。':null
   const selectedFloor=useFloorPlans(s=>s.selected)
   const solarDate=useSolarSettings(s=>s.date)
+  const [vicinity,setVicinity]=useState<{svg:string|null;reason:string}>({svg:null,reason:'敷地位置を確定してください'})
+  const lat=confirmedNow?.center.lat,lon=confirmedNow?.center.lon
+  useEffect(()=>{
+    if(lat===undefined||lon===undefined){setVicinity({svg:null,reason:'敷地位置を確定してください'});return}
+    const controller=new AbortController()
+    setVicinity({svg:null,reason:'周辺地図を読み込み中です'})
+    vicinitySheet({lat,lon},controller.signal).then(svg=>{if(!controller.signal.aborted)setVicinity({svg,reason:''})}).catch(e=>{if(!controller.signal.aborted)setVicinity({svg:null,reason:String(e.message??e)})})
+    return ()=>controller.abort()
+  },[lat,lon])
+  const areaSheets=useMemo(()=>Object.entries(floorPlans).map(([floor,p])=>{
+    try{return {floor:Number(floor),svg:floorAreaSheet(p,Number(floor)),reason:''}}
+    catch(e){return {floor:Number(floor),svg:null,reason:String(e instanceof Error?e.message:e)}}
+  }),[floorPlans])
   const drawingSvgs = useMemo(() => {
     const size = frameSizeOf(frame)
     const area = drawingAreaOf(size)
@@ -191,13 +207,15 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
     const parts=outline.ok?cutFloorParts(outline.footprint,slopeBoundaries??[],{storey_count:storeys,storey_height:height}):[]
     const shadowSvg=lot&&confirmedNow?.center?shadowSheetSvg({lot,floors:parts.flatMap((ps,i)=>ps.map(footprint=>({footprint,heightMm:(i+1)*height}))),...confirmedNow.center,date:solarDate,rotation:confirmedNow.frame?.rotationDeg??0}):null
     return {
-      site: siteState.kind === 'ok' ? sheet(siteState.body, siteState.denominator) : null,
-      floorPlan: floorLayout,
-      shadow:shadowSvg, floors,
+      vicinity:vicinity.svg,
+      floorArea:(areaSheets.find(s=>s.floor===selectedFloor)??areaSheets[0])?.svg??null,
+      site: siteState.kind === 'ok' ? withDrawingRemarks(sheet(siteState.body, siteState.denominator), conditionNotes, true) : null,
+      floorPlan: withDrawingRemarks(floorLayout, conditionNotes),
+      shadow:withDrawingRemarks(shadowSvg, conditionNotes), floors: floors.map(f=>({...f,svg:withDrawingRemarks(f.svg,conditionNotes)!})),
       // 作れないときの理由（縮尺が無い・敷地を確定していない で言い分ける）
-      reasons: { site: siteMissingTextOf(siteState) ?? DRAWING_MISSING_DEFAULT.site, floorPlan: DRAWING_MISSING_DEFAULT.floorPlan },
+      reasons: { vicinity:vicinity.reason, floorArea:(areaSheets.find(s=>s.floor===selectedFloor)??areaSheets[0])?.reason||'各階平面を保存してください', site: siteMissingTextOf(siteState) ?? DRAWING_MISSING_DEFAULT.site, floorPlan: DRAWING_MISSING_DEFAULT.floorPlan },
     }
-  }, [settings,frame, confirmedNow, buildingsNow, outline, planResult, floorPlans,selectedFloor,solarDate,slopeBoundaries,storeys,height])
+  }, [vicinity,areaSheets,conditionNotes,settings,frame, confirmedNow, buildingsNow, outline, planResult, floorPlans,selectedFloor,solarDate,slopeBoundaries,storeys,height])
 
   // 一式の中身（図面・IFC・書類一覧・空欄の一覧・記入した様式）。判定が無いときは null
   const filledNow = usePermitForms((s) => s.filled)
@@ -214,6 +232,7 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
       // 敷地面積が公図の参考値なら、空欄の一覧に参考値の文を添える（統括の依頼 2026-11-06。3）
       // 幅員は出どころ（入力の値など）を添える（統括の依頼 2026-11-06）
       notes: [
+        ...conditionNotes,
         ...(twinNote?[twinNote]:[]),
         ...(formValues['F2-3-07.敷地面積']?.from === '公図の参考値' ? [AREA_REFERENCE_NOTE] : []),
         ...(formValues['F2-3-06.幅員'] !== undefined
@@ -238,9 +257,11 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
         ...unwrittenNotesOf(formsNow, formValues),
       ],
     })
-  }, [twinNote, judgement, drawingSvgs, ifcText, filledNow, formValues, formsNow, districtForForm])
+  }, [conditionNotes,twinNote, judgement, drawingSvgs, ifcText, filledNow, formValues, formsNow, districtForForm])
 
   const drawingFiles: import('../export/permitPackage').PackageFile[] = [
+    ...(vicinity.svg?[{path:'付近見取図.svg',text:vicinity.svg}]:[]),
+    ...areaSheets.flatMap(s=>s.svg?[{path:`${s.floor}階床面積求積図.svg`,text:s.svg}]:[]),
     ...(drawingSvgs.site ? [{path:'配置図.svg', text:drawingSvgs.site}] : []),
     ...drawingSvgs.floors.map(f=>({path:`${f.name}.svg`,text:f.svg})),
     ...(!drawingSvgs.floors.length && drawingSvgs.floorPlan ? [{path:'平面図.svg',text:drawingSvgs.floorPlan}] : []),
@@ -249,6 +270,8 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
 
   const documentFiles=Object.values(filledNow).flatMap(f=>f?[{path:f.fileName,text:'',bytes:f.bytes}]:[])
   const missingOutput=[
+    ...(!vicinity.svg?[`付近見取図：${vicinity.reason}`]:[]),
+    ...areaSheets.filter(s=>!s.svg).map(s=>`${s.floor}階床面積求積図：${s.reason}`),
     ...(!drawingSvgs.site?['配置図：敷地・外形を確認してください']:[]),
     ...Array.from({length:storeys},(_,i)=>i+1).filter(f=>!floorPlans[f]).map(f=>`${f}階平面図：未作成`),
     ...(!drawingSvgs.shadow?['日影図：敷地・外形・地点が必要です']:[]),
@@ -256,10 +279,11 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
     ...unwrittenNotesOf(formsNow,formValues),
     ...Object.entries(project).filter(([,v])=>v===null).map(([k])=>`申請条件：${({inShadowRegulationArea:'日影規制区域',structuralCalc:'構造計算',hasAgent:'代理申請',bimSubmission:'BIMでの申請',usesCertifiedParts:'認定部材',hasBuildingEquipment:'建築設備',hasElevator:'昇降機'} as Record<string,string>)[k]}が未入力`),
   ]
-  const saveAll=async()=>{if(pdfBusy)return;setPdfBusy(true);try{
+  const canSaveSelected=(outputSelection.drawings&&drawingFiles.length>0)||(outputSelection.documents&&(Boolean(packageFiles)||documentFiles.length>0||Object.keys(formsNow).length>0))||(outputSelection.ifc&&Object.keys(floorPlans).length>0)
+  const saveAll=async()=>{if(pdfBusy||!canSaveSelected)return;setPdfBusy(true);try{
     let data:import('../export/permitPackage').PackageFile[]=[]
-    const documents=[...documentFiles]
-    for(const [kind,form] of Object.entries(formsNow)){
+    const documents=outputSelection.documents?[...documentFiles]:[]
+    for(const [kind,form] of Object.entries(outputSelection.documents?formsNow:{})){
       if(!form)continue
       const def=(permitFormsJson.forms as unknown as FormDef[]).find(d=>d.id===kind)
       if(!def)continue
@@ -272,44 +296,18 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
       documents.push({path,text:'',bytes})
     }
     const missing=missingOutput.filter(note=>!documents.length||!note.startsWith('申請書類：'))
-    if(Object.keys(floorPlans).length){try{
+    if(outputSelection.ifc&&Object.keys(floorPlans).length){try{
       const out=exportConfiguredPlan({source:useFloorPlans.getState().source,plans:floorPlans,storeyHeightMm:height,ifcSchema},settings)
       data=out.files;missing.push(...out.manifest.issues.map(i=>i.message))
-    }catch(e){missing.push(`BIMデータ：${e instanceof Error?e.message:String(e)}`)}}else missing.push('BIMデータ：平面が未作成')
-    const files=combinedOutputFiles(await drawingPdfFiles(drawingFiles),documents,data,missing)
+    }catch(e){throw new Error(`IFCの出力に失敗しました：${e instanceof Error?e.message:String(e)}`)}}else if(outputSelection.ifc) missing.push('BIMデータ：平面が未作成')
+    const listFiles=(packageFiles??[]).filter(f=>!f.path.includes('/'))
+    if(outputSelection.documents&&!listFiles.length)listFiles.push({path:'図書一覧.txt',text:['図書一覧',...documents.map(f=>f.path),'',...conditionNotes,'',...missing].join('\n')})
+    const files=selectedOutputFiles(outputSelection,outputSelection.drawings?await drawingPdfFiles(drawingFiles):[],[...listFiles,...documents],data.filter(f=>f.path.toLowerCase().endsWith('.ifc')))
+    if(!files.length)throw new Error('選択した対象に出力できるファイルがありません')
     const enc=new TextEncoder(),bytes=buildZip(files.map(f=>({path:f.path,data:f.bytes??enc.encode(f.text)})))
     const url=URL.createObjectURL(new Blob([bytes as BlobPart],{type:'application/zip'})),a=document.createElement('a')
-    a.href=url;a.download='図面・書類一式.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-save-all')
+    a.href=url;a.download=pdfBaseName(projectName)+'_選択出力.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-save-all')
   }catch(e){setExportError(e instanceof Error?e.message:String(e))}finally{setPdfBusy(false)}}
-
-  const saveDrawingPdf=async()=>{if(pdfBusy)return;setPdfBusy(true);try{
-    const bytes=await drawingsPdf(drawingFiles.map(f=>f.text))
-    const url=URL.createObjectURL(new Blob([bytes as BlobPart],{type:'application/pdf'}))
-    const a=document.createElement('a');a.href=url;a.download=`${pdfBaseName(projectName)}.pdf`;a.click()
-    setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-output')
-  }catch(e){setExportError(e instanceof Error?e.message:String(e))}finally{setPdfBusy(false)}}
-
-  // 一式を zip ひとつで出す（無圧縮）
-  const downloadPackage = () => {
-    const files = (packageFiles ?? []).filter(f => !f.path.startsWith('02_図面/') && !f.path.startsWith('03_BIM/'))
-    if (!files.length) return
-    const enc = new TextEncoder()
-    const bytes = buildZip(files.map((f) => ({ path: f.path, data: f.bytes ?? enc.encode(f.text) })))
-    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = '申請書類.zip'
-    a.click()
-    tutorialDone('tutorial-output')
-    URL.revokeObjectURL(url)
-  }
-
-  const downloadIfc=(ifcSchema:'IFC4'|'IFC2X3')=>{try{
-    const out=exportConfiguredPlan({source:useFloorPlans.getState().source,plans:floorPlans,storeyHeightMm:height,ifcSchema},settings)
-    const text=out.files.find(f=>f.path==='model.ifc')!.text
-    const url=URL.createObjectURL(new Blob([text],{type:'application/octet-stream'})),a=document.createElement('a')
-    a.href=url;a.download=`平面モデル-${ifcSchema}.ifc`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setExportError('');tutorialDone('tutorial-output')
-  }catch(e){setExportError(e instanceof Error?e.message:String(e))}}
 
   const legal = { roadSlope, shadow, applicantFilled: applicant.trim() !== '' }
 
@@ -320,183 +318,62 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
       {exportError && <p role="alert">{exportError}</p>}
       <div className="p5-output-columns">
         <section className="p5-output-inputs" aria-label="建築概要・入力項目">
-          <h3>建築概要・入力項目</h3>
           <section>
-            <h4>申請者と図枠</h4>
-                  <label style={{ display: 'block', marginBottom: 6 }}>
-                    申請者
-                    <input value={applicant} onChange={(e) => setApplicant(e.target.value)} style={{ width: 240, marginLeft: 8 }} />
-                  </label>
-                  <div style={{ marginBottom: 8 }}>
-                    図枠:{' '}
-                    {(['A3横', 'A1'] as const).map((f) => (
-                      <button key={f} type="button" aria-pressed={frame === f} onClick={() => setFrame(f)} style={{ marginLeft: 6 }}>
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-
-            {!applicant.trim() && <p className="p5-input-needed">要入力：申請者</p>}
+            <PermitTextCsv designValues={automaticFormValues} />
           </section>
-          <details open>
-            <summary>入力・確認が必要な項目</summary>
-            <ul>{missingOutput.map((text,i)=><li key={i}>{text}</li>)}</ul>
-          </details>
-            <details style={{ marginBottom: 20 }}><summary>申請条件・耐火性能</summary>
-              <label style={{ display: 'block', marginBottom: 6 }}>
-                防火地域の区分（敷地の地点を人が選ぶ）
-                <select value={fireZone} onChange={(e) => setFireZone(e.target.value as FireZone)} style={{ marginLeft: 8 }}>
-                  <option value="なし">なし</option>
-                  <option value="防火">防火地域</option>
-                  <option value="準防火">準防火地域</option>
-                </select>
-              </label>
-
-
-            {ready ? (
-              <p style={{ fontSize: 12, color: '#444', margin: '0 0 12px' }}>
-                号区分（大規模の判定。ボリュームの外形の延べ面積と高さで数える。RC・共同住宅・区域内は仮置き）:{' '}
-                {(() => {
-                  const labels = classLabelsOf({
-                    structure: 'RC',
-                    heightM,
-                    aboveGroundStoreys: storeys,
-                    totalFloorAreaM2: grossM2,
-                    specialUseAreaM2: grossM2,
-                    inPlanningArea: true,
-                  })
-                  return `${labels.article6} ／ ${labels.article20}（出典: e-Gov 法令、第 20 条は抜粋の範囲）`
-                })()}
-              </p>
-            ) : null}
-            {ready && fireZone !== 'なし' ? (
-              <div style={{ fontSize: 12, color: '#a86b00', margin: '0 0 12px' }}>
-                {(() => {
-                  const cls = fireZoneClass({ zone: fireZone, aboveGroundStoreys: storeys, floorAreaM2: grossM2, wood: false })
-                  return (
-                    <>
-                      <p style={{ margin: '0 0 4px' }}>防火・準防火（{fireZone}地域）: 令 136 条の 2 {cls}</p>
-                      <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        {fireStructureItems(cls).map((i) => {
-                          // イ（G85）: 主要構造部の耐火構造と、外壁開口部設備の防火設備で判定する。ロは計算せず対象外と出す
-                          if (i.label.startsWith('イ')) {
-                            const ichi = judgeIchi(storeys, { ratings: componentRatings, fireDoor })
-                            return (
-                              <li key={i.label}>
-                                イ（主要構造部の耐火構造・外壁開口部設備の防火設備）: {ichi.result}
-                                {ichi.reasons.length > 0 ? `（${ichi.reasons.join('、')}）` : ''}
-                              </li>
-                            )
-                          }
-                          if (i.label.startsWith('ロ')) return <li key={i.label}>{ICHI_NOTE}</li>
-                          return <li key={i.label}>{i.label}: {i.status}（部材の耐火性能の入力が無い）</li>
-                        })}
-                      </ul>
-                    </>
-                  )
-                })()}
-              </div>
-            ) : null}
-            {ready ? (
-              <section style={{ marginBottom: 12, fontSize: 12 }}>
-                <strong>部材の耐火時間（令 107 条。入力した分を、階数の区分の必要時間と比べる）</strong>
-                <label style={{ display: 'block', margin: '6px 0' }}>
-                  外壁開口部設備（防火設備か。イの入力）{' '}
-                  <select value={fireDoor === null ? '' : fireDoor ? 'yes' : 'no'} onChange={(e) => setFireDoor(e.target.value === '' ? null : e.target.value === 'yes')}>
-                    <option value="">未入力</option>
-                    <option value="yes">防火設備</option>
-                    <option value="no">防火設備ではない</option>
-                  </select>
-                </label>
-                <table style={{ borderCollapse: 'collapse', marginTop: 4 }}>
-                  <thead>
-                    <tr>
-                      <th align="left">部材</th>
-                      <th align="right">必要（分）</th>
-                      <th align="left">入力（分）</th>
-                      <th align="left">判定</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {COMPONENTS.map((c) => {
-                      const rating = componentRatings[c] ?? null
-                      return (
-                        <tr key={c}>
-                          <td>{c}</td>
-                          <td align="right">{requiredMinutes(c, storeys)}</td>
-                          <td>
-                            <select value={rating ?? ''} onChange={(e) => setComponentRating(c, e.target.value === '' ? null : Number(e.target.value))}>
-                              <option value="">未入力</option>
-                              {[30, 60, 90, 120, 150, 180].map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>{judgeComponent(c, storeys, rating)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </section>
-            ) : null}
+          <section id="permit-create" style={{ marginBottom: 16 }}>
+            <h3>空の申請書類を添付</h3>
+            <p>様式を添付すると、申請者と設計データを自動記入します。このページで記入内容を確認して、一括保存できます。</p>
+            <PermitFormImport />
+          </section>
+          <PermitInformationTile values={formValues}>
+            <details><summary>設計情報・図面の前提</summary>
+            <PermitProjectFields project={project} inherited={resolvedProject.inherited} onChange={setProject} />
+            <p style={{fontSize:13}}>防火地域：{automaticFire ?? '未取得・未確定'}（敷地情報から反映）</p>
+            <details style={{fontSize:12}}><summary>図面の備考に記載する前提</summary><ul>{conditionNotes.map(note=><li key={note}>{note}</li>)}</ul></details>
             </details>
-            <section style={{ marginBottom: 16 }}>
-              <PermitFormImport />
-            </section>
+            <PermitFormPlan values={formValues} />
+          </PermitInformationTile>
 
-            <section style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>取り込んだ様式の欄（アプリが何をするか）</h3>
-              <PermitFormPlan values={formValues} />
-            </section>
 
-            <section style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>設計から引き継いだ申請条件</h3>
-              <PermitProjectFields project={project} inherited={resolvedProject.inherited} onChange={setProject} />
-            </section>
 
 
           <section className="p5-output-save" aria-label="出力設定と保存">
             <h3>出力設定と保存</h3>
-            <label>出力目的
-              <select value={purpose} onChange={e=>{
-                setPurpose(e.target.value)
-                setIfcSchema(e.target.value==='permit'?'IFC2X3':'IFC4')
-              }}>
-                <option value="general">図面・BIMデータの共有</option>
-                <option value="permit">建築確認申請用</option>
-              </select>
-            </label>
+            <fieldset style={{border:0,padding:0,margin:'0 0 8px'}}>
+              <legend style={{fontSize:13,marginBottom:4}}>出力する対象（複数選択可）</legend>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {([['drawings','図面'],['documents','図書一覧'],['ifc','IFC']] as const).map(([key,label])=><label key={key} style={{display:'flex',alignItems:'center',gap:6,padding:'2px 0',margin:0,minHeight:24,fontSize:13,cursor:'pointer'}}><input type="checkbox" checked={outputSelection[key]} onChange={e=>setOutputSelection(s=>({...s,[key]:e.target.checked}))}/>{label}</label>)}
+              </div>
+            </fieldset>
+            <fieldset style={{border:0,padding:0,margin:'0 0 8px'}}>
+              <legend style={{fontSize:13,marginBottom:4}}>図枠（用紙サイズ）</legend>
+              <div style={{display:'flex',gap:16}}>
+                {(['A3横','A1'] as const).map(f=><label key={f} style={{display:'flex',alignItems:'center',gap:6,padding:'2px 0',margin:0,minHeight:24,minWidth:68,fontSize:13,cursor:'pointer'}}><input type="radio" name="output-frame" checked={frame===f} onChange={()=>setFrame(f)}/>{f==='A1'?'A1横':'A3横'}</label>)}
+              </div>
+            </fieldset>
             <label>IFCの版
-              <select value={ifcSchema} onChange={e=>setIfcSchema(e.target.value as 'IFC4'|'IFC2X3')}>
+              <select disabled={!outputSelection.ifc} value={ifcSchema} onChange={e=>setIfcSchema(e.target.value as 'IFC4'|'IFC2X3')}>
                 <option value="IFC4">IFC4</option>
-                <option value="IFC2X3">IFC2X3</option>
+                <option value="IFC2X3">IFC2X3（建築確認申請用）</option>
               </select>
             </label>
+            <p style={{fontSize:12,color:'#526174',margin:'4px 0 12px'}}>※ このアプリの建築確認申請用出力では、IFC2X3を使用します。</p>
             <div className="p5-output-actions">
-              <button type="button" disabled={pdfBusy||!drawingFiles.length} onClick={saveDrawingPdf}>図面をPDFで保存</button>
-              <button type="button" disabled={!judgement} onClick={()=>withPrintTitle(pdfBaseName(projectName),()=>window.print())}>図書一覧を印刷・PDFに保存</button>
-              <button type="button" disabled={!packageFiles} onClick={()=>downloadPackage()}>書類をZIPで保存</button>
-              <button type="button" disabled={!Object.keys(floorPlans).length} onClick={()=>downloadIfc(ifcSchema)}>IFCを保存（{ifcSchema}）</button>
-              <button data-tutorial="tutorial-save-all" className="p5-save-all" type="button" onClick={saveAll} disabled={pdfBusy||(!drawingFiles.length&&!documentFiles.length&&!Object.keys(formsNow).length&&!Object.keys(floorPlans).length)}>図面・書類・BIMデータを一括保存</button>
+              <button data-tutorial="tutorial-save-all" className="p5-save-all" type="button" onClick={saveAll} disabled={pdfBusy||!canSaveSelected}>選択した対象をまとめて保存</button>
             </div>
-            <p role="status">{pdfBusy?'PDFを作成しています…':''}</p>
-            <p>図面はPDFで保存します。一括保存は図面（PDF）・記入済み書類・選択した版のIFCをZIPにまとめます。</p>
+            <p role="status">{pdfBusy?'出力ファイルを作成しています…':''}</p>
+            <p style={{fontSize:12}}>図面はPDF、図書一覧は一覧・確認事項と記入済みWord、IFCは選択した版で出力し、ZIPにまとめます。</p>
           </section>
         </section>
         <section className="p5-output-documents" aria-label="図書一覧">
           <h3>図書一覧</h3>
-        <h3>出力できるもの</h3>
-        <ul>{drawingFiles.map(f=><li key={f.path}>{f.path.replace(/\.svg$/i,'.pdf')}</li>)}{documentFiles.map(f=><li key={f.path}>{f.path}</li>)}{Object.keys(floorPlans).length>0&&<li>BIMデータ（平面から生成・未確定要素を除く）</li>}</ul>
-        {!drawingFiles.length&&!documentFiles.length&&!Object.keys(floorPlans).length&&<p>まだありません。</p>}
-        <h3>不足・要確認</h3><ul>{missingOutput.map((text,i)=><li key={i}>{text}</li>)}</ul>
-        <p style={{fontSize:12}}>一括保存には出力一覧と不足内容も含めます。</p>
-
+        <p style={{fontSize:12}}>● 作成済み　○ 出力対応・未作成　△ 作成候補（未実装）　— 外部で用意</p>
           {judgement ? <>
                 <div className="permit-print">
                   <h2 style={{ fontSize: 18, margin: '0 0 4px' }}>建築確認申請 図書一覧</h2>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>
-                    申請者: {applicant.trim() === '' ? '未記入' : applicant} ／ 図枠: {frame}
+                    申請者: {applicant.trim() === '' ? '未記入' : applicant} ／ 図枠: {frame === 'A1' ? 'A1横' : frame}
                   </p>
                   <p style={{ fontSize: 12, margin: '0 0 8px' }}>{applicabilityTextOf(judgement)}</p>
                   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
@@ -521,15 +398,20 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
 
                 </div>
 
+          </> : null}
                 <section style={{ marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 14, margin: '8px 0 4px' }}>図書の一覧（見て確かめる）</h3>
+
                   <PermitViewer
                     judgement={judgement}
                     docs={permitDocsJson.documents}
                     ifcText={ifcText}
+                    ifcReady={Object.keys(floorPlans).length>0}
+                    ifcSchema={ifcSchema}
                     drawingSvgs={drawingSvgs}
                     drawingReasons={drawingSvgs.reasons}
                     filledForms={filledNow}
+                    formValues={formValues}
+                    importedForms={formsNow}
                     checkOf={(name) => {
                       const c = legalCheckOfDoc(name, legal)
                       return c ? { text: c.text, color: TONE_COLOR[c.tone] } : null
@@ -537,8 +419,6 @@ export function P5Output({projectName=''}:{projectName?:string}={}) {
                   />
                 </section>
 
-
-          </> : <p>{outlineReason ?? '図書一覧の判定にはボリュームの外形が必要です。'}</p>}
         </section>
       </div>
       {devShown && <aside style={{ padding: 12, borderLeft: '1px solid #ddd8cc', background: '#fff', overflowY: 'auto' }}>

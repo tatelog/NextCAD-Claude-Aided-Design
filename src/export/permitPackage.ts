@@ -17,7 +17,7 @@ export interface PackageInput {
   judgement: PermitJudgement
   docs: readonly { name: string; kind: string }[]
   /** 配置図と各階平面図の SVG（図枠つき）。作れないものは null。作れないときの理由（無ければ既定の文）を添える */
-  drawings: { site: string | null; floorPlan: string | null; shadow?: string | null; floors?: {name:string;svg:string}[]; reasons?: { site: string; floorPlan: string } }
+  drawings: { site: string | null; floorPlan: string | null; shadow?: string | null; vicinity?:string|null; floorArea?:string|null; floors?: {name:string;svg:string}[]; reasons?: { site: string; floorPlan: string } }
   /** IFC の文字。外形が閉じていなければ null */
   ifcText: string | null
   /** IFC のファイル名（例: model-ifc4.ifc） */
@@ -64,6 +64,8 @@ export function blankListTextOf(
   if (drawings.site === null) lines.push(`配置図：${reasons.site}`)
   if (drawings.floorPlan === null) lines.push(`各階平面図：${reasons.floorPlan}`)
   if (!drawings.shadow) lines.push('日影図：敷地・外形・地点が揃うと時刻日影を作れます。規制適否の判定図は未作成です')
+  if(!drawings.vicinity)lines.push('付近見取図：未作成（敷地位置・周辺地図が必要です）')
+  if(!drawings.floorArea)lines.push('床面積求積図：未作成（保存済み各階平面が必要です）')
   for (const n of notes) lines.push(n)
   for (const r of viewerRowsOf(j, docs)) {
     if (r.group === '要らない' || DRAWING_KEY_OF_NAME[r.name] !== undefined) continue

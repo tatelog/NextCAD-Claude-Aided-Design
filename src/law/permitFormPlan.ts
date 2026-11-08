@@ -115,10 +115,11 @@ export function locateSubitemOf(
   heading: string,
   occurrence = 1,
 ): number | null {
-  const h = normalizeLabel(heading)
+  const canonical = (s: string) => normalizeLabel(s).replace('【ニ.】構造】', '【ニ.構造】')
+  const h = canonical(heading)
   let k = 0
   for (let i = parentIdx; i < range[1]; i++) {
-    if (normalizeLabel(paragraphs[i]!).startsWith(h)) {
+    if (canonical(paragraphs[i]!).startsWith(h)) {
       k++
       if (k === occurrence) return i
     }
@@ -171,13 +172,15 @@ export function planRowsOf(form: FormDef, paragraphs: readonly string[], values:
         continue
       }
       rows.push({ ...base, action: actionOf(keyOf(field.id), t.note, vals), note: t.note ?? '' })
-      for (const sub of t.subitems ?? []) {
+      for (const [subIndex,sub] of (t.subitems ?? []).entries()) {
         // 1 段落に見出しが 2 つあるとき（inlineHeading）は、後ろの見出しの名前で行を分ける（統括の依頼 2026-11-06。4）
         const name = subLabelOf(sub.inlineHeading ?? sub.heading)
         const sidx = locateSubitemOf(paragraphs, range, idx, sub.heading, sub.occurrence ?? 1)
         const subRow = { fieldId: `${field.id}.${name}`, label: `${field.label}（${name}）`, face: face.title, heading: sub.heading }
         const floorAction = name === '階別' ? floorActionOf(keyOf(field.id, name), vals) : null
-        const action: PlanAction = sidx === null ? { kind: 'notFound' } : (floorAction ?? actionOf(keyOf(field.id, name), sub.note, vals))
+        const csvValue=vals.get(keyOf(`${field.id}.CSV${subIndex+1}`))
+        const csvAction:PlanAction|null=csvValue&&!(sub.note??'').includes('行政')?{kind:'fill',...csvValue}:null
+        const action: PlanAction = sidx === null ? { kind: 'notFound' } : (floorAction ?? csvAction ?? actionOf(keyOf(field.id, name), sub.note, vals))
         rows.push({ ...subRow, action, note: sub.note ?? '' })
       }
     }

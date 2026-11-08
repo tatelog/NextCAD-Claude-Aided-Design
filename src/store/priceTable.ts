@@ -1,6 +1,8 @@
 // 単価表（CSV の文字。ハブ A-03 G20・G136、t55 の積算の操作）。P4 の画面とチャットの操作が、同じ表を読み書きする。
 // 既定の表は仮置きの例（出典は利用者が書く。G20）。チャットで変えた単価・歩掛には provisional の印を残す（G140。代表の確認待ち）。
 import { create } from 'zustand'
+import {persist} from 'zustand/middleware'
+import type {MaterialPrices} from '../estimate/estimateCsv'
 import type { PriceRow } from '../estimate/estimate'
 
 /**
@@ -15,15 +17,19 @@ export const PRICE_CSV_SAMPLE = [
 ].join('\n')
 
 export interface PriceTableState {
+  packagePrices:MaterialPrices
+  setDatabase:(csv:string,packagePrices:MaterialPrices)=>void
   /** 単価表の CSV の文字 */
   csv: string
   setCsv: (text: string) => void
 }
 
-export const usePriceTable = create<PriceTableState>((set) => ({
+export const usePriceTable = create<PriceTableState>()(persist((set) => ({
+  packagePrices:{},
+  setDatabase:(csv,packagePrices)=>set({csv,packagePrices}),
   csv: PRICE_CSV_SAMPLE,
   setCsv: (csv) => set({ csv }),
-}))
+}),{name:'estimate-material-database-v1'}))
 
 /**
  * チャットで単価・歩掛を変えたとき、provisional の印を残すか。代表の確認待ち（G140）。

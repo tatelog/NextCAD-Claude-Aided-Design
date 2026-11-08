@@ -1,0 +1,7 @@
+.calculation-overlay { border:0; border-radius:12px; padding:28px 36px; max-width:min(440px,85vw); color:#1f2a44; background:#fff; text-align:center; box-shadow:0 12px 48px #0003; }
+.calculation-overlay::backdrop { background:rgba(45,50,58,.48); }
+.calculation-overlay strong { display:block; font-size:18px; }
+.calculation-overlay p { font-size:13px; margin:12px 0 0; }
+.calculation-spinner { display:block; width:42px; height:42px; margin:0 auto 18px; border:4px solid #dce2ea; border-top-color:#1f2a44; border-radius:50%; animation:calculation-spin .8s linear infinite; }
+@keyframes calculation-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .calculation-spinner { animation-duration:2s; } }

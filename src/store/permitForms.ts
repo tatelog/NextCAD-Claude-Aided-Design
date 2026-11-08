@@ -8,7 +8,10 @@ export interface TakenForm {
   paragraphs: string[]
 }
 
+export interface FormFillReport { writtenIds: string[]; sampleIds: string[]; unwritten: {fieldId:string;reason:string}[] }
+
 export interface FilledForm {
+  report?: FormFillReport
   fileName: string
   bytes: Uint8Array
 }
@@ -19,25 +22,29 @@ export interface PermitFormsState {
   filled: Partial<Record<FormKind, FilledForm>>
   importForm: (kind: FormKind, fileName: string, bytes: Uint8Array, paragraphs: string[]) => void
   removeForm: (kind: FormKind) => void
-  setFilled: (kind: FormKind, fileName: string, bytes: Uint8Array) => void
+  setFilled: (kind: FormKind, fileName: string, bytes: Uint8Array, report?: FormFillReport) => void
   clearFilled: (kind: FormKind) => void
 }
 
 export const usePermitForms = create<PermitFormsState>((set) => ({
   forms: {},
   filled: {},
-  setFilled: (kind, fileName, bytes) => set((s) => ({ filled: { ...s.filled, [kind]: { fileName, bytes } } })),
+  setFilled: (kind, fileName, bytes, report) => set((s) => ({ filled: { ...s.filled, [kind]: { fileName, bytes, report } } })),
   clearFilled: (kind) =>
     set((s) => {
       const next = { ...s.filled }
       delete next[kind]
       return { filled: next }
     }),
-  importForm: (kind, fileName, bytes, paragraphs) => set((s) => ({ forms: { ...s.forms, [kind]: { fileName, bytes, paragraphs } } })),
+  importForm: (kind, fileName, bytes, paragraphs) => set((s) => {
+    const filled = { ...s.filled }; delete filled[kind]
+    return { forms: { ...s.forms, [kind]: { fileName, bytes, paragraphs } }, filled }
+  }),
   removeForm: (kind) =>
     set((s) => {
       const next = { ...s.forms }
       delete next[kind]
-      return { forms: next }
+      const filled = { ...s.filled }; delete filled[kind]
+      return { forms: next, filled }
     }),
 }))

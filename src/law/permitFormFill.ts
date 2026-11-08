@@ -1,3 +1,4 @@
+import {textFields} from '../permit/permitTextCsv'
 // 取り込んだ様式に、値を書く指示を作る（統括の依頼 2026-11-06。2-c）。決定論。AI は使わない。
 // 欄の見出しで段落を探し（permitFormPlan の規則）、値は対応表の入れ方（見出しの後ろ・括弧の番目）で入れる。
 // 値の行き先（ROUTES）は、ボリュームの値（formValuesFromVolume のキー）ごとに、対応表の注記を読んで決めた。
@@ -132,8 +133,9 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
       continue
     }
     // 行き先の表に無い欄は、欄の id をそのまま使う（既定）。既定で書けるのは、細目を持たない見出しの後ろの欄だけ
-    const isDefault = ROUTES[key] === undefined
-    const route = ROUTES[key] ?? (fields.has(key) ? { field: key } : undefined)
+    const csvField=textFields.find(f=>f.id===key&&f.sub)
+    const isDefault = ROUTES[key] === undefined && !csvField
+    const route: (typeof ROUTES)[string] | undefined = ROUTES[key] ?? (csvField ? {field:csvField.field,sub:csvField.sub} : fields.has(key) ? { field: key } : undefined)
     const entry = route === undefined ? undefined : fields.get(route.field)
     if (route === undefined || entry === undefined || entry.field.tokyo === undefined) {
       unwritten.push({ fieldId: key, reason: '書く欄が対応表に無い' })
@@ -176,7 +178,7 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（inlineHeading の細目は ${sub.place}）` })
         continue
       }
-      const item =
+      let item =
         route.before !== undefined
           ? { kind: 'beforeUnit' as const, heading: sub.inlineHeading ?? sub.heading, unit: route.before }
           : placeOf(sub.place === 'nextParagraphs' ? 'fillBlanks' : (sub.place ?? ''), sub.inlineHeading ?? sub.heading, route.bracket, sub.unit)
@@ -184,7 +186,18 @@ export function fillInstructionsOf(form: FormDef, paragraphs: readonly string[],
         unwritten.push({ fieldId: key, reason: `入れ方が未対応（${sub.place}）` })
         continue
       }
-      if (item.kind === 'beforeUnit' && !hasUnitAfter(paragraphs[idx]!, sub.heading, item.unit ?? '')) {
+      const raw = paragraphs[idx]!
+      const actualHeading = rawHeadingOf(raw, sub.inlineHeading ?? sub.heading)
+      if (item.heading && actualHeading) item = { ...item, heading: actualHeading }
+      if (item.kind === 'beforeUnit' && !hasUnitAfter(raw, item.heading ?? sub.heading, item.unit ?? '')) {
+        // 正式様式の単位なし空欄だけに限定。既記入・複数欄には追記しない。
+        const allowed = ['F2-4-08','F2-4-09.最高の高さ','F2-3-07.敷地面積の合計'].includes(key)
+        const rest = actualHeading ? raw.slice(raw.indexOf(actualHeading)+actualHeading.length) : null
+        const marker = key === 'F2-3-07.敷地面積の合計' && rest !== null ? /^\s*[(（]1[)）]\s*$/.exec(rest) : null
+        if (allowed && rest !== null && (rest.trim() === '' || marker)) {
+          instructions.push({fieldId:key,label:entry.field.label,paragraphIndex:idx,kind:'after',heading:actualHeading!+(marker?rest.slice(0,rest.search(/[)）]/)+1):''),value:v.value})
+          continue
+        }
         unwritten.push({ fieldId: key, reason: `単位が無い（${item.unit ?? ''}）` })
         continue
       }
@@ -256,4 +269,14 @@ function placeOf(
 function hasUnitAfter(text: string, heading: string, unit: string): boolean {
   const h = text.indexOf(heading)
   return h >= 0 && unit !== '' && text.indexOf(unit, h + heading.length) >= 0
+}
+
+function rawHeadingOf(text:string,heading:string):string|null {
+ const canonical=(s:string)=>normOf(s).replace('【ニ.】構造】','【ニ.構造】')
+ for (let start = text.indexOf('【'); start >= 0; start = text.indexOf('【', start + 1)) {
+   for (let end = start + 1; end <= text.length; end++) {
+     if (canonical(text.slice(start, end)) === canonical(heading)) return text.slice(start, end)
+   }
+ }
+ return null
 }

@@ -4,7 +4,6 @@ import {PlanBimSettings} from './PlanBimSettings'
 import {PlanFrameLayer} from './PlanFrameLayer'
 import {frameOfPlan} from '../plan/planFrame'
 import {BalconyLayer} from './BalconyLayer'
-import {EntryCheckPanel} from './EntryCheckPanel'
 import {applyUnitPlans} from '../plan/applyUnitPlans'
 import {copyUnitLayout} from '../plan/copyUnitLayout'
 import {switchUnitVariant} from '../plan/switchUnitVariant'
@@ -101,7 +100,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   const [maxText, setMaxText] = useP3Field('maxText')
   const [layoutText, setLayoutText] = useP3Field('layoutText')
   // 住戸タイプ（G89）: 縦割り（柱割りの列）ごとに、型の id を , で並べる。型が少なければ繰り返す
-  const [unitTypeIdsText, setUnitTypeIdsText] = useP3Field('unitTypeIdsText')
+  const [unitTypeIdsText] = useP3Field('unitTypeIdsText')
   const unitTypeIds = unitTypeIdsText.split(',').map((s) => s.trim()).filter((s) => s !== '')
   const firstUnitType = UNIT_TYPES.find((t) => t.id === unitTypeIds[0])
   const unitType = firstUnitType ? unitTypeKind(firstUnitType) : 'ファミリー'
@@ -313,7 +312,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
   // 右パネルの項目は、今のモードと画面の組で決まる（G100・G95）。× で閉じた項目も出さない（G73）
   const activeMode = useActiveMode('P3')
   const planDrawing = activeMode === 'drawing'
-  const tileShown = (id: string) => isRightItemShown(SCREEN_MODES, activeMode, 'P3', hiddenTiles, id)
+  const tileShown = (id: string) => !['p3-result', 'milestone'].includes(id) && isRightItemShown(SCREEN_MODES, activeMode, 'P3', hiddenTiles, id)
   // 左のオブジェクト一覧の開閉（G55）。描画（システム）のモードは折りたたんで始める。モードが変わると既定に戻る
   const menuFold = useObjectMenuFold(`P3-${activeMode}`, objectMenuFoldedByDefault(activeMode, 'plan'))
   // 1F の共用部の名前（区画ごと。ハブ A-03 G75）
@@ -446,7 +445,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <div>什器 {fixtures.filter(f=>f.unitId===detailUnitId).length}</div>
           <ul>{fixtures.filter(f=>f.unitId===detailUnitId).map(f=><li key={f.id}>{f.item}</li>)}</ul>
         </section> : <>
-        <div data-tutorial-review><FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} types={UNIT_TYPES} pattern={unitTypeIds} onPattern={(ids) => setUnitTypeIdsText(ids.join(','))} />{autoError&&<p role="alert" style={{padding:10,color:"#a33"}}>{autoError}</p>}</div>
+        <div data-tutorial-review><FloorPlanMenu floors={inherited?.floors ?? []} plans={floorState.source === sourceKey ? floorState.plans : {}} widthMm={inherited?.widthMm ?? 1} depthMm={inherited?.depthMm ?? 1} selected={selectedFloor} onSelect={floorState.select} />{autoError&&<p role="alert" style={{padding:10,color:"#a33"}}>{autoError}</p>}</div>
       <ObjectMenu
         width={leftWidth}
         sources={objectSources}
@@ -587,8 +586,8 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
         {activeMode === 'chat' ? <section aria-label="チャット専用パネル" style={{height:"100%",minHeight:0,display:"flex",flexDirection:"column"}}><h2 style={{flexShrink:0}}>Claude（チャット）</h2><ChatTile screen="P3" fillHeight /></section> : <>
         <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>平面（住戸配置）</h2>
         <section data-tutorial="tutorial-p3-next" style={{ marginBottom: 10 }}>
-          <button type="button" onClick={clickNextP3}>
-            積算へ
+          <button type="button" onClick={clickNextP3} style={{ width: '100%', padding: 8, border: '1px solid #1f2a44', borderRadius: 6, background: '#1f2a44', color: '#fff', font: 'inherit', cursor: 'pointer' }}>
+            次へ（積算）
           </button>
           {nextIssues !== null ? (
             <NextCheckPanel
@@ -647,7 +646,7 @@ export function P3Plan({ onNext }: { onNext?: () => void } = {}) {
           <p style={{ margin: '0 0 6px', fontSize: 12 }}>
             階数・階高はボリュームの値を使う（{storeyCount} 階・階高 {storeyHeightMm} mm）
           </p>
-          <EntryCheckPanel plan={auto}/><ElevatorMenu plan={auto} peopleText={peopleText} residentsText={residentsText} onPeople={setPeopleText} onResidents={setResidentsText} onApply={recalculateEv} fixed={!!fixedVolumePlan} recommendation={evRecommendation} />
+          <ElevatorMenu plan={auto} peopleText={peopleText} residentsText={residentsText} onPeople={setPeopleText} onResidents={setResidentsText} onApply={recalculateEv} fixed={!!fixedVolumePlan} recommendation={evRecommendation} />
           <details style={{fontSize:12,marginBottom:8}}><summary>階段・共用動線</summary><p>異なる2か所の階段入口への接続と指定廊下幅を幾何検査します。共用部寸法は計画仮定です。下記は玄関外から階段入口までの中心線距離で、室内経路を含む法定歩行距離ではありません。防火区画・地上出口・二方向避難の法規適合は未確認です。</p>{auto?.circulation?.routeMetrics&&<table><thead><tr><th>住戸</th><th>階段1</th><th>階段2</th><th>共通区間</th></tr></thead><tbody>{auto.circulation.routeMetrics.map(m=><tr key={m.unitId}><td>{m.unitId}</td><td>{(m.firstMm/1000).toFixed(1)}m</td><td>{(m.secondMm/1000).toFixed(1)}m</td><td>{(m.sharedMm/1000).toFixed(1)}m</td></tr>)}</tbody></table>}</details>
           <p style={{fontSize:12}}>{fixedVolumePlan ? 'ボリュームと共通の計算で作成した配置です。構成条件の再計算では共用部・縦シャフトも更新します。柱スパンは未確定です。' : '柱割り・共用部・縦シャフトはP2で未確認です。ボリュームで配置を計算・確認してください。'}</p>
           {autoError ? <p style={{ color: '#a33', fontSize: 12, margin: '4px 0 0' }}>{autoError}</p> : null}

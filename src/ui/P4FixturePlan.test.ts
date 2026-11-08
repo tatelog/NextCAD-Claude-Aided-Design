@@ -18,6 +18,8 @@ import type { FixtureLayerProps } from './FixtureLayer'
 
 // store の中身（試験ごとに差し替える）
 const site = vi.hoisted(() => ({ state: { volume: null as unknown, plan: null as unknown } }))
+// P3の保存先から選択階を引き継ぐ（旧site.planからの読み出しは廃止）。
+vi.mock('../store/floorPlans',()=>({useFloorPlans:(selector:(s:unknown)=>unknown)=>selector({plans:site.state.plan?{1:site.state.plan}:{},selected:1})}))
 vi.mock('../store/site', () => ({
   useSite: (selector: (s: typeof site.state) => unknown) => selector(site.state),
 }))
@@ -167,11 +169,11 @@ describe('P4 の平面の什器の印（仕様 1・2）', () => {
     expect(marks[1]?.y).toBeLessThan(marks[2]?.y ?? 0)
   })
 
-  it('什器の欄の台数（区画ありの数）と、図の印の数は、区画が平面にあるかぎり同じ', () => {
+  it('保存済み什器の印を保ち、中央の什器編集欄は表示しない', () => {
     setStore([fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', kitchen, 'R0'), fixture('fixture-3', toilet, 'R0')])
     const html = htmlOf()
     expect(marksOf(planFigureOf(html))).toHaveLength(3)
-    expect(html.replace(/<[^>]*>/g, '')).toContain('キッチン2 台')
+    expect(html).not.toContain('仕様未選択の什器の個別単価')
   })
 })
 
@@ -181,11 +183,11 @@ describe('P4 の平面の什器の印（区画なし。仕様 3）', () => {
     expect(marksOf(planFigureOf(htmlOf())).map((m) => [m.id, m.label])).toEqual([['fixture-3', '収納']])
   })
 
-  it('図に出ない什器も、什器の欄には「区画なし」に数える（落とさない）', () => {
+  it('区画なしの什器は図へ表示せず保存データを保つ', () => {
     setStore([fixture('fixture-1', kitchen, null), fixture('fixture-2', toilet, 'ZZ')], PLAN.cells.map((c) => c.id))
     const html = htmlOf()
     expect(marksOf(planFigureOf(html))).toHaveLength(0)
-    expect(html.replace(/<[^>]*>/g, '')).toContain('区画なし2 台')
+    expect(fx.state.fixtures).toHaveLength(2)
   })
 })
 
@@ -249,12 +251,10 @@ describe('P4 の平面の什器の印（平面が無いとき。仕様 5）', ()
     setStore([fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', toilet, 'R2')])
     const html = htmlOf()
     expect(html.match(/data-fixture=/g)).toHaveLength(2)
-    // 図は 2 つ: 1 つ目が平面（部屋割り）、2 つ目が外形（多角形）
+    // 中央には保存済み平面だけを表示する
     const figures = html.split('<figure').slice(1)
-    expect(figures).toHaveLength(2)
+    expect(figures).toHaveLength(1)
     expect(marksOf(figures[0] ?? '')).toHaveLength(2)
-    expect(figures[1]).toContain('<polygon')
-    expect(figures[1]).not.toContain('data-fixture')
   })
 })
 
@@ -266,7 +266,8 @@ describe('P4 の平面の什器の印（今までどおり。仕様 6）', () =>
   it('什器を置いても、平面の廊下と部屋の塗り分けの四角は、同じ数のまま', () => {
     const rectCount = (svg: string): number => svg.match(/<rect\b/g)?.length ?? 0
     const before = rectCount(planFigureOf(htmlOf()))
-    expect(before).toBe(1 + PLAN.rooms.length)
+    // 保存済み詳細平面の描画は部屋の単純矩形とは限らない。什器追加前後の不変性を比較する。
+    expect(before).toBeGreaterThan(0)
     setStore([fixture('fixture-1', kitchen, 'L0'), fixture('fixture-2', toilet, 'R2')])
     expect(rectCount(planFigureOf(htmlOf()))).toBe(before)
   })

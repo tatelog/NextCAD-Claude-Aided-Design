@@ -7,7 +7,7 @@ export const tutorialSteps=[
  {screen:'P2',target:'tutorial-p2-next',title:'平面図へ進みましょう',body:'「次へ（平面）」を押すと配置を自動計算し、柱位置・住戸を平面へ引き継ぎます。確認事項が出た場合は内容を読み、この画面で直すか、要確認として進むかを選べます。'},
  {screen:'P3',target:'tutorial-p3-next',title:'平面図を確認して積算へ',body:'左の階一覧で各階の住戸・階段・EVを確認できます。戸数とタイプ別内訳を確認して「積算へ」を押してください。'},
  {screen:'P4',target:'tutorial-p4-next',title:'数量と単価を確認して出力へ',body:'数量・単価・金額を確認してください。未入力の単価は見積確定ではありません。「次へ（出力）」から図面出力へ進みます。'},
- {screen:'P5',target:'tutorial-attach',title:'申請書類の様式を添付しましょう',body:'「ファイルを選択」から使用する申請様式のWord（docx）を添付してください。取り込みが成功すると、一括保存の案内へ進みます。'},
- {screen:'P5',target:'tutorial-save-all',title:'図面・書類を一括保存しましょう',body:'「図面・書類・BIMデータを一括保存」をクリックしてください。図面PDF・取り込んだ様式から作成した書類・IFCをZIPにまとめて保存します。'},
+ {screen:'P5',target:'tutorial-attach',title:'申請書類の様式を添付しましょう',body:'手元の正式なWord様式（.docx）をドロップ領域へドラッグ＆ドロップするか、「またはファイルを選ぶ」から添付してください。右の図書一覧で記入内容を確認できます。取り込みが成功すると、一括保存の案内へ進みます。'},
+ {screen:'P5',target:'tutorial-save-all',title:'図面・書類を一括保存しましょう',body:'図面・図書一覧・IFCから必要な対象を選び、「選択した対象をまとめて保存」をクリックしてください。選択した対象をZIPにまとめます。'},
  {screen:'P5',target:'tutorial-save-all',title:'一括保存を開始しました',body:'保存先を選ぶ画面が出た場合は保存を完了してください。ダウンロードの開始までが今回の案内です。「完了」で操作制限を解除します。'}
 ] as const

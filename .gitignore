@@ -30,3 +30,8 @@ __pycache__/
 
 # 利用者が置く派生データ（生データ・変換結果は同梱しない）
 public/local-data/
+
+# ローカル検証資料（地図画像・録画・生成書類を含む）
+evidence/
+evidence-*.json
+public/samples/

@@ -1,3 +1,5 @@
+import {recordPage} from './recordPage'
+import {RecordPagination} from './RecordPagination'
 import {standardSelections} from '../estimate/standardSelections'
 import {useState} from 'react'
 import './SpecPackagePanel.css'
@@ -8,6 +10,8 @@ export function SpecPackagePanel({objects}:{objects:SpecObject[]}) {
  const selections=useSpecSelections(s=>s.selections),set=useSpecSelections(s=>s.set)
  const [part,setPart]=useState(''),[floor,setFloor]=useState(''),[active,setActive]=useState('')
  const shown=objects.filter(o=>(!part||o.part===part)&&(!floor||String(o.floor)===floor))
+ const [page,setPage]=useState(0)
+ const visible=recordPage(shown,page)
  const object=objects.find(o=>o.id===active), selection=object?selections[object.id]:undefined
  const change=(patch:Partial<SpecSelection>)=>{if(object&&selection)set(object.id,{...selection,...patch})}
  const choose=(o:SpecObject,id:string)=>set(o.id,id?changePackage(selections[o.id],id):null)
@@ -19,13 +23,14 @@ export function SpecPackagePanel({objects}:{objects:SpecObject[]}) {
   <p>未作図の住戸設備は仮仕様・仮数量で概算に含めます。給水20m・給湯15m・排水15m・換気10m/戸、空調1台・空調配管5m/居室、照明とスイッチは居室数＋4、コンセントは居室数×3＋5、電気配線は住戸面積×2m、給湯器・分電盤は各1/戸です。実施設計の数量ではありません。</p>
   <p>間仕切り高さ2,400 mm・開口高さ2,100 mmを初期仮定とします。寸法未確定の什器は標準案、窓は1,800×1,200mmの仮仕様で概算します。階段仕上げは未計上です。外壁タイルは既存単価表を参照します。</p>
   <p>直接仮設・共通仮設・現場管理費・一般管理費は対象外。浴室内部の仕上げ・浴室扉はUBに含め、共有間仕切りは1回だけ計上します。</p>
-  <label>部材種別 <select aria-label="仕様の部材種別" value={part} onChange={e=>setPart(e.target.value)}><option value="">すべて</option>{[...new Set(objects.map(o=>o.part))].map(p=><option key={p}>{p}</option>)}</select></label>{' '}
-  <label>階 <select aria-label="仕様の階" value={floor} onChange={e=>setFloor(e.target.value)}><option value="">すべて</option>{[...new Set(objects.flatMap(o=>o.floor?[o.floor]:[]))].map(f=><option key={f} value={f}>{f}階</option>)}</select></label>{' '}
-  <button type="button" onClick={()=>useSpecSelections.setState({selections:standardSelections(shown,selections,2400,2100,true)})}>表示部材の未選択に標準案を適用</button>
+  <label>部材種別 <select aria-label="仕様の部材種別" value={part} onChange={e=>{setPart(e.target.value);setPage(0)}}><option value="">すべて</option>{[...new Set(objects.map(o=>o.part))].map(p=><option key={p}>{p}</option>)}</select></label>{' '}
+  <label>階 <select aria-label="仕様の階" value={floor} onChange={e=>{setFloor(e.target.value);setPage(0)}}><option value="">すべて</option>{[...new Set(objects.flatMap(o=>o.floor?[o.floor]:[]))].map(f=><option key={f} value={f}>{f}階</option>)}</select></label>{' '}
+  <button type="button" onClick={()=>useSpecSelections.setState({selections:standardSelections(shown,selections,2400,2100,true)})}>絞り込み全件の未選択に標準案を適用</button>
   {!!stale.length&&<p role="status">平面からなくなった部材の仕様は計上していません。<button onClick={()=>stale.forEach(id=>set(id,null))}>不要な関連付けを削除</button></p>}
+  <RecordPagination label="部材" {...visible} onPage={setPage}/>
   {!objects.length&&<p>保存済みの各階平面、または配置した什器が必要です。</p>}
   <div style={{maxHeight:380,overflow:'auto'}}><table className="spec-package-table" style={{width:'100%',fontSize:12}}><thead><tr><th>平面の部材</th><th>選択仕様</th><th>数量</th><th>単価区分・出典</th><th>金額</th></tr></thead><tbody>
-  {shown.map(o=>{const s=selections[o.id];let line;let error='';try{line=s?packageLine(o,s.packageId,s):undefined}catch(e){error=String(e)}return <tr key={o.id} style={{background:active===o.id?'#e6f2ee':undefined}}>
+  {visible.items.map(o=>{const s=selections[o.id];let line;let error='';try{line=s?packageLine(o,s.packageId,s):undefined}catch(e){error=String(e)}return <tr key={o.id} style={{background:active===o.id?'#e6f2ee':undefined}}>
     <td><button type="button" onClick={()=>setActive(o.id)}>{o.name??o.id}</button></td>
     <td><select aria-label={`${o.name??o.id}の仕様`} value={s?.packageId??''} onChange={e=>{choose(o,e.target.value);setActive(o.id)}}><option value="">未選択</option>{packageOptions(o).filter(p=>p.unit===o.unit).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>{error&&<div role="alert">{error}</div>}</td>
     <td>{line?.quantity===null?'寸法・数量未入力':(line?.quantity??o.quantity)?.toLocaleString('ja-JP',{maximumFractionDigits:3})??'未確定'} {o.unit}</td>

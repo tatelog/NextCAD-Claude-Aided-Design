@@ -13,11 +13,11 @@ export function IconJudge() {
   )
 }
 
-/** 読み込み（箱へ入ってくる矢印） */
+/** ファイルを開く（開いたフォルダ） */
 export function IconLoad() {
   return (
     <svg {...svgProps}>
-      <path d="M8 2 V10 M5 7 L8 10 L11 7 M3 13 H13" {...stroke} />
+      <path d="M2 13 V3 H6 L8 5 H13 V7 M2 13 L4 7 H15 L13 13 Z" {...stroke} />
     </svg>
   )
 }

@@ -90,3 +90,9 @@ describe('フォルダ名の一か所（仕様 P5）', () => {
     expect(PACKAGE_LAYOUT.folders).toEqual({ form: '01_申請書', drawing: '02_図面', bim: '03_BIM' })
   })
 })
+
+it('追加図面が作成済みなら不足一覧に出さない',()=>{
+ const base=input(IFC);const data={...base,drawings:{...base.drawings,vicinity:'<svg/>',floorArea:'<svg/>'}};
+ const text=find(permitPackageFilesOf(data),PACKAGE_LAYOUT.blankFile)!.text;
+ expect(text).not.toContain('付近見取図：未作成');expect(text).not.toContain('床面積求積図：未作成');
+})

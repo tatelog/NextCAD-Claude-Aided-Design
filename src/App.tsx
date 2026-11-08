@@ -15,9 +15,8 @@ import { P5Output } from './ui/P5Output'
 import { useDrawing } from './store/drawing'
 import { ToolIcon } from './ui/toolIcons'
 import { HeaderIconButton } from './ui/HeaderIconButton'
-import { IconHistory, IconJudge, IconLoad, IconMenu, IconSave } from './ui/headerIcons'
-import { PendingIndicator, SaveDot } from './ui/HeaderStatus'
-import { targetSegmentsOf } from './plan/semanticConfirm'
+import { IconHistory, IconLoad, IconMenu, IconSave } from './ui/headerIcons'
+import { PendingIndicator } from './ui/HeaderStatus'
 import { useFixtures } from './store/fixtures'
 import { useFirstFloor } from './store/firstFloor'
 import { useConfirmedSite } from './store/confirmedSite'
@@ -36,14 +35,11 @@ import { Fold } from './ui/Fold'
 import { openWorkLog, recentWorkLog, recordWorkLog, snapshotOfWorkLogRow } from './app/workLogStore'
 import { startLineLog } from './app/workLogLines'
 import { restoreSnapshotJson } from './app/workSnapshot'
-import { judgeSegments, judgeText } from './worker/judge'
 import { appWorkerUrl } from './worker/workerUrl'
 import { useChat } from './store/chat'
 import { useSelection } from './store/selection'
 import { chatTransportOf, contextInputOf } from './chat/chatTransport'
 import { CHAT_MODEL_DEFAULT } from './chat/chatRequest'
-import { pendingLogEntry } from './app/pendingJudgments'
-import { saveStatusOf, type SaveSnapshotState } from './app/saveStatus'
 import { useSemantic } from './store/semantic'
 import { useUndoKeys } from './ui/useUndoKeys'
 import { SCREENS, type ScreenId } from './app/screenTabs'
@@ -137,7 +133,6 @@ export function App() {
   // 保留の一覧の件数（G31）。判定の接続はまだなので、今は 0 のまま
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
-  const featureOn = useFeatures((s) => s.on)
   // 作業のモード（G95・G100・G101）: System・Chat・Drawing。切替は、この画面で使えるものだけ出す
   const activeMode = useActiveMode(screen)
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
@@ -145,20 +140,6 @@ export function App() {
   // 今のモードで隠す画面の項目（G127。Drawing の意味づけの確認）。一覧の印を閉じた印にする
   const modeHiddenTiles = hidesTilesOf(SCREEN_MODES, activeMode)
   // レイヤーの表示とロック（G66）。筆界はロック固定
-  // 保存状態（保存した時点の案件と、いまの案件を店舗の参照で比べる。ハブ D-04 共通ヘッダー）
-  const drawEntries = useDrawing((s) => s.entries)
-  const drawStoreys = useDrawing((s) => s.storeyCount)
-  const drawHeight = useDrawing((s) => s.storeyHeightMm)
-  const drawFixtures = useFixtures((s) => s.fixtures)
-  const bimSettings=useBimSettings(s=>s.settings)
-  const specSelections=useSpecSelections(s=>s.selections)
-  const savedFloorPlans=useFloorPlans(s=>s.plans)
-  const snapshotNow = (): SaveSnapshotState => {
-    const d = useDrawing.getState()
-    return { bimSettings:useBimSettings.getState().settings,specSelections:useSpecSelections.getState().selections,floorPlans:useFloorPlans.getState().plans,entries: d.entries, storeyCount: d.storeyCount, storeyHeightMm: d.storeyHeightMm, fixtures: useFixtures.getState().fixtures }
-  }
-  const [saved, setSaved] = useState<SaveSnapshotState>(snapshotNow)
-  const saveStatus = saveStatusOf(saved, { bimSettings,specSelections,floorPlans:savedFloorPlans,entries: drawEntries, storeyCount: drawStoreys, storeyHeightMm: drawHeight, fixtures: drawFixtures })
   const record = (action: string, target: string) => {
     recordWorkLog({ at: new Date().toISOString(), screen, action, target })
     setRev((r) => r + 1)
@@ -168,26 +149,6 @@ export function App() {
     setScreen(id)
     recordWorkLog({ at: new Date().toISOString(), screen: id, action: '切替', target: id })
     setRev((r) => r + 1)
-  }
-
-  // 意味づけの判定（Claude）。F5・F9 の線を Worker に送り、結果は要確認の提案として入れる。失敗は保留へ（G9・G14・G31）
-  const [judgeMessage, setJudgeMessage] = useState<string | null>(null)
-  const judgeNow = async () => {
-    // Claude が見るのは F5・F9 の線だけ（G9）。P2 の線と P3 で描いた線（F9）が入る
-    const segments = targetSegmentsOf(useDrawing.getState().entries).map((s) => ({ id: s.id, a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 } }))
-    const outcome = await judgeSegments(
-      { segments, workerUrl: WORKER_URL, enabled: useFeatures.getState().on.classifyClaude, fetchImpl: (url, init) => fetch(url, init) },
-      {
-        suggest: (id, kind, confidence) => useSemantic.getState().suggest(id, kind, confidence),
-        addPending: (error) => {
-          const at = new Date().toISOString()
-          usePending.getState().add({ id: `judge-${Date.now()}`, label: '意味づけの判定', error, at })
-          // 保留の保存先は作業ログ（G31・G32）
-          recordWorkLog(pendingLogEntry(error, at))
-        },
-      },
-    )
-    setJudgeMessage(judgeText(outcome))
   }
 
   // 作業履歴の行の時点に戻す（線・階数・階高・什器。案件名は今のまま）。戻したことも行に残る
@@ -233,7 +194,6 @@ export function App() {
     a.click()
     URL.revokeObjectURL(url)
     record('保存', data.projectName)
-    setSaved(snapshotNow())
   }
 
   // 読み込み（保存した JSON を選ぶ）。一覧・階数・階高・什器・案件名を戻す。意味づけは保存していないので、読んだあとは空に戻す
@@ -244,8 +204,7 @@ export function App() {
       const p = parseSaveData(JSON.parse(await file.text()))
       applyLoadedProject(p)
       setProject(p.projectName)
-      setSaved(snapshotNow())
-      setLoadMessage(`「${p.projectName}」を読み込みました`)
+        setLoadMessage(`「${p.projectName}」を読み込みました`)
       record('読み込み', p.projectName)
     } catch (e) {
       setLoadMessage(`読み込めませんでした: ${e instanceof Error ? e.message : String(e)}`)
@@ -302,16 +261,8 @@ export function App() {
         />
         <span aria-hidden="true" style={{color:"#b4b7bd", flexShrink:0}}>｜</span>
 
-        <HeaderIconButton
-          label="意味づけを判定"
-          icon={<IconJudge />}
-          onClick={judgeNow}
-          disabled={!featureOn.classifyClaude}
-          title={WORKER_URL ? '意味づけを判定' : '意味づけを判定（判定の接続先が未設定です。押すと、その旨を出します）'}
-        />
-        {judgeMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{judgeMessage}</span> : null}
         <PendingIndicator count={pendingCount} />
-        <HeaderIconButton label="読み込み" icon={<IconLoad />} onClick={() => fileInput.current?.click()} />
+        <HeaderIconButton label="ファイルを開く" icon={<IconLoad />} onClick={() => fileInput.current?.click()} />
         <input
           ref={fileInput}
           type="file"
@@ -325,7 +276,6 @@ export function App() {
           }}
         />
         {loadMessage ? <span style={{ fontSize: 11, color: '#5b6670', maxWidth: 260 }}>{loadMessage}</span> : null}
-        <SaveDot status={saveStatus} />
         <HeaderIconButton label="保存" icon={<IconSave />} onClick={save} />
 
         <HeaderIconButton label="作業履歴" icon={<IconHistory />} pressed={panel === 'log'} onClick={() => setPanel(panel === 'log' ? null : 'log')} />
