@@ -7,11 +7,14 @@ const storage={getItem:(key:string)=>window.localStorage.getItem(key),setItem:(k
 export function Tutorial({screen}:{screen:string}){
  const {active,setActive,index,setIndex}=useTutorial()
  useEffect(()=>{if(shouldStart(storage))setActive(true)},[setActive])
- useEffect(()=>{const start=()=>{setIndex(0);setActive(true)};window.addEventListener('tutorial-start',start);return()=>window.removeEventListener('tutorial-start',start)},[setIndex,setActive])
+ // 再開は、ヘッダーが渡す手順の番号から（止めた手順。無ければ 0。代表 2026-11-08 の案 A）
+ useEffect(()=>{const start=(e:Event)=>{const i=(e as CustomEvent).detail;useTutorial.getState().start(typeof i==='number'?i:0)};window.addEventListener('tutorial-start',start);return()=>window.removeEventListener('tutorial-start',start)},[])
  const [rect,setRect]=useState<DOMRect|null>(null),[viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight})
  const card=useRef<HTMLDivElement>(null)
  const step=tutorialSteps[index]!
- const stop=()=>{saveDismissed(storage);setActive(false)}
+ // 途中の「終了」は止めた手順を覚える（再開できる）。最後の「完了」は覚えた手順を消す
+ const stop=()=>{saveDismissed(storage);useTutorial.getState().pause()}
+ const complete=()=>{saveDismissed(storage);useTutorial.getState().finish()}
  useEffect(()=>{if(active)saveDismissed(storage)},[active])
  useEffect(()=>{if(!active)return;const i=tutorialSteps.findIndex(s=>s.screen===screen);if(i>=0&&tutorialSteps[index]?.screen!==screen)setIndex(i)},[screen,active,index])
  useEffect(()=>{
@@ -22,7 +25,7 @@ export function Tutorial({screen}:{screen:string}){
   update();const observer=new ResizeObserver(update);if(target)observer.observe(target)
   window.addEventListener('tutorial-target-change',update)
   window.addEventListener('resize',update);window.addEventListener('scroll',update,true)
-  const escape=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();saveDismissed(storage);setActive(false)}}
+  const escape=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();saveDismissed(storage);useTutorial.getState().pause()}}
   window.addEventListener('keydown',escape)
   return()=>{observer.disconnect();window.removeEventListener('tutorial-target-change',update);window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true);window.removeEventListener('keydown',escape)}
  },[active,index,screen,step])
@@ -55,7 +58,7 @@ export function Tutorial({screen}:{screen:string}){
  {rect&&correct&&<svg aria-hidden="true" style={{position:'fixed',inset:0,width:'100%',height:'100%',zIndex:89,pointerEvents:'none'}}><rect x={rect.x+2} y={rect.y+2} width={Math.max(0,rect.width-4)} height={Math.max(0,rect.height-4)} rx="6" fill="none" stroke="#2876cb" strokeWidth="3"/><path d={`M ${left+width/2} ${top+22} L ${x} ${y}`} stroke="#2876cb" strokeWidth="2" fill="none"/><circle cx={x} cy={y} r="5" fill="#2876cb"/></svg>}
  <div data-tutorial-controls ref={card} role="region" aria-label="チュートリアル" aria-live="polite" style={{position:'fixed',left:Math.min(left,viewport.width-width-12),top,width,boxSizing:'border-box',padding:18,zIndex:90,background:'#fff',color:'#203149',border:'2px solid #2876cb',borderRadius:12,boxShadow:'0 6px 24px #20314926',fontSize:14,maxHeight:'calc(100vh - 90px)',overflowY:'auto'}}>
  <div style={{fontSize:12,color:'#466b94'}}>チュートリアル　{index+1} / {tutorialSteps.length}</div><h3 style={{margin:'8px 0'}}>{correct?step.title:'案内を一時中断しています'}</h3><p style={{lineHeight:1.7}}>{correct?step.body:'敷地またはボリューム画面に戻ると案内を続けられます。'}</p>
- <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button onClick={stop}>チュートリアルを終了</button>{index===tutorialSteps.length-1&&correct&&<button onClick={stop}>完了</button>}</div>
- <p style={{fontSize:11,color:'#65758a',marginBottom:0}}>終了後は自動表示しません。ヘッダーの初心者マークから再開できます。</p>
+ <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button onClick={stop}>チュートリアルを終了</button>{index===tutorialSteps.length-1&&correct&&<button onClick={complete}>完了</button>}</div>
+ <p style={{fontSize:11,color:'#65758a',marginBottom:0}}>終了後は自動表示しません。ヘッダーの初心者マークから、止めた手順の続きを再開できます。チュートリアル中は System モードだけ使えます。</p>
  </div></>,document.body)
 }

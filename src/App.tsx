@@ -1,7 +1,7 @@
 import {useBimSettings} from './store/bimSettings'
 import {useFloorPlans} from './store/floorPlans'
 import {useSpecSelections} from './store/specSelections'
-import {useTutorial} from './tutorial/state'
+import {tutorialModeOf, useTutorial} from './tutorial/state'
 import {Tutorial} from './tutorial/Tutorial'
 import {usePlanZoom} from './store/planZoom'
 // 画面の切り替え（D-04 共通ヘッダーの流れ P1〜P4、出力 P5）と、共通ヘッダーの右側（保存・モード・作業履歴・メニュー・保留）。
@@ -136,7 +136,20 @@ export function App() {
   const pendingCount = usePending((s) => s.items.length)
   // 機能のオンオフ（G70）。設定を持ち、つながっている項目は画面の状態にも出す
   // 作業のモード（G95・G100・G101）: System・Chat・Drawing。切替は、この画面で使えるものだけ出す
-  const activeMode = useActiveMode(screen)
+  // チュートリアル中は System だけ（代表 2026-11-08）。始めたときのモードを覚え、終わったら戻す
+  const activeMode = tutorialModeOf(tutorialActive, useActiveMode(screen))
+  const rawMode = useMode((s) => s.mode)
+  const modeBeforeTutorial = useRef<WorkMode | null>(null)
+  useEffect(() => {
+    if (tutorialActive) {
+      if (modeBeforeTutorial.current === null) modeBeforeTutorial.current = rawMode
+      if (rawMode !== 'system') useMode.getState().setMode('system')
+    } else if (modeBeforeTutorial.current !== null) {
+      const before = modeBeforeTutorial.current
+      modeBeforeTutorial.current = null
+      useMode.getState().setMode(before)
+    }
+  }, [tutorialActive, rawMode])
   // 右パネルの閉じたタイル（G73・G74）。メニューの「右パネルの項目」で戻す
   const panelHidden = usePanelTiles((s) => s.hidden)
   // 今のモードで隠す画面の項目（G127。Drawing の意味づけの確認）。一覧の印を閉じた印にする
@@ -247,7 +260,7 @@ export function App() {
           </button>
         ))}
       </nav>
-        <button data-tutorial-exit type="button" className="hdr-btn" aria-label={tutorialActive?'チュートリアルを終了':'チュートリアル'} title={tutorialActive?'チュートリアルを終了':'チュートリアル'} aria-pressed={tutorialActive} onClick={()=>{if(tutorialActive){useTutorial.getState().setActive(false)}else{go('P1');window.dispatchEvent(new Event('tutorial-start'))}}}><svg aria-hidden="true" width="18" height="20" viewBox="0 0 24 28"><path d="M12 8 3.8 2.6Q2 1.5 2 3.8v14.5q0 1.3 1.1 2L12 26Z" fill="#c5ba85"/><path d="m12 8 8.2-5.4Q22 1.5 22 3.8v14.5q0 1.3-1.1 2L12 26Z" fill="#7c9b88"/><path d="M12 8 3.8 2.6Q2 1.5 2 3.8v14.5q0 1.3 1.1 2L12 26l8.9-5.7q1.1-.7 1.1-2V3.8q0-2.3-1.8-1.2Z" fill="none" stroke="#727d75" strokeWidth="1.2" strokeLinejoin="round"/></svg></button>
+        <button data-tutorial-exit type="button" className="hdr-btn" aria-label={tutorialActive?'チュートリアルを終了':'チュートリアル'} title={tutorialActive?'チュートリアルを終了':'チュートリアル'} aria-pressed={tutorialActive} onClick={()=>{if(tutorialActive){useTutorial.getState().pause()}else{/* 止めた手順があれば、その手順の画面から続ける（代表 2026-11-08 の案 A） */const t=useTutorial.getState().resumeTarget();go(t.screen as ScreenId);window.dispatchEvent(new CustomEvent('tutorial-start',{detail:t.index}))}}}><svg aria-hidden="true" width="18" height="20" viewBox="0 0 24 28"><path d="M12 8 3.8 2.6Q2 1.5 2 3.8v14.5q0 1.3 1.1 2L12 26Z" fill="#c5ba85"/><path d="m12 8 8.2-5.4Q22 1.5 22 3.8v14.5q0 1.3-1.1 2L12 26Z" fill="#7c9b88"/><path d="M12 8 3.8 2.6Q2 1.5 2 3.8v14.5q0 1.3 1.1 2L12 26l8.9-5.7q1.1-.7 1.1-2V3.8q0-2.3-1.8-1.2Z" fill="none" stroke="#727d75" strokeWidth="1.2" strokeLinejoin="round"/></svg></button>
         <span aria-hidden="true" style={{color:"#b4b7bd", marginLeft:"auto", paddingLeft:24}}>｜</span>
         <span id="volume-display-controls" style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}} />
         <span aria-hidden="true" style={{color:"#b4b7bd"}}>｜</span>
@@ -265,6 +278,7 @@ export function App() {
         <ModeSwitch
           screen={screen}
           activeMode={activeMode}
+          lockedTo={tutorialActive ? 'system' : undefined}
           onPick={(id) => {
             useMode.getState().setMode(id as WorkMode)
             record('モード', modeName(SCREEN_MODES, id))

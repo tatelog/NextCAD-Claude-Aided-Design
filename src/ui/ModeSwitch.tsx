@@ -11,6 +11,8 @@ export interface ModeSwitchProps {
   activeMode: string
   /** モードを押した */
   onPick: (mode: string) => void
+  /** このモードだけ押せる（チュートリアル中は system。代表 2026-11-08）。無ければ全部押せる */
+  lockedTo?: string
 }
 
 /** モードのアイコン（id は screenModes.json の id。代表の依頼 2026-11-06: 文字を消して、アイコンだけ） */
@@ -25,13 +27,15 @@ const iconOfMode = (id: string) => {
   }
 }
 
-export function ModeSwitch({ screen, activeMode, onPick }: ModeSwitchProps) {
+export function ModeSwitch({ screen, activeMode, onPick, lockedTo }: ModeSwitchProps) {
   const modes = modesOfScreen(SCREEN_MODES, screen).filter(mode => screen !== 'P2' || mode.id !== 'drawing')
   if (modes.length <= 1) return null
   return (
     <div role="group" aria-label="モード" style={{ display: 'flex', gap: 4 }}>
       {modes.map((m) => (
-        <HeaderIconButton key={m.id} label={m.name} icon={iconOfMode(m.id)} pressed={activeMode === m.id} onClick={() => onPick(m.id)} />
+        <HeaderIconButton key={m.id} label={m.name} icon={iconOfMode(m.id)} pressed={activeMode === m.id} onClick={() => onPick(m.id)}
+          disabled={lockedTo !== undefined && m.id !== lockedTo}
+          title={lockedTo !== undefined && m.id !== lockedTo ? 'チュートリアル中は System だけ使えます' : undefined} />
       ))}
     </div>
   )
