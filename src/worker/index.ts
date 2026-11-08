@@ -33,6 +33,11 @@ const BodySchema = z.object({
   ),
 })
 
+// 保留の理由（API の状態の番号など）。こちらで組んだ文だけで、鍵は入らない。長さを切る（統括 2026-11-08）
+function pendingReason(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 200)
+}
+
 function corsHeaders(request: Request, env: Env): Record<string, string> {
   const origin = request.headers.get('origin')
   if (!env.ALLOWED_ORIGIN || origin !== env.ALLOWED_ORIGIN) return {}
@@ -84,7 +89,7 @@ export async function handleRequest(request: Request, env: Env, fetchImpl: Fetch
     return json(200, { segments }, cors)
   } catch (e) {
     if (e instanceof Error && (e as { code?: string }).code === PENDING) {
-      return json(503, { code: PENDING, error: '判定を保留した' }, cors)
+      return json(503, { code: PENDING, error: '判定を保留した', reason: pendingReason(e) }, cors)
     }
     // キーなどの設定の中身は返さない
     return json(500, { error: 'Worker の設定が足りない、または内部の失敗' }, cors)
@@ -119,7 +124,7 @@ async function handleOrdinance(request: Request, env: Env, fetchImpl: FetchLike,
     return json(200, result, cors)
   } catch (e) {
     if (e instanceof Error && (e as { code?: string }).code === PENDING) {
-      return json(503, { code: PENDING, error: '補完を保留した' }, cors)
+      return json(503, { code: PENDING, error: '補完を保留した', reason: pendingReason(e) }, cors)
     }
     return json(500, { error: 'Worker の設定が足りない、または内部の失敗' }, cors)
   }
@@ -157,7 +162,7 @@ async function handleChat(request: Request, env: Env, fetchImpl: FetchLike, cors
     return json(200, { reply }, cors)
   } catch (e) {
     if (e instanceof Error && (e as { code?: string }).code === PENDING) {
-      return json(503, { code: PENDING, error: '返答を保留した' }, cors)
+      return json(503, { code: PENDING, error: '返答を保留した', reason: pendingReason(e) }, cors)
     }
     // キーなどの設定の中身は返さない
     return json(500, { error: 'Worker の設定が足りない、または内部の失敗' }, cors)
