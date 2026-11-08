@@ -17,11 +17,13 @@ export function compactPlan(from:readonly Point[],lot:readonly Point[],boundarie
  const maxLength=Math.min(60000,Math.max(24000,Math.floor(d.depth/1000)*1000))
  let best:{footprint:Point[];width:number;depth:number;unitDepth:number;unused:number;units:number;ratio:number}|null=null
  const unitDepths=[...new Set(masterOf(candidates).map(t=>t.depth_mm).filter((n):n is number=>n!==null&&Number.isFinite(n)&&n>0))]
+ // 住戸の当てはめの控えは、寸法の候補の間で使い回す（鍵が入力をすべて含むので結果は変わらない。軽くするため）
+ const unitFitCache:NonNullable<Parameters<typeof prepareVolumePlan>[3]>=new Map()
  for(const unitDepth of unitDepths)for(let depth=Math.max(18000,maxLength-8000);depth<=maxLength;depth+=1000){
   const width=2*unitDepth+1600+2*DEFAULT_BALCONY_DEPTH,footprint=resizeDimensions(from,width,depth)
   if(!placementAllowed(lot,footprint,6))continue
   try{
-   const candidate=prepareVolumePlan({footprint,storey_count:storeys,storey_height:height},boundaries,{layout:'中廊下',span:3000,unitDepth,corridor:1600,uniformDepth:true})
+   const candidate=prepareVolumePlan({footprint,storey_count:storeys,storey_height:height},boundaries,{layout:'中廊下',span:3000,unitDepth,corridor:1600,uniformDepth:true},unitFitCache)
    const plans=Object.values(candidate.plans),units=plans.reduce((n,p)=>n+p.cells.length,0)
    const unused=plans.reduce((n,p)=>n+unusedArea(p),0),ratio=unused/(width*depth*plans.length/1e6)
    if(units>0&&(!best||ratio<best.ratio-1e-6||Math.abs(ratio-best.ratio)<1e-6&&units>best.units))best={footprint,width,depth,unitDepth,unused,units,ratio}
